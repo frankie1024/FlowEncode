@@ -57,6 +57,10 @@ public sealed partial class VapourSynthPreviewWindow : Window
     private VapourSynthPreviewSessionInfo? _currentSession;
     private VapourSynthPreviewOutputInfo? _selectedOutputInfo;
 
+    private sealed record Chapter(TimeSpan Timecode, int FrameNumber, string Name);
+    private List<Chapter> _chapters = [];
+    private int _currentChapterIndex = -1;
+
     public VapourSynthPreviewWindowViewModel ViewModel { get; }
 
     public event EventHandler? PreviewWindowClosed;
@@ -371,13 +375,14 @@ public sealed partial class VapourSynthPreviewWindow : Window
             FrameNumberBox.Value = ViewModel.CurrentFrame;
             FrameSlider.Maximum = ViewModel.FrameSliderMaximum;
             FrameSlider.Value = ViewModel.CurrentFrame;
+            UpdateCurrentChapter(ViewModel.CurrentFrame);
+            ChapterMarkCanvas.InvalidateMeasure();
             StepSizeBox.Value = ViewModel.StepSize;
             ZoomRatioBox.Value = Math.Round(ViewModel.ZoomRatio * 100);
             ZoomRatioBox.Visibility = ViewModel.CustomZoomVisibility;
             FramePropsPanel.Visibility = ViewModel.IsFramePropsVisible ? Visibility.Visible : Visibility.Collapsed;
             PropsColumn.Width = ViewModel.IsFramePropsVisible ? new GridLength(300) : new GridLength(0);
             FramePropsToggleButton.IsChecked = ViewModel.IsFramePropsVisible;
-            TimelineToggleButton.IsChecked = ViewModel.IsTimelinePanelVisible;
             CropToggleButton.IsChecked = ViewModel.IsCropPanelVisible;
             TimelineModeComboBox.SelectedItem = ViewModel.SelectedTimelineMode;
             TimeStepSecondsBox.Value = ViewModel.TimeStepSeconds;
@@ -421,6 +426,16 @@ public sealed partial class VapourSynthPreviewWindow : Window
 
     private async void SaveSnapshotButton_Click(object sender, RoutedEventArgs e)
     {
+        await SaveCurrentSnapshotAsync();
+    }
+
+    private async void SaveAllOutputsButton_Click(object sender, RoutedEventArgs e)
+    {
+        await SaveAllOutputsSnapshotAsync();
+    }
+
+    private async Task SaveCurrentSnapshotAsync()
+    {
         if (_displayedFramePixels is null || _displayedFrameWidth <= 0 || _displayedFrameHeight <= 0)
         {
             return;
@@ -459,6 +474,68 @@ public sealed partial class VapourSynthPreviewWindow : Window
 
         await SavePixelsAsPngAsync(file.Path, _displayedFramePixels, _displayedFrameWidth, _displayedFrameHeight);
         SetStatusText(ViewModel.Texts.VapourSynthPreviewSnapshotSavedStatus(file.Path));
+    }
+
+    private async Task SaveAllOutputsSnapshotAsync()
+    {
+        if (_currentRequest is null || ViewModel.Outputs.Count == 0)
+        {
+            return;
+        }
+
+        try
+        {
+            var folderPicker = new FolderPicker
+            {
+                SuggestedStartLocation = PickerLocationId.PicturesLibrary
+            };
+            folderPicker.FileTypeFilter.Add("*");
+            InitializeWithWindow.Initialize(folderPicker, GetWindowHandle());
+
+            var folder = await folderPicker.PickSingleFolderAsync();
+            if (folder is null)
+            {
+                return;
+            }
+
+            var outputStates = ViewModel.Outputs.ToList();
+            var savedCount = 0;
+            var currentFrame = ViewModel.CurrentFrame;
+            var previousOutput = _selectedOutputInfo;
+
+            foreach (var outputOption in outputStates)
+            {
+                await SelectOutputAsync(outputOption.Info);
+
+                if (_displayedFramePixels is null || _displayedFrameWidth <= 0 || _displayedFrameHeight <= 0)
+                {
+                    continue;
+                }
+
+                var outputName = SanitizePathToken(outputOption.Info.Name);
+                if (string.IsNullOrWhiteSpace(outputName))
+                {
+                    outputName = outputOption.Info.Index.ToString();
+                }
+
+                var fileName = $"{Path.GetFileNameWithoutExtension(_currentRequest.SourceFilePath ?? "preview")}-out{outputOption.Info.Index}-frame{currentFrame}.png";
+                var snapshotPath = Path.Combine(folder.Path, fileName);
+
+                await SavePixelsAsPngAsync(snapshotPath, _displayedFramePixels, _displayedFrameWidth, _displayedFrameHeight);
+                savedCount++;
+            }
+
+            if (previousOutput is not null)
+            {
+                await SelectOutputAsync(previousOutput);
+            }
+
+            SetStatusText($"已保存 {savedCount}/{outputStates.Count} 个输出节点的帧画面。");
+        }
+        catch (Exception ex)
+        {
+            SetStatusText($"多节点截图失败：{ex.Message}");
+        }
     }
 
     private async Task QuickSaveSnapshotAsync()
@@ -520,11 +597,6 @@ public sealed partial class VapourSynthPreviewWindow : Window
         SetStatusText(ViewModel.Texts.VapourSynthPreviewFrameCopiedStatus);
     }
 
-    private void ReturnToEditorButton_Click(object sender, RoutedEventArgs e)
-    {
-        Close();
-    }
-
     private void FramePropsToggleButton_Checked(object sender, RoutedEventArgs e)
     {
         ViewModel.IsFramePropsVisible = true;
@@ -534,18 +606,6 @@ public sealed partial class VapourSynthPreviewWindow : Window
     private void FramePropsToggleButton_Unchecked(object sender, RoutedEventArgs e)
     {
         ViewModel.IsFramePropsVisible = false;
-        SyncControls();
-    }
-
-    private void TimelineToggleButton_Checked(object sender, RoutedEventArgs e)
-    {
-        ViewModel.IsTimelinePanelVisible = true;
-        SyncControls();
-    }
-
-    private void TimelineToggleButton_Unchecked(object sender, RoutedEventArgs e)
-    {
-        ViewModel.IsTimelinePanelVisible = false;
         SyncControls();
     }
 
@@ -914,7 +974,59 @@ public sealed partial class VapourSynthPreviewWindow : Window
             return;
         }
 
-        await RenderFrameAsync((int)Math.Round(e.NewValue));
+        var frame = (int)Math.Round(e.NewValue);
+        UpdateCurrentChapter(frame);
+        await RenderFrameAsync(frame);
+    }
+
+    private async void SliderGrid_PointerPressed(object sender, Microsoft.UI.Xaml.Input.PointerRoutedEventArgs e)
+    {
+        if (_chapters.Count == 0 || _selectedOutputInfo is null) return;
+        if (sender is not FrameworkElement fe) return;
+
+        var point = e.GetCurrentPoint(fe);
+        var clickX = point.Position.X;
+
+        var track = MeasureSliderTrackOffset();
+        if (track.width <= 0) return;
+
+        var totalFrames = Math.Max(1, ViewModel.FrameSliderMaximum);
+        var fraction = Math.Clamp((clickX - track.offset) / track.width, 0, 1);
+        var clickedFrame = (int)(fraction * totalFrames);
+
+        var nearest = _chapters
+            .OrderBy(c => Math.Abs(c.FrameNumber - clickedFrame))
+            .First();
+
+        if (Math.Abs(nearest.FrameNumber - clickedFrame) < 15)
+        {
+            _currentChapterIndex = _chapters.IndexOf(nearest);
+            UpdateChapterButtons();
+            RedrawChapterMarkers(null, null);
+            await RenderFrameAsync(nearest.FrameNumber);
+        }
+    }
+
+    private void UpdateCurrentChapter(int frame)
+    {
+        if (_chapters.Count == 0)
+        {
+            _currentChapterIndex = -1;
+            return;
+        }
+
+        var nearest = _chapters
+            .Select((c, i) => (chapter: c, index: i))
+            .OrderBy(item => Math.Abs(item.chapter.FrameNumber - frame))
+            .First();
+
+        if (Math.Abs(nearest.chapter.FrameNumber - frame) < 3)
+            _currentChapterIndex = nearest.index;
+        else
+            _currentChapterIndex = -1;
+
+        UpdateChapterButtons();
+        RedrawChapterMarkers(null, null);
     }
 
     private async void PlaybackTimer_Tick(object? sender, object e)
@@ -1636,17 +1748,7 @@ public sealed partial class VapourSynthPreviewWindow : Window
 
     private bool TryEnterFullScreen()
     {
-        try
-        {
-            AppWindow.SetPresenter(AppWindowPresenterKind.FullScreen);
-            _isFullScreenActive = true;
-            return true;
-        }
-        catch
-        {
-            _isFullScreenActive = false;
-            return false;
-        }
+        return TryMaximizeWindow();
     }
 
     private bool TryMaximizeWindow()
@@ -1681,6 +1783,434 @@ public sealed partial class VapourSynthPreviewWindow : Window
         {
             return false;
         }
+    }
+
+    private double GetFps()
+    {
+        if (_selectedOutputInfo is null || _selectedOutputInfo.FpsDenominator == 0) return 24.0;
+        return (double)_selectedOutputInfo.FpsNumerator / _selectedOutputInfo.FpsDenominator;
+    }
+
+    private int TimecodeToFrame(TimeSpan tc)
+    {
+        return (int)(tc.TotalSeconds * GetFps() + 0.5);
+    }
+
+    private TimeSpan FrameToTimecode(int frame)
+    {
+        return TimeSpan.FromSeconds(frame / GetFps());
+    }
+
+    private List<Chapter> ParseChapterFile(string filePath)
+    {
+        var chapters = new List<Chapter>();
+        var lines = File.ReadAllLines(filePath);
+        var timecodeMap = new Dictionary<int, string>();
+        var nameMap = new Dictionary<int, string>();
+
+        foreach (var line in lines)
+        {
+            var trimmed = line.Trim();
+            if (string.IsNullOrWhiteSpace(trimmed) || trimmed.StartsWith('#'))
+                continue;
+
+            var match = System.Text.RegularExpressions.Regex.Match(trimmed, @"^CHAPTER(\d+)=(.*)");
+            if (!match.Success) continue;
+
+            var index = int.Parse(match.Groups[1].Value);
+            var value = match.Groups[2].Value.Trim();
+
+            if (trimmed.Contains("CHAPTERNAME", StringComparison.OrdinalIgnoreCase))
+                nameMap[index] = value;
+            else
+                timecodeMap[index] = value;
+        }
+
+        var maxFrame = _selectedOutputInfo is not null
+            ? Math.Max(0, _selectedOutputInfo.TotalFrames - 1)
+            : int.MaxValue;
+
+        foreach (var kvp in timecodeMap.OrderBy(k => k.Key))
+        {
+            if (!TimeSpan.TryParse(kvp.Value, out var tc)) continue;
+            var frame = Math.Min(TimecodeToFrame(tc), maxFrame);
+            nameMap.TryGetValue(kvp.Key, out var name);
+            chapters.Add(new Chapter(tc, frame, name ?? $"Chapter {kvp.Key:00}"));
+        }
+
+        return chapters;
+    }
+
+    private async void ImportChapterButton_Click(object sender, RoutedEventArgs e)
+    {
+        var picker = new FileOpenPicker { SuggestedStartLocation = PickerLocationId.DocumentsLibrary };
+        picker.FileTypeFilter.Add(".xml");
+        picker.FileTypeFilter.Add(".txt");
+        InitializeWithWindow.Initialize(picker, GetWindowHandle());
+
+        var file = await picker.PickSingleFileAsync();
+        if (file is null) return;
+
+        try
+        {
+            _chapters = ParseChapterFile(file.Path);
+            _currentChapterIndex = -1;
+            UpdateChapterButtons();
+            UpdateChapterSliderTicks();
+
+            if (_chapters.Count > 0)
+                SetStatusText($"已加载 {_chapters.Count} 个章节");
+            else
+                SetStatusText("未找到有效章节");
+        }
+        catch (Exception ex)
+        {
+            SetStatusText($"章节文件加载失败：{ex.Message}");
+        }
+    }
+
+    private async void EditChapterButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (_chapters.Count == 0 || _currentChapterIndex < 0 || _currentChapterIndex >= _chapters.Count)
+        {
+            await ShowChapterDialogAsync(null);
+            return;
+        }
+
+        await ShowChapterDialogAsync(_chapters[_currentChapterIndex]);
+    }
+
+    private async Task ShowChapterDialogAsync(Chapter? chapter)
+    {
+        var ch = chapter ?? new Chapter(FrameToTimecode(ViewModel.CurrentFrame), ViewModel.CurrentFrame, $"Chapter {_chapters.Count + 1}");
+
+        var modeAuto = new RadioButton { Content = "自动对齐到 I/P 帧（仅大致对齐，不推荐）", GroupName = "chapterMode" };
+        var modeFrame = new RadioButton { Content = "手动输入帧号", IsChecked = true, GroupName = "chapterMode" };
+        var modeTimecode = new RadioButton { Content = "手动输入时间码（XX:XX:XX.XXX）", GroupName = "chapterMode" };
+        var modeAddNew = new RadioButton { Content = "新增章节（在当前帧新建）", GroupName = "chapterMode" };
+        var modeDelete = new RadioButton { Content = "删除此章节", GroupName = "chapterMode" };
+
+        var nameBox = new TextBox { Header = "章节名称", Text = ch.Name, MinWidth = 300 };
+        var frameBox = new NumberBox
+        {
+            Header = "帧号",
+            Value = ch.FrameNumber,
+            Minimum = 0,
+            Maximum = ViewModel.FrameSliderMaximum,
+            SpinButtonPlacementMode = NumberBoxSpinButtonPlacementMode.Hidden,
+            Visibility = Visibility.Visible,
+            MinHeight = 26
+        };
+        var timecodeBox = new TextBox
+        {
+            Header = "时间码",
+            Text = ch.Timecode.ToString(@"hh\:mm\:ss\.fff"),
+            Visibility = Visibility.Collapsed,
+            MinHeight = 26
+        };
+
+        // 选中帧号模式 → 显示帧号输入框，隐藏时间码
+        // 选中时间码模式 → 显示时间码输入框，隐藏帧号
+        // 选中其他模式 → 隐藏两个输入框
+        void UpdateInputVisibility()
+        {
+            var showFrame = modeFrame.IsChecked == true;
+            var showTc = modeTimecode.IsChecked == true;
+            frameBox.Visibility = showFrame ? Visibility.Visible : Visibility.Collapsed;
+            timecodeBox.Visibility = showTc ? Visibility.Visible : Visibility.Collapsed;
+            nameBox.Visibility = modeDelete.IsChecked == true ? Visibility.Collapsed : Visibility.Visible;
+        }
+
+        modeAuto.Checked += (_, _) => UpdateInputVisibility();
+        modeFrame.Checked += (_, _) => UpdateInputVisibility();
+        modeTimecode.Checked += (_, _) => UpdateInputVisibility();
+        modeAddNew.Checked += (_, _) => UpdateInputVisibility();
+        modeDelete.Checked += (_, _) => UpdateInputVisibility();
+
+        var panel = new StackPanel { Spacing = 10 };
+        panel.Children.Add(nameBox);
+        panel.Children.Add(modeAuto);
+        panel.Children.Add(modeFrame);
+        panel.Children.Add(frameBox);
+        panel.Children.Add(modeTimecode);
+        panel.Children.Add(timecodeBox);
+        panel.Children.Add(modeAddNew);
+        panel.Children.Add(modeDelete);
+
+        var dialog = new ContentDialog
+        {
+            Title = "章节管理",
+            Content = panel,
+            PrimaryButtonText = "确定",
+            CloseButtonText = "取消",
+            DefaultButton = ContentDialogButton.Primary,
+            XamlRoot = RootLayout.XamlRoot ?? this.Content.XamlRoot
+        };
+
+        if (await dialog.ShowAsync() != ContentDialogResult.Primary)
+            return;
+
+        // 删除
+        if (modeDelete.IsChecked == true)
+        {
+            if (chapter is not null && _chapters.Remove(chapter))
+            {
+                _currentChapterIndex = -1;
+                SetStatusText($"已删除章节：{chapter.Name}");
+                UpdateChapterButtons();
+                UpdateChapterSliderTicks();
+            }
+            return;
+        }
+
+        // 新增：使用当前帧位置
+        if (modeAddNew.IsChecked == true)
+        {
+            var frame = ViewModel.CurrentFrame;
+            var tc = FrameToTimecode(frame);
+            var name = nameBox.Text?.Trim();
+            if (string.IsNullOrWhiteSpace(name)) name = $"Chapter {_chapters.Count + 1}";
+            _chapters.Add(new Chapter(tc, frame, name));
+            _chapters = [.. _chapters.OrderBy(c => c.FrameNumber)];
+            SetStatusText($"已新增章节：{name} @ {tc:hh\\:mm\\:ss\\.fff}");
+            UpdateChapterButtons();
+            UpdateChapterSliderTicks();
+            return;
+        }
+
+        // 自动 / 帧号 / 时间码 → 编辑当前章节或添加新章
+        var targetFrame = ch.FrameNumber;
+        var targetName = nameBox.Text?.Trim();
+        if (string.IsNullOrWhiteSpace(targetName))
+            targetName = $"Chapter {_chapters.Count + 1}";
+
+        if (modeAuto.IsChecked == true)
+        {
+            var autoFrame = await FindNearestIPFrameAsync(targetFrame);
+            targetFrame = autoFrame ?? targetFrame;
+            if (autoFrame is not null)
+                SetStatusText($"已自动吸附到 I/P 帧：帧 #{autoFrame}");
+        }
+        else if (modeFrame.IsChecked == true)
+        {
+            targetFrame = (int)Math.Clamp(frameBox.Value, 0, ViewModel.FrameSliderMaximum);
+        }
+        else if (modeTimecode.IsChecked == true)
+        {
+            if (TimeSpan.TryParse(timecodeBox.Text?.Trim(), out var tc))
+                targetFrame = TimecodeToFrame(tc);
+        }
+
+        targetFrame = Math.Clamp(targetFrame, 0, (int)ViewModel.FrameSliderMaximum);
+        var newTc = FrameToTimecode(targetFrame);
+
+        // 如果能找到当前章节则更新，否则新增
+        if (chapter is not null && _chapters.Contains(chapter))
+        {
+            var idx = _chapters.IndexOf(chapter);
+            _chapters[idx] = new Chapter(newTc, targetFrame, targetName);
+            _chapters = [.. _chapters.OrderBy(c => c.FrameNumber)];
+            SetStatusText($"已更新章节：{targetName} @ {newTc:hh\\:mm\\:ss\\.fff}");
+        }
+        else
+        {
+            _chapters.Add(new Chapter(newTc, targetFrame, targetName));
+            _chapters = [.. _chapters.OrderBy(c => c.FrameNumber)];
+            SetStatusText($"已添加章节：{targetName} @ {newTc:hh\\:mm\\:ss\\.fff}");
+        }
+
+        await RenderFrameAsync(targetFrame);
+        UpdateChapterButtons();
+        UpdateChapterSliderTicks();
+    }
+
+    private async Task<int?> FindNearestIPFrameAsync(int centerFrame)
+    {
+        if (_selectedOutputInfo is null) return null;
+
+        var minFrame = Math.Max(0, centerFrame - 5);
+        var maxFrame = Math.Min(_selectedOutputInfo.TotalFrames - 1, centerFrame + 5);
+
+        for (var offset = 0; offset <= Math.Max(centerFrame - minFrame, maxFrame - centerFrame); offset++)
+        {
+            if (offset == 0)
+            {
+                var frameType = _lastFrameData?.FrameType;
+                if (frameType is "I" or "P")
+                    return centerFrame;
+            }
+
+            foreach (var direction in new[] { -1, 1 })
+            {
+                var candidate = centerFrame + direction * offset;
+                if (candidate < minFrame || candidate > maxFrame || candidate == centerFrame)
+                    continue;
+
+                try
+                {
+                    var frameData = await _previewService.RenderFrameAsync(_selectedOutputInfo.Index, candidate);
+                    if (frameData.FrameType is "I" or "P")
+                        return candidate;
+                }
+                catch
+                {
+                }
+            }
+        }
+
+        return null;
+    }
+
+    private async Task AddNewChapterAtCurrentFrameAsync()
+    {
+        var frame = ViewModel.CurrentFrame;
+        var tc = FrameToTimecode(frame);
+        var name = $"Chapter {_chapters.Count + 1}";
+
+        _chapters.Add(new Chapter(tc, frame, name));
+        _chapters = [.. _chapters.OrderBy(c => c.FrameNumber)];
+        SetStatusText($"已添加章节：{name} @ {tc:hh\\:mm\\:ss\\.fff}");
+        UpdateChapterButtons();
+        UpdateChapterSliderTicks();
+    }
+
+    private async void NextChapterButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (_chapters.Count == 0) return;
+        var next = _currentChapterIndex + 1;
+        if (next >= _chapters.Count) next = 0;
+        _currentChapterIndex = next;
+        await RenderFrameAsync(_chapters[next].FrameNumber);
+        UpdateChapterButtons();
+    }
+
+    private async void ExportChapterButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (_chapters.Count == 0) return;
+
+        var picker = new FileSavePicker
+        {
+            SuggestedStartLocation = PickerLocationId.DocumentsLibrary,
+            SuggestedFileName = "chapters",
+            DefaultFileExtension = ".txt"
+        };
+        picker.FileTypeChoices.Add("Chapter file", [".txt", ".xml"]);
+        InitializeWithWindow.Initialize(picker, GetWindowHandle());
+
+        var file = await picker.PickSaveFileAsync();
+        if (file is null) return;
+
+        try
+        {
+            using var writer = new StreamWriter(file.Path);
+            for (var i = 0; i < _chapters.Count; i++)
+            {
+                var ch = _chapters[i];
+                var idx = i + 1;
+                writer.WriteLine($"CHAPTER{idx:D2}={ch.Timecode:hh\\:mm\\:ss\\.fff}");
+                writer.WriteLine($"CHAPTER{idx:D2}NAME=en:{ch.Name}");
+            }
+            SetStatusText($"已导出 {_chapters.Count} 个章节到 {file.Path}");
+        }
+        catch (Exception ex)
+        {
+            SetStatusText($"章节导出失败：{ex.Message}");
+        }
+    }
+
+    private void UpdateChapterButtons()
+    {
+        var hasChapters = _chapters.Count > 0;
+        EditChapterButton.IsEnabled = hasChapters;
+        NextChapterButton.IsEnabled = hasChapters;
+        ExportChapterButton.IsEnabled = hasChapters;
+    }
+
+    private void UpdateChapterSliderTicks()
+    {
+        ChapterMarkCanvas.Children.Clear();
+        if (_chapters.Count == 0 || _selectedOutputInfo is null)
+        {
+            return;
+        }
+
+        ChapterMarkCanvas.SizeChanged -= RedrawChapterMarkers;
+        ChapterMarkCanvas.SizeChanged += RedrawChapterMarkers;
+
+        // 延迟一帧绘制，确保布局已完成
+        DispatcherQueue.TryEnqueue(() => RedrawChapterMarkers(null, null));
+    }
+
+    private void RedrawChapterMarkers(object? sender, object? e)
+    {
+        if (_chapters.Count == 0 || _selectedOutputInfo is null) return;
+
+        ChapterMarkCanvas.Children.Clear();
+        var canvasWidth = ChapterMarkCanvas.ActualWidth;
+        var canvasHeight = ChapterMarkCanvas.ActualHeight;
+        if (canvasWidth <= 0 || canvasHeight <= 0) return;
+
+        var maxFrame = Math.Max(1, ViewModel.FrameSliderMaximum);
+
+        // 直接从 Slider 可视化树中读取拇指的实际位置来计算轨道范围
+        var trackOffset = MeasureSliderTrackOffset();
+
+        foreach (var chapter in _chapters)
+        {
+            var fraction = maxFrame > 0 ? (double)chapter.FrameNumber / maxFrame : 0;
+            var x = trackOffset.offset + fraction * trackOffset.width;
+
+            var isActive = _currentChapterIndex >= 0
+                && _currentChapterIndex < _chapters.Count
+                && _chapters[_currentChapterIndex].FrameNumber == chapter.FrameNumber;
+
+            var marker = new Microsoft.UI.Xaml.Shapes.Line
+            {
+                X1 = x,
+                Y1 = 0,
+                X2 = x,
+                Y2 = canvasHeight,
+                Stroke = new Microsoft.UI.Xaml.Media.SolidColorBrush(
+                    isActive ? Microsoft.UI.Colors.Orange : Microsoft.UI.Colors.Gold),
+                StrokeThickness = isActive ? 3.0 : 2.0
+            };
+            ChapterMarkCanvas.Children.Add(marker);
+        }
+    }
+
+    private (double offset, double width) MeasureSliderTrackOffset()
+    {
+        var thumbWidth = 24.0;
+        try
+        {
+            var sliderWidth = FrameSlider.ActualWidth;
+            if (sliderWidth <= 0) return (0, sliderWidth);
+
+            // 在 Slider 的可视树中查找拇指控件
+            var thumb = FindVisualChild<Microsoft.UI.Xaml.Controls.Primitives.Thumb>(FrameSlider);
+            if (thumb is not null && thumb.ActualWidth > 0)
+            {
+                thumbWidth = thumb.ActualWidth;
+            }
+        }
+        catch
+        {
+        }
+
+        return (thumbWidth / 2.0, Math.Max(1, FrameSlider.ActualWidth - thumbWidth));
+    }
+
+    private static T? FindVisualChild<T>(DependencyObject parent) where T : DependencyObject
+    {
+        for (var i = 0; i < Microsoft.UI.Xaml.Media.VisualTreeHelper.GetChildrenCount(parent); i++)
+        {
+            var child = Microsoft.UI.Xaml.Media.VisualTreeHelper.GetChild(parent, i);
+            if (child is T typedChild) return typedChild;
+
+            var found = FindVisualChild<T>(child);
+            if (found is not null) return found;
+        }
+        return null;
     }
 
     private static byte[] CropPixels(byte[] sourcePixels, int sourceWidth, int left, int top, int width, int height)
@@ -1894,10 +2424,11 @@ public sealed partial class VapourSynthPreviewWindow : Window
             return;
         }
 
-        if (e.Key == VirtualKey.S)
+        if (e.Key == VirtualKey.S && IsControlKeyPressed())
         {
             e.Handled = true;
             await QuickSaveSnapshotAsync();
+            return;
         }
     }
 
