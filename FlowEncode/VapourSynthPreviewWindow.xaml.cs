@@ -3077,6 +3077,12 @@ public sealed partial class VapourSynthPreviewWindow : Window
             return;
         }
 
+        if (TryPanPreviewByKey(e.Key))
+        {
+            e.Handled = true;
+            return;
+        }
+
         if (TryGetFrameNavigationDelta(e.Key, out var frameDelta))
         {
             e.Handled = true;
@@ -3266,6 +3272,70 @@ public sealed partial class VapourSynthPreviewWindow : Window
         };
 
         return frameDelta != 0;
+    }
+
+    private bool TryPanPreviewByKey(VirtualKey key)
+    {
+        if (key is not (VirtualKey.Left or VirtualKey.Right or VirtualKey.Up or VirtualKey.Down))
+        {
+            return false;
+        }
+
+        PreviewScrollViewer.UpdateLayout();
+
+        var horizontalScrollable = PreviewScrollViewer.ScrollableWidth > 0;
+        var verticalScrollable = PreviewScrollViewer.ScrollableHeight > 0;
+        var panStep = 64.0;
+        var targetHorizontalOffset = PreviewScrollViewer.HorizontalOffset;
+        var targetVerticalOffset = PreviewScrollViewer.VerticalOffset;
+
+        switch (key)
+        {
+            case VirtualKey.Left:
+                if (!horizontalScrollable)
+                {
+                    return false;
+                }
+
+                targetHorizontalOffset -= panStep;
+                break;
+            case VirtualKey.Right:
+                if (!horizontalScrollable)
+                {
+                    return false;
+                }
+
+                targetHorizontalOffset += panStep;
+                break;
+            case VirtualKey.Up:
+                if (!verticalScrollable)
+                {
+                    return false;
+                }
+
+                targetVerticalOffset -= panStep;
+                break;
+            case VirtualKey.Down:
+                if (!verticalScrollable)
+                {
+                    return false;
+                }
+
+                targetVerticalOffset += panStep;
+                break;
+        }
+
+        targetHorizontalOffset = Math.Clamp(targetHorizontalOffset, 0, PreviewScrollViewer.ScrollableWidth);
+        targetVerticalOffset = Math.Clamp(targetVerticalOffset, 0, PreviewScrollViewer.ScrollableHeight);
+
+        if (Math.Abs(targetHorizontalOffset - PreviewScrollViewer.HorizontalOffset) < 0.5
+            && Math.Abs(targetVerticalOffset - PreviewScrollViewer.VerticalOffset) < 0.5)
+        {
+            return false;
+        }
+
+        PreviewScrollViewer.ChangeView(targetHorizontalOffset, targetVerticalOffset, null, true);
+        return true;
     }
 
     private static bool TryGetOutputIndexFromKey(VirtualKey key, out int outputIndex)
