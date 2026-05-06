@@ -29,8 +29,4 @@ internal static class MainShellSections
         };
     }
 
-    public static bool IsKnown(string? tag)
-    {
-        return string.Equals(Normalize(tag), tag, StringComparison.Ordinal);
-    }
 }

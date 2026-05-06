@@ -29,6 +29,8 @@ public sealed class VapourSynthPreviewService : IVapourSynthPreviewService
     private readonly SemaphoreSlim _stateLock = new(1, 1);
     private readonly TimeSpan _closeTimeout = TimeSpan.FromSeconds(2);
     private readonly TimeSpan _killWaitTimeout = TimeSpan.FromSeconds(5);
+    private static readonly string[] WarningTokens = ["warning", "warn"];
+    private static readonly string[] ErrorTokens = ["error", "failed", "exception", "fatal"];
     private readonly StringBuilder _stderrBuffer = new();
     private IPreviewFrameTransportSession? _frameTransportSession;
     private IVapourSynthPreviewHostSession? _hostSession;
@@ -124,11 +126,6 @@ public sealed class VapourSynthPreviewService : IVapourSynthPreviewService
 
             _frameTransportSession = _frameTransportFactory.CreateSession(GetMaximumFrameByteSize(outputs));
             return new VapourSynthPreviewSessionInfo(outputs);
-        }
-        catch (OperationCanceledException)
-        {
-            await CloseHostCoreAsync();
-            throw;
         }
         catch (Exception)
         {
@@ -503,12 +500,12 @@ public sealed class VapourSynthPreviewService : IVapourSynthPreviewService
             return VapourSynthPreviewLogLevel.Error;
         }
 
-        if (ContainsAny(normalizedLine, "warning", "warn"))
+        if (ContainsAny(normalizedLine, WarningTokens))
         {
             return VapourSynthPreviewLogLevel.Warning;
         }
 
-        if (ContainsAny(normalizedLine, "error", "failed", "exception", "fatal"))
+        if (ContainsAny(normalizedLine, ErrorTokens))
         {
             return VapourSynthPreviewLogLevel.Error;
         }

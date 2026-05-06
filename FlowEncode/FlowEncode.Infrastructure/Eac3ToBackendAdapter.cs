@@ -35,7 +35,7 @@ public sealed class Eac3ToBackendAdapter : CliBluRayDemuxBackendAdapterBase
         var capture = await CaptureProcessAsync(startInfo, cancellationToken);
         if (capture.ExitCode != 0)
         {
-            throw new InvalidOperationException(FirstMeaningfulLine(capture.Output, "eac3to 无法读取蓝光目录。"));
+            throw new InvalidOperationException(MeaningfulLineHelpers.FirstMeaningfulLine(capture.Output, "eac3to 无法读取蓝光目录。"));
         }
 
         var playlists = new List<BluRayPlaylistItem>();
@@ -100,7 +100,7 @@ public sealed class Eac3ToBackendAdapter : CliBluRayDemuxBackendAdapterBase
         var capture = await CaptureProcessAsync(startInfo, cancellationToken);
         if (capture.ExitCode != 0)
         {
-            throw new InvalidOperationException(FirstMeaningfulLine(capture.Output, "eac3to 无法读取播放列表。"));
+            throw new InvalidOperationException(MeaningfulLineHelpers.FirstMeaningfulLine(capture.Output, "eac3to 无法读取播放列表。"));
         }
 
         var lines = capture.Output
@@ -299,11 +299,4 @@ public sealed class Eac3ToBackendAdapter : CliBluRayDemuxBackendAdapterBase
             : null;
     }
 
-    private static string FirstMeaningfulLine(string value, string fallback)
-    {
-        return value
-            .Split(["\r\n", "\n"], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
-            .FirstOrDefault(static line => !string.IsNullOrWhiteSpace(line))
-            ?? fallback;
-    }
 }

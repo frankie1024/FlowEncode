@@ -470,13 +470,7 @@ public sealed class VapourSynthPreviewWindowViewModel : ObservableObject
     {
         TotalFrames = outputInfo.TotalFrames;
         FrameSliderMaximum = Math.Max(0, outputInfo.TotalFrames - 1);
-        ResolutionText = $"{outputInfo.Width} x {outputInfo.Height}";
-        FormatText = outputInfo.FormatName;
-        BitDepthText = FormatBitDepth(outputInfo.BitsPerSample);
-        FpsText = outputInfo.FpsNumerator > 0 && outputInfo.FpsDenominator > 0
-            ? $"{outputInfo.FpsNumerator}/{outputInfo.FpsDenominator} = {(outputInfo.FpsNumerator / (double)outputInfo.FpsDenominator):0.###}"
-            : Texts.VapourSynthPreviewUnknownTime;
-        TotalTimeText = FormatTimestamp(outputInfo.TotalFrames - 1, outputInfo.FpsNumerator, outputInfo.FpsDenominator);
+        ApplyOutputMetadata(outputInfo, $"{outputInfo.Width} x {outputInfo.Height}");
         RaiseTimelinePropertyChanges();
     }
 
@@ -490,14 +484,8 @@ public sealed class VapourSynthPreviewWindowViewModel : ObservableObject
     {
         CurrentFrameBitmap = bitmap;
         CurrentFrame = frameData.FrameNumber;
-        ResolutionText = resolutionText;
-        FormatText = outputInfo.FormatName;
-        BitDepthText = FormatBitDepth(outputInfo.BitsPerSample);
-        FpsText = outputInfo.FpsNumerator > 0 && outputInfo.FpsDenominator > 0
-            ? $"{outputInfo.FpsNumerator}/{outputInfo.FpsDenominator} = {(outputInfo.FpsNumerator / (double)outputInfo.FpsDenominator):0.###}"
-            : Texts.VapourSynthPreviewUnknownTime;
+        ApplyOutputMetadata(outputInfo, resolutionText);
         CurrentTimeText = FormatTimestamp(frameData.FrameNumber, outputInfo.FpsNumerator, outputInfo.FpsDenominator);
-        TotalTimeText = FormatTimestamp(outputInfo.TotalFrames - 1, outputInfo.FpsNumerator, outputInfo.FpsDenominator);
         FrameTypeText = string.IsNullOrWhiteSpace(frameData.FrameType) ? "-" : frameData.FrameType;
         FramePropsText = frameData.Properties.Count == 0
             ? Texts.VapourSynthPreviewFramePropsEmpty
@@ -507,6 +495,15 @@ public sealed class VapourSynthPreviewWindowViewModel : ObservableObject
         _sourceFrameHeight = displayHeight;
         RecomputeImageLayout();
         RaiseTimelinePropertyChanges();
+    }
+
+    private void ApplyOutputMetadata(VapourSynthPreviewOutputInfo outputInfo, string resolutionText)
+    {
+        ResolutionText = resolutionText;
+        FormatText = outputInfo.FormatName;
+        BitDepthText = FormatBitDepth(outputInfo.BitsPerSample);
+        FpsText = FormatFps(outputInfo.FpsNumerator, outputInfo.FpsDenominator);
+        TotalTimeText = FormatTimestamp(outputInfo.TotalFrames - 1, outputInfo.FpsNumerator, outputInfo.FpsDenominator);
     }
 
     public void SaveScalingAlgorithmPreference()
@@ -607,6 +604,13 @@ public sealed class VapourSynthPreviewWindowViewModel : ObservableObject
         return time.TotalHours >= 1
             ? time.ToString(@"h\:mm\:ss\.fff")
             : time.ToString(@"mm\:ss\.fff");
+    }
+
+    private string FormatFps(int fpsNumerator, int fpsDenominator)
+    {
+        return fpsNumerator > 0 && fpsDenominator > 0
+            ? $"{fpsNumerator}/{fpsDenominator} = {(fpsNumerator / (double)fpsDenominator):0.###}"
+            : Texts.VapourSynthPreviewUnknownTime;
     }
 
     private static string FormatBitDepth(int bitsPerSample)

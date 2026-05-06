@@ -2,7 +2,6 @@ using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
-using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using FlowEncode.Application;
@@ -33,7 +32,6 @@ public partial class MainWindowViewModel
     private CancellationTokenSource? _autoCompressionCancellationTokenSource;
     private Guid? _activeAutoCompressionJobId;
     private EncodingJobState? _autoCompressionDisplayState;
-    private readonly StringBuilder _autoCompressionLogBuilder = new();
     private readonly List<string> _autoCompressionLogStageLines = [];
     private string _autoCompressionLiveLogLine = string.Empty;
     private CancellationTokenSource? _autoCompressionInputRefreshCancellationTokenSource;
@@ -736,7 +734,6 @@ public partial class MainWindowViewModel
 
     private void ResetAutoCompressionLogState()
     {
-        _autoCompressionLogBuilder.Clear();
         _autoCompressionLogStageLines.Clear();
         _autoCompressionLiveLogLine = string.Empty;
     }

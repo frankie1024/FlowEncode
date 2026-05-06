@@ -69,7 +69,7 @@ public sealed partial class VapourSynthWorkspaceView : UserControl, IDisposable
         var choice = await ShowUnsavedChangesDialogAsync(xamlRoot);
         return choice switch
         {
-            UnsavedChangesChoice.Save => await SaveCurrentDocumentAsync(),
+            UnsavedChangesChoice.Save => await SaveCurrentDocumentAsync(captureEditorState: false),
             UnsavedChangesChoice.Discard => await FlushDiscardedStateAsync(),
             _ => false
         };
@@ -329,12 +329,12 @@ public sealed partial class VapourSynthWorkspaceView : UserControl, IDisposable
 
     private async void SaveDocumentButton_Click(object sender, RoutedEventArgs e)
     {
-        await RunUiActionAsync(SaveCurrentDocumentAsync);
+        await RunUiActionAsync(() => SaveCurrentDocumentAsync());
     }
 
     private async void SaveDocumentAsButton_Click(object sender, RoutedEventArgs e)
     {
-        await RunUiActionAsync(SaveCurrentDocumentAsAsync);
+        await RunUiActionAsync(() => SaveCurrentDocumentAsAsync());
     }
 
     private async void ReloadDocumentButton_Click(object sender, RoutedEventArgs e)
@@ -373,7 +373,7 @@ public sealed partial class VapourSynthWorkspaceView : UserControl, IDisposable
         var sourcePath = ViewModel.CurrentFilePath;
         if (string.IsNullOrWhiteSpace(sourcePath) || ViewModel.HasUnsavedChanges)
         {
-            if (!await SaveCurrentDocumentAsync())
+            if (!await SaveCurrentDocumentAsync(captureEditorState: false))
             {
                 return;
             }
@@ -442,13 +442,16 @@ public sealed partial class VapourSynthWorkspaceView : UserControl, IDisposable
         await PushDocumentToEditorAsync();
     }
 
-    private async Task<bool> SaveCurrentDocumentAsync()
+    private async Task<bool> SaveCurrentDocumentAsync(bool captureEditorState = true)
     {
-        await CaptureEditorStateAsync();
+        if (captureEditorState)
+        {
+            await CaptureEditorStateAsync();
+        }
 
         if (string.IsNullOrWhiteSpace(ViewModel.CurrentFilePath))
         {
-            return await SaveCurrentDocumentAsAsync();
+            return await SaveCurrentDocumentAsAsync(captureEditorState: false);
         }
 
         await ViewModel.SaveAsync();
@@ -456,9 +459,12 @@ public sealed partial class VapourSynthWorkspaceView : UserControl, IDisposable
         return true;
     }
 
-    private async Task<bool> SaveCurrentDocumentAsAsync()
+    private async Task<bool> SaveCurrentDocumentAsAsync(bool captureEditorState = true)
     {
-        await CaptureEditorStateAsync();
+        if (captureEditorState)
+        {
+            await CaptureEditorStateAsync();
+        }
 
         var filePath = PickSaveFilePath();
         if (string.IsNullOrWhiteSpace(filePath))
@@ -475,27 +481,11 @@ public sealed partial class VapourSynthWorkspaceView : UserControl, IDisposable
     {
         await CaptureEditorStateAsync();
         ViewModel.ClearPreviewLog();
-        var sourceFilePath = ViewModel.CurrentFilePath;
-        var displayName = string.IsNullOrWhiteSpace(sourceFilePath)
-            ? ViewModel.Texts.VapourSynthUntitledDocument
-            : Path.GetFileName(sourceFilePath);
-        var workingDirectory = !string.IsNullOrWhiteSpace(sourceFilePath)
-            ? Path.GetDirectoryName(sourceFilePath)
-            : null;
-        var request = new VapourSynthPreviewOpenRequest(
-            sourceFilePath,
-            displayName,
-            ViewModel.CurrentContent,
-            Directory.Exists(workingDirectory)
-                ? workingDirectory!
-                : AppContext.BaseDirectory);
-
-        _previewWindow ??= App.GetService<VapourSynthPreviewWindow>();
-        _previewWindow.PreviewWindowClosed -= PreviewWindow_PreviewWindowClosed;
-        _previewWindow.PreviewWindowClosed += PreviewWindow_PreviewWindowClosed;
+        var request = CreatePreviewOpenRequest(out var displayName);
+        var previewWindow = GetOrCreatePreviewWindow();
 
         var mainWindowViewModel = App.GetService<MainWindow>().ViewModel;
-        var opened = await _previewWindow.OpenOrRefreshAsync(
+        var opened = await previewWindow.OpenOrRefreshAsync(
             request,
             mainWindowViewModel.SettingsModule.CurrentLanguagePreference,
             mainWindowViewModel.SettingsModule.CurrentThemePreference);
@@ -527,13 +517,12 @@ public sealed partial class VapourSynthWorkspaceView : UserControl, IDisposable
 
     private async void PreviewWindow_PreviewWindowClosed(object? sender, EventArgs e)
     {
-        if (sender is VapourSynthPreviewWindow window)
+        if (sender is not VapourSynthPreviewWindow window)
         {
-            window.PreviewWindowClosed -= PreviewWindow_PreviewWindowClosed;
+            return;
         }
 
-        _previewWindow = null;
-
+        DetachPreviewWindow(window);
         var mainWindow = App.GetService<MainWindow>();
         mainWindow.BringToFront();
         await Task.Yield();
@@ -548,8 +537,7 @@ public sealed partial class VapourSynthWorkspaceView : UserControl, IDisposable
         }
 
         var previewWindow = _previewWindow;
-        _previewWindow = null;
-        previewWindow.PreviewWindowClosed -= PreviewWindow_PreviewWindowClosed;
+        DetachPreviewWindow(previewWindow);
         await previewWindow.CloseForOwnerShutdownAsync();
     }
 
@@ -565,10 +553,52 @@ public sealed partial class VapourSynthWorkspaceView : UserControl, IDisposable
         var choice = await ShowUnsavedChangesDialogAsync(this.XamlRoot);
         return choice switch
         {
-            UnsavedChangesChoice.Save => await SaveCurrentDocumentAsync(),
+            UnsavedChangesChoice.Save => await SaveCurrentDocumentAsync(captureEditorState: false),
             UnsavedChangesChoice.Discard => await FlushDiscardedStateAsync(),
             _ => false
         };
+    }
+
+    private VapourSynthPreviewWindow GetOrCreatePreviewWindow()
+    {
+        if (_previewWindow is not null)
+        {
+            return _previewWindow;
+        }
+
+        _previewWindow = App.GetService<VapourSynthPreviewWindow>();
+        _previewWindow.PreviewWindowClosed += PreviewWindow_PreviewWindowClosed;
+        return _previewWindow;
+    }
+
+    private VapourSynthPreviewOpenRequest CreatePreviewOpenRequest(out string displayName)
+    {
+        var sourceFilePath = ViewModel.CurrentFilePath;
+        displayName = string.IsNullOrWhiteSpace(sourceFilePath)
+            ? ViewModel.Texts.VapourSynthUntitledDocument
+            : Path.GetFileName(sourceFilePath);
+
+        var workingDirectory = !string.IsNullOrWhiteSpace(sourceFilePath)
+            ? Path.GetDirectoryName(sourceFilePath)
+            : null;
+        var normalizedWorkingDirectory = Directory.Exists(workingDirectory)
+            ? workingDirectory!
+            : AppContext.BaseDirectory;
+
+        return new VapourSynthPreviewOpenRequest(
+            sourceFilePath,
+            displayName,
+            ViewModel.CurrentContent,
+            normalizedWorkingDirectory);
+    }
+
+    private void DetachPreviewWindow(VapourSynthPreviewWindow previewWindow)
+    {
+        previewWindow.PreviewWindowClosed -= PreviewWindow_PreviewWindowClosed;
+        if (ReferenceEquals(_previewWindow, previewWindow))
+        {
+            _previewWindow = null;
+        }
     }
 
     private void PreviewService_LogEmitted(object? sender, VapourSynthPreviewLogEventArgs e)
@@ -1074,17 +1104,16 @@ public sealed partial class VapourSynthWorkspaceView : UserControl, IDisposable
         EditorWebView.NavigationCompleted -= EditorWebView_NavigationCompleted;
         if (_previewWindow is not null)
         {
-            _previewWindow.PreviewWindowClosed -= PreviewWindow_PreviewWindowClosed;
+            var previewWindow = _previewWindow;
+            DetachPreviewWindow(previewWindow);
 
             try
             {
-                _previewWindow.Close();
+                previewWindow.Close();
             }
             catch
             {
             }
-
-            _previewWindow = null;
         }
 
         _editorInitializationLock.Dispose();

@@ -217,17 +217,7 @@ public sealed partial class VapourSynthPreviewWindow : Window
             _currentRequest.DisplayName,
             ViewModel.Texts.VapourSynthPreviewEvaluatingStatus(_currentRequest.DisplayName),
             []);
-        _selectedOutputInfo = null;
-        _lastFrameData = null;
-        _sourceFramePixels = null;
-        _reusableSourceFramePixels = null;
-        _sourceFrameWidth = 0;
-        _sourceFrameHeight = 0;
-        _displayedFramePixels = null;
-        _reusableDisplayedFramePixels = null;
-        _displayedFrameWidth = 0;
-        _displayedFrameHeight = 0;
-        _bitmapSurface.Reset();
+        ResetDisplayedFrameState();
         SyncControls();
 
         try
@@ -340,7 +330,7 @@ public sealed partial class VapourSynthPreviewWindow : Window
             composeElapsed = displayPayload.ComposeElapsed;
             bitmapUpdateElapsed = displayPayload.BitmapUpdateElapsed;
 
-            if (!ShouldApplyFrameRequest(request, scheduledRequest))
+            if (!IsActiveFrameRequest(request, scheduledRequest))
             {
                 CaptureReusableFrameBuffers(loadedSourcePixels, displayPayload.Pixels);
                 return;
@@ -388,7 +378,7 @@ public sealed partial class VapourSynthPreviewWindow : Window
                 CaptureReusableFrameBuffers(loadedSourcePixels, displayPayload?.Pixels);
             }
 
-            if (ShouldSurfaceFrameRequestFailure(request, scheduledRequest))
+            if (IsActiveFrameRequest(request, scheduledRequest))
             {
                 StopPlayback();
                 SetStatusText(ViewModel.Texts.VapourSynthPreviewRenderFailedStatus(ex.Message));
@@ -470,7 +460,6 @@ public sealed partial class VapourSynthPreviewWindow : Window
             displayPayload.Width,
             displayPayload.Height,
             displayPayload.ResolutionText);
-        ApplyPreviewScalingAlgorithm();
         UpdatePreviewImageSurface();
         SaveCurrentOutputState();
     }
@@ -489,18 +478,7 @@ public sealed partial class VapourSynthPreviewWindow : Window
             CreateCropSettings(outputState, ViewModel.IsCropPanelVisible));
     }
 
-    private bool ShouldApplyFrameRequest(
-        PreviewFrameRequest request,
-        LatestRequestScheduler<PreviewFrameRequest>.ScheduledRequest scheduledRequest)
-    {
-        return !_isClosed
-            && scheduledRequest.MatchesLatestRequest
-            && _selectedOutputInfo is { } selectedOutput
-            && selectedOutput.Index == request.OutputInfo.Index
-            && request.SessionRevision == _previewSessionRevision;
-    }
-
-    private bool ShouldSurfaceFrameRequestFailure(
+    private bool IsActiveFrameRequest(
         PreviewFrameRequest request,
         LatestRequestScheduler<PreviewFrameRequest>.ScheduledRequest scheduledRequest)
     {
@@ -724,29 +702,22 @@ public sealed partial class VapourSynthPreviewWindow : Window
 
     private void FramePropsToggleButton_Checked(object sender, RoutedEventArgs e)
     {
-        ViewModel.IsFramePropsVisible = true;
-        SyncControls();
+        UpdateFramePropsVisibility(true);
     }
 
     private void FramePropsToggleButton_Unchecked(object sender, RoutedEventArgs e)
     {
-        ViewModel.IsFramePropsVisible = false;
-        SyncControls();
+        UpdateFramePropsVisibility(false);
     }
 
     private async void CropToggleButton_Checked(object sender, RoutedEventArgs e)
     {
-        ViewModel.IsCropPanelVisible = true;
-        await RefreshDisplayedFrameAsync();
-        SyncControls();
-        await ScrollToCropBoundaryAsync(null);
+        await UpdateCropPanelVisibilityAsync(true);
     }
 
     private async void CropToggleButton_Unchecked(object sender, RoutedEventArgs e)
     {
-        ViewModel.IsCropPanelVisible = false;
-        await RefreshDisplayedFrameAsync();
-        SyncControls();
+        await UpdateCropPanelVisibilityAsync(false);
     }
 
     private async void AdvancedSettingsButton_Click(object sender, RoutedEventArgs e)
@@ -800,7 +771,6 @@ public sealed partial class VapourSynthPreviewWindow : Window
 
         SaveCurrentOutputState();
         SyncControls();
-        ApplyPreviewScalingAlgorithm();
     }
 
     private void ZoomRatioBox_ValueChanged(NumberBox sender, NumberBoxValueChangedEventArgs args)
@@ -812,7 +782,6 @@ public sealed partial class VapourSynthPreviewWindow : Window
 
         ViewModel.ZoomRatio = Math.Max(5, sender.Value) / 100.0;
         SaveCurrentOutputState();
-        ApplyPreviewScalingAlgorithm();
     }
 
     private void TimelineModeComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
@@ -937,7 +906,6 @@ public sealed partial class VapourSynthPreviewWindow : Window
         ViewModel.UpdateViewport(
             Math.Max(0, e.NewSize.Width - 16),
             Math.Max(0, e.NewSize.Height - 16));
-        ApplyPreviewScalingAlgorithm();
     }
 
     private void PreviewScrollViewer_PointerWheelChanged(object sender, PointerRoutedEventArgs e)
@@ -1446,22 +1414,46 @@ public sealed partial class VapourSynthPreviewWindow : Window
 
     private void ViewModel_PropertyChanged(object? sender, PropertyChangedEventArgs e)
     {
-        if (string.Equals(e.PropertyName, nameof(ViewModel.WindowTitle), StringComparison.Ordinal))
+        switch (e.PropertyName)
         {
-            Title = ViewModel.WindowTitle;
+            case nameof(ViewModel.WindowTitle):
+                Title = ViewModel.WindowTitle;
+                break;
+            case nameof(ViewModel.CurrentFrameBitmap):
+                UpdatePreviewImageSurface();
+                break;
+            case nameof(ViewModel.PreviewImageWidth):
+            case nameof(ViewModel.PreviewImageHeight):
+                UpdatePreviewImageVisualSize();
+                break;
+        }
+    }
+
+    private void UpdateFramePropsVisibility(bool isVisible)
+    {
+        if (ViewModel.IsFramePropsVisible == isVisible)
+        {
             return;
         }
 
-        if (string.Equals(e.PropertyName, nameof(ViewModel.CurrentFrameBitmap), StringComparison.Ordinal))
+        ViewModel.IsFramePropsVisible = isVisible;
+        SyncControls();
+    }
+
+    private async Task UpdateCropPanelVisibilityAsync(bool isVisible)
+    {
+        if (ViewModel.IsCropPanelVisible == isVisible)
         {
-            UpdatePreviewImageSurface();
             return;
         }
 
-        if (string.Equals(e.PropertyName, nameof(ViewModel.PreviewImageWidth), StringComparison.Ordinal)
-            || string.Equals(e.PropertyName, nameof(ViewModel.PreviewImageHeight), StringComparison.Ordinal))
+        ViewModel.IsCropPanelVisible = isVisible;
+        await RefreshDisplayedFrameAsync();
+        SyncControls();
+
+        if (isVisible)
         {
-            UpdatePreviewImageVisualSize();
+            await ScrollToCropBoundaryAsync(null);
         }
     }
 
@@ -1544,6 +1536,21 @@ public sealed partial class VapourSynthPreviewWindow : Window
         }
 
         EnsureCropStatesWithinBounds(outputState, _selectedOutputInfo.Width, _selectedOutputInfo.Height);
+    }
+
+    private void ResetDisplayedFrameState()
+    {
+        _selectedOutputInfo = null;
+        _lastFrameData = null;
+        _sourceFramePixels = null;
+        _reusableSourceFramePixels = null;
+        _sourceFrameWidth = 0;
+        _sourceFrameHeight = 0;
+        _displayedFramePixels = null;
+        _reusableDisplayedFramePixels = null;
+        _displayedFrameWidth = 0;
+        _displayedFrameHeight = 0;
+        _bitmapSurface.Reset();
     }
 
     private void RestoreOutputPresentationState(PreviewOutputState outputState, VapourSynthPreviewOutputInfo outputInfo)
@@ -2915,7 +2922,6 @@ public sealed partial class VapourSynthPreviewWindow : Window
 
         SaveCurrentOutputState();
         SyncControls();
-        ApplyPreviewScalingAlgorithm();
     }
 
     private void RestorePreviewScrollAnchor(
@@ -3023,7 +3029,7 @@ public sealed partial class VapourSynthPreviewWindow : Window
 
         var compositor = ElementCompositionPreview.GetElementVisual(PreviewImageHost).Compositor;
         _previewImageBrush = compositor.CreateSurfaceBrush();
-        _previewImageBrush.BitmapInterpolationMode = CompositionBitmapInterpolationMode.NearestNeighbor;
+        _previewImageBrush.BitmapInterpolationMode = GetPreviewBitmapInterpolationMode();
         _previewImageBrush.Stretch = CompositionStretch.Fill;
         _previewImageBrush.SnapToPixels = true;
 
@@ -3034,6 +3040,13 @@ public sealed partial class VapourSynthPreviewWindow : Window
 
         UpdatePreviewImageSurface();
         UpdatePreviewImageVisualSize();
+    }
+
+    private CompositionBitmapInterpolationMode GetPreviewBitmapInterpolationMode()
+    {
+        return string.Equals(ViewModel.ScalingAlgorithm, "nearest", StringComparison.OrdinalIgnoreCase)
+            ? CompositionBitmapInterpolationMode.NearestNeighbor
+            : CompositionBitmapInterpolationMode.Linear;
     }
 
     private void DetachPreviewImageVisual()
