@@ -31,7 +31,7 @@
                 <ScrollViewer
                     x:Name="PreviewScrollViewer"
                     HorizontalScrollBarVisibility="Hidden"
-                    IsTabStop="True"
+                    IsTabStop="False"
                     PointerCanceled="PreviewScrollViewer_PointerCanceled"
                     PointerCaptureLost="PreviewScrollViewer_PointerCaptureLost"
                     PointerMoved="PreviewScrollViewer_PointerMoved"
@@ -55,10 +55,13 @@
                                 Stretch="None"
                                 VerticalAlignment="Top" />
                         </Canvas>
-                        <Grid
+                        <ContentControl
                             x:Name="PreviewImageHost"
                             Height="{Binding PreviewImageHeight}"
                             HorizontalAlignment="Center"
+                            IsTabStop="True"
+                            KeyDown="PreviewImageHost_KeyDown"
+                            Background="Transparent"
                             VerticalAlignment="Center"
                             Width="{Binding PreviewImageWidth}" />
                     </Grid>

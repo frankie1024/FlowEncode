@@ -60,6 +60,7 @@ public sealed partial class VapourSynthPreviewWindow : Window
     private int _displayedFrameHeight;
     private int _displayedFrameWidth;
     private readonly List<TextBox> _attachedPreviewNumberBoxEditors = [];
+    private readonly KeyEventHandler _numberBoxEditorKeyDownHandler;
     private XamlRoot? _observedXamlRoot;
     private Point _previewPanOrigin;
     private double _previewPanStartHorizontalOffset;
@@ -88,6 +89,7 @@ public sealed partial class VapourSynthPreviewWindow : Window
         _frameRequestScheduler = new LatestRequestScheduler<PreviewFrameRequest>(ExecuteScheduledFrameRequestAsync);
         _renderDiagnostics = new PreviewRenderDiagnostics(_appPaths);
         InitializeComponent();
+        _numberBoxEditorKeyDownHandler = new KeyEventHandler(NumberBoxEditor_KeyDown);
 
         if (Content is FrameworkElement root)
         {
@@ -1022,7 +1024,7 @@ public sealed partial class VapourSynthPreviewWindow : Window
             0,
             PreviewScrollViewer.ScrollableHeight);
 
-        PreviewScrollViewer.ChangeView(targetHorizontalOffset, targetVerticalOffset, null, true);
+        SetPreviewScrollOffset(targetHorizontalOffset, targetVerticalOffset);
         e.Handled = true;
     }
 
@@ -1410,7 +1412,7 @@ public sealed partial class VapourSynthPreviewWindow : Window
             return;
         }
 
-        await RequestFrameAsync(ViewModel.CurrentFrame + 1);
+        await RequestRelativeFrameAsync(1);
     }
 
     private async void VapourSynthPreviewWindow_Closed(object sender, WindowEventArgs args)
@@ -2933,7 +2935,7 @@ public sealed partial class VapourSynthPreviewWindow : Window
             0,
             PreviewScrollViewer.ScrollableHeight);
 
-        PreviewScrollViewer.ChangeView(targetHorizontalOffset, targetVerticalOffset, null, true);
+        SetPreviewScrollOffset(targetHorizontalOffset, targetVerticalOffset);
     }
 
     private void ReleasePreviewPanCapture()
@@ -3124,7 +3126,7 @@ public sealed partial class VapourSynthPreviewWindow : Window
         if (TryGetFrameNavigationDelta(e.Key, out var frameDelta))
         {
             e.Handled = true;
-            await RequestFrameAsync(ViewModel.CurrentFrame + frameDelta);
+            await RequestRelativeFrameAsync(frameDelta);
             return;
         }
 
@@ -3142,6 +3144,17 @@ public sealed partial class VapourSynthPreviewWindow : Window
         }
     }
 
+    private async void PreviewImageHost_KeyDown(object sender, KeyRoutedEventArgs e)
+    {
+        if (e.Handled || !TryGetFrameNavigationDelta(e.Key, out var frameDelta))
+        {
+            return;
+        }
+
+        e.Handled = true;
+        await RequestRelativeFrameAsync(frameDelta);
+    }
+
     private void RootLayout_KeyUp(object sender, KeyRoutedEventArgs e)
     {
         if (e.Handled || e.Key != VirtualKey.Enter)
@@ -3155,8 +3168,7 @@ public sealed partial class VapourSynthPreviewWindow : Window
         }
 
         e.Handled = true;
-        FocusPreviewSurface();
-        QueueFocusPreviewSurface();
+        RequestPreviewFocus();
     }
 
     private void NumberBoxEditor_KeyDown(object sender, KeyRoutedEventArgs e)
@@ -3168,8 +3180,7 @@ public sealed partial class VapourSynthPreviewWindow : Window
 
         RootLayout.DispatcherQueue.TryEnqueue(() =>
         {
-            _ = FocusPreviewSurface();
-            QueueFocusPreviewSurface();
+            RequestPreviewFocus();
         });
     }
 
@@ -3190,12 +3201,18 @@ public sealed partial class VapourSynthPreviewWindow : Window
             return false;
         }
 
-        if (PreviewScrollViewer.Focus(FocusState.Programmatic))
+        if (PreviewImageHost.Focus(FocusState.Programmatic))
         {
             return true;
         }
 
         return ReloadPreviewButton.Focus(FocusState.Programmatic);
+    }
+
+    private void RequestPreviewFocus()
+    {
+        _ = FocusPreviewSurface();
+        QueueFocusPreviewSurface();
     }
 
     private void QueueFocusPreviewSurface()
@@ -3206,6 +3223,16 @@ public sealed partial class VapourSynthPreviewWindow : Window
         }
 
         RootLayout.DispatcherQueue.TryEnqueue(() => _ = FocusPreviewSurface());
+    }
+
+    private Task RequestRelativeFrameAsync(int frameDelta)
+    {
+        return RequestFrameAsync(ViewModel.CurrentFrame + frameDelta);
+    }
+
+    private void SetPreviewScrollOffset(double? horizontalOffset, double? verticalOffset)
+    {
+        PreviewScrollViewer.ChangeView(horizontalOffset, verticalOffset, null, true);
     }
 
     private static TControl? TryFindAncestor<TControl>(DependencyObject? source)
@@ -3238,7 +3265,7 @@ public sealed partial class VapourSynthPreviewWindow : Window
                 continue;
             }
 
-            editor.AddHandler(UIElement.KeyDownEvent, new KeyEventHandler(NumberBoxEditor_KeyDown), true);
+            editor.AddHandler(UIElement.KeyDownEvent, _numberBoxEditorKeyDownHandler, true);
             _attachedPreviewNumberBoxEditors.Add(editor);
         }
     }
@@ -3247,7 +3274,7 @@ public sealed partial class VapourSynthPreviewWindow : Window
     {
         foreach (var editor in _attachedPreviewNumberBoxEditors)
         {
-            editor.RemoveHandler(UIElement.KeyDownEvent, new KeyEventHandler(NumberBoxEditor_KeyDown));
+            editor.RemoveHandler(UIElement.KeyDownEvent, _numberBoxEditorKeyDownHandler);
         }
 
         _attachedPreviewNumberBoxEditors.Clear();
@@ -3369,7 +3396,7 @@ public sealed partial class VapourSynthPreviewWindow : Window
                 break;
         }
 
-        PreviewScrollViewer.ChangeView(horizontalOffset, verticalOffset, null, true);
+        SetPreviewScrollOffset(horizontalOffset, verticalOffset);
     }
 
     private sealed record DisplayFramePayload(
