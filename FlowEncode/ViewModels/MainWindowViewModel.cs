@@ -1165,8 +1165,7 @@ public partial class MainWindowViewModel : CommunityToolkit.Mvvm.ComponentModel.
                 GetMaxConcurrentEncodingJobCount(),
                 QueueCompletionAction,
                 currentSettings.PreviewScalingAlgorithm,
-                currentSettings.PreviewSnapshotDialogDirectory,
-                currentSettings.PreviewChapterDialogDirectory);
+                currentSettings.LastFileDialogDirectory);
 
             _settingsService.Save(settings);
             _encoderDiscoveryService.InvalidateCache();

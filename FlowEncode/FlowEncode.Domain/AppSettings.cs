@@ -14,8 +14,7 @@ public sealed record AppSettings(
     int MaxConcurrentEncodingJobs = 1,
     QueueCompletionAction QueueCompletionAction = QueueCompletionAction.None,
     string PreviewScalingAlgorithm = "nearest",
-    string PreviewSnapshotDialogDirectory = "",
-    string PreviewChapterDialogDirectory = "")
+    string LastFileDialogDirectory = "")
 {
     public static AppSettings Default { get; } = new(
         PreferSystemEncoders: true,
@@ -29,8 +28,7 @@ public sealed record AppSettings(
         MaxConcurrentEncodingJobs: 1,
         QueueCompletionAction: QueueCompletionAction.None,
         PreviewScalingAlgorithm: "nearest",
-        PreviewSnapshotDialogDirectory: string.Empty,
-        PreviewChapterDialogDirectory: string.Empty);
+        LastFileDialogDirectory: string.Empty);
 
     [JsonIgnore]
     public IReadOnlyDictionary<string, string> EffectiveManualToolPaths =>

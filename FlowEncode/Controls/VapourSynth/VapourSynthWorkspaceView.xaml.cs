@@ -11,8 +11,6 @@ using FlowEncode.ViewModels;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.Web.WebView2.Core;
-using Windows.Storage;
-using Windows.Storage.Pickers;
 using WinRT.Interop;
 
 namespace FlowEncode.Controls.VapourSynth;
@@ -434,13 +432,13 @@ public sealed partial class VapourSynthWorkspaceView : UserControl, IDisposable
             return;
         }
 
-        var file = await PickOpenFileAsync();
-        if (file is null)
+        var filePath = PickOpenFilePath();
+        if (string.IsNullOrWhiteSpace(filePath))
         {
             return;
         }
 
-        await ViewModel.OpenDocumentAsync(file.Path);
+        await ViewModel.OpenDocumentAsync(filePath);
         await PushDocumentToEditorAsync();
     }
 
@@ -462,13 +460,13 @@ public sealed partial class VapourSynthWorkspaceView : UserControl, IDisposable
     {
         await CaptureEditorStateAsync();
 
-        var file = await PickSaveFileAsync();
-        if (file is null)
+        var filePath = PickSaveFilePath();
+        if (string.IsNullOrWhiteSpace(filePath))
         {
             return false;
         }
 
-        await ViewModel.SaveAsAsync(file.Path);
+        await ViewModel.SaveAsAsync(filePath);
         await FocusEditorAsync();
         return true;
     }
@@ -954,21 +952,17 @@ public sealed partial class VapourSynthWorkspaceView : UserControl, IDisposable
         }
     }
 
-    private async Task<StorageFile?> PickOpenFileAsync()
+    private string? PickOpenFilePath()
     {
-        var picker = new FileOpenPicker
-        {
-            SuggestedStartLocation = PickerLocationId.DocumentsLibrary
-        };
-
-        picker.FileTypeFilter.Add(".vpy");
-        picker.FileTypeFilter.Add(".py");
-
-        InitializeWithWindow.Initialize(picker, GetWindowHandle());
-        return await picker.PickSingleFileAsync();
+        return WindowInteractionHelper.PickOpenFilePath(
+            GetWindowHandle(),
+            ViewModel.Texts.VapourSynthOpenButton,
+            ViewModel.CurrentFilePath ?? string.Empty,
+            new NativeFileDialogHelper.FileDialogFilter(ViewModel.Texts.VapourSynthFileTypeDescription, "*.vpy"),
+            new NativeFileDialogHelper.FileDialogFilter(ViewModel.Texts.VapourSynthPythonFileTypeDescription, "*.py"));
     }
 
-    private async Task<StorageFile?> PickSaveFileAsync()
+    private string? PickSaveFilePath()
     {
         var suggestedExtension = string.Equals(Path.GetExtension(ViewModel.CurrentFilePath), ".py", StringComparison.OrdinalIgnoreCase)
             ? ".py"
@@ -977,18 +971,21 @@ public sealed partial class VapourSynthWorkspaceView : UserControl, IDisposable
             ? Path.GetFileNameWithoutExtension(ViewModel.Texts.VapourSynthUntitledDocument)
             : Path.GetFileNameWithoutExtension(ViewModel.CurrentFilePath);
 
-        var picker = new FileSavePicker
+        var result = WindowInteractionHelper.PickSaveFilePath(
+            GetWindowHandle(),
+            ViewModel.Texts.SaveAsButton,
+            ViewModel.CurrentFilePath ?? string.Empty,
+            suggestedName,
+            suggestedExtension,
+            new NativeFileDialogHelper.FileDialogFilter(ViewModel.Texts.VapourSynthFileTypeDescription, "*.vpy"),
+            new NativeFileDialogHelper.FileDialogFilter(ViewModel.Texts.VapourSynthPythonFileTypeDescription, "*.py"));
+        if (result is null)
         {
-            SuggestedStartLocation = PickerLocationId.DocumentsLibrary,
-            SuggestedFileName = suggestedName,
-            DefaultFileExtension = suggestedExtension
-        };
+            return null;
+        }
 
-        picker.FileTypeChoices.Add(ViewModel.Texts.VapourSynthFileTypeDescription, [".vpy"]);
-        picker.FileTypeChoices.Add(ViewModel.Texts.VapourSynthPythonFileTypeDescription, [".py"]);
-
-        InitializeWithWindow.Initialize(picker, GetWindowHandle());
-        return await picker.PickSaveFileAsync();
+        var targetExtension = result.Value.SelectedFilterIndex == 2 ? ".py" : ".vpy";
+        return Path.ChangeExtension(result.Value.Path, targetExtension);
     }
 
     private async Task ShowMessageAsync(string title, string message, XamlRoot? xamlRoot)

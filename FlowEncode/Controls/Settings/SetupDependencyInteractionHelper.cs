@@ -7,8 +7,6 @@ using FlowEncode.Infrastructure;
 using FlowEncode.ViewModels;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
-using Windows.Storage.Pickers;
-using WinRT.Interop;
 
 namespace FlowEncode.Controls.Settings;
 
@@ -44,7 +42,7 @@ internal static class SetupDependencyInteractionHelper
             string? error;
             if (viewModel.RequiresSetupDependencyManualImport(kind))
             {
-                var filePath = await PickExecutableFileAsync(PickerLocationId.Downloads);
+                var filePath = PickExecutableFilePath(viewModel, kind);
                 if (string.IsNullOrWhiteSpace(filePath))
                 {
                     return;
@@ -101,7 +99,7 @@ internal static class SetupDependencyInteractionHelper
     {
         try
         {
-            var filePath = await PickExecutableFileAsync(PickerLocationId.ComputerFolder);
+            var filePath = PickExecutableFilePath(viewModel, kind);
             if (string.IsNullOrWhiteSpace(filePath))
             {
                 return;
@@ -210,19 +208,16 @@ internal static class SetupDependencyInteractionHelper
         }
     }
 
-    private static async Task<string?> PickExecutableFileAsync(PickerLocationId startLocation)
+    private static string? PickExecutableFilePath(ISetupDependencyModuleViewModel viewModel, SetupDependencyKind kind)
     {
-        var picker = new FileOpenPicker
-        {
-            SuggestedStartLocation = startLocation
-        };
-
-        picker.FileTypeFilter.Add(".exe");
         try
         {
-            InitializeWithWindow.Initialize(picker, WindowInteractionHelper.GetMainWindowHandle());
-            var file = await picker.PickSingleFileAsync();
-            return file?.Path;
+            return WindowInteractionHelper.PickOpenFilePath(
+                WindowInteractionHelper.GetMainWindowHandle(),
+                viewModel.GetSetupDependencyDisplayName(kind),
+                viewModel.GetSetupDependencyCurrentPath(kind),
+                false,
+                new NativeFileDialogHelper.FileDialogFilter(viewModel.Texts.AllFilesTypeDescription, "*.exe"));
         }
         catch (Exception ex)
         {

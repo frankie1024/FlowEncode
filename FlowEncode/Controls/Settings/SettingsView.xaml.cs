@@ -174,7 +174,10 @@ public sealed partial class SettingsView : UserControl
 
         try
         {
-            var folderPath = await WindowInteractionHelper.PickFolderPathAsync(WindowInteractionHelper.GetMainWindowHandle());
+            var folderPath = WindowInteractionHelper.PickFolderPath(
+                WindowInteractionHelper.GetMainWindowHandle(),
+                generalViewModel.Texts.ChooseFolderButton,
+                generalViewModel.WorkspaceRootPath);
             if (folderPath is null)
             {
                 return;

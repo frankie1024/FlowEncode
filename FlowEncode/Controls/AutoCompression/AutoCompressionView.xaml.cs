@@ -107,7 +107,13 @@ public sealed partial class AutoCompressionView : UserControl
             return;
         }
 
-        var folderPath = await WindowInteractionHelper.PickFolderPathAsync(WindowInteractionHelper.GetMainWindowHandle());
+        var dialogPath = string.IsNullOrWhiteSpace(formViewModel.AutoCompressionOutputPath)
+            ? formViewModel.AutoCompressionSourcePath
+            : formViewModel.AutoCompressionOutputPath;
+        var folderPath = WindowInteractionHelper.PickFolderPath(
+            WindowInteractionHelper.GetMainWindowHandle(),
+            formViewModel.Texts.ChooseFolderButton,
+            dialogPath);
         if (folderPath is not null)
         {
             await WindowInteractionHelper.ApplyPickedPathAsync(AutoOutputPathTextBox, folderPath, path => formViewModel.AutoCompressionOutputPath = path);

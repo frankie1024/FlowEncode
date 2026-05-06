@@ -298,6 +298,30 @@ public partial class MainWindowViewModel
         return GetSetupDependencyTitle(kind);
     }
 
+    internal string GetSetupDependencyCurrentPath(SetupDependencyKind kind)
+    {
+        var item = FindSetupGuideDependency(kind);
+        if (!string.IsNullOrWhiteSpace(item?.ExecutablePath))
+        {
+            return item.ExecutablePath;
+        }
+
+        var manualPath = GetManualPathKeys(kind)
+            .Select(key => _manualToolPaths.TryGetValue(key, out var path) ? path : null)
+            .FirstOrDefault(path => !string.IsNullOrWhiteSpace(path));
+        if (!string.IsNullOrWhiteSpace(manualPath))
+        {
+            return manualPath;
+        }
+
+        return kind switch
+        {
+            SetupDependencyKind.FfmpegBundle => _appPaths.ToolsRootPath,
+            SetupDependencyKind.VsPluginBundle or SetupDependencyKind.Awsmfunc or SetupDependencyKind.Vsjetpack => _appPaths.WorkspaceRootPath,
+            _ => _appPaths.ToolsRootPath
+        };
+    }
+
     internal async Task<string?> PinSetupDependencyBinaryAsync(SetupDependencyKind kind, string sourcePath)
     {
         var selectedCardIndex = SelectedSetupGuideCardIndex;

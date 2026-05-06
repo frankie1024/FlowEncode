@@ -168,7 +168,13 @@ public sealed partial class OverviewView : UserControl
             return;
         }
 
-        var folderPath = await WindowInteractionHelper.PickFolderPathAsync(WindowInteractionHelper.GetMainWindowHandle());
+        var dialogPath = string.IsNullOrWhiteSpace(composerViewModel.OutputPath)
+            ? composerViewModel.SourcePath
+            : composerViewModel.OutputPath;
+        var folderPath = WindowInteractionHelper.PickFolderPath(
+            WindowInteractionHelper.GetMainWindowHandle(),
+            composerViewModel.Texts.ChooseFolderButton,
+            dialogPath);
         if (folderPath is not null)
         {
             await WindowInteractionHelper.ApplyPickedPathAsync(OutputPathTextBox, folderPath, path => composerViewModel.OutputPath = path);

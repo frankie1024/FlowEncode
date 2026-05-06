@@ -135,7 +135,10 @@ public sealed partial class BluRayDemuxView : UserControl
             return;
         }
 
-        var folderPath = await WindowInteractionHelper.PickFolderPathAsync(WindowInteractionHelper.GetMainWindowHandle());
+        var folderPath = WindowInteractionHelper.PickFolderPath(
+            WindowInteractionHelper.GetMainWindowHandle(),
+            discViewModel.Texts.ChooseFolderButton,
+            discViewModel.BluRayDemuxSourcePath);
         if (folderPath is not null)
         {
             await WindowInteractionHelper.ApplyPickedPathAsync(BluRaySourcePathTextBox, folderPath, path => discViewModel.BluRayDemuxSourcePath = path);
@@ -161,7 +164,10 @@ public sealed partial class BluRayDemuxView : UserControl
             return;
         }
 
-        var folderPath = await WindowInteractionHelper.PickFolderPathAsync(WindowInteractionHelper.GetMainWindowHandle());
+        var folderPath = WindowInteractionHelper.PickFolderPath(
+            WindowInteractionHelper.GetMainWindowHandle(),
+            discViewModel.Texts.ChooseFolderButton,
+            discViewModel.BluRayDemuxOutputPath);
         if (folderPath is not null)
         {
             await WindowInteractionHelper.ApplyPickedPathAsync(BluRayOutputPathTextBox, folderPath, path => discViewModel.BluRayDemuxOutputPath = path);

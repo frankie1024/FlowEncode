@@ -57,6 +57,11 @@ public sealed class SettingsDependenciesViewModel : ModuleViewModelBase, ISetupD
         return Owner.GetSetupDependencyDisplayName(kind);
     }
 
+    public string GetSetupDependencyCurrentPath(SetupDependencyKind kind)
+    {
+        return Owner.GetSetupDependencyCurrentPath(kind);
+    }
+
     public Task<string?> InstallSetupDependencyAsync(SetupDependencyKind kind)
     {
         return Owner.InstallSetupDependencyAsync(kind);

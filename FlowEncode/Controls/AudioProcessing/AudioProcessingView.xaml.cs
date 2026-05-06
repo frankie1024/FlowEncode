@@ -110,7 +110,13 @@ public sealed partial class AudioProcessingView : UserControl
             return;
         }
 
-        var folderPath = await WindowInteractionHelper.PickFolderPathAsync(WindowInteractionHelper.GetMainWindowHandle());
+        var dialogPath = string.IsNullOrWhiteSpace(formViewModel.AudioProcessingOutputPath)
+            ? formViewModel.AudioProcessingSourcePath
+            : formViewModel.AudioProcessingOutputPath;
+        var folderPath = WindowInteractionHelper.PickFolderPath(
+            WindowInteractionHelper.GetMainWindowHandle(),
+            formViewModel.Texts.ChooseFolderButton,
+            dialogPath);
         if (folderPath is not null)
         {
             await WindowInteractionHelper.ApplyPickedPathAsync(AudioOutputPathTextBox, folderPath, path => formViewModel.AudioProcessingOutputPath = path);

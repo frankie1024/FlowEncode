@@ -36,7 +36,6 @@ namespace FlowEncode;
 public sealed partial class VapourSynthPreviewWindow : Window
 {
     private readonly LocalAppPaths _appPaths;
-    private readonly IAppSettingsService _settingsService;
     private readonly Dictionary<int, PreviewOutputState> _outputStates = [];
     private readonly PreviewBitmapSurface _bitmapSurface = new();
     private readonly LatestRequestScheduler<PreviewFrameRequest> _frameRequestScheduler;
@@ -81,13 +80,11 @@ public sealed partial class VapourSynthPreviewWindow : Window
 
     public VapourSynthPreviewWindow(
         VapourSynthPreviewWindowViewModel viewModel,
-        IVapourSynthPreviewService previewService,
-        IAppSettingsService settingsService)
+        IVapourSynthPreviewService previewService)
     {
         ViewModel = viewModel;
         _appPaths = App.GetService<LocalAppPaths>();
         _previewService = previewService;
-        _settingsService = settingsService;
         _frameRequestScheduler = new LatestRequestScheduler<PreviewFrameRequest>(ExecuteScheduledFrameRequestAsync);
         _renderDiagnostics = new PreviewRenderDiagnostics(_appPaths);
         InitializeComponent();
@@ -613,10 +610,10 @@ public sealed partial class VapourSynthPreviewWindow : Window
         var (pickSucceeded, file) = await TryRunWindowOperationAsync(
             "PickSnapshotSaveFile",
             () => Task.FromResult(
-                NativeFileDialogHelper.ShowSaveFileDialog(
+                WindowInteractionHelper.PickSaveFilePath(
                     GetWindowHandle(),
                     ViewModel.Texts.SaveButton,
-                    ResolvePreviewDialogDirectory(PreviewDialogDirectoryKind.Snapshot),
+                    ResolvePreviewDialogCurrentPath(),
                     BuildShortcutSnapshotFileName(withExtension: false),
                     ".png",
                     new NativeFileDialogHelper.FileDialogFilter(
@@ -629,7 +626,6 @@ public sealed partial class VapourSynthPreviewWindow : Window
         }
 
         var snapshotSavePath = Path.ChangeExtension(file.Value.Path, ".png");
-        RememberPreviewDialogDirectory(PreviewDialogDirectoryKind.Snapshot, snapshotSavePath);
 
         var saved = await TryRunWindowActionAsync(
             "SaveSnapshotFile",
@@ -653,17 +649,15 @@ public sealed partial class VapourSynthPreviewWindow : Window
         var (pickSucceeded, folderPath) = await TryRunWindowOperationAsync(
             "PickQuickSnapshotFolder",
             () => Task.FromResult(
-                NativeFileDialogHelper.ShowFolderDialog(
+                WindowInteractionHelper.PickFolderPath(
                     GetWindowHandle(),
                     ViewModel.Texts.VapourSynthPreviewSaveFrameButton,
-                    ResolvePreviewDialogDirectory(PreviewDialogDirectoryKind.Snapshot))),
+                    ResolvePreviewDialogCurrentPath())),
             ViewModel.Texts.VapourSynthPreviewSnapshotSaveFailedStatus);
         if (!pickSucceeded || string.IsNullOrWhiteSpace(folderPath))
         {
             return;
         }
-
-        RememberPreviewDialogDirectory(PreviewDialogDirectoryKind.Snapshot, folderPath);
 
         string? snapshotPath = null;
         var saved = await TryRunWindowActionAsync(
@@ -1192,29 +1186,34 @@ public sealed partial class VapourSynthPreviewWindow : Window
 
     private async void ImportChapterButton_Click(object sender, RoutedEventArgs e)
     {
+        NativeFileDialogHelper.FileDialogResult? PickChapterImportFile()
+        {
+            var path = WindowInteractionHelper.PickOpenFilePath(
+                GetWindowHandle(),
+                ViewModel.Texts.ImportButton,
+                ResolvePreviewDialogCurrentPath(),
+                new NativeFileDialogHelper.FileDialogFilter(
+                    ViewModel.Texts.VapourSynthPreviewChapterFileTypeDescription,
+                    "*.txt;*.xml"),
+                new NativeFileDialogHelper.FileDialogFilter(
+                    ViewModel.Texts.VapourSynthPreviewOgmChapterFileTypeDescription,
+                    "*.txt"),
+                new NativeFileDialogHelper.FileDialogFilter(
+                    ViewModel.Texts.VapourSynthPreviewXmlChapterFileTypeDescription,
+                    "*.xml"));
+            return string.IsNullOrWhiteSpace(path)
+                ? null
+                : new NativeFileDialogHelper.FileDialogResult(path, 1);
+        }
+
         var (pickSucceeded, file) = await TryRunWindowOperationAsync(
             "PickChapterImportFile",
-            () => Task.FromResult(
-                NativeFileDialogHelper.ShowOpenFileDialog(
-                    GetWindowHandle(),
-                    ViewModel.Texts.ImportButton,
-                    ResolvePreviewDialogDirectory(PreviewDialogDirectoryKind.Chapter),
-                    new NativeFileDialogHelper.FileDialogFilter(
-                        ViewModel.Texts.VapourSynthPreviewChapterFileTypeDescription,
-                        "*.txt;*.xml"),
-                    new NativeFileDialogHelper.FileDialogFilter(
-                        ViewModel.Texts.VapourSynthPreviewOgmChapterFileTypeDescription,
-                        "*.txt"),
-                    new NativeFileDialogHelper.FileDialogFilter(
-                        ViewModel.Texts.VapourSynthPreviewXmlChapterFileTypeDescription,
-                        "*.xml"))),
+            () => Task.FromResult(PickChapterImportFile()),
             ViewModel.Texts.VapourSynthPreviewChapterImportFailedStatus);
         if (!pickSucceeded || file is null)
         {
             return;
         }
-
-        RememberPreviewDialogDirectory(PreviewDialogDirectoryKind.Chapter, file.Value.Path);
 
         try
         {
@@ -1244,10 +1243,10 @@ public sealed partial class VapourSynthPreviewWindow : Window
         var (pickSucceeded, file) = await TryRunWindowOperationAsync(
             "PickChapterExportFile",
             () => Task.FromResult(
-                NativeFileDialogHelper.ShowSaveFileDialog(
+                WindowInteractionHelper.PickSaveFilePath(
                     GetWindowHandle(),
                     ViewModel.Texts.ExportButton,
-                    ResolvePreviewDialogDirectory(PreviewDialogDirectoryKind.Chapter),
+                    ResolvePreviewDialogCurrentPath(),
                     "chapters",
                     ".txt",
                     new NativeFileDialogHelper.FileDialogFilter(
@@ -1265,7 +1264,6 @@ public sealed partial class VapourSynthPreviewWindow : Window
         var selectedPath = file.Value.Path;
         var targetExtension = ResolveChapterExportExtension(file.Value.SelectedFilterIndex);
         selectedPath = Path.ChangeExtension(selectedPath, targetExtension);
-        RememberPreviewDialogDirectory(PreviewDialogDirectoryKind.Chapter, selectedPath);
 
         try
         {
@@ -1950,14 +1948,8 @@ public sealed partial class VapourSynthPreviewWindow : Window
         return withExtension ? $"{fileName}.png" : fileName;
     }
 
-    private string ResolvePreviewDialogDirectory(PreviewDialogDirectoryKind kind)
+    private string ResolvePreviewDialogCurrentPath()
     {
-        var workingDirectory = ResolveExistingDirectory(_currentRequest?.WorkingDirectory);
-        if (!string.IsNullOrWhiteSpace(workingDirectory))
-        {
-            return workingDirectory;
-        }
-
         var scriptDirectory = ResolveExistingDirectory(_currentRequest?.SourceFilePath is null
             ? null
             : Path.GetDirectoryName(_currentRequest.SourceFilePath));
@@ -1966,76 +1958,13 @@ public sealed partial class VapourSynthPreviewWindow : Window
             return scriptDirectory;
         }
 
-        var settings = _settingsService.Load();
-        var rememberedDirectory = kind == PreviewDialogDirectoryKind.Snapshot
-            ? settings.PreviewSnapshotDialogDirectory
-            : settings.PreviewChapterDialogDirectory;
-        rememberedDirectory = ResolveExistingDirectory(rememberedDirectory);
-        if (!string.IsNullOrWhiteSpace(rememberedDirectory))
+        var workingDirectory = ResolveExistingDirectory(_currentRequest?.WorkingDirectory);
+        if (!string.IsNullOrWhiteSpace(workingDirectory))
         {
-            return rememberedDirectory;
+            return workingDirectory;
         }
 
-        var workspaceDirectory = ResolveExistingDirectory(_appPaths.RootPath);
-        if (!string.IsNullOrWhiteSpace(workspaceDirectory))
-        {
-            return workspaceDirectory;
-        }
-
-        var documentsDirectory = ResolveExistingDirectory(Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments));
-        if (!string.IsNullOrWhiteSpace(documentsDirectory))
-        {
-            return documentsDirectory;
-        }
-
-        return AppContext.BaseDirectory;
-    }
-
-    private void RememberPreviewDialogDirectory(PreviewDialogDirectoryKind kind, string selectedPath)
-    {
-        var directory = ResolveDirectoryFromSelection(selectedPath);
-        if (string.IsNullOrWhiteSpace(directory))
-        {
-            return;
-        }
-
-        var normalizedDirectory = Path.GetFullPath(directory);
-        var settings = _settingsService.Load();
-        var currentValue = kind == PreviewDialogDirectoryKind.Snapshot
-            ? settings.PreviewSnapshotDialogDirectory
-            : settings.PreviewChapterDialogDirectory;
-
-        if (string.Equals(currentValue, normalizedDirectory, StringComparison.OrdinalIgnoreCase))
-        {
-            return;
-        }
-
-        _settingsService.Save(kind == PreviewDialogDirectoryKind.Snapshot
-            ? settings with { PreviewSnapshotDialogDirectory = normalizedDirectory }
-            : settings with { PreviewChapterDialogDirectory = normalizedDirectory });
-    }
-
-    private static string? ResolveDirectoryFromSelection(string? selectedPath)
-    {
-        if (string.IsNullOrWhiteSpace(selectedPath))
-        {
-            return null;
-        }
-
-        var existingDirectory = ResolveExistingDirectory(selectedPath);
-        if (!string.IsNullOrWhiteSpace(existingDirectory))
-        {
-            return existingDirectory;
-        }
-
-        try
-        {
-            return ResolveExistingDirectory(Path.GetDirectoryName(selectedPath));
-        }
-        catch
-        {
-            return null;
-        }
+        return string.Empty;
     }
 
     private static string? ResolveExistingDirectory(string? candidatePath)
@@ -2066,17 +1995,15 @@ public sealed partial class VapourSynthPreviewWindow : Window
         var (pickSucceeded, folderPath) = await TryRunWindowOperationAsync(
             "PickAllSnapshotsFolder",
             () => Task.FromResult(
-                NativeFileDialogHelper.ShowFolderDialog(
+                WindowInteractionHelper.PickFolderPath(
                     GetWindowHandle(),
                     ViewModel.Texts.VapourSynthPreviewSaveAllFramesButton,
-                    ResolvePreviewDialogDirectory(PreviewDialogDirectoryKind.Snapshot))),
+                    ResolvePreviewDialogCurrentPath())),
             ViewModel.Texts.VapourSynthPreviewAllSnapshotsFailedStatus);
         if (!pickSucceeded || string.IsNullOrWhiteSpace(folderPath))
         {
             return;
         }
-
-        RememberPreviewDialogDirectory(PreviewDialogDirectoryKind.Snapshot, folderPath);
 
         StopPlayback();
         var lockedFrame = ViewModel.CurrentFrame;
@@ -3547,9 +3474,4 @@ public sealed partial class VapourSynthPreviewWindow : Window
         Bottom
     }
 
-    private enum PreviewDialogDirectoryKind
-    {
-        Snapshot,
-        Chapter
-    }
 }

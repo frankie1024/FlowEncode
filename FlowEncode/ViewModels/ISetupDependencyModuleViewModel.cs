@@ -19,6 +19,8 @@ public interface ISetupDependencyModuleViewModel
 
     string GetSetupDependencyDisplayName(SetupDependencyKind kind);
 
+    string GetSetupDependencyCurrentPath(SetupDependencyKind kind);
+
     Task<string?> InstallSetupDependencyAsync(SetupDependencyKind kind);
 
     Task<string?> ImportSetupDependencyBinaryAsync(SetupDependencyKind kind, string sourcePath);
