@@ -13,7 +13,9 @@ public sealed record AppSettings(
     bool HasRunInitialVsPluginDependencyUpdate = false,
     int MaxConcurrentEncodingJobs = 1,
     QueueCompletionAction QueueCompletionAction = QueueCompletionAction.None,
-    string PreviewScalingAlgorithm = "nearest")
+    string PreviewScalingAlgorithm = "nearest",
+    string PreviewSnapshotDialogDirectory = "",
+    string PreviewChapterDialogDirectory = "")
 {
     public static AppSettings Default { get; } = new(
         PreferSystemEncoders: true,
@@ -25,7 +27,10 @@ public sealed record AppSettings(
         ManualToolPaths: new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase),
         HasRunInitialVsPluginDependencyUpdate: false,
         MaxConcurrentEncodingJobs: 1,
-        QueueCompletionAction: QueueCompletionAction.None);
+        QueueCompletionAction: QueueCompletionAction.None,
+        PreviewScalingAlgorithm: "nearest",
+        PreviewSnapshotDialogDirectory: string.Empty,
+        PreviewChapterDialogDirectory: string.Empty);
 
     [JsonIgnore]
     public IReadOnlyDictionary<string, string> EffectiveManualToolPaths =>

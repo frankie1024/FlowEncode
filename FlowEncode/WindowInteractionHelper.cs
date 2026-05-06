@@ -62,12 +62,13 @@ internal static class WindowInteractionHelper
         string allFilesFilterLabel)
     {
         var initialDirectory = ResolveInitialFileDialogDirectory(currentPath);
-        return NativeFileDialogHelper.ShowOpenFileDialog(
+        var result = NativeFileDialogHelper.ShowOpenFileDialog(
             windowHandle,
             dialogTitle,
             initialDirectory,
             new NativeFileDialogHelper.FileDialogFilter(primaryFilterLabel, primaryFilterPattern),
             new NativeFileDialogHelper.FileDialogFilter(allFilesFilterLabel, "*.*"));
+        return result?.Path;
     }
 
     public static async Task<bool> ShowConfirmationAsync(

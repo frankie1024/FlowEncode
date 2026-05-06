@@ -6,7 +6,6 @@ using System.Globalization;
 using System.IO;
 using System.Linq;
 using System.Numerics;
-using System.Runtime.InteropServices.WindowsRuntime;
 using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 using System.Xml.Linq;
@@ -27,7 +26,6 @@ using Windows.ApplicationModel.DataTransfer;
 using Windows.Foundation;
 using Windows.Graphics;
 using Windows.Graphics.Imaging;
-using Windows.Storage.Pickers;
 using Windows.Storage.Streams;
 using Windows.UI.Core;
 using Windows.System;
@@ -38,6 +36,7 @@ namespace FlowEncode;
 public sealed partial class VapourSynthPreviewWindow : Window
 {
     private readonly LocalAppPaths _appPaths;
+    private readonly IAppSettingsService _settingsService;
     private readonly Dictionary<int, PreviewOutputState> _outputStates = [];
     private readonly PreviewBitmapSurface _bitmapSurface = new();
     private readonly LatestRequestScheduler<PreviewFrameRequest> _frameRequestScheduler;
@@ -82,11 +81,13 @@ public sealed partial class VapourSynthPreviewWindow : Window
 
     public VapourSynthPreviewWindow(
         VapourSynthPreviewWindowViewModel viewModel,
-        IVapourSynthPreviewService previewService)
+        IVapourSynthPreviewService previewService,
+        IAppSettingsService settingsService)
     {
         ViewModel = viewModel;
         _appPaths = App.GetService<LocalAppPaths>();
         _previewService = previewService;
+        _settingsService = settingsService;
         _frameRequestScheduler = new LatestRequestScheduler<PreviewFrameRequest>(ExecuteScheduledFrameRequestAsync);
         _renderDiagnostics = new PreviewRenderDiagnostics(_appPaths);
         InitializeComponent();
@@ -611,34 +612,35 @@ public sealed partial class VapourSynthPreviewWindow : Window
 
         var (pickSucceeded, file) = await TryRunWindowOperationAsync(
             "PickSnapshotSaveFile",
-            async () =>
-            {
-                var picker = new FileSavePicker
-                {
-                    SuggestedStartLocation = PickerLocationId.PicturesLibrary,
-                    SuggestedFileName = BuildShortcutSnapshotFileName(withExtension: false),
-                    DefaultFileExtension = ".png"
-                };
-                picker.FileTypeChoices.Add(ViewModel.Texts.VapourSynthPreviewSnapshotFileTypeDescription, [".png"]);
-                InitializeWithWindow.Initialize(picker, GetWindowHandle());
-                return await picker.PickSaveFileAsync();
-            },
+            () => Task.FromResult(
+                NativeFileDialogHelper.ShowSaveFileDialog(
+                    GetWindowHandle(),
+                    ViewModel.Texts.SaveButton,
+                    ResolvePreviewDialogDirectory(PreviewDialogDirectoryKind.Snapshot),
+                    BuildShortcutSnapshotFileName(withExtension: false),
+                    ".png",
+                    new NativeFileDialogHelper.FileDialogFilter(
+                        ViewModel.Texts.VapourSynthPreviewSnapshotFileTypeDescription,
+                        "*.png"))),
             ViewModel.Texts.VapourSynthPreviewSnapshotSaveFailedStatus);
         if (!pickSucceeded || file is null)
         {
             return;
         }
 
+        var snapshotSavePath = Path.ChangeExtension(file.Value.Path, ".png");
+        RememberPreviewDialogDirectory(PreviewDialogDirectoryKind.Snapshot, snapshotSavePath);
+
         var saved = await TryRunWindowActionAsync(
             "SaveSnapshotFile",
-            () => SavePixelsAsPngAsync(file.Path, _displayedFramePixels, _displayedFrameWidth, _displayedFrameHeight),
+            () => SavePixelsAsPngAsync(snapshotSavePath, _displayedFramePixels, _displayedFrameWidth, _displayedFrameHeight),
             ViewModel.Texts.VapourSynthPreviewSnapshotSaveFailedStatus);
         if (!saved)
         {
             return;
         }
 
-        SetStatusText(ViewModel.Texts.VapourSynthPreviewSnapshotSavedStatus(file.Path));
+        SetStatusText(ViewModel.Texts.VapourSynthPreviewSnapshotSavedStatus(snapshotSavePath));
     }
 
     private async Task QuickSaveSnapshotAsync()
@@ -648,30 +650,27 @@ public sealed partial class VapourSynthPreviewWindow : Window
             return;
         }
 
-        var (pickSucceeded, folder) = await TryRunWindowOperationAsync(
+        var (pickSucceeded, folderPath) = await TryRunWindowOperationAsync(
             "PickQuickSnapshotFolder",
-            async () =>
-            {
-                var picker = new FolderPicker
-                {
-                    SuggestedStartLocation = PickerLocationId.PicturesLibrary
-                };
-                picker.FileTypeFilter.Add("*");
-                InitializeWithWindow.Initialize(picker, GetWindowHandle());
-                return await picker.PickSingleFolderAsync();
-            },
+            () => Task.FromResult(
+                NativeFileDialogHelper.ShowFolderDialog(
+                    GetWindowHandle(),
+                    ViewModel.Texts.VapourSynthPreviewSaveFrameButton,
+                    ResolvePreviewDialogDirectory(PreviewDialogDirectoryKind.Snapshot))),
             ViewModel.Texts.VapourSynthPreviewSnapshotSaveFailedStatus);
-        if (!pickSucceeded || folder is null)
+        if (!pickSucceeded || string.IsNullOrWhiteSpace(folderPath))
         {
             return;
         }
+
+        RememberPreviewDialogDirectory(PreviewDialogDirectoryKind.Snapshot, folderPath);
 
         string? snapshotPath = null;
         var saved = await TryRunWindowActionAsync(
             "SaveQuickSnapshot",
             async () =>
             {
-                snapshotPath = Path.Combine(folder.Path, BuildShortcutSnapshotFileName(withExtension: true));
+                snapshotPath = Path.Combine(folderPath, BuildShortcutSnapshotFileName(withExtension: true));
                 await SavePixelsAsPngAsync(snapshotPath, _displayedFramePixels, _displayedFrameWidth, _displayedFrameHeight);
             },
             ViewModel.Texts.VapourSynthPreviewSnapshotSaveFailedStatus);
@@ -1195,26 +1194,31 @@ public sealed partial class VapourSynthPreviewWindow : Window
     {
         var (pickSucceeded, file) = await TryRunWindowOperationAsync(
             "PickChapterImportFile",
-            async () =>
-            {
-                var picker = new FileOpenPicker
-                {
-                    SuggestedStartLocation = PickerLocationId.DocumentsLibrary
-                };
-                picker.FileTypeFilter.Add(".txt");
-                picker.FileTypeFilter.Add(".xml");
-                InitializeWithWindow.Initialize(picker, GetWindowHandle());
-                return await picker.PickSingleFileAsync();
-            },
+            () => Task.FromResult(
+                NativeFileDialogHelper.ShowOpenFileDialog(
+                    GetWindowHandle(),
+                    ViewModel.Texts.ImportButton,
+                    ResolvePreviewDialogDirectory(PreviewDialogDirectoryKind.Chapter),
+                    new NativeFileDialogHelper.FileDialogFilter(
+                        ViewModel.Texts.VapourSynthPreviewChapterFileTypeDescription,
+                        "*.txt;*.xml"),
+                    new NativeFileDialogHelper.FileDialogFilter(
+                        ViewModel.Texts.VapourSynthPreviewOgmChapterFileTypeDescription,
+                        "*.txt"),
+                    new NativeFileDialogHelper.FileDialogFilter(
+                        ViewModel.Texts.VapourSynthPreviewXmlChapterFileTypeDescription,
+                        "*.xml"))),
             ViewModel.Texts.VapourSynthPreviewChapterImportFailedStatus);
         if (!pickSucceeded || file is null)
         {
             return;
         }
 
+        RememberPreviewDialogDirectory(PreviewDialogDirectoryKind.Chapter, file.Value.Path);
+
         try
         {
-            var chapters = await LoadChapterFileAsync(file.Path);
+            var chapters = await LoadChapterFileAsync(file.Value.Path);
             ViewModel.ReplaceChapters(BuildChapterOptions(chapters));
             _activeChapterIndex = -1;
             UpdateChapterButtons();
@@ -1239,44 +1243,54 @@ public sealed partial class VapourSynthPreviewWindow : Window
 
         var (pickSucceeded, file) = await TryRunWindowOperationAsync(
             "PickChapterExportFile",
-            async () =>
-            {
-                var picker = new FileSavePicker
-                {
-                    SuggestedStartLocation = PickerLocationId.DocumentsLibrary,
-                    SuggestedFileName = "chapters",
-                    DefaultFileExtension = ".txt"
-                };
-                picker.FileTypeChoices.Add(ViewModel.Texts.VapourSynthPreviewOgmChapterFileTypeDescription, [".txt"]);
-                picker.FileTypeChoices.Add(ViewModel.Texts.VapourSynthPreviewXmlChapterFileTypeDescription, [".xml"]);
-                InitializeWithWindow.Initialize(picker, GetWindowHandle());
-                return await picker.PickSaveFileAsync();
-            },
+            () => Task.FromResult(
+                NativeFileDialogHelper.ShowSaveFileDialog(
+                    GetWindowHandle(),
+                    ViewModel.Texts.ExportButton,
+                    ResolvePreviewDialogDirectory(PreviewDialogDirectoryKind.Chapter),
+                    "chapters",
+                    ".txt",
+                    new NativeFileDialogHelper.FileDialogFilter(
+                        ViewModel.Texts.VapourSynthPreviewOgmChapterFileTypeDescription,
+                        "*.txt"),
+                    new NativeFileDialogHelper.FileDialogFilter(
+                        ViewModel.Texts.VapourSynthPreviewXmlChapterFileTypeDescription,
+                        "*.xml"))),
             ViewModel.Texts.VapourSynthPreviewChapterExportFailedStatus);
         if (!pickSucceeded || file is null)
         {
             return;
         }
 
+        var selectedPath = file.Value.Path;
+        var targetExtension = ResolveChapterExportExtension(file.Value.SelectedFilterIndex);
+        selectedPath = Path.ChangeExtension(selectedPath, targetExtension);
+        RememberPreviewDialogDirectory(PreviewDialogDirectoryKind.Chapter, selectedPath);
+
         try
         {
             var chapters = GetChapterEntries();
-            if (string.Equals(Path.GetExtension(file.Path), ".xml", StringComparison.OrdinalIgnoreCase))
+            if (string.Equals(targetExtension, ".xml", StringComparison.OrdinalIgnoreCase))
             {
-                await File.WriteAllTextAsync(file.Path, BuildMatroskaChaptersXml(chapters));
+                await File.WriteAllTextAsync(selectedPath, BuildMatroskaChaptersXml(chapters));
             }
             else
             {
-                await File.WriteAllLinesAsync(file.Path, BuildOgmChapterLines(chapters));
+                await File.WriteAllLinesAsync(selectedPath, BuildOgmChapterLines(chapters));
             }
 
-            SetStatusText(ViewModel.Texts.VapourSynthPreviewChaptersExportedStatus(chapters.Count, file.Path));
+            SetStatusText(ViewModel.Texts.VapourSynthPreviewChaptersExportedStatus(chapters.Count, selectedPath));
         }
         catch (Exception ex)
         {
             LogWindowOperationFailure("ExportChapterFile", ex);
             SetStatusText(ViewModel.Texts.VapourSynthPreviewChapterExportFailedStatus(GetWindowOperationErrorDetail(ex)));
         }
+    }
+
+    private static string ResolveChapterExportExtension(int selectedFilterIndex)
+    {
+        return selectedFilterIndex == 3 ? ".xml" : ".txt";
     }
 
     private async void AddChapterButton_Click(object sender, RoutedEventArgs e)
@@ -1936,6 +1950,112 @@ public sealed partial class VapourSynthPreviewWindow : Window
         return withExtension ? $"{fileName}.png" : fileName;
     }
 
+    private string ResolvePreviewDialogDirectory(PreviewDialogDirectoryKind kind)
+    {
+        var workingDirectory = ResolveExistingDirectory(_currentRequest?.WorkingDirectory);
+        if (!string.IsNullOrWhiteSpace(workingDirectory))
+        {
+            return workingDirectory;
+        }
+
+        var scriptDirectory = ResolveExistingDirectory(_currentRequest?.SourceFilePath is null
+            ? null
+            : Path.GetDirectoryName(_currentRequest.SourceFilePath));
+        if (!string.IsNullOrWhiteSpace(scriptDirectory))
+        {
+            return scriptDirectory;
+        }
+
+        var settings = _settingsService.Load();
+        var rememberedDirectory = kind == PreviewDialogDirectoryKind.Snapshot
+            ? settings.PreviewSnapshotDialogDirectory
+            : settings.PreviewChapterDialogDirectory;
+        rememberedDirectory = ResolveExistingDirectory(rememberedDirectory);
+        if (!string.IsNullOrWhiteSpace(rememberedDirectory))
+        {
+            return rememberedDirectory;
+        }
+
+        var workspaceDirectory = ResolveExistingDirectory(_appPaths.RootPath);
+        if (!string.IsNullOrWhiteSpace(workspaceDirectory))
+        {
+            return workspaceDirectory;
+        }
+
+        var documentsDirectory = ResolveExistingDirectory(Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments));
+        if (!string.IsNullOrWhiteSpace(documentsDirectory))
+        {
+            return documentsDirectory;
+        }
+
+        return AppContext.BaseDirectory;
+    }
+
+    private void RememberPreviewDialogDirectory(PreviewDialogDirectoryKind kind, string selectedPath)
+    {
+        var directory = ResolveDirectoryFromSelection(selectedPath);
+        if (string.IsNullOrWhiteSpace(directory))
+        {
+            return;
+        }
+
+        var normalizedDirectory = Path.GetFullPath(directory);
+        var settings = _settingsService.Load();
+        var currentValue = kind == PreviewDialogDirectoryKind.Snapshot
+            ? settings.PreviewSnapshotDialogDirectory
+            : settings.PreviewChapterDialogDirectory;
+
+        if (string.Equals(currentValue, normalizedDirectory, StringComparison.OrdinalIgnoreCase))
+        {
+            return;
+        }
+
+        _settingsService.Save(kind == PreviewDialogDirectoryKind.Snapshot
+            ? settings with { PreviewSnapshotDialogDirectory = normalizedDirectory }
+            : settings with { PreviewChapterDialogDirectory = normalizedDirectory });
+    }
+
+    private static string? ResolveDirectoryFromSelection(string? selectedPath)
+    {
+        if (string.IsNullOrWhiteSpace(selectedPath))
+        {
+            return null;
+        }
+
+        var existingDirectory = ResolveExistingDirectory(selectedPath);
+        if (!string.IsNullOrWhiteSpace(existingDirectory))
+        {
+            return existingDirectory;
+        }
+
+        try
+        {
+            return ResolveExistingDirectory(Path.GetDirectoryName(selectedPath));
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    private static string? ResolveExistingDirectory(string? candidatePath)
+    {
+        if (string.IsNullOrWhiteSpace(candidatePath))
+        {
+            return null;
+        }
+
+        try
+        {
+            var fullPath = Path.GetFullPath(candidatePath);
+            return Directory.Exists(fullPath) ? fullPath : null;
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
     private async Task SaveAllOutputsAtCurrentFrameAsync()
     {
         if (_currentRequest is null || _selectedOutputInfo is null || ViewModel.Outputs.Count == 0)
@@ -1943,23 +2063,20 @@ public sealed partial class VapourSynthPreviewWindow : Window
             return;
         }
 
-        var (pickSucceeded, folder) = await TryRunWindowOperationAsync(
+        var (pickSucceeded, folderPath) = await TryRunWindowOperationAsync(
             "PickAllSnapshotsFolder",
-            async () =>
-            {
-                var picker = new FolderPicker
-                {
-                    SuggestedStartLocation = PickerLocationId.PicturesLibrary
-                };
-                picker.FileTypeFilter.Add("*");
-                InitializeWithWindow.Initialize(picker, GetWindowHandle());
-                return await picker.PickSingleFolderAsync();
-            },
+            () => Task.FromResult(
+                NativeFileDialogHelper.ShowFolderDialog(
+                    GetWindowHandle(),
+                    ViewModel.Texts.VapourSynthPreviewSaveAllFramesButton,
+                    ResolvePreviewDialogDirectory(PreviewDialogDirectoryKind.Snapshot))),
             ViewModel.Texts.VapourSynthPreviewAllSnapshotsFailedStatus);
-        if (!pickSucceeded || folder is null)
+        if (!pickSucceeded || string.IsNullOrWhiteSpace(folderPath))
         {
             return;
         }
+
+        RememberPreviewDialogDirectory(PreviewDialogDirectoryKind.Snapshot, folderPath);
 
         StopPlayback();
         var lockedFrame = ViewModel.CurrentFrame;
@@ -1979,7 +2096,7 @@ public sealed partial class VapourSynthPreviewWindow : Window
                     continue;
                 }
 
-                var snapshotPath = Path.Combine(folder.Path, BuildShortcutSnapshotFileName(output, frameNumber, withExtension: true));
+                var snapshotPath = Path.Combine(folderPath, BuildShortcutSnapshotFileName(output, frameNumber, withExtension: true));
                 await SavePixelsAsPngAsync(snapshotPath, snapshotFrame.Pixels, snapshotFrame.Width, snapshotFrame.Height);
                 savedCount++;
             }
@@ -3089,7 +3206,7 @@ public sealed partial class VapourSynthPreviewWindow : Window
             e.Handled = true;
             if (IsControlKeyPressed())
             {
-                await SaveAllOutputsAtCurrentFrameAsync();
+                await SaveCurrentSnapshotAsync();
             }
             else
             {
@@ -3428,5 +3545,11 @@ public sealed partial class VapourSynthPreviewWindow : Window
         Height,
         Right,
         Bottom
+    }
+
+    private enum PreviewDialogDirectoryKind
+    {
+        Snapshot,
+        Chapter
     }
 }

@@ -1152,6 +1152,7 @@ public partial class MainWindowViewModel : CommunityToolkit.Mvvm.ComponentModel.
         try
         {
             var normalizedWorkspaceRootPath = _appPaths.NormalizeWorkspaceRootPath(WorkspaceRootPath);
+            var currentSettings = _settingsService.Load();
             var settings = new AppSettings(
                 PreferSystemEncoders,
                 AutoCheckUpdatesOnStartup,
@@ -1163,7 +1164,9 @@ public partial class MainWindowViewModel : CommunityToolkit.Mvvm.ComponentModel.
                 _hasRunInitialVsPluginDependencyUpdate,
                 GetMaxConcurrentEncodingJobCount(),
                 QueueCompletionAction,
-                _settingsService.Load().PreviewScalingAlgorithm);
+                currentSettings.PreviewScalingAlgorithm,
+                currentSettings.PreviewSnapshotDialogDirectory,
+                currentSettings.PreviewChapterDialogDirectory);
 
             _settingsService.Save(settings);
             _encoderDiscoveryService.InvalidateCache();

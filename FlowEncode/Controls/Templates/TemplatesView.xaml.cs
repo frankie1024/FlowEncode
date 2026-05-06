@@ -432,13 +432,14 @@ public sealed partial class TemplatesView : UserControl
         }
 
         var initialDirectory = EnsureTemplateFilesRootPath();
-        return NativeFileDialogHelper.ShowOpenFileDialog(
+        var result = NativeFileDialogHelper.ShowOpenFileDialog(
             WindowInteractionHelper.GetMainWindowHandle(),
             libraryViewModel.Texts.LoadTemplateDialogTitle,
             initialDirectory,
             new NativeFileDialogHelper.FileDialogFilter(
                 libraryViewModel.Texts.TemplateFileTypeDescription,
                 $"*{TemplateExchangeFileExtension}"));
+        return result?.Path;
     }
 
     private string? PickTemplateExportFilePath()
@@ -450,7 +451,7 @@ public sealed partial class TemplatesView : UserControl
         }
 
         var initialDirectory = EnsureTemplateFilesRootPath();
-        return NativeFileDialogHelper.ShowSaveFileDialog(
+        var result = NativeFileDialogHelper.ShowSaveFileDialog(
             WindowInteractionHelper.GetMainWindowHandle(),
             editorViewModel.Texts.ExportButton,
             initialDirectory,
@@ -459,6 +460,7 @@ public sealed partial class TemplatesView : UserControl
             new NativeFileDialogHelper.FileDialogFilter(
                 editorViewModel.Texts.TemplateFileTypeDescription,
                 $"*{TemplateExchangeFileExtension}"));
+        return result is null ? null : Path.ChangeExtension(result.Value.Path, TemplateExchangeFileExtension);
     }
 
     private string BuildTemplateExportFileName()
