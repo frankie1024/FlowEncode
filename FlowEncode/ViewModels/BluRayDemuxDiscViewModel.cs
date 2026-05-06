@@ -64,16 +64,25 @@ public sealed class BluRayDemuxDiscViewModel : ModuleViewModelBase
     public void ApplyLanguageState()
     {
         var backend = SelectedBluRayDemuxBackend?.Value ?? BluRayDemuxBackend.DgDemux;
-        ReplaceItems(BluRayDemuxBackendOptions, BuildBluRayDemuxBackendOptions());
-        SelectedBluRayDemuxBackend = BluRayDemuxBackendOptions.FirstOrDefault(option => option.Value == backend) ?? BluRayDemuxBackendOptions.FirstOrDefault();
-
-        if (!Owner.IsBluRayDemuxRunning)
+        Owner.BeginBluRayDemuxLanguageStateApplication();
+        try
         {
-            Owner.SetBluRayDemuxDisplayState(null);
-            Owner.BluRayDemuxStatusText = Texts.BluRayDemuxIdleStatus;
+            ReplaceItems(BluRayDemuxBackendOptions, BuildBluRayDemuxBackendOptions());
+            SelectedBluRayDemuxBackend = BluRayDemuxBackendOptions.FirstOrDefault(option => option.Value == backend) ?? BluRayDemuxBackendOptions.FirstOrDefault();
+
+            if (!Owner.IsBluRayDemuxRunning)
+            {
+                Owner.SetBluRayDemuxDisplayState(null);
+                Owner.BluRayDemuxStatusText = Texts.BluRayDemuxIdleStatus;
+            }
+
+            Owner.RaiseBluRayDemuxLanguagePropertyChanges();
+        }
+        finally
+        {
+            Owner.EndBluRayDemuxLanguageStateApplication();
         }
 
-        Owner.RaiseBluRayDemuxLanguagePropertyChanges();
         Owner.RefreshBluRayTrackOutputPreviews();
         Owner.RefreshBluRayDemuxCommandPreview();
     }

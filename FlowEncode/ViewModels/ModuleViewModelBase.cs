@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Concurrent;
 using System.Collections.ObjectModel;
 using System.Collections.Generic;
 using System.ComponentModel;
@@ -9,6 +10,7 @@ namespace FlowEncode.ViewModels;
 
 public abstract class ModuleViewModelBase : CommunityToolkit.Mvvm.ComponentModel.ObservableObject, IDisposable
 {
+    private static readonly ConcurrentDictionary<Type, HashSet<string>> ForwardedPropertyNamesCache = new();
     private readonly HashSet<string> _forwardedPropertyNames;
     private readonly List<IDisposable> _ownedDisposables = [];
     private bool _isDisposed;
@@ -16,11 +18,13 @@ public abstract class ModuleViewModelBase : CommunityToolkit.Mvvm.ComponentModel
     protected ModuleViewModelBase(MainWindowViewModel owner)
     {
         Owner = owner;
-        _forwardedPropertyNames = GetType()
-            .GetProperties(BindingFlags.Instance | BindingFlags.Public)
-            .Where(static property => property.GetMethod is not null)
-            .Select(static property => property.Name)
-            .ToHashSet(StringComparer.Ordinal);
+        _forwardedPropertyNames = ForwardedPropertyNamesCache.GetOrAdd(
+            GetType(),
+            static type => type
+                .GetProperties(BindingFlags.Instance | BindingFlags.Public)
+                .Where(static property => property.GetMethod is not null)
+                .Select(static property => property.Name)
+                .ToHashSet(StringComparer.Ordinal));
 
         owner.PropertyChanged += Owner_PropertyChanged;
     }

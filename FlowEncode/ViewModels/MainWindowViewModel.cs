@@ -3705,7 +3705,6 @@ public partial class MainWindowViewModel : CommunityToolkit.Mvvm.ComponentModel.
         ApplyAutoCompressionLanguageState();
         ApplyAudioProcessingLanguageState();
         ApplyBluRayDemuxLanguageState();
-        RaiseSetupGuidePropertyChanges();
 
         SchedulePreviewRefresh();
     }

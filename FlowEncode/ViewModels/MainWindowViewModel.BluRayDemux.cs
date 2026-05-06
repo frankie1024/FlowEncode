@@ -46,6 +46,7 @@ public partial class MainWindowViewModel
     private int _bluRayDemuxInputRefreshVersion;
     private bool _isApplyingDeferredBluRayDemuxInputRefresh;
     private bool _isBluRayDemuxInputRefreshPending;
+    private bool _isApplyingBluRayDemuxLanguageState;
     private readonly StringBuilder _bluRayDemuxLogBuilder = new();
     private readonly List<string> _bluRayDemuxLogStageLines = [];
     private readonly Dictionary<string, BluRayPlaylistCacheEntry> _bluRayPlaylistTrackCache = new(StringComparer.OrdinalIgnoreCase);
@@ -98,6 +99,11 @@ public partial class MainWindowViewModel
         {
             if (SetProperty(ref _selectedBluRayDemuxBackend, value))
             {
+                if (_isApplyingBluRayDemuxLanguageState)
+                {
+                    return;
+                }
+
                 RaiseBluRayDemuxEnvironmentPropertyChanges();
                 ScheduleBluRayDemuxInputRefresh(resetScanState: true);
             }
@@ -1352,9 +1358,6 @@ public partial class MainWindowViewModel
         OnPropertyChanged(nameof(CanStartBluRayDemux));
         OnPropertyChanged(nameof(CanCancelBluRayDemux));
         OnPropertyChanged(nameof(CanClearBluRayDemuxTask));
-        OnPropertyChanged(nameof(BluRayDiscSummaryText));
-        OnPropertyChanged(nameof(BluRayPlaylistSummaryText));
-        OnPropertyChanged(nameof(BluRaySelectedTrackSummary));
         OnPropertyChanged(nameof(BluRayDemuxOutputPreviewText));
     }
 
@@ -1369,13 +1372,22 @@ public partial class MainWindowViewModel
     internal void RaiseBluRayDemuxLanguagePropertyChanges()
     {
         OnPropertyChanged(nameof(SelectedBluRayDemuxBackend));
-        OnPropertyChanged(nameof(BluRayToolSummary));
-        OnPropertyChanged(nameof(BluRayDemuxBackendNote));
         OnPropertyChanged(nameof(BluRayDiscSummaryText));
         OnPropertyChanged(nameof(BluRayPlaylistSummaryText));
         OnPropertyChanged(nameof(BluRaySelectedTrackSummary));
-        RaiseBluRayDemuxEnvironmentPropertyChanges();
+        OnPropertyChanged(nameof(BluRayToolSummary));
+        OnPropertyChanged(nameof(BluRayDemuxBackendNote));
         RaiseBluRayDemuxInputPropertyChanges();
+    }
+
+    internal void BeginBluRayDemuxLanguageStateApplication()
+    {
+        _isApplyingBluRayDemuxLanguageState = true;
+    }
+
+    internal void EndBluRayDemuxLanguageStateApplication()
+    {
+        _isApplyingBluRayDemuxLanguageState = false;
     }
 
     private static Brush ResolveBluRayDemuxProgressTrackBrush(EncodingJobState? state) => state switch

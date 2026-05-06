@@ -56,6 +56,7 @@ public partial class MainWindowViewModel
     private int _audioProcessingInputRefreshVersion;
     private bool _isApplyingDeferredAudioProcessingInputRefresh;
     private bool _isAudioProcessingInputRefreshPending;
+    private bool _isApplyingAudioProcessingLanguageState;
     private readonly List<string> _audioProcessingLogStageLines = [];
     private string _audioProcessingLiveLogLine = string.Empty;
     private string _audioProcessingLogPhaseMarker = string.Empty;
@@ -111,6 +112,11 @@ public partial class MainWindowViewModel
             if (SetProperty(ref _selectedAudioWorkflow, value))
             {
                 TryPopulateAudioProcessingOutputPathIfEmpty();
+                if (_isApplyingAudioProcessingLanguageState)
+                {
+                    return;
+                }
+
                 RaiseAudioProcessingInputPropertyChanges();
                 OnPropertyChanged(nameof(AudioEac3ToOptionsVisibility));
                 OnPropertyChanged(nameof(AudioOpusOptionsVisibility));
@@ -128,6 +134,11 @@ public partial class MainWindowViewModel
             if (SetProperty(ref _selectedAudioEac3ToOutputFormat, value))
             {
                 TryPopulateAudioProcessingOutputPathIfEmpty();
+                if (_isApplyingAudioProcessingLanguageState)
+                {
+                    return;
+                }
+
                 RaiseAudioProcessingInputPropertyChanges();
                 RefreshAudioProcessingCommandPreview();
             }
@@ -141,6 +152,11 @@ public partial class MainWindowViewModel
         {
             if (SetProperty(ref _selectedAudioOpusBitrate, value))
             {
+                if (_isApplyingAudioProcessingLanguageState)
+                {
+                    return;
+                }
+
                 RaiseAudioProcessingInputPropertyChanges();
                 RefreshAudioProcessingCommandPreview();
             }
@@ -154,6 +170,11 @@ public partial class MainWindowViewModel
         {
             if (SetProperty(ref _audioOpusUseMappingFamily1, value))
             {
+                if (_isApplyingAudioProcessingLanguageState)
+                {
+                    return;
+                }
+
                 RaiseAudioProcessingInputPropertyChanges();
                 RefreshAudioProcessingCommandPreview();
             }
@@ -168,6 +189,11 @@ public partial class MainWindowViewModel
             var normalized = value ?? string.Empty;
             if (SetProperty(ref _audioProcessingAdditionalArguments, normalized))
             {
+                if (_isApplyingAudioProcessingLanguageState)
+                {
+                    return;
+                }
+
                 RaiseAudioProcessingInputPropertyChanges();
                 RefreshAudioProcessingCommandPreview();
             }
@@ -1678,8 +1704,6 @@ public partial class MainWindowViewModel
     {
         OnPropertyChanged(nameof(CanStartAudioProcessing));
         OnPropertyChanged(nameof(CanClearAudioProcessingTask));
-        OnPropertyChanged(nameof(AudioEac3ToOptionsVisibility));
-        OnPropertyChanged(nameof(AudioOpusOptionsVisibility));
         OnPropertyChanged(nameof(AudioProcessingOutputHeader));
         OnPropertyChanged(nameof(AudioProcessingOutputBrowseButtonText));
         OnPropertyChanged(nameof(AudioProcessingSuggestedOutputExtension));
@@ -1703,13 +1727,25 @@ public partial class MainWindowViewModel
         OnPropertyChanged(nameof(AudioOpusUseMappingFamily1));
         OnPropertyChanged(nameof(AudioEac3ToOptionsVisibility));
         OnPropertyChanged(nameof(AudioOpusOptionsVisibility));
-        RaiseAudioProcessingEnvironmentPropertyChanges();
         RaiseAudioProcessingInputPropertyChanges();
         OnPropertyChanged(nameof(AudioSourceInfoText));
         OnPropertyChanged(nameof(AudioWorkflowRecommendation));
+        OnPropertyChanged(nameof(AudioProcessingProgressPrimaryText));
+        OnPropertyChanged(nameof(AudioProcessingProgressSecondaryText));
+        OnPropertyChanged(nameof(AudioProcessingProgressSecondaryVisibility));
         OnPropertyChanged(nameof(CanCancelAudioProcessing));
         OnPropertyChanged(nameof(AudioProcessingProgressLabel));
         OnPropertyChanged(nameof(AudioProcessingProgressHint));
         OnPropertyChanged(nameof(AudioProcessingProgressHintVisibility));
+    }
+
+    internal void BeginAudioProcessingLanguageStateApplication()
+    {
+        _isApplyingAudioProcessingLanguageState = true;
+    }
+
+    internal void EndAudioProcessingLanguageStateApplication()
+    {
+        _isApplyingAudioProcessingLanguageState = false;
     }
 }

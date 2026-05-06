@@ -112,23 +112,32 @@ public sealed class AudioProcessingFormViewModel : ModuleViewModelBase
         var opusBitrate = SelectedAudioOpusBitrate?.Value;
         var useOpusMappingFamily1 = AudioOpusUseMappingFamily1;
 
-        ReplaceItems(AudioWorkflowOptions, BuildAudioWorkflowOptions());
-        ReplaceItems(AudioEac3ToOutputFormatOptions, BuildAudioEac3ToOutputFormatOptions());
-        ReplaceItems(AudioOpusBitrateOptions, BuildAudioOpusBitrateOptions());
-        SelectedAudioWorkflow = AudioWorkflowOptions.FirstOrDefault(option => option.Value == workflow) ?? AudioWorkflowOptions.FirstOrDefault();
-        SelectedAudioEac3ToOutputFormat = AudioEac3ToOutputFormatOptions.FirstOrDefault(option => option.Value == eac3ToOutputFormat) ?? AudioEac3ToOutputFormatOptions.FirstOrDefault();
-        SelectedAudioOpusBitrate = opusBitrate.HasValue
-            ? AudioOpusBitrateOptions.FirstOrDefault(option => option.Value == opusBitrate.Value)
-            : null;
-        AudioOpusUseMappingFamily1 = useOpusMappingFamily1;
-
-        if (!Owner.IsAudioProcessingRunning)
+        Owner.BeginAudioProcessingLanguageStateApplication();
+        try
         {
-            Owner.SetAudioProcessingDisplayState(null);
-            Owner.AudioProcessingStatusText = Texts.AudioProcessingIdleStatus;
+            ReplaceItems(AudioWorkflowOptions, BuildAudioWorkflowOptions());
+            ReplaceItems(AudioEac3ToOutputFormatOptions, BuildAudioEac3ToOutputFormatOptions());
+            ReplaceItems(AudioOpusBitrateOptions, BuildAudioOpusBitrateOptions());
+            SelectedAudioWorkflow = AudioWorkflowOptions.FirstOrDefault(option => option.Value == workflow) ?? AudioWorkflowOptions.FirstOrDefault();
+            SelectedAudioEac3ToOutputFormat = AudioEac3ToOutputFormatOptions.FirstOrDefault(option => option.Value == eac3ToOutputFormat) ?? AudioEac3ToOutputFormatOptions.FirstOrDefault();
+            SelectedAudioOpusBitrate = opusBitrate.HasValue
+                ? AudioOpusBitrateOptions.FirstOrDefault(option => option.Value == opusBitrate.Value)
+                : null;
+            AudioOpusUseMappingFamily1 = useOpusMappingFamily1;
+
+            if (!Owner.IsAudioProcessingRunning)
+            {
+                Owner.SetAudioProcessingDisplayState(null);
+                Owner.AudioProcessingStatusText = Texts.AudioProcessingIdleStatus;
+            }
+
+            Owner.RaiseAudioProcessingLanguagePropertyChanges();
+        }
+        finally
+        {
+            Owner.EndAudioProcessingLanguageStateApplication();
         }
 
-        Owner.RaiseAudioProcessingLanguagePropertyChanges();
         Owner.RefreshAudioProcessingCommandPreview();
     }
 
