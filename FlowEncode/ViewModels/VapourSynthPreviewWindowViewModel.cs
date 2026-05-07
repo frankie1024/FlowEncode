@@ -6,7 +6,6 @@ using FlowEncode.Application;
 using FlowEncode.Domain;
 using CommunityToolkit.Mvvm.ComponentModel;
 using Microsoft.UI.Xaml;
-using Microsoft.UI.Xaml.Media.Imaging;
 
 namespace FlowEncode.ViewModels;
 
@@ -24,7 +23,6 @@ public sealed class VapourSynthPreviewWindowViewModel : ObservableObject
     private string _fpsText;
     private string _frameTypeText;
     private string _framePropsText;
-    private WriteableBitmap? _currentFrameBitmap;
     private double _previewImageWidth;
     private double _previewImageHeight;
     private int _currentFrame;
@@ -33,7 +31,6 @@ public sealed class VapourSynthPreviewWindowViewModel : ObservableObject
     private double _frameSliderMaximum;
     private bool _isFramePropsVisible;
     private bool _isCropPanelVisible;
-    private bool _isCropPreviewActive;
     private bool _silentSnapshotEnabled;
     private double _zoomRatio;
     private double _cropZoomPercentage;
@@ -173,12 +170,6 @@ public sealed class VapourSynthPreviewWindowViewModel : ObservableObject
         private set => SetProperty(ref _framePropsText, value);
     }
 
-    public WriteableBitmap? CurrentFrameBitmap
-    {
-        get => _currentFrameBitmap;
-        private set => SetProperty(ref _currentFrameBitmap, value);
-    }
-
     public double PreviewImageWidth
     {
         get => _previewImageWidth;
@@ -246,7 +237,7 @@ public sealed class VapourSynthPreviewWindowViewModel : ObservableObject
         {
             if (SetProperty(ref _isCropPanelVisible, value))
             {
-                UpdateCropPreviewState();
+                RecomputeImageLayout();
                 OnPropertyChanged(nameof(CropPanelVisibility));
             }
         }
@@ -435,7 +426,6 @@ public sealed class VapourSynthPreviewWindowViewModel : ObservableObject
         CurrentFrame = 0;
         TotalFrames = SelectedOutput?.Info.TotalFrames ?? 0;
         FrameSliderMaximum = Math.Max(0, TotalFrames - 1);
-        CurrentFrameBitmap = null;
         FramePropsText = Texts.VapourSynthPreviewFramePropsPlaceholder;
         CurrentTimeText = Texts.VapourSynthPreviewUnknownTime;
         TotalTimeText = Texts.VapourSynthPreviewUnknownTime;
@@ -477,12 +467,10 @@ public sealed class VapourSynthPreviewWindowViewModel : ObservableObject
     public void UpdateFrame(
         VapourSynthPreviewOutputInfo outputInfo,
         VapourSynthPreviewFrameData frameData,
-        WriteableBitmap bitmap,
         int displayWidth,
         int displayHeight,
         string resolutionText)
     {
-        CurrentFrameBitmap = bitmap;
         CurrentFrame = frameData.FrameNumber;
         ApplyOutputMetadata(outputInfo, resolutionText);
         CurrentTimeText = FormatTimestamp(frameData.FrameNumber, outputInfo.FpsNumerator, outputInfo.FpsDenominator);
@@ -541,17 +529,6 @@ public sealed class VapourSynthPreviewWindowViewModel : ObservableObject
         }
 
         _displayScale = normalized;
-        RecomputeImageLayout();
-    }
-
-    public void UpdateCropPreviewState(bool isActive)
-    {
-        if (_isCropPreviewActive == isActive)
-        {
-            return;
-        }
-
-        _isCropPreviewActive = isActive;
         RecomputeImageLayout();
     }
 
@@ -627,11 +604,6 @@ public sealed class VapourSynthPreviewWindowViewModel : ObservableObject
         OnPropertyChanged(nameof(TimelineSummaryText));
     }
 
-    private void UpdateCropPreviewState()
-    {
-        UpdateCropPreviewState(_isCropPanelVisible);
-    }
-
     private void RecomputeImageLayout()
     {
         if (_sourceFrameWidth <= 0 || _sourceFrameHeight <= 0)
@@ -666,7 +638,7 @@ public sealed class VapourSynthPreviewWindowViewModel : ObservableObject
             }
         }
 
-        if (_isCropPreviewActive)
+        if (_isCropPanelVisible)
         {
             ratio *= _cropZoomPercentage / 100.0;
         }

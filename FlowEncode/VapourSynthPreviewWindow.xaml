@@ -42,19 +42,6 @@
                     <Grid
                         HorizontalAlignment="Center"
                         VerticalAlignment="Center">
-                        <Canvas
-                            Width="1"
-                            Height="1"
-                            IsHitTestVisible="False">
-                            <Image
-                                x:Name="PreviewSourceImage"
-                                Canvas.Left="-100000"
-                                Canvas.Top="-100000"
-                                HorizontalAlignment="Left"
-                                Source="{Binding CurrentFrameBitmap}"
-                                Stretch="None"
-                                VerticalAlignment="Top" />
-                        </Canvas>
                         <ContentControl
                             x:Name="PreviewImageHost"
                             Height="{Binding PreviewImageHeight}"

@@ -13,6 +13,8 @@ using FlowEncode.Application;
 using FlowEncode.Domain;
 using FlowEncode.Infrastructure;
 using FlowEncode.ViewModels;
+using Microsoft.Graphics.Canvas;
+using Microsoft.Graphics.Canvas.UI.Composition;
 using Microsoft.UI.Composition;
 using Microsoft.UI.Windowing;
 using Microsoft.UI.Xaml;
@@ -21,7 +23,6 @@ using Microsoft.UI.Xaml.Controls.Primitives;
 using Microsoft.UI.Xaml.Hosting;
 using Microsoft.UI.Xaml.Input;
 using Microsoft.UI.Xaml.Media;
-using Microsoft.UI.Xaml.Media.Imaging;
 using Windows.ApplicationModel.DataTransfer;
 using Windows.Foundation;
 using Windows.Graphics;
@@ -37,14 +38,17 @@ public sealed partial class VapourSynthPreviewWindow : Window
 {
     private readonly LocalAppPaths _appPaths;
     private readonly Dictionary<int, PreviewOutputState> _outputStates = [];
-    private readonly PreviewBitmapSurface _bitmapSurface = new();
     private readonly LatestRequestScheduler<PreviewFrameRequest> _frameRequestScheduler;
     private readonly PreviewFrameComposer _frameComposer = new();
     private readonly PreviewRenderDiagnostics _renderDiagnostics;
     private readonly IVapourSynthPreviewService _previewService;
+    private CanvasDevice? _previewCanvasDevice;
+    private CompositionDrawingSurface? _previewDrawingSurface;
+    private CompositionGraphicsDevice? _previewGraphicsDevice;
     private CompositionSurfaceBrush? _previewImageBrush;
-    private CompositionVisualSurface? _previewImageSurface;
     private SpriteVisual? _previewImageVisual;
+    private int _previewDrawingSurfaceHeight;
+    private int _previewDrawingSurfaceWidth;
     private bool _isClosed;
     private bool _isFullScreenActive;
     private bool _isInternalControlUpdate;
@@ -307,7 +311,7 @@ public sealed partial class VapourSynthPreviewWindow : Window
         var helperRenderElapsed = TimeSpan.Zero;
         var transportReadElapsed = TimeSpan.Zero;
         var composeElapsed = TimeSpan.Zero;
-        var bitmapUpdateElapsed = TimeSpan.Zero;
+        var surfaceUpdateElapsed = TimeSpan.Zero;
         byte[]? loadedSourcePixels = null;
         DisplayFramePayload? displayPayload = null;
 
@@ -321,14 +325,13 @@ public sealed partial class VapourSynthPreviewWindow : Window
             transportReadElapsed = frameData.TransportReadElapsed;
             loadedSourcePixels = frameData.Pixels;
 
-            displayPayload = await CreateDisplayFramePayloadAsync(
+            displayPayload = CreateDisplayFramePayload(
                 request.OutputInfo,
                 frameData,
                 loadedSourcePixels,
                 frameData.Width,
                 frameData.Height);
             composeElapsed = displayPayload.ComposeElapsed;
-            bitmapUpdateElapsed = displayPayload.BitmapUpdateElapsed;
 
             if (!IsActiveFrameRequest(request, scheduledRequest))
             {
@@ -336,7 +339,7 @@ public sealed partial class VapourSynthPreviewWindow : Window
                 return;
             }
 
-            ApplyDisplayedFrame(
+            surfaceUpdateElapsed = ApplyDisplayedFrame(
                 request.OutputInfo,
                 frameData,
                 loadedSourcePixels,
@@ -356,7 +359,7 @@ public sealed partial class VapourSynthPreviewWindow : Window
                 helperRenderElapsed,
                 transportReadElapsed,
                 composeElapsed,
-                bitmapUpdateElapsed);
+                surfaceUpdateElapsed);
             QueueFrameStatusText(ViewModel.Texts.VapourSynthPreviewReadyStatus(request.OutputInfo.Index, request.FrameNumber));
             SyncControls();
         }
@@ -370,7 +373,7 @@ public sealed partial class VapourSynthPreviewWindow : Window
                 helperRenderElapsed,
                 transportReadElapsed,
                 composeElapsed,
-                bitmapUpdateElapsed,
+                surfaceUpdateElapsed,
                 ex);
 
             if (loadedSourcePixels is not null)
@@ -386,7 +389,7 @@ public sealed partial class VapourSynthPreviewWindow : Window
         }
     }
 
-    private async Task RefreshDisplayedFrameAsync(
+    private void RefreshDisplayedFrame(
         VapourSynthPreviewOutputInfo? outputInfo = null,
         VapourSynthPreviewFrameData? frameData = null,
         byte[]? sourcePixels = null)
@@ -400,7 +403,7 @@ public sealed partial class VapourSynthPreviewWindow : Window
             return;
         }
 
-        var displayPayload = await CreateDisplayFramePayloadAsync(
+        var displayPayload = CreateDisplayFramePayload(
             outputInfo,
             frameData,
             sourcePixels,
@@ -409,7 +412,7 @@ public sealed partial class VapourSynthPreviewWindow : Window
         ApplyDisplayedFrame(outputInfo, frameData, sourcePixels, displayPayload);
     }
 
-    private async Task<DisplayFramePayload> CreateDisplayFramePayloadAsync(
+    private DisplayFramePayload CreateDisplayFramePayload(
         VapourSynthPreviewOutputInfo outputInfo,
         VapourSynthPreviewFrameData frameData,
         byte[] sourcePixels,
@@ -420,26 +423,20 @@ public sealed partial class VapourSynthPreviewWindow : Window
         var composeStopwatch = Stopwatch.StartNew();
         var compositionResult = _frameComposer.Compose(compositionRequest, ConsumeReusableDisplayedPixels());
         composeStopwatch.Stop();
-
-        var bitmapStopwatch = Stopwatch.StartNew();
-        var bitmap = await _bitmapSurface.UpdateAsync(compositionResult.Pixels, compositionResult.Width, compositionResult.Height);
-        bitmapStopwatch.Stop();
         var resolutionText = ViewModel.IsCropPanelVisible
             && (compositionResult.Width != frameData.Width || compositionResult.Height != frameData.Height)
             ? $"{frameData.Width} x {frameData.Height} -> {compositionResult.Width} x {compositionResult.Height}"
             : $"{frameData.Width} x {frameData.Height}";
 
         return new DisplayFramePayload(
-            bitmap,
             compositionResult.Pixels,
             compositionResult.Width,
             compositionResult.Height,
             resolutionText,
-            composeStopwatch.Elapsed,
-            bitmapStopwatch.Elapsed);
+            composeStopwatch.Elapsed);
     }
 
-    private void ApplyDisplayedFrame(
+    private TimeSpan ApplyDisplayedFrame(
         VapourSynthPreviewOutputInfo outputInfo,
         VapourSynthPreviewFrameData frameData,
         byte[] sourcePixels,
@@ -452,16 +449,18 @@ public sealed partial class VapourSynthPreviewWindow : Window
             displayPayload.Width,
             displayPayload.Height,
             displayPayload.Pixels);
-        ViewModel.UpdateCropPreviewState(ViewModel.IsCropPanelVisible);
         ViewModel.UpdateFrame(
             outputInfo,
             frameData,
-            displayPayload.Bitmap,
             displayPayload.Width,
             displayPayload.Height,
             displayPayload.ResolutionText);
-        UpdatePreviewImageSurface();
+        var surfaceUpdateElapsed = UpdatePreviewDrawingSurface(
+            displayPayload.Pixels,
+            displayPayload.Width,
+            displayPayload.Height);
         SaveCurrentOutputState();
+        return surfaceUpdateElapsed;
     }
 
     private PreviewFrameCompositionRequest CreateFrameCompositionRequest(
@@ -825,9 +824,8 @@ public sealed partial class VapourSynthPreviewWindow : Window
         outputState.CropMode = ViewModel.SelectedCropMode?.Value ?? "relative";
         EnsureCropStatesWithinBounds(outputState, _selectedOutputInfo.Width, _selectedOutputInfo.Height);
         ViewModel.CropZoomPercentage = GetActiveCropZoomPercentage(outputState);
-        ViewModel.UpdateCropPreviewState(ViewModel.IsCropPanelVisible);
         SyncControls();
-        await RefreshDisplayedFrameAsync();
+        RefreshDisplayedFrame();
     }
 
     private async void CropLeftBox_ValueChanged(NumberBox sender, NumberBoxValueChangedEventArgs args)
@@ -870,7 +868,6 @@ public sealed partial class VapourSynthPreviewWindow : Window
         var outputState = GetOrCreateOutputState(_selectedOutputInfo);
         SetActiveCropZoomPercentage(outputState, Math.Clamp(sender.Value, 10, 800));
         ViewModel.CropZoomPercentage = GetActiveCropZoomPercentage(outputState);
-        ViewModel.UpdateCropPreviewState(ViewModel.IsCropPanelVisible);
         SaveCurrentOutputState();
     }
 
@@ -1419,9 +1416,6 @@ public sealed partial class VapourSynthPreviewWindow : Window
             case nameof(ViewModel.WindowTitle):
                 Title = ViewModel.WindowTitle;
                 break;
-            case nameof(ViewModel.CurrentFrameBitmap):
-                UpdatePreviewImageSurface();
-                break;
             case nameof(ViewModel.PreviewImageWidth):
             case nameof(ViewModel.PreviewImageHeight):
                 UpdatePreviewImageVisualSize();
@@ -1448,7 +1442,7 @@ public sealed partial class VapourSynthPreviewWindow : Window
         }
 
         ViewModel.IsCropPanelVisible = isVisible;
-        await RefreshDisplayedFrameAsync();
+        RefreshDisplayedFrame();
         SyncControls();
 
         if (isVisible)
@@ -1485,7 +1479,7 @@ public sealed partial class VapourSynthPreviewWindow : Window
         }
 
         SyncControls();
-        await RefreshDisplayedFrameAsync();
+        RefreshDisplayedFrame();
         await ScrollToCropBoundaryAsync(field);
     }
 
@@ -1550,7 +1544,7 @@ public sealed partial class VapourSynthPreviewWindow : Window
         _reusableDisplayedFramePixels = null;
         _displayedFrameWidth = 0;
         _displayedFrameHeight = 0;
-        _bitmapSurface.Reset();
+        ClearPreviewDrawingSurface();
     }
 
     private void RestoreOutputPresentationState(PreviewOutputState outputState, VapourSynthPreviewOutputInfo outputInfo)
@@ -1562,7 +1556,6 @@ public sealed partial class VapourSynthPreviewWindow : Window
         ViewModel.SelectedCropMode = ViewModel.CropModes.FirstOrDefault(option => option.Value == outputState.CropMode)
             ?? ViewModel.CropModes[0];
         ViewModel.CropZoomPercentage = GetActiveCropZoomPercentage(outputState);
-        ViewModel.UpdateCropPreviewState(ViewModel.IsCropPanelVisible);
     }
 
     private static PreviewZoomState CaptureZoomState(PreviewOutputState outputState)
@@ -2551,10 +2544,7 @@ public sealed partial class VapourSynthPreviewWindow : Window
             return;
         }
 
-        _previewImageBrush.BitmapInterpolationMode =
-            string.Equals(ViewModel.ScalingAlgorithm, "nearest", StringComparison.OrdinalIgnoreCase)
-                ? CompositionBitmapInterpolationMode.NearestNeighbor
-                : CompositionBitmapInterpolationMode.Linear;
+        _previewImageBrush.BitmapInterpolationMode = GetPreviewBitmapInterpolationMode();
     }
 
     private void StopPlayback(bool updateStatus = false)
@@ -3028,17 +3018,16 @@ public sealed partial class VapourSynthPreviewWindow : Window
         }
 
         var compositor = ElementCompositionPreview.GetElementVisual(PreviewImageHost).Compositor;
+        _previewCanvasDevice ??= CanvasDevice.GetSharedDevice();
+        _previewGraphicsDevice = CanvasComposition.CreateCompositionGraphicsDevice(compositor, _previewCanvasDevice);
         _previewImageBrush = compositor.CreateSurfaceBrush();
         _previewImageBrush.BitmapInterpolationMode = GetPreviewBitmapInterpolationMode();
         _previewImageBrush.Stretch = CompositionStretch.Fill;
         _previewImageBrush.SnapToPixels = true;
-
-        _previewImageSurface = compositor.CreateVisualSurface();
         _previewImageVisual = compositor.CreateSpriteVisual();
         _previewImageVisual.Brush = _previewImageBrush;
         ElementCompositionPreview.SetElementChildVisual(PreviewImageHost, _previewImageVisual);
 
-        UpdatePreviewImageSurface();
         UpdatePreviewImageVisualSize();
     }
 
@@ -3051,38 +3040,93 @@ public sealed partial class VapourSynthPreviewWindow : Window
 
     private void DetachPreviewImageVisual()
     {
-        if (_previewImageVisual is null && _previewImageBrush is null && _previewImageSurface is null)
+        if (_previewImageVisual is null
+            && _previewImageBrush is null
+            && _previewGraphicsDevice is null
+            && _previewDrawingSurface is null)
         {
             return;
         }
 
         ElementCompositionPreview.SetElementChildVisual(PreviewImageHost, null);
+        ClearPreviewDrawingSurface();
         _previewImageVisual = null;
         _previewImageBrush = null;
-        _previewImageSurface = null;
+        _previewGraphicsDevice = null;
+        _previewCanvasDevice = null;
     }
 
-    private void UpdatePreviewImageSurface()
+    private TimeSpan UpdatePreviewDrawingSurface(byte[] pixels, int width, int height)
     {
         EnsurePreviewImageVisual();
-        if (_previewImageBrush is null || _previewImageSurface is null)
+        if (_previewCanvasDevice is null || _previewGraphicsDevice is null || _previewImageBrush is null)
+        {
+            return TimeSpan.Zero;
+        }
+
+        if (width <= 0 || height <= 0 || pixels.Length == 0)
+        {
+            ClearPreviewDrawingSurface();
+            return TimeSpan.Zero;
+        }
+
+        EnsurePreviewDrawingSurface(width, height);
+        if (_previewDrawingSurface is null)
+        {
+            return TimeSpan.Zero;
+        }
+
+        var surfaceStopwatch = Stopwatch.StartNew();
+        using (var bitmap = CanvasBitmap.CreateFromBytes(
+                   _previewCanvasDevice,
+                   pixels,
+                   width,
+                   height,
+                   Windows.Graphics.DirectX.DirectXPixelFormat.B8G8R8A8UIntNormalized,
+                   96,
+                   CanvasAlphaMode.Ignore))
+        using (var drawingSession = CanvasComposition.CreateDrawingSession(_previewDrawingSurface))
+        {
+            drawingSession.DrawImage(bitmap);
+        }
+
+        surfaceStopwatch.Stop();
+        return surfaceStopwatch.Elapsed;
+    }
+
+    private void EnsurePreviewDrawingSurface(int width, int height)
+    {
+        if (_previewGraphicsDevice is null || _previewImageBrush is null)
         {
             return;
         }
 
-        PreviewSourceImage.Source = ViewModel.CurrentFrameBitmap;
-        if (ViewModel.CurrentFrameBitmap is null)
+        if (_previewDrawingSurface is not null
+            && _previewDrawingSurfaceWidth == width
+            && _previewDrawingSurfaceHeight == height)
         {
-            _previewImageSurface.SourceVisual = null;
+            return;
+        }
+
+        _previewDrawingSurface = _previewGraphicsDevice.CreateDrawingSurface(
+            new Size(Math.Max(1, width), Math.Max(1, height)),
+            Microsoft.Graphics.DirectX.DirectXPixelFormat.B8G8R8A8UIntNormalized,
+            Microsoft.Graphics.DirectX.DirectXAlphaMode.Ignore);
+        _previewDrawingSurfaceWidth = width;
+        _previewDrawingSurfaceHeight = height;
+        _previewImageBrush.Surface = _previewDrawingSurface;
+    }
+
+    private void ClearPreviewDrawingSurface()
+    {
+        if (_previewImageBrush is not null)
+        {
             _previewImageBrush.Surface = null;
-            return;
         }
 
-        _previewImageSurface.SourceVisual = ElementCompositionPreview.GetElementVisual(PreviewSourceImage);
-        _previewImageSurface.SourceSize = new Vector2(
-            Math.Max(1f, (float)_displayedFrameWidth),
-            Math.Max(1f, (float)_displayedFrameHeight));
-        _previewImageBrush.Surface = _previewImageSurface;
+        _previewDrawingSurface = null;
+        _previewDrawingSurfaceWidth = 0;
+        _previewDrawingSurfaceHeight = 0;
     }
 
     private void UpdatePreviewImageVisualSize()
@@ -3413,13 +3457,11 @@ public sealed partial class VapourSynthPreviewWindow : Window
     }
 
     private sealed record DisplayFramePayload(
-        WriteableBitmap Bitmap,
         byte[] Pixels,
         int Width,
         int Height,
         string ResolutionText,
-        TimeSpan ComposeElapsed,
-        TimeSpan BitmapUpdateElapsed);
+        TimeSpan ComposeElapsed);
 
     private sealed record PreviewFrameRequest(
         long SessionRevision,
