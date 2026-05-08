@@ -1,0 +1,105 @@
+name: Bug 报告
+description: 报告 FlowEncode 中可复现的问题。
+title: "[Bug]: "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        感谢反馈问题。请尽量提供可复现的信息，方便维护者定位。
+
+  - type: input
+    id: version
+    attributes:
+      label: FlowEncode version
+      description: 应用内、安装包或 Release 页面显示的版本号。
+      placeholder: "v1.7.2"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: install_type
+    attributes:
+      label: 安装方式
+      description: 你是如何运行 FlowEncode 的？
+      options:
+        - GitHub Release 安装包
+        - 从源码构建
+        - 其他
+    validations:
+      required: true
+
+  - type: input
+    id: windows_version
+    attributes:
+      label: Windows 版本
+      description: 尽量包含系统版本、发行通道和 build 号。
+      placeholder: "Windows 11 24H2, build 26100"
+    validations:
+      required: true
+
+  - type: textarea
+    id: summary
+    attributes:
+      label: 问题概述
+      description: 出现了什么问题？
+      placeholder: "请描述失败、崩溃、输出错误或不符合预期的行为。"
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: 复现步骤
+      description: 请列出触发问题所需的具体操作。
+      placeholder: |
+        1. 打开 ...
+        2. 选择 ...
+        3. 点击 ...
+        4. 出现 ...
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: 预期行为
+      description: 正常情况下应该发生什么？
+    validations:
+      required: true
+
+  - type: textarea
+    id: actual
+    attributes:
+      label: 实际行为
+      description: 实际发生了什么？如果有错误信息，请一并提供。
+    validations:
+      required: true
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: 日志或截图
+      description: 粘贴相关日志或附上截图。分享前请移除私人路径、文件名、token 或其他敏感信息。
+      render: text
+
+  - type: textarea
+    id: toolchain
+    attributes:
+      label: 相关工具链
+      description: 如果相关，请列出 FFmpeg、VapourSynth、VSPipe、Av1an、x264、x265、SVT-AV1、Python 或插件版本。
+      placeholder: |
+        FFmpeg:
+        VapourSynth:
+        Av1an:
+        Encoder:
+
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: 提交前检查
+      options:
+        - label: 我已经搜索过现有 issues，确认不是重复问题。
+          required: true
+        - label: 我已经从日志或截图中移除了私人路径、文件名、token 和其他敏感信息。
+          required: true
