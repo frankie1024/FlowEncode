@@ -181,20 +181,6 @@ Common commands:
 ./scripts/build-release-assets.ps1
 ```
 
-Notes:
-
-- `scripts/build.ps1` automatically locates Visual Studio `MSBuild.exe` and validates repository version metadata before building.
-- `scripts/test.ps1` is the single test entry point for `FlowEncode.Domain.Tests`.
-- The WinUI XAML compiler path still officially targets Visual Studio `MSBuild.exe`; `dotnet build` remains intentionally guarded to avoid misleading build results on unstable environments.
-
-Release flow:
-
-1. Update the version in `build/Version.props`.
-2. Run `./scripts/sync-version-metadata.ps1` and confirm that `README`, `Package.appxmanifest`, and `app.manifest` are synchronized.
-3. Write `.github/release-notes/v<version>.md` using the bilingual, user-facing release note format.
-4. Commit the version change, then create and push a `v<version>` tag on the target commit.
-5. The GitHub Actions `Release` workflow validates the tag, version metadata, and release note file, then builds the installer and publishes the GitHub release automatically.
-
 ## Feedback and License
 
 - Issues: [GitHub Issues](https://github.com/frankie1024/FlowEncode/issues)
