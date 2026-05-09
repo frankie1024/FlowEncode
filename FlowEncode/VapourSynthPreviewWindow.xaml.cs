@@ -52,6 +52,8 @@ public sealed partial class VapourSynthPreviewWindow : Window
     private bool _isClosed;
     private bool _isFullScreenActive;
     private bool _isInternalControlUpdate;
+    private bool _isFrameSliderInteracting;
+    private bool _isFrameSliderTrackDragging;
     private bool _isPreviewPanActive;
     private bool _isPlaying;
     private bool _hasEverActivated;
@@ -78,6 +80,8 @@ public sealed partial class VapourSynthPreviewWindow : Window
     private VapourSynthPreviewSessionInfo? _currentSession;
     private VapourSynthPreviewOutputInfo? _selectedOutputInfo;
     private int _activeChapterIndex = -1;
+    private int? _pendingNavigationFrame;
+    private uint _frameSliderInteractionPointerId;
 
     public VapourSynthPreviewWindowViewModel ViewModel { get; }
 
@@ -104,6 +108,7 @@ public sealed partial class VapourSynthPreviewWindow : Window
         _statusCommitTimer.Tick += StatusCommitTimer_Tick;
         Closed += VapourSynthPreviewWindow_Closed;
         ViewModel.PropertyChanged += ViewModel_PropertyChanged;
+        AttachFrameSliderInputHandlers();
         RootLayout.Loaded += RootLayout_Loaded;
         RootLayout.Unloaded += RootLayout_Unloaded;
         RootLayout.ActualThemeChanged += RootLayout_ActualThemeChanged;
@@ -292,7 +297,8 @@ public sealed partial class VapourSynthPreviewWindow : Window
 
     private Task RequestFrameAsync(
         VapourSynthPreviewOutputInfo outputInfo,
-        int frameNumber)
+        int frameNumber,
+        bool preservePendingNavigationFrame = false)
     {
         if (_isClosed)
         {
@@ -300,6 +306,11 @@ public sealed partial class VapourSynthPreviewWindow : Window
         }
 
         frameNumber = Math.Clamp(frameNumber, 0, Math.Max(0, outputInfo.TotalFrames - 1));
+        if (!preservePendingNavigationFrame)
+        {
+            _pendingNavigationFrame = null;
+        }
+
         var request = new PreviewFrameRequest(_previewSessionRevision, outputInfo, frameNumber);
         return _frameRequestScheduler.ScheduleAsync(request);
     }
@@ -344,6 +355,10 @@ public sealed partial class VapourSynthPreviewWindow : Window
                 frameData,
                 loadedSourcePixels,
                 displayPayload);
+            if (_pendingNavigationFrame == request.FrameNumber)
+            {
+                _pendingNavigationFrame = null;
+            }
 
             _renderDiagnostics.WriteFrameSuccess(
                 request.OutputInfo.Index,
@@ -385,6 +400,11 @@ public sealed partial class VapourSynthPreviewWindow : Window
             {
                 StopPlayback();
                 SetStatusText(ViewModel.Texts.VapourSynthPreviewRenderFailedStatus(ex.Message));
+            }
+
+            if (IsActiveFrameRequest(request, scheduledRequest) && _pendingNavigationFrame == request.FrameNumber)
+            {
+                _pendingNavigationFrame = null;
             }
         }
     }
@@ -499,7 +519,10 @@ public sealed partial class VapourSynthPreviewWindow : Window
             FrameNumberBox.Maximum = Math.Max(0, ViewModel.TotalFrames - 1);
             FrameNumberBox.Value = ViewModel.CurrentFrame;
             FrameSlider.Maximum = ViewModel.FrameSliderMaximum;
-            FrameSlider.Value = ViewModel.CurrentFrame;
+            if (!_isFrameSliderInteracting)
+            {
+                FrameSlider.Value = ViewModel.CurrentFrame;
+            }
             UpdateActiveChapter(ViewModel.CurrentFrame);
             RedrawChapterMarkers();
             StepSizeBox.Value = ViewModel.StepSize;
@@ -1084,46 +1107,134 @@ public sealed partial class VapourSynthPreviewWindow : Window
         await RequestFrameAsync(frameNumber);
     }
 
-    private async void FrameSliderHost_PointerPressed(object sender, PointerRoutedEventArgs e)
+    private void FrameSlider_PointerPressed(object sender, PointerRoutedEventArgs e)
     {
-        if (_selectedOutputInfo is null || ViewModel.Chapters.Count == 0)
+        if (_selectedOutputInfo is null)
         {
             return;
         }
 
-        var point = e.GetCurrentPoint(FrameSliderHost).Position;
+        if (_isFrameSliderInteracting)
+        {
+            EndFrameSliderInteraction();
+        }
+
+        var currentPoint = e.GetCurrentPoint(FrameSlider);
+        if (!currentPoint.Properties.IsLeftButtonPressed)
+        {
+            return;
+        }
+
+        _isFrameSliderInteracting = true;
+        _frameSliderInteractionPointerId = currentPoint.PointerId;
+
+        if (TryFindAncestor<Thumb>(e.OriginalSource as DependencyObject) is not null)
+        {
+            return;
+        }
+
+        _isFrameSliderTrackDragging = true;
+        FrameSlider.CapturePointer(e.Pointer);
+        UpdateFrameSliderValueFromPoint(currentPoint.Position);
+        e.Handled = true;
+    }
+
+    private void FrameSlider_PointerMoved(object sender, PointerRoutedEventArgs e)
+    {
+        if (!_isFrameSliderInteracting || !_isFrameSliderTrackDragging)
+        {
+            return;
+        }
+
+        var currentPoint = e.GetCurrentPoint(FrameSlider);
+        if (currentPoint.PointerId != _frameSliderInteractionPointerId)
+        {
+            return;
+        }
+
+        if (!currentPoint.Properties.IsLeftButtonPressed)
+        {
+            EndFrameSliderInteraction();
+            return;
+        }
+
+        UpdateFrameSliderValueFromPoint(currentPoint.Position);
+        e.Handled = true;
+    }
+
+    private void FrameSlider_PointerReleased(object sender, PointerRoutedEventArgs e)
+    {
+        if (!_isFrameSliderInteracting)
+        {
+            return;
+        }
+
+        var currentPoint = e.GetCurrentPoint(FrameSlider);
+        if (currentPoint.PointerId != _frameSliderInteractionPointerId)
+        {
+            return;
+        }
+
+        if (_isFrameSliderTrackDragging)
+        {
+            UpdateFrameSliderValueFromPoint(currentPoint.Position);
+            e.Handled = true;
+        }
+
+        EndFrameSliderInteraction();
+    }
+
+    private void FrameSlider_PointerCanceled(object sender, PointerRoutedEventArgs e)
+    {
+        if (!_isFrameSliderInteracting)
+        {
+            return;
+        }
+
+        var currentPoint = e.GetCurrentPoint(FrameSlider);
+        if (currentPoint.PointerId == _frameSliderInteractionPointerId)
+        {
+            EndFrameSliderInteraction();
+        }
+    }
+
+    private void FrameSlider_PointerCaptureLost(object sender, PointerRoutedEventArgs e)
+    {
+        EndFrameSliderInteraction();
+    }
+
+    private void UpdateFrameSliderValueFromPoint(Point point)
+    {
+        if (_selectedOutputInfo is null)
+        {
+            return;
+        }
+
         var track = MeasureSliderTrackBounds();
         if (track.width <= 0)
         {
             return;
         }
 
-        var clickedFrame = (int)Math.Round(Math.Clamp((point.X - track.offset) / track.width, 0, 1) * ViewModel.FrameSliderMaximum);
-        var nearest = ViewModel.Chapters
-            .Select((chapter, index) => new
-            {
-                Chapter = chapter,
-                Index = index,
-                Frame = TimecodeToFrame(chapter.Timecode, _selectedOutputInfo)
-            })
-            .OrderBy(item => Math.Abs(item.Frame - clickedFrame))
-            .FirstOrDefault();
-
-        if (nearest is null)
+        var frame = (int)Math.Round(Math.Clamp((point.X - track.offset) / track.width, 0, 1) * ViewModel.FrameSliderMaximum);
+        UpdateActiveChapter(frame);
+        if (FrameSlider.Value != frame)
         {
-            return;
+            FrameSlider.Value = frame;
         }
-
-        var toleranceFrames = Math.Max(3, (int)Math.Round(GetOutputFps(_selectedOutputInfo) * 0.5));
-        if (Math.Abs(nearest.Frame - clickedFrame) > toleranceFrames)
+        else if (ViewModel.CurrentFrame != frame)
         {
-            return;
+            _ = RequestFrameAsync(frame);
         }
+    }
 
-        _activeChapterIndex = nearest.Index;
-        RedrawChapterMarkers();
-        e.Handled = true;
-        await RequestFrameAsync(nearest.Frame);
+    private void EndFrameSliderInteraction()
+    {
+        _isFrameSliderInteracting = false;
+        _isFrameSliderTrackDragging = false;
+        _frameSliderInteractionPointerId = 0;
+
+        FrameSlider.ReleasePointerCaptures();
     }
 
     private void ChapterMarkerCanvas_SizeChanged(object sender, SizeChangedEventArgs e)
@@ -1392,6 +1503,7 @@ public sealed partial class VapourSynthPreviewWindow : Window
         _frameRequestScheduler.Dispose();
         SaveCurrentOutputState();
         DetachXamlRoot();
+        DetachFrameSliderInputHandlers();
         DetachPreviewNumberBoxEditorHandlers();
         RootLayout.Loaded -= RootLayout_Loaded;
         RootLayout.Unloaded -= RootLayout_Unloaded;
@@ -1534,6 +1646,7 @@ public sealed partial class VapourSynthPreviewWindow : Window
 
     private void ResetDisplayedFrameState()
     {
+        _pendingNavigationFrame = null;
         _selectedOutputInfo = null;
         _lastFrameData = null;
         _sourceFramePixels = null;
@@ -3012,11 +3125,19 @@ public sealed partial class VapourSynthPreviewWindow : Window
 
     private void EnsurePreviewImageVisual()
     {
-        if (_previewImageVisual is not null || PreviewImageHost.XamlRoot is null)
+        if (PreviewImageHost.XamlRoot is null)
         {
             return;
         }
 
+        if (_previewImageVisual is not null
+            && _previewImageBrush is not null
+            && _previewGraphicsDevice is not null)
+        {
+            return;
+        }
+
+        DetachPreviewImageVisual();
         var compositor = ElementCompositionPreview.GetElementVisual(PreviewImageHost).Compositor;
         _previewCanvasDevice ??= CanvasDevice.GetSharedDevice();
         _previewGraphicsDevice = CanvasComposition.CreateCompositionGraphicsDevice(compositor, _previewCanvasDevice);
@@ -3050,6 +3171,9 @@ public sealed partial class VapourSynthPreviewWindow : Window
 
         ElementCompositionPreview.SetElementChildVisual(PreviewImageHost, null);
         ClearPreviewDrawingSurface();
+        _previewImageVisual?.Dispose();
+        _previewImageBrush?.Dispose();
+        _previewGraphicsDevice?.Dispose();
         _previewImageVisual = null;
         _previewImageBrush = null;
         _previewGraphicsDevice = null;
@@ -3108,6 +3232,7 @@ public sealed partial class VapourSynthPreviewWindow : Window
             return;
         }
 
+        ClearPreviewDrawingSurface();
         _previewDrawingSurface = _previewGraphicsDevice.CreateDrawingSurface(
             new Size(Math.Max(1, width), Math.Max(1, height)),
             Microsoft.Graphics.DirectX.DirectXPixelFormat.B8G8R8A8UIntNormalized,
@@ -3119,6 +3244,7 @@ public sealed partial class VapourSynthPreviewWindow : Window
 
     private void ClearPreviewDrawingSurface()
     {
+        var previousSurface = _previewDrawingSurface;
         if (_previewImageBrush is not null)
         {
             _previewImageBrush.Surface = null;
@@ -3127,6 +3253,7 @@ public sealed partial class VapourSynthPreviewWindow : Window
         _previewDrawingSurface = null;
         _previewDrawingSurfaceWidth = 0;
         _previewDrawingSurfaceHeight = 0;
+        previousSurface?.Dispose();
     }
 
     private void UpdatePreviewImageVisualSize()
@@ -3284,7 +3411,17 @@ public sealed partial class VapourSynthPreviewWindow : Window
 
     private Task RequestRelativeFrameAsync(int frameDelta)
     {
-        return RequestFrameAsync(ViewModel.CurrentFrame + frameDelta);
+        if (_selectedOutputInfo is null)
+        {
+            return Task.CompletedTask;
+        }
+
+        var targetFrame = Math.Clamp(
+            (_pendingNavigationFrame ?? ViewModel.CurrentFrame) + frameDelta,
+            0,
+            Math.Max(0, _selectedOutputInfo.TotalFrames - 1));
+        _pendingNavigationFrame = targetFrame;
+        return RequestFrameAsync(_selectedOutputInfo, targetFrame, preservePendingNavigationFrame: true);
     }
 
     private void SetPreviewScrollOffset(double? horizontalOffset, double? verticalOffset)
@@ -3306,6 +3443,28 @@ public sealed partial class VapourSynthPreviewWindow : Window
         }
 
         return null;
+    }
+
+    private void AttachFrameSliderInputHandlers()
+    {
+        DetachFrameSliderInputHandlers();
+
+        FrameSlider.AddHandler(UIElement.PointerPressedEvent, new PointerEventHandler(FrameSlider_PointerPressed), true);
+        FrameSlider.AddHandler(UIElement.PointerMovedEvent, new PointerEventHandler(FrameSlider_PointerMoved), true);
+        FrameSlider.AddHandler(UIElement.PointerReleasedEvent, new PointerEventHandler(FrameSlider_PointerReleased), true);
+        FrameSlider.AddHandler(UIElement.PointerCanceledEvent, new PointerEventHandler(FrameSlider_PointerCanceled), true);
+        FrameSlider.AddHandler(UIElement.PointerCaptureLostEvent, new PointerEventHandler(FrameSlider_PointerCaptureLost), true);
+    }
+
+    private void DetachFrameSliderInputHandlers()
+    {
+        FrameSlider.RemoveHandler(UIElement.PointerPressedEvent, new PointerEventHandler(FrameSlider_PointerPressed));
+        FrameSlider.RemoveHandler(UIElement.PointerMovedEvent, new PointerEventHandler(FrameSlider_PointerMoved));
+        FrameSlider.RemoveHandler(UIElement.PointerReleasedEvent, new PointerEventHandler(FrameSlider_PointerReleased));
+        FrameSlider.RemoveHandler(UIElement.PointerCanceledEvent, new PointerEventHandler(FrameSlider_PointerCanceled));
+        FrameSlider.RemoveHandler(UIElement.PointerCaptureLostEvent, new PointerEventHandler(FrameSlider_PointerCaptureLost));
+
+        EndFrameSliderInteraction();
     }
 
     private void AttachPreviewNumberBoxEditorHandlers()

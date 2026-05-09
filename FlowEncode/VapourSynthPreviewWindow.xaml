@@ -648,14 +648,14 @@
 
                     <Grid
                         x:Name="FrameSliderHost"
-                        Grid.Column="8"
-                        PointerPressed="FrameSliderHost_PointerPressed">
+                        Grid.Column="8">
                         <Slider
                             x:Name="FrameSlider"
                             AutomationProperties.Name="{Binding Texts.VapourSynthPreviewFrameHeader}"
                             LargeChange="10"
                             Minimum="0"
                             SmallChange="1"
+                            StepFrequency="1"
                             ValueChanged="FrameSlider_ValueChanged" />
                         <Canvas
                             x:Name="ChapterMarkerCanvas"
