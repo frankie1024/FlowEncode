@@ -48,7 +48,7 @@ function Sync-TrackedFile {
         [switch]$CheckOnly
     )
 
-    $content = Get-Content -Path $Path -Raw
+    $content = Get-Content -Path $Path -Raw -Encoding utf8
     if ([string]::Equals($content, $UpdatedContent, [System.StringComparison]::Ordinal)) {
         return $false
     }
@@ -58,7 +58,7 @@ function Sync-TrackedFile {
         return $false
     }
 
-    Set-Content -Path $Path -Value $UpdatedContent -NoNewline
+    Set-Content -Path $Path -Value $UpdatedContent -NoNewline -Encoding utf8
     $script:changedFiles.Add($Path)
     return $true
 }
