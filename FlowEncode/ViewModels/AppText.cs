@@ -175,9 +175,6 @@ public sealed class AppText
     public string TemplateNoMatch => Pick("未找到匹配模板", "No matching templates");
     public string TemplateEditorTitle => Pick("模板编辑", "Template Editor");
     public string VapourSynthWorkspaceTitle => "VapourSynth";
-    public string VapourSynthWorkspaceDescription => Pick(
-        "脚本工作区负责 .vpy / .py 的集中编辑、F5 预览窗口、脚本评估与预览日志。这里仍然明确排除音频相关能力。",
-        "The script workspace handles focused .vpy / .py editing, the F5 preview window, and script evaluation plus preview logs. Audio-related features remain explicitly out of scope here.");
     public string VapourSynthOpenButton => Pick("打开", "Open");
     public string VapourSynthReloadButton => Pick("重新载入", "Reload");
     public string VapourSynthFindButton => Pick("查找", "Find");
@@ -187,20 +184,20 @@ public sealed class AppText
     public string VapourSynthRedoButton => Pick("重做", "Redo");
     public string VapourSynthPreviewButton => Pick("预览 F5", "Preview F5");
     public string VapourSynthEncodeButton => Pick("压制 F9", "Encode F9");
+    public string VapourSynthPinTabButton => Pick("固定标签", "Pin Tab");
+    public string VapourSynthUnpinTabButton => Pick("取消固定", "Unpin Tab");
+    public string VapourSynthCompareModeButton => Pick("左右展示", "Side by Side");
+    public string VapourSynthShowSideBySideButton => Pick("加入左右展示", "Show Side by Side");
+    public string VapourSynthExitSideBySideButton => Pick("退出左右展示", "Exit Side by Side");
+    public string VapourSynthCloseOtherTabsButton => Pick("关闭其他标签", "Close Other Tabs");
+    public string VapourSynthCompareNeedsTwoTabsStatus => Pick(
+        "至少需要两个标签才能开启左右对比。",
+        "Open at least two tabs to use side-by-side.");
     public string VapourSynthLogTitle => "Log";
     public string VapourSynthClearLogButton => Pick("清空日志", "Clear Log");
     public string VapourSynthLogEmptyPlaceholder => Pick(
         "预览和脚本评估日志会显示在这里。",
         "Preview and script evaluation logs appear here.");
-    public string VapourSynthRecentFilesTitle => Pick("最近文件", "Recent Files");
-    public string VapourSynthRecentFilesDescription => Pick(
-        "快速回到最近打开的脚本。缺失文件会在打开时提示并从列表中移除。",
-        "Jump back into recently opened scripts. Missing files are reported and removed from the list when opened.");
-    public string VapourSynthRecentFilesEmpty => Pick("还没有最近打开的脚本。", "No recently opened scripts yet.");
-    public string VapourSynthShortcutsTitle => Pick("快捷键", "Shortcuts");
-    public string VapourSynthShortcutLegend => Pick(
-        "Ctrl+N 新建\nCtrl+O 打开\nCtrl+S 保存\nCtrl+Shift+S 另存为\nCtrl+F 查找\nCtrl+H 替换\nCtrl+G 跳转行\nCtrl+/ 注释切换\nF5 预览入口",
-        "Ctrl+N new\nCtrl+O open\nCtrl+S save\nCtrl+Shift+S save as\nCtrl+F find\nCtrl+H replace\nCtrl+G go to line\nCtrl+/ toggle comment\nF5 preview entry");
     public string VapourSynthUntitledDocument => "untitled.vpy";
     public string VapourSynthPathPlaceholder => Pick("尚未保存到磁盘。", "Not saved to disk yet.");
     public string VapourSynthModifiedBadge => Pick("未保存修改", "Modified");
@@ -208,47 +205,20 @@ public sealed class AppText
     public string VapourSynthPythonFileTypeDescription => Pick("Python 脚本", "Python Script");
     public string VapourSynthEditorLoadingStatus => Pick("正在初始化 VapourSynth 编辑器...", "Initializing the VapourSynth editor...");
     public string VapourSynthEditorReadyStatus => Pick("编辑器已就绪。", "Editor ready.");
-    public string VapourSynthEditorBootingStatus => Pick("正在启动编辑器内核，请稍候...", "Starting the editor runtime. Please wait...");
-    public string VapourSynthEditorTimeoutStatus => Pick(
-        "编辑器前端没有按预期启动。可以重试一次；如果仍失败，再继续排查 WebView2 宿主。",
-        "The editor frontend did not start as expected. Retry once first, then keep debugging the WebView2 host if it still fails.");
     public string VapourSynthEditorRetryButton => Pick("重试编辑器", "Retry Editor");
     public string VapourSynthNewDocumentStatus => Pick("已创建新的脚本缓冲区。", "Created a new script buffer.");
-    public string VapourSynthRecoveredDraftStatus => Pick("已恢复上次未保存的脚本草稿。", "Recovered the unsaved draft from the previous session.");
-    public string VapourSynthRecoveredDraftWithExternalChangesStatus(string filePath) =>
-        IsChinese
-            ? $"已恢复上次未保存的脚本草稿，但磁盘文件已被外部修改：{filePath}"
-            : $"Recovered the unsaved draft, but the on-disk file was modified externally: {filePath}";
-    public string VapourSynthRecoveredOrphanedDraftStatus(string filePath) =>
-        IsChinese
-            ? $"上次会话对应的脚本已经不存在，已恢复未保存草稿。请确认内容后重新保存：{filePath}"
-            : $"The previous session file no longer exists. The unsaved draft was recovered and now needs a new save target: {filePath}";
     public string VapourSynthOpenedStatus(string filePath) =>
         IsChinese ? $"已打开脚本：{filePath}" : $"Opened script: {filePath}";
     public string VapourSynthSavedStatus(string filePath) =>
         IsChinese ? $"已保存脚本：{filePath}" : $"Saved script: {filePath}";
     public string VapourSynthReloadedStatus(string filePath) =>
         IsChinese ? $"已从磁盘重新载入：{filePath}" : $"Reloaded from disk: {filePath}";
-    public string VapourSynthRestoredDocumentStatus(string filePath) =>
-        IsChinese ? $"已恢复上次会话的脚本：{filePath}" : $"Restored script from the previous session: {filePath}";
-    public string VapourSynthRestoredUpdatedDocumentStatus(string filePath) =>
-        IsChinese ? $"已恢复上次会话的脚本，并加载磁盘上的最新内容：{filePath}" : $"Restored the previous session script and loaded the latest on-disk content: {filePath}";
-    public string VapourSynthRestoredMissingFileStatus(string filePath) =>
-        IsChinese ? $"上次会话脚本已经不存在，已改为新建脚本缓冲区：{filePath}" : $"The previous session script no longer exists, so a new script buffer was opened instead: {filePath}";
-    public string VapourSynthLaunchFileMissingStatus(string filePath) =>
-        IsChinese ? $"系统传入的脚本不存在，已改为新建脚本缓冲区：{filePath}" : $"The script passed in from the shell no longer exists, so a new script buffer was opened instead: {filePath}";
-    public string VapourSynthLaunchOpenFailedStatus(string filePath, string detail) =>
-        IsChinese ? $"无法打开系统传入的脚本：{filePath}。{detail}" : $"Failed to open the script passed in from the shell: {filePath}. {detail}";
     public string VapourSynthEditorCursorStatus(int line, int column, int lineCount, int charCount, bool isDirty) =>
         IsChinese
             ? $"第 {line} 行，第 {column} 列  |  {lineCount} 行  |  {charCount} 字符  |  {(isDirty ? "未保存" : "已保存")}"
             : $"Ln {line}, Col {column}  |  {lineCount} lines  |  {charCount} chars  |  {(isDirty ? "modified" : "saved")}";
     public string VapourSynthUnsavedChangesTitle => Pick("保存脚本修改", "Save Script Changes");
     public string VapourSynthUnsavedChangesMessage => Pick("当前脚本有未保存的修改。是否先保存再继续？", "The current script has unsaved changes. Save before continuing?");
-    public string VapourSynthPreviewDeferredTitle => Pick("预览窗口待实现", "Preview Window Pending");
-    public string VapourSynthPreviewDeferredMessage => Pick(
-        "第一步只落编辑器本体。F5 预览窗口和完整交互会在第二步单独接入。",
-        "Step one only ships the editor. The F5 preview window and its full interaction model land in step two.");
     public string VapourSynthPreviewWindowTitle(string documentName) =>
         IsChinese ? $"{documentName} - 预览" : $"{documentName} - Preview";
     public string VapourSynthPreviewIdleStatus => Pick("预览窗口待命。", "Preview is idle.");
@@ -412,8 +382,6 @@ public sealed class AppText
         "The editor is unavailable, so the script could not be updated.");
     public string VapourSynthPreviewSnapshotTemplateFailedStatus(string detail) =>
         IsChinese ? $"快照模板不可用，已切回手动保存：{detail}" : $"The snapshot template is invalid. Falling back to manual save: {detail}";
-    public string VapourSynthMissingRecentFileMessage(string filePath) =>
-        IsChinese ? $"最近文件已经不存在：{filePath}" : $"The recent file no longer exists: {filePath}";
     public string VapourSynthEditorAssetsMissingStatus(string assetPath) =>
         IsChinese ? $"未找到编辑器前端资源：{assetPath}" : $"Editor frontend assets were not found: {assetPath}";
     public string VapourSynthEditorLoadFailedStatus(string detail) =>

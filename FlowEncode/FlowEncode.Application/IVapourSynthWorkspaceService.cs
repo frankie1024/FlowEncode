@@ -24,8 +24,23 @@ public sealed record VapourSynthWorkspaceDocument(
     string Content);
 
 public sealed record VapourSynthWorkspaceSession(
-    string? ActiveFilePath,
-    string? ActiveContent,
+    IReadOnlyList<VapourSynthWorkspaceTabSession> Tabs,
+    string? ActiveTabId,
+    string? LeftTabId,
+    string? RightTabId,
+    bool IsCompareMode,
+    string? ActivePane);
+
+public sealed record VapourSynthWorkspaceTabSession(
+    string Id,
+    string? FilePath,
+    string? Content,
+    string? SavedContent,
     bool IsDirty,
-    IReadOnlyList<string> RecentFiles,
-    string? ActiveSavedContentHash);
+    bool IsPinned,
+    string? WorkspaceStatusText,
+    string? LogText,
+    int CaretLine,
+    int CaretColumn,
+    int LineCount,
+    int CharCount);

@@ -34,7 +34,7 @@ public sealed class VapourSynthWorkspaceService : IVapourSynthWorkspaceService
     public Task<VapourSynthWorkspaceDocument> CreateNewDocumentAsync(CancellationToken cancellationToken = default)
     {
         cancellationToken.ThrowIfCancellationRequested();
-        return Task.FromResult(new VapourSynthWorkspaceDocument(null, BuildStarterScript()));
+        return Task.FromResult(new VapourSynthWorkspaceDocument(null, string.Empty));
     }
 
     public async Task<VapourSynthWorkspaceDocument> OpenDocumentAsync(string filePath, CancellationToken cancellationToken = default)
@@ -90,25 +90,62 @@ public sealed class VapourSynthWorkspaceService : IVapourSynthWorkspaceService
             return null;
         }
 
+        var tabs = dto.Tabs
+            .Where(static tab => !string.IsNullOrWhiteSpace(tab.Id))
+            .Select(tab => new VapourSynthWorkspaceTabSession(
+                tab.Id,
+                string.IsNullOrWhiteSpace(tab.FilePath) ? null : tab.FilePath,
+                tab.Content,
+                tab.SavedContent,
+                tab.IsDirty,
+                tab.IsPinned,
+                tab.WorkspaceStatusText,
+                tab.LogText,
+                tab.CaretLine,
+                tab.CaretColumn,
+                tab.LineCount,
+                tab.CharCount))
+            .ToArray();
+
         return new VapourSynthWorkspaceSession(
-            string.IsNullOrWhiteSpace(dto.ActiveFilePath) ? null : dto.ActiveFilePath,
-            dto.ActiveContent,
-            dto.IsDirty,
-            NormalizeRecentFiles(dto.RecentFiles),
-            string.IsNullOrWhiteSpace(dto.ActiveSavedContentHash) ? null : dto.ActiveSavedContentHash);
+            tabs,
+            string.IsNullOrWhiteSpace(dto.ActiveTabId) ? tabs.FirstOrDefault()?.Id : dto.ActiveTabId,
+            string.IsNullOrWhiteSpace(dto.LeftTabId) ? null : dto.LeftTabId,
+            string.IsNullOrWhiteSpace(dto.RightTabId) ? null : dto.RightTabId,
+            dto.IsCompareMode,
+            string.IsNullOrWhiteSpace(dto.ActivePane) ? null : dto.ActivePane);
     }
 
     public async Task SaveSessionAsync(VapourSynthWorkspaceSession session, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(session);
 
+        var tabDtos = session.Tabs
+            .Select(tab => new WorkspaceTabSessionDto
+            {
+                Id = tab.Id,
+                FilePath = tab.FilePath,
+                Content = tab.Content,
+                SavedContent = tab.SavedContent,
+                IsDirty = tab.IsDirty,
+                IsPinned = tab.IsPinned,
+                WorkspaceStatusText = tab.WorkspaceStatusText,
+                LogText = tab.LogText,
+                CaretLine = tab.CaretLine,
+                CaretColumn = tab.CaretColumn,
+                LineCount = tab.LineCount,
+                CharCount = tab.CharCount
+            })
+            .ToList();
+
         var dto = new WorkspaceSessionDto
         {
-            ActiveFilePath = session.ActiveFilePath,
-            ActiveContent = session.ActiveContent,
-            IsDirty = session.IsDirty,
-            RecentFiles = NormalizeRecentFiles(session.RecentFiles).ToList(),
-            ActiveSavedContentHash = session.ActiveSavedContentHash
+            Tabs = tabDtos,
+            ActiveTabId = session.ActiveTabId,
+            LeftTabId = session.LeftTabId,
+            RightTabId = session.RightTabId,
+            IsCompareMode = session.IsCompareMode,
+            ActivePane = session.ActivePane,
         };
 
         var json = JsonSerializer.Serialize(dto, SessionSerializerOptions);
@@ -116,47 +153,45 @@ public sealed class VapourSynthWorkspaceService : IVapourSynthWorkspaceService
         await File.WriteAllTextAsync(_sessionPath, json, new UTF8Encoding(false), cancellationToken);
     }
 
-    private static IReadOnlyList<string> NormalizeRecentFiles(IEnumerable<string>? recentFiles)
-    {
-        return (recentFiles ?? [])
-            .Where(static path => !string.IsNullOrWhiteSpace(path))
-            .Distinct(StringComparer.OrdinalIgnoreCase)
-            .Take(10)
-            .ToArray();
-    }
-
-    private static string BuildStarterScript()
-    {
-        return string.Join(
-            Environment.NewLine,
-            [
-                "import vapoursynth as vs",
-                string.Empty,
-                "core = vs.core",
-                string.Empty,
-                "clip = core.std.BlankClip(",
-                "    format=vs.YUV420P8,",
-                "    width=1920,",
-                "    height=1080,",
-                "    length=240,",
-                "    fpsnum=24000,",
-                "    fpsden=1001)",
-                string.Empty,
-                "clip.set_output()",
-                string.Empty
-            ]);
-    }
-
     private sealed class WorkspaceSessionDto
     {
-        public string? ActiveFilePath { get; set; }
+        public List<WorkspaceTabSessionDto> Tabs { get; set; } = [];
 
-        public string? ActiveContent { get; set; }
+        public string? ActiveTabId { get; set; }
+
+        public string? LeftTabId { get; set; }
+
+        public string? RightTabId { get; set; }
+
+        public bool IsCompareMode { get; set; }
+
+        public string? ActivePane { get; set; }
+    }
+
+    private sealed class WorkspaceTabSessionDto
+    {
+        public string Id { get; set; } = Guid.NewGuid().ToString("N");
+
+        public string? FilePath { get; set; }
+
+        public string? Content { get; set; }
+
+        public string? SavedContent { get; set; }
 
         public bool IsDirty { get; set; }
 
-        public List<string> RecentFiles { get; set; } = [];
+        public bool IsPinned { get; set; }
 
-        public string? ActiveSavedContentHash { get; set; }
+        public string? WorkspaceStatusText { get; set; }
+
+        public string? LogText { get; set; }
+
+        public int CaretLine { get; set; }
+
+        public int CaretColumn { get; set; }
+
+        public int LineCount { get; set; }
+
+        public int CharCount { get; set; }
     }
 }

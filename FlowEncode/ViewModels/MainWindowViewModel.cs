@@ -327,6 +327,11 @@ public partial class MainWindowViewModel : CommunityToolkit.Mvvm.ComponentModel.
 
     internal bool HasRunningJobs => Jobs.Any(static job => job.State == EncodingJobState.Running);
 
+    internal bool HasRunningAppWork => HasRunningJobs
+        || IsAutoCompressionRunning
+        || IsAudioProcessingRunning
+        || IsBluRayDemuxRunning;
+
     internal string PreviewTitle
     {
         get => _previewTitle;
@@ -1928,7 +1933,7 @@ public partial class MainWindowViewModel : CommunityToolkit.Mvvm.ComponentModel.
         return Jobs.Any(IsPendingQueueWork);
     }
 
-    private bool HasActiveAppWork()
+    internal bool HasActiveAppWork()
     {
         return HasPendingQueueWork()
             || IsAutoCompressionRunning

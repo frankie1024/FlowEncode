@@ -13,13 +13,7 @@ public sealed class WindowsShellIntegrationService : IVapourSynthShellIntegratio
     private const string MenuText = "VapourSynth视频脚本";
     private const string TemplateFileName = "VapourSynthScript.vpy";
 
-    private static readonly string TemplateContent =
-        "import vapoursynth as vs\r\n" +
-        "core = vs.core\r\n" +
-        "\r\n" +
-        "clip = core.std.BlankClip(format=vs.YUV420P8,width=1920,height=1080,length=240,fpsnum=24000,fpsden=1001)\r\n" +
-        "\r\n" +
-        "clip.set_output()\r\n";
+    private static readonly string TemplateContent = string.Empty;
 
     private readonly LocalAppPaths _appPaths;
 
@@ -36,7 +30,7 @@ public sealed class WindowsShellIntegrationService : IVapourSynthShellIntegratio
             var templateDir = Path.Combine(_appPaths.DataRootPath, "Templates");
             Directory.CreateDirectory(templateDir);
             var templatePath = Path.Combine(templateDir, TemplateFileName);
-            File.WriteAllText(templatePath, TemplateContent, Encoding.UTF8);
+            File.WriteAllText(templatePath, TemplateContent, new UTF8Encoding(false));
 
             using (var progIdKey = Microsoft.Win32.Registry.CurrentUser.CreateSubKey(ProgIdKey))
             {

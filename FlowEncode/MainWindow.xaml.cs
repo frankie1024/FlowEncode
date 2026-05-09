@@ -111,7 +111,7 @@ public sealed partial class MainWindow : Window, ISettingsViewHost, IShellNaviga
         var isAutoCompressionRunning = ViewModel.IsAutoCompressionRunning;
         var isAudioProcessingRunning = ViewModel.IsAudioProcessingRunning;
         var isBluRayDemuxRunning = ViewModel.IsBluRayDemuxRunning;
-        var hasRunningWork = runningJobCount > 0 || isAutoCompressionRunning || isAudioProcessingRunning || isBluRayDemuxRunning;
+        var hasRunningWork = ViewModel.HasRunningAppWork;
 
         if (_isShutdownConfirmed)
         {
@@ -768,6 +768,12 @@ public sealed partial class MainWindow : Window, ISettingsViewHost, IShellNaviga
     public void BringToFront()
     {
         ActivateAndBringToFront();
+    }
+
+    public void CloseWithoutPrompt()
+    {
+        _isShutdownConfirmed = true;
+        Close();
     }
 
     private void ApplyTitleBarColors(ElementTheme actualTheme)

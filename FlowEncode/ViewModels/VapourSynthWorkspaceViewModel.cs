@@ -3,139 +3,107 @@ using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.IO;
 using System.Linq;
-using System.Security.Cryptography;
-using System.Text;
-using System.Threading;
 using System.Threading.Tasks;
+using CommunityToolkit.Mvvm.ComponentModel;
 using FlowEncode.Application;
 using FlowEncode.Domain;
-using CommunityToolkit.Mvvm.ComponentModel;
 using Microsoft.UI.Xaml;
 
 namespace FlowEncode.ViewModels;
 
-public sealed class VapourSynthWorkspaceViewModel : ObservableObject, IDisposable
+public enum VapourSynthWorkspacePaneKind
 {
-    private const int MaxPreviewLogLines = 500;
-    private readonly AppLaunchActivation _launchActivation;
+    Left,
+    Right
+}
+
+public sealed class VapourSynthWorkspaceViewModel : ObservableObject
+{
     private readonly IVapourSynthWorkspaceService _workspaceService;
-    private readonly ObservableCollection<VapourSynthRecentFileItem> _recentFiles = [];
-    private readonly Queue<string> _previewLogLines = [];
-    private CancellationTokenSource? _sessionSaveCancellationTokenSource;
-    private AppText _texts;
-    private string? _currentFilePath;
-    private string _currentContent;
-    private string _savedContent;
-    private string _preferredLineEnding;
-    private string _logText;
-    private bool _isDirty;
-    private bool _forceDirtyUntilSave;
+    private readonly AppLaunchActivation _launchActivation;
+    private readonly ObservableCollection<VapourSynthWorkspaceTabViewModel> _tabs = [];
     private bool _isInitialized;
-    private string _workspaceStatusText;
-    private Func<AppText, string>? _workspaceStatusFormatter;
-    private int _caretLine = 1;
-    private int _caretColumn = 1;
-    private int _lineCount = 1;
-    private int _charCount;
+    private bool _isCompareMode;
+    private VapourSynthWorkspacePaneKind _activePane = VapourSynthWorkspacePaneKind.Left;
+    private VapourSynthWorkspaceTabViewModel? _activeTab;
+    private VapourSynthWorkspaceTabViewModel? _leftTab;
+    private VapourSynthWorkspaceTabViewModel? _rightTab;
 
     public VapourSynthWorkspaceViewModel(
         IVapourSynthWorkspaceService workspaceService,
         IAppSettingsService settingsService,
         AppLaunchActivation launchActivation)
     {
-        _launchActivation = launchActivation;
         _workspaceService = workspaceService;
-        _texts = new AppText(settingsService.Load().Language);
-        _currentContent = string.Empty;
-        _savedContent = string.Empty;
-        _preferredLineEnding = Environment.NewLine;
-        _workspaceStatusFormatter = static texts => texts.VapourSynthEditorLoadingStatus;
-        _workspaceStatusText = _workspaceStatusFormatter(_texts);
-        _logText = _texts.VapourSynthLogEmptyPlaceholder;
-        RecentFiles = new ReadOnlyObservableCollection<VapourSynthRecentFileItem>(_recentFiles);
+        _launchActivation = launchActivation;
+        Texts = new AppText(settingsService.Load().Language);
+        Tabs = new ReadOnlyObservableCollection<VapourSynthWorkspaceTabViewModel>(_tabs);
     }
 
-    public AppText Texts
+    public AppText Texts { get; private set; }
+
+    public ReadOnlyObservableCollection<VapourSynthWorkspaceTabViewModel> Tabs { get; }
+
+    public VapourSynthWorkspaceTabViewModel? ActiveTab
     {
-        get => _texts;
-        private set => SetProperty(ref _texts, value);
+        get => _activeTab;
+        private set => SetProperty(ref _activeTab, value);
     }
 
-    public ReadOnlyObservableCollection<VapourSynthRecentFileItem> RecentFiles { get; }
+    public VapourSynthWorkspaceTabViewModel? LeftTab
+    {
+        get => _leftTab;
+        private set => SetProperty(ref _leftTab, value);
+    }
+
+    public VapourSynthWorkspaceTabViewModel? RightTab
+    {
+        get => _rightTab;
+        private set => SetProperty(ref _rightTab, value);
+    }
+
+    public VapourSynthWorkspacePaneKind ActivePane
+    {
+        get => _activePane;
+        private set => SetProperty(ref _activePane, value);
+    }
+
+    public bool IsCompareMode
+    {
+        get => _isCompareMode;
+        private set => SetProperty(ref _isCompareMode, value);
+    }
 
     public string EditorAssetsRootPath => _workspaceService.EditorAssetsRootPath;
 
-    public string CurrentContent => _currentContent;
-
-    public string? CurrentFilePath => _currentFilePath;
-
     public bool IsInitialized => _isInitialized;
 
-    public bool HasUnsavedChanges => _isDirty;
+    public string DocumentTitle => ActiveTab?.TabTitle ?? Texts.VapourSynthWorkspaceTitle;
 
-    public bool HasRecentFiles => _recentFiles.Count > 0;
+    public string DocumentPathText => ActiveTab?.DocumentPathText ?? Texts.VapourSynthPathPlaceholder;
 
-    public Visibility RecentFilesVisibility => HasRecentFiles ? Visibility.Visible : Visibility.Collapsed;
+    public string WorkspaceStatusText => ActiveTab?.WorkspaceStatusText ?? Texts.VapourSynthEditorReadyStatus;
 
-    public Visibility RecentFilesEmptyVisibility => HasRecentFiles ? Visibility.Collapsed : Visibility.Visible;
+    public string LogText => ActiveTab?.LogText ?? Texts.VapourSynthLogEmptyPlaceholder;
 
-    public Visibility DirtyBadgeVisibility => _isDirty ? Visibility.Visible : Visibility.Collapsed;
+    public string EditorStatusText => ActiveTab?.EditorStatusText ?? Texts.VapourSynthEditorCursorStatus(1, 1, 1, 0, false);
 
-    public bool CanReload => !string.IsNullOrWhiteSpace(_currentFilePath);
+    public bool CanReload => ActiveTab?.CanReload ?? false;
 
-    public string DocumentTitle
-    {
-        get
-        {
-            var fileName = string.IsNullOrWhiteSpace(_currentFilePath)
-                ? Texts.VapourSynthUntitledDocument
-                : Path.GetFileName(_currentFilePath);
-            return _isDirty ? $"{fileName} *" : fileName;
-        }
-    }
+    public Visibility DirtyBadgeVisibility => ActiveTab?.DirtyBadgeVisibility ?? Visibility.Collapsed;
 
-    public string DocumentPathText => string.IsNullOrWhiteSpace(_currentFilePath)
-        ? Texts.VapourSynthPathPlaceholder
-        : _currentFilePath;
+    public string? CurrentFilePath => ActiveTab?.CurrentFilePath;
 
-    public string WorkspaceStatusText
-    {
-        get => _workspaceStatusText;
-        private set => SetProperty(ref _workspaceStatusText, value);
-    }
+    public string CurrentContent => ActiveTab?.CurrentContent ?? string.Empty;
 
-    public string LogText
-    {
-        get => _logText;
-        private set => SetProperty(ref _logText, value);
-    }
+    public bool HasUnsavedChanges => ActiveTab?.HasUnsavedChanges ?? false;
 
-    public string EditorStatusText => Texts.VapourSynthEditorCursorStatus(
-        _caretLine,
-        _caretColumn,
-        _lineCount,
-        _charCount,
-        _isDirty);
+    public bool HasAnyUnsavedChanges => _tabs.Any(static tab => tab.HasUnsavedChanges);
 
-    public void ApplyLanguage(AppLanguage language)
-    {
-        if (Texts.Language == language)
-        {
-            return;
-        }
+    public bool CanCompareTabs => _tabs.Count >= 2;
 
-        Texts = new AppText(language);
-
-        if (_workspaceStatusFormatter is not null)
-        {
-            WorkspaceStatusText = _workspaceStatusFormatter(Texts);
-        }
-
-        OnPropertyChanged(nameof(DocumentTitle));
-        OnPropertyChanged(nameof(DocumentPathText));
-        OnPropertyChanged(nameof(EditorStatusText));
-        UpdateLogText();
-    }
+    public IReadOnlyList<VapourSynthWorkspaceTabViewModel> DirtyTabs =>
+        _tabs.Where(static tab => tab.HasUnsavedChanges).ToArray();
 
     public async Task InitializeAsync()
     {
@@ -146,520 +114,640 @@ public sealed class VapourSynthWorkspaceViewModel : ObservableObject, IDisposabl
 
         _isInitialized = true;
 
-        var starterDocument = await _workspaceService.CreateNewDocumentAsync();
         var session = await _workspaceService.LoadSessionAsync();
-        var normalizedRecentFiles = NormalizeExistingRecentFiles(session?.RecentFiles);
-        ReplaceRecentFiles(normalizedRecentFiles);
+        if (session is not null && session.Tabs.Count > 0)
+        {
+            await RestoreSessionAsync(session);
+        }
+        else if (_tabs.Count == 0)
+        {
+            var initialTab = await CreateNewTabAsync();
+            ActivateTab(initialTab);
+        }
 
         var launchFilePath = _launchActivation.RequestedVapourSynthFilePath;
         if (!string.IsNullOrWhiteSpace(launchFilePath))
         {
-            await InitializeFromLaunchRequestAsync(launchFilePath, starterDocument.Content);
+            await OpenDocumentAsync(launchFilePath);
+        }
+    }
+
+    public async Task<VapourSynthWorkspaceTabViewModel> CreateNewTabAsync()
+    {
+        var tab = new VapourSynthWorkspaceTabViewModel(_workspaceService, new ShellSettingsAdapter(Texts.Language));
+        await tab.CreateNewDocumentAsync();
+        AddTab(tab);
+        ActivateTab(tab);
+        RefreshActiveTabBindings();
+        return tab;
+    }
+
+    public async Task<VapourSynthWorkspaceTabViewModel> OpenDocumentAsync(string filePath)
+    {
+        var normalizedPath = NormalizePath(filePath);
+        var existingTab = FindTabByPath(normalizedPath);
+        if (existingTab is not null)
+        {
+            ActivateTab(existingTab);
+            return existingTab;
+        }
+
+        var tab = new VapourSynthWorkspaceTabViewModel(_workspaceService, new ShellSettingsAdapter(Texts.Language));
+        await tab.OpenDocumentAsync(normalizedPath);
+        AddTab(tab);
+        ActivateTab(tab);
+        RefreshActiveTabBindings();
+        return tab;
+    }
+
+    public void ActivateTab(VapourSynthWorkspaceTabViewModel tab)
+    {
+        ArgumentNullException.ThrowIfNull(tab);
+
+        if (!_tabs.Contains(tab))
+        {
             return;
         }
 
-        var shouldPersistSession = session is not null
-            && normalizedRecentFiles.Count != session.RecentFiles.Count;
-
-        if (session?.IsDirty == true && !string.IsNullOrWhiteSpace(session.ActiveContent))
+        if (IsCompareMode)
         {
-            shouldPersistSession |= await RestoreDirtySessionAsync(session, starterDocument.Content);
-
-            if (shouldPersistSession)
+            if (ReferenceEquals(LeftTab, tab))
             {
-                await FlushSessionAsync();
+                ActiveTab = tab;
+                ActivePane = VapourSynthWorkspacePaneKind.Left;
             }
-
-            return;
-        }
-
-        if (!string.IsNullOrWhiteSpace(session?.ActiveFilePath))
-        {
-            if (File.Exists(session.ActiveFilePath))
+            else if (ReferenceEquals(RightTab, tab))
             {
-                var restoredDocument = await _workspaceService.OpenDocumentAsync(session.ActiveFilePath);
-                ApplyDocumentState(restoredDocument.FilePath, restoredDocument.Content, restoredDocument.Content, false);
-                SetWorkspaceStatus(texts => HasExternalFileChanges(session, restoredDocument.Content)
-                    ? texts.VapourSynthRestoredUpdatedDocumentStatus(restoredDocument.FilePath!)
-                    : texts.VapourSynthRestoredDocumentStatus(restoredDocument.FilePath!));
+                ActiveTab = tab;
+                ActivePane = VapourSynthWorkspacePaneKind.Right;
             }
             else
             {
-                ApplyDocumentState(starterDocument.FilePath, starterDocument.Content, starterDocument.Content, false);
-                SetWorkspaceStatus(texts => texts.VapourSynthRestoredMissingFileStatus(session.ActiveFilePath));
-                shouldPersistSession = true;
+                var companion = ActivePane == VapourSynthWorkspacePaneKind.Left ? RightTab : LeftTab;
+                SetCompareTabs(tab, companion ?? FindAdjacentTab(tab), tab);
             }
+        }
+        else
+        {
+            ActiveTab = tab;
+            LeftTab = tab;
+            RightTab = null;
+            ActivePane = VapourSynthWorkspacePaneKind.Left;
+        }
 
-            if (shouldPersistSession)
-            {
-                await FlushSessionAsync();
-            }
+        RefreshActiveTabBindings();
+    }
 
+    public void SetCompareMode(bool isCompareMode)
+    {
+        if (isCompareMode && !CanCompareTabs)
+        {
+            IsCompareMode = false;
+            RightTab = null;
+            ActivePane = VapourSynthWorkspacePaneKind.Left;
+            ActiveTab ??= LeftTab ?? _tabs.FirstOrDefault();
+            SetWorkspaceStatus(static texts => texts.VapourSynthCompareNeedsTwoTabsStatus);
+            RefreshActiveTabBindings();
             return;
         }
 
-        if (!string.IsNullOrWhiteSpace(session?.ActiveContent))
+        if (!isCompareMode)
         {
-            ApplyDocumentState(null, session.ActiveContent, session.ActiveContent, false);
-            SetWorkspaceStatus(static texts => texts.VapourSynthEditorReadyStatus);
+            var activeTab = ActiveTab ?? LeftTab ?? RightTab ?? _tabs.FirstOrDefault();
+            IsCompareMode = false;
+            ActiveTab = activeTab;
+            LeftTab = activeTab;
+            RightTab = null;
+            ActivePane = VapourSynthWorkspacePaneKind.Left;
 
-            if (shouldPersistSession)
-            {
-                await FlushSessionAsync();
-            }
-
+            RefreshActiveTabBindings();
             return;
         }
 
-        ApplyDocumentState(starterDocument.FilePath, starterDocument.Content, starterDocument.Content, false);
-        SetWorkspaceStatus(static texts => texts.VapourSynthEditorReadyStatus);
-        await FlushSessionAsync();
-    }
-
-    public void ApplyEditorBuffer(string content, int line, int column, int lineCount, int charCount)
-    {
-        _currentContent = NormalizeLineEndings(content);
-        _caretLine = Math.Max(1, line);
-        _caretColumn = Math.Max(1, column);
-        _lineCount = Math.Max(1, lineCount);
-        _charCount = Math.Max(0, charCount);
-
-        var previousDirty = _isDirty;
-        _isDirty = _forceDirtyUntilSave
-            || !string.Equals(_currentContent, _savedContent, StringComparison.Ordinal);
-
-        if (previousDirty != _isDirty)
+        if (IsCompareMode)
         {
-            OnPropertyChanged(nameof(DocumentTitle));
-            OnPropertyChanged(nameof(DirtyBadgeVisibility));
+            return;
         }
 
-        OnPropertyChanged(nameof(EditorStatusText));
-        ScheduleSessionSave();
+        var primaryTab = ActiveTab ?? LeftTab ?? _tabs.FirstOrDefault();
+        SetCompareTabs(primaryTab, primaryTab is null ? null : FindAdjacentTab(primaryTab), primaryTab);
+        RefreshActiveTabBindings();
     }
 
-    public void ApplyCursorState(int line, int column, int lineCount, int charCount)
+    public void ActivatePane(VapourSynthWorkspacePaneKind paneKind)
     {
-        _caretLine = Math.Max(1, line);
-        _caretColumn = Math.Max(1, column);
-        _lineCount = Math.Max(1, lineCount);
-        _charCount = Math.Max(0, charCount);
-        OnPropertyChanged(nameof(EditorStatusText));
+        ActivePane = paneKind;
+        if (paneKind == VapourSynthWorkspacePaneKind.Left && LeftTab is not null)
+        {
+            ActiveTab = LeftTab;
+        }
+        else if (paneKind == VapourSynthWorkspacePaneKind.Right && RightTab is not null)
+        {
+            ActiveTab = RightTab;
+        }
+
+        RefreshActiveTabBindings();
     }
 
-    public async Task CreateNewDocumentAsync()
+    public void ShowTabSideBySide(VapourSynthWorkspaceTabViewModel tab)
     {
-        var document = await _workspaceService.CreateNewDocumentAsync();
-        ApplyDocumentState(document.FilePath, document.Content, document.Content, false);
-        SetWorkspaceStatus(static texts => texts.VapourSynthNewDocumentStatus);
-        await FlushSessionAsync();
+        ArgumentNullException.ThrowIfNull(tab);
+
+        if (!_tabs.Contains(tab))
+        {
+            return;
+        }
+
+        if (!CanCompareTabs)
+        {
+            SetWorkspaceStatus(static texts => texts.VapourSynthCompareNeedsTwoTabsStatus);
+            RefreshActiveTabBindings();
+            return;
+        }
+
+        var companion = ActiveTab is not null && !ReferenceEquals(ActiveTab, tab)
+            ? ActiveTab
+            : FindAdjacentTab(tab);
+        SetCompareTabs(tab, companion, tab);
+        RefreshActiveTabBindings();
     }
 
-    public async Task OpenDocumentAsync(string filePath)
+    private void SetCompareTabs(
+        VapourSynthWorkspaceTabViewModel? firstTab,
+        VapourSynthWorkspaceTabViewModel? secondTab,
+        VapourSynthWorkspaceTabViewModel? activeTab)
     {
-        var document = await _workspaceService.OpenDocumentAsync(filePath);
-        ApplyDocumentState(document.FilePath, document.Content, document.Content, false);
-        AddRecentFile(filePath);
-        SetWorkspaceStatus(texts => texts.VapourSynthOpenedStatus(filePath));
-        await FlushSessionAsync();
+        if (firstTab is null || !_tabs.Contains(firstTab))
+        {
+            return;
+        }
+
+        if (secondTab is null || !_tabs.Contains(secondTab) || ReferenceEquals(secondTab, firstTab))
+        {
+            secondTab = FindAdjacentTab(firstTab);
+        }
+
+        if (secondTab is null)
+        {
+            return;
+        }
+
+        LeftTab = firstTab;
+        RightTab = secondTab;
+        IsCompareMode = true;
+        NormalizeCompareTabsByOrder(activeTab);
+    }
+
+    public void PinTab(VapourSynthWorkspaceTabViewModel tab, bool isPinned)
+    {
+        ArgumentNullException.ThrowIfNull(tab);
+
+        if (!_tabs.Contains(tab))
+        {
+            return;
+        }
+
+        tab.SetPinned(isPinned);
+        ReorderPinnedTabs(tab);
+        NormalizeCompareTabsByOrder(ActiveTab);
+        RefreshActiveTabBindings();
+    }
+
+    public void CloseTab(VapourSynthWorkspaceTabViewModel tab)
+    {
+        ArgumentNullException.ThrowIfNull(tab);
+
+        if (!_tabs.Remove(tab))
+        {
+            return;
+        }
+
+        if (ReferenceEquals(LeftTab, tab))
+        {
+            LeftTab = null;
+        }
+
+        if (ReferenceEquals(RightTab, tab))
+        {
+            RightTab = null;
+        }
+
+        if (ReferenceEquals(ActiveTab, tab))
+        {
+            ActiveTab = LeftTab ?? RightTab ?? _tabs.LastOrDefault();
+        }
+
+        if (_tabs.Count == 0)
+        {
+            ActiveTab = null;
+            LeftTab = null;
+            RightTab = null;
+            IsCompareMode = false;
+            ActivePane = VapourSynthWorkspacePaneKind.Left;
+            RefreshActiveTabBindings();
+            return;
+        }
+
+        if (!IsCompareMode)
+        {
+            LeftTab = ActiveTab ?? _tabs.Last();
+        }
+
+        if (LeftTab is null)
+        {
+            LeftTab = _tabs.FirstOrDefault(item => !ReferenceEquals(item, RightTab)) ?? _tabs.FirstOrDefault();
+        }
+
+        if (IsCompareMode)
+        {
+            if (ReferenceEquals(RightTab, LeftTab))
+            {
+                RightTab = null;
+            }
+
+            RightTab ??= _tabs.FirstOrDefault(item => !ReferenceEquals(item, LeftTab));
+            if (!CanCompareTabs || RightTab is null)
+            {
+                IsCompareMode = false;
+                RightTab = null;
+                ActivePane = VapourSynthWorkspacePaneKind.Left;
+            }
+        }
+
+        if (IsCompareMode)
+        {
+            NormalizeCompareTabsByOrder(ActiveTab);
+        }
+        else if (ActivePane == VapourSynthWorkspacePaneKind.Right && RightTab is null)
+        {
+            ActivePane = VapourSynthWorkspacePaneKind.Left;
+
+            ActiveTab = LeftTab ?? RightTab;
+        }
+        else
+        {
+            ActiveTab = ActivePane == VapourSynthWorkspacePaneKind.Right
+                ? RightTab ?? LeftTab
+                : LeftTab ?? RightTab;
+        }
+
+        RefreshActiveTabBindings();
+    }
+
+    public VapourSynthWorkspaceTabViewModel? GetPaneTab(VapourSynthWorkspacePaneKind paneKind)
+    {
+        return paneKind == VapourSynthWorkspacePaneKind.Left ? LeftTab : RightTab;
+    }
+
+    private void NormalizeCompareTabsByOrder(VapourSynthWorkspaceTabViewModel? preferredActiveTab)
+    {
+        if (!IsCompareMode)
+        {
+            return;
+        }
+
+        if (!CanCompareTabs)
+        {
+            IsCompareMode = false;
+            RightTab = null;
+            ActivePane = VapourSynthWorkspacePaneKind.Left;
+            ActiveTab ??= LeftTab ?? _tabs.FirstOrDefault();
+            LeftTab = ActiveTab;
+            return;
+        }
+
+        LeftTab = LeftTab is not null && _tabs.Contains(LeftTab)
+            ? LeftTab
+            : _tabs.FirstOrDefault(tab => !ReferenceEquals(tab, RightTab));
+        RightTab = RightTab is not null && _tabs.Contains(RightTab) && !ReferenceEquals(RightTab, LeftTab)
+            ? RightTab
+            : _tabs.FirstOrDefault(tab => !ReferenceEquals(tab, LeftTab));
+
+        if (LeftTab is null || RightTab is null)
+        {
+            IsCompareMode = false;
+            RightTab = null;
+            ActivePane = VapourSynthWorkspacePaneKind.Left;
+            ActiveTab = LeftTab ?? _tabs.FirstOrDefault();
+            LeftTab = ActiveTab;
+            return;
+        }
+
+        if (_tabs.IndexOf(LeftTab) > _tabs.IndexOf(RightTab))
+        {
+            var previousLeftTab = LeftTab;
+            LeftTab = RightTab;
+            RightTab = previousLeftTab;
+        }
+
+        ActiveTab = ReferenceEquals(preferredActiveTab, LeftTab) || ReferenceEquals(preferredActiveTab, RightTab)
+            ? preferredActiveTab
+            : LeftTab;
+        ActivePane = ReferenceEquals(ActiveTab, RightTab)
+            ? VapourSynthWorkspacePaneKind.Right
+            : VapourSynthWorkspacePaneKind.Left;
+    }
+
+    private VapourSynthWorkspaceTabViewModel? FindAdjacentTab(VapourSynthWorkspaceTabViewModel tab)
+    {
+        var index = _tabs.IndexOf(tab);
+        if (index < 0)
+        {
+            return _tabs.FirstOrDefault();
+        }
+
+        if (index + 1 < _tabs.Count)
+        {
+            return _tabs[index + 1];
+        }
+
+        return index > 0 ? _tabs[index - 1] : null;
     }
 
     public async Task ReloadDocumentAsync()
     {
-        if (string.IsNullOrWhiteSpace(_currentFilePath))
+        if (ActiveTab is null)
         {
             return;
         }
 
-        var document = await _workspaceService.OpenDocumentAsync(_currentFilePath);
-        ApplyDocumentState(document.FilePath, document.Content, document.Content, false);
-        SetWorkspaceStatus(texts => texts.VapourSynthReloadedStatus(_currentFilePath));
-        await FlushSessionAsync();
+        await ActiveTab.ReloadDocumentAsync();
+        RefreshActiveTabBindings();
     }
 
     public async Task SaveAsync()
     {
-        if (string.IsNullOrWhiteSpace(_currentFilePath))
+        if (ActiveTab is null)
         {
-            throw new InvalidOperationException("Current document has no file path.");
+            return;
         }
 
-        await SaveAsAsync(_currentFilePath);
+        await ActiveTab.SaveAsync();
+        RefreshActiveTabBindings();
     }
 
     public async Task SaveAsAsync(string filePath)
     {
-        var document = await _workspaceService.SaveDocumentAsync(filePath, RestorePreferredLineEndings(_currentContent));
-        ApplyDocumentState(document.FilePath, document.Content, document.Content, false);
-        AddRecentFile(filePath);
-        SetWorkspaceStatus(texts => texts.VapourSynthSavedStatus(filePath));
-        await FlushSessionAsync();
-    }
-
-    public async Task FlushSessionAsync(bool discardUnsavedChanges = false)
-    {
-        CancelScheduledSessionSave();
-        await _workspaceService.SaveSessionAsync(BuildSession(discardUnsavedChanges));
-    }
-
-    public void RemoveRecentFile(string filePath)
-    {
-        var matches = _recentFiles
-            .Where(item => string.Equals(item.FullPath, filePath, StringComparison.OrdinalIgnoreCase))
-            .ToArray();
-
-        foreach (var item in matches)
+        if (ActiveTab is null)
         {
-            _recentFiles.Remove(item);
+            return;
         }
 
-        OnPropertyChanged(nameof(HasRecentFiles));
-        OnPropertyChanged(nameof(RecentFilesVisibility));
-        OnPropertyChanged(nameof(RecentFilesEmptyVisibility));
-        ScheduleSessionSave();
+        await ActiveTab.SaveAsAsync(filePath);
+        RefreshActiveTabBindings();
+    }
+
+    public async Task SaveTabAsync(VapourSynthWorkspaceTabViewModel tab)
+    {
+        ArgumentNullException.ThrowIfNull(tab);
+        await tab.SaveAsync();
+        RefreshActiveTabBindings();
+    }
+
+    public async Task SaveTabAsAsync(VapourSynthWorkspaceTabViewModel tab, string filePath)
+    {
+        ArgumentNullException.ThrowIfNull(tab);
+        await tab.SaveAsAsync(filePath);
+        RefreshActiveTabBindings();
+    }
+
+    public void ApplyEditorBuffer(string content, int line, int column, int lineCount, int charCount)
+    {
+        if (ActiveTab is null)
+        {
+            return;
+        }
+
+        ActiveTab.ApplyEditorBuffer(content, line, column, lineCount, charCount);
+        RefreshActiveTabBindings();
+    }
+
+    public void ApplyCursorState(int line, int column, int lineCount, int charCount)
+    {
+        if (ActiveTab is null)
+        {
+            return;
+        }
+
+        ActiveTab.ApplyCursorState(line, column, lineCount, charCount);
+        RefreshActiveTabBindings();
     }
 
     public void SetWorkspaceStatus(string statusText)
     {
-        _workspaceStatusFormatter = null;
-        WorkspaceStatusText = statusText;
+        if (ActiveTab is null)
+        {
+            return;
+        }
+
+        ActiveTab.SetWorkspaceStatus(statusText);
+        RefreshActiveTabBindings();
     }
 
     public void SetWorkspaceStatus(Func<AppText, string> statusFormatter)
     {
-        _workspaceStatusFormatter = statusFormatter;
-        WorkspaceStatusText = statusFormatter(Texts);
+        if (ActiveTab is null)
+        {
+            return;
+        }
+
+        ActiveTab.SetWorkspaceStatus(statusFormatter);
+        RefreshActiveTabBindings();
     }
 
     public void AppendPreviewLog(VapourSynthPreviewLogEntry entry)
     {
-        var timestamp = entry.Timestamp.ToLocalTime().ToString("HH:mm:ss.fff");
-        var level = entry.Level switch
+        if (ActiveTab is null)
         {
-            VapourSynthPreviewLogLevel.Warning => "WARN",
-            VapourSynthPreviewLogLevel.Error => "ERROR",
-            _ => "INFO"
-        };
-        var source = string.IsNullOrWhiteSpace(entry.Source)
-            ? "preview"
-            : entry.Source.Trim();
-        var message = NormalizeLineEndings(entry.Message);
-
-        foreach (var line in message.Split('\n'))
-        {
-            if (string.IsNullOrWhiteSpace(line))
-            {
-                continue;
-            }
-
-            _previewLogLines.Enqueue($"[{timestamp}] [{level}] [{source}] {line}");
+            return;
         }
 
-        while (_previewLogLines.Count > MaxPreviewLogLines)
-        {
-            _previewLogLines.Dequeue();
-        }
-
-        UpdateLogText();
+        ActiveTab.AppendPreviewLog(entry);
+        RefreshActiveTabBindings();
     }
 
     public void ClearPreviewLog()
     {
-        _previewLogLines.Clear();
-        UpdateLogText();
+        ActiveTab?.ClearPreviewLog();
+        RefreshActiveTabBindings();
     }
 
-    public void Dispose()
+    public async Task FlushSessionAsync(bool discardUnsavedChanges = false)
     {
-        CancelScheduledSessionSave();
+        await _workspaceService.SaveSessionAsync(BuildSession(discardUnsavedChanges));
     }
 
-    private void AddRecentFile(string filePath)
+    public void ApplyLanguage(AppLanguage language)
     {
-        RemoveRecentFile(filePath);
-        _recentFiles.Insert(0, new VapourSynthRecentFileItem(filePath));
-
-        while (_recentFiles.Count > 10)
+        if (Texts.Language == language)
         {
-            _recentFiles.RemoveAt(_recentFiles.Count - 1);
+            return;
         }
 
-        OnPropertyChanged(nameof(HasRecentFiles));
-        OnPropertyChanged(nameof(RecentFilesVisibility));
-        OnPropertyChanged(nameof(RecentFilesEmptyVisibility));
-    }
-
-    private void ReplaceRecentFiles(System.Collections.Generic.IEnumerable<string>? recentFiles)
-    {
-        _recentFiles.Clear();
-
-        foreach (var filePath in (recentFiles ?? []).Where(static path => !string.IsNullOrWhiteSpace(path)))
+        Texts = new AppText(language);
+        foreach (var tab in _tabs)
         {
-            _recentFiles.Add(new VapourSynthRecentFileItem(filePath));
+            tab.ApplyLanguage(language);
         }
 
-        OnPropertyChanged(nameof(HasRecentFiles));
-        OnPropertyChanged(nameof(RecentFilesVisibility));
-        OnPropertyChanged(nameof(RecentFilesEmptyVisibility));
+        RefreshActiveTabBindings();
     }
 
-    private void ApplyDocumentState(string? filePath, string content, string savedContent, bool isDirty, bool forceDirtyUntilSave = false)
+    private async Task RestoreSessionAsync(VapourSynthWorkspaceSession session)
     {
-        var normalizedContent = NormalizeLineEndings(content);
-        var normalizedSavedContent = NormalizeLineEndings(savedContent);
+        _tabs.Clear();
 
-        _currentFilePath = string.IsNullOrWhiteSpace(filePath) ? null : filePath;
-        _currentContent = normalizedContent;
-        _savedContent = normalizedSavedContent;
-        _preferredLineEnding = DetectLineEnding(string.IsNullOrEmpty(savedContent) ? content : savedContent);
-        _forceDirtyUntilSave = forceDirtyUntilSave;
-        _isDirty = isDirty || _forceDirtyUntilSave;
+        foreach (var tabSession in session.Tabs)
+        {
+            var tab = new VapourSynthWorkspaceTabViewModel(_workspaceService, new ShellSettingsAdapter(Texts.Language));
+            tab.RestoreSessionSnapshot(tabSession);
+            AddTab(tab);
+        }
 
-        _lineCount = CountLines(_currentContent);
-        _charCount = _currentContent.Length;
-        _caretLine = 1;
-        _caretColumn = 1;
+        if (_tabs.Count == 0)
+        {
+            var initialTab = await CreateNewTabAsync();
+            ActivateTab(initialTab);
+            return;
+        }
 
-        OnPropertyChanged(nameof(CurrentContent));
-        OnPropertyChanged(nameof(CurrentFilePath));
-        OnPropertyChanged(nameof(DocumentTitle));
-        OnPropertyChanged(nameof(DocumentPathText));
-        OnPropertyChanged(nameof(EditorStatusText));
-        OnPropertyChanged(nameof(DirtyBadgeVisibility));
-        OnPropertyChanged(nameof(CanReload));
+        LeftTab = FindTabById(session.LeftTabId) ?? _tabs.FirstOrDefault();
+        RightTab = FindTabById(session.RightTabId);
+        ActiveTab = FindTabById(session.ActiveTabId) ?? LeftTab ?? RightTab ?? _tabs.FirstOrDefault();
+
+        if (session.IsCompareMode && LeftTab is not null)
+        {
+            IsCompareMode = true;
+            ActivePane = ParsePaneKind(session.ActivePane) ?? VapourSynthWorkspacePaneKind.Left;
+            NormalizeCompareTabsByOrder(ActiveTab);
+        }
+        else
+        {
+            IsCompareMode = false;
+            RightTab = null;
+            ActivePane = VapourSynthWorkspacePaneKind.Left;
+        }
+
+        RefreshActiveTabBindings();
     }
 
     private VapourSynthWorkspaceSession BuildSession(bool discardUnsavedChanges)
     {
-        var recentFiles = _recentFiles.Select(item => item.FullPath).ToArray();
-        var savedContentHash = BuildSavedContentHash();
+        var tabSnapshots = _tabs
+            .Select(tab =>
+            {
+                var snapshot = tab.CreateSessionSnapshot();
+                if (!discardUnsavedChanges || !snapshot.IsDirty)
+                {
+                    return snapshot;
+                }
 
-        if (discardUnsavedChanges)
-        {
-            return !string.IsNullOrWhiteSpace(_currentFilePath)
-                ? new VapourSynthWorkspaceSession(_currentFilePath, null, false, recentFiles, savedContentHash)
-                : new VapourSynthWorkspaceSession(null, null, false, recentFiles, null);
-        }
-
-        if (_isDirty)
-        {
-            return new VapourSynthWorkspaceSession(_currentFilePath, _currentContent, true, recentFiles, savedContentHash);
-        }
-
-        return !string.IsNullOrWhiteSpace(_currentFilePath)
-            ? new VapourSynthWorkspaceSession(_currentFilePath, null, false, recentFiles, savedContentHash)
-            : new VapourSynthWorkspaceSession(null, _currentContent, false, recentFiles, null);
-    }
-
-    private void ScheduleSessionSave()
-    {
-        if (!_isInitialized)
-        {
-            return;
-        }
-
-        CancelScheduledSessionSave();
-        _sessionSaveCancellationTokenSource = new CancellationTokenSource();
-        _ = PersistSessionAfterDelayAsync(_sessionSaveCancellationTokenSource.Token);
-    }
-
-    private async Task PersistSessionAfterDelayAsync(CancellationToken cancellationToken)
-    {
-        try
-        {
-            await Task.Delay(TimeSpan.FromMilliseconds(700), cancellationToken);
-            await _workspaceService.SaveSessionAsync(BuildSession(false), cancellationToken);
-        }
-        catch (OperationCanceledException)
-        {
-        }
-        catch
-        {
-        }
-    }
-
-    private void CancelScheduledSessionSave()
-    {
-        if (_sessionSaveCancellationTokenSource is null)
-        {
-            return;
-        }
-
-        _sessionSaveCancellationTokenSource.Cancel();
-        _sessionSaveCancellationTokenSource.Dispose();
-        _sessionSaveCancellationTokenSource = null;
-    }
-
-    private async Task<string> LoadSavedContentOrFallbackAsync(string? filePath, string fallbackContent)
-    {
-        if (!string.IsNullOrWhiteSpace(filePath) && File.Exists(filePath))
-        {
-            var document = await _workspaceService.OpenDocumentAsync(filePath);
-            return document.Content;
-        }
-
-        return fallbackContent;
-    }
-
-    private async Task InitializeFromLaunchRequestAsync(string launchFilePath, string starterContent)
-    {
-        if (!File.Exists(launchFilePath))
-        {
-            ApplyDocumentState(null, starterContent, starterContent, false);
-            SetWorkspaceStatus(texts => texts.VapourSynthLaunchFileMissingStatus(launchFilePath));
-            await FlushSessionAsync();
-            return;
-        }
-
-        try
-        {
-            var document = await _workspaceService.OpenDocumentAsync(launchFilePath);
-            ApplyDocumentState(document.FilePath, document.Content, document.Content, false);
-            AddRecentFile(launchFilePath);
-            SetWorkspaceStatus(texts => texts.VapourSynthOpenedStatus(launchFilePath));
-        }
-        catch (Exception ex)
-        {
-            ApplyDocumentState(null, starterContent, starterContent, false);
-            SetWorkspaceStatus(texts => texts.VapourSynthLaunchOpenFailedStatus(launchFilePath, ex.Message));
-        }
-
-        await FlushSessionAsync();
-    }
-
-    private async Task<bool> RestoreDirtySessionAsync(VapourSynthWorkspaceSession session, string starterContent)
-    {
-        if (string.IsNullOrWhiteSpace(session.ActiveFilePath))
-        {
-            var savedContent = await LoadSavedContentOrFallbackAsync(null, starterContent);
-            ApplyDocumentState(null, session.ActiveContent!, savedContent, true);
-            SetWorkspaceStatus(static texts => texts.VapourSynthRecoveredDraftStatus);
-            return false;
-        }
-
-        if (!File.Exists(session.ActiveFilePath))
-        {
-            ApplyDocumentState(
-                null,
-                session.ActiveContent!,
-                session.ActiveContent!,
-                true,
-                forceDirtyUntilSave: true);
-            SetWorkspaceStatus(texts => texts.VapourSynthRecoveredOrphanedDraftStatus(session.ActiveFilePath));
-            return true;
-        }
-
-        var savedDocument = await _workspaceService.OpenDocumentAsync(session.ActiveFilePath);
-        ApplyDocumentState(session.ActiveFilePath, session.ActiveContent!, savedDocument.Content, true);
-        SetWorkspaceStatus(texts => HasExternalFileChanges(session, savedDocument.Content)
-            ? texts.VapourSynthRecoveredDraftWithExternalChangesStatus(session.ActiveFilePath)
-            : texts.VapourSynthRecoveredDraftStatus);
-        return false;
-    }
-
-    private string? BuildSavedContentHash()
-    {
-        return string.IsNullOrWhiteSpace(_currentFilePath)
-            ? null
-            : ComputeContentHash(_savedContent);
-    }
-
-    private static IReadOnlyList<string> NormalizeExistingRecentFiles(System.Collections.Generic.IEnumerable<string>? recentFiles)
-    {
-        return (recentFiles ?? [])
-            .Where(static path => !string.IsNullOrWhiteSpace(path) && File.Exists(path))
-            .Distinct(StringComparer.OrdinalIgnoreCase)
-            .Take(10)
+                var savedContent = snapshot.SavedContent ?? snapshot.Content ?? string.Empty;
+                return snapshot with
+                {
+                    Content = savedContent,
+                    SavedContent = savedContent,
+                    IsDirty = false
+                };
+            })
             .ToArray();
+
+        return new VapourSynthWorkspaceSession(
+            tabSnapshots,
+            ActiveTab?.Id,
+            LeftTab?.Id,
+            RightTab?.Id,
+            IsCompareMode,
+            ActivePane.ToString());
     }
 
-    private static bool HasExternalFileChanges(VapourSynthWorkspaceSession session, string diskContent)
+    private void RefreshActiveTabBindings()
     {
-        return !string.IsNullOrWhiteSpace(session.ActiveSavedContentHash)
-            && !string.Equals(
-                session.ActiveSavedContentHash,
-                ComputeContentHash(NormalizeLineEndings(diskContent)),
-                StringComparison.Ordinal);
+        OnPropertyChanged(nameof(DocumentTitle));
+        OnPropertyChanged(nameof(DocumentPathText));
+        OnPropertyChanged(nameof(WorkspaceStatusText));
+        OnPropertyChanged(nameof(LogText));
+        OnPropertyChanged(nameof(EditorStatusText));
+        OnPropertyChanged(nameof(CanReload));
+        OnPropertyChanged(nameof(DirtyBadgeVisibility));
+        OnPropertyChanged(nameof(CurrentFilePath));
+        OnPropertyChanged(nameof(CurrentContent));
+        OnPropertyChanged(nameof(HasUnsavedChanges));
+        OnPropertyChanged(nameof(HasAnyUnsavedChanges));
+        OnPropertyChanged(nameof(CanCompareTabs));
+        OnPropertyChanged(nameof(DirtyTabs));
     }
 
-    private static string ComputeContentHash(string content)
+    private void AddTab(VapourSynthWorkspaceTabViewModel tab)
     {
-        var bytes = Encoding.UTF8.GetBytes(content ?? string.Empty);
-        var hash = SHA256.HashData(bytes);
-        return Convert.ToHexString(hash);
-    }
-
-    private static int CountLines(string content)
-    {
-        if (string.IsNullOrEmpty(content))
+        if (tab.IsPinned)
         {
-            return 1;
+            var pinnedCount = _tabs.Count(static item => item.IsPinned);
+            _tabs.Insert(pinnedCount, tab);
+            return;
         }
 
-        return content.Count(static character => character == '\n') + 1;
+        _tabs.Add(tab);
     }
 
-    private static string NormalizeLineEndings(string? content)
+    private void ReorderPinnedTabs(VapourSynthWorkspaceTabViewModel tab)
     {
-        return (content ?? string.Empty)
-            .Replace("\r\n", "\n", StringComparison.Ordinal)
-            .Replace('\r', '\n');
-    }
-
-    private static string DetectLineEnding(string? content)
-    {
-        if (string.IsNullOrEmpty(content))
+        _tabs.Remove(tab);
+        if (tab.IsPinned)
         {
-            return Environment.NewLine;
+            var pinnedCount = _tabs.Count(static item => item.IsPinned);
+            _tabs.Insert(pinnedCount, tab);
+            return;
         }
 
-        var firstLfIndex = content.IndexOf('\n');
-        if (firstLfIndex > 0 && content[firstLfIndex - 1] == '\r')
+        _tabs.Add(tab);
+    }
+
+    private VapourSynthWorkspaceTabViewModel? FindTabByPath(string filePath)
+    {
+        return _tabs.FirstOrDefault(tab =>
+            !string.IsNullOrWhiteSpace(tab.CurrentFilePath)
+            && string.Equals(NormalizePath(tab.CurrentFilePath), filePath, StringComparison.OrdinalIgnoreCase));
+    }
+
+    private VapourSynthWorkspaceTabViewModel? FindTabById(string? id)
+    {
+        if (string.IsNullOrWhiteSpace(id))
         {
-            return "\r\n";
+            return null;
         }
 
-        if (firstLfIndex >= 0)
+        return _tabs.FirstOrDefault(tab => string.Equals(tab.Id, id, StringComparison.Ordinal));
+    }
+
+    private static VapourSynthWorkspacePaneKind? ParsePaneKind(string? value)
+    {
+        return Enum.TryParse<VapourSynthWorkspacePaneKind>(value, ignoreCase: true, out var result)
+            ? result
+            : null;
+    }
+
+    private static string NormalizePath(string filePath)
+    {
+        return Path.GetFullPath(filePath);
+    }
+
+    private sealed class ShellSettingsAdapter : IAppSettingsService
+    {
+        private readonly AppLanguage _language;
+
+        public ShellSettingsAdapter(AppLanguage language)
         {
-            return "\n";
+            _language = language;
         }
 
-        return content.IndexOf('\r') >= 0 ? "\r" : Environment.NewLine;
+        public AppSettings Load()
+        {
+            return AppSettings.Default with { Language = _language };
+        }
+
+        public void Save(AppSettings settings)
+        {
+        }
     }
-
-    private string RestorePreferredLineEndings(string content)
-    {
-        var normalized = NormalizeLineEndings(content);
-        return _preferredLineEnding == "\n"
-            ? normalized
-            : normalized.Replace("\n", _preferredLineEnding, StringComparison.Ordinal);
-    }
-
-    private void UpdateLogText()
-    {
-        LogText = _previewLogLines.Count == 0
-            ? Texts.VapourSynthLogEmptyPlaceholder
-            : string.Join(Environment.NewLine, _previewLogLines);
-    }
-}
-
-public sealed class VapourSynthRecentFileItem
-{
-    public VapourSynthRecentFileItem(string fullPath)
-    {
-        FullPath = fullPath;
-        FileName = Path.GetFileName(fullPath);
-        DirectoryPath = Path.GetDirectoryName(fullPath) ?? string.Empty;
-        Exists = File.Exists(fullPath);
-    }
-
-    public string FullPath { get; }
-
-    public string FileName { get; }
-
-    public string DirectoryPath { get; }
-
-    public bool Exists { get; }
-
-    public Visibility MissingVisibility => Exists ? Visibility.Collapsed : Visibility.Visible;
 }
