@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.IO;
 using System.Linq;
+using System.Threading;
 using System.Threading.Tasks;
 using CommunityToolkit.Mvvm.ComponentModel;
 using FlowEncode.Application;
@@ -22,6 +23,8 @@ public sealed class VapourSynthWorkspaceViewModel : ObservableObject
     private readonly IVapourSynthWorkspaceService _workspaceService;
     private readonly AppLaunchActivation _launchActivation;
     private readonly ObservableCollection<VapourSynthWorkspaceTabViewModel> _tabs = [];
+    private CancellationTokenSource? _sessionSaveCancellationTokenSource;
+    private AppText _texts;
     private bool _isInitialized;
     private bool _isCompareMode;
     private VapourSynthWorkspacePaneKind _activePane = VapourSynthWorkspacePaneKind.Left;
@@ -36,11 +39,15 @@ public sealed class VapourSynthWorkspaceViewModel : ObservableObject
     {
         _workspaceService = workspaceService;
         _launchActivation = launchActivation;
-        Texts = new AppText(settingsService.Load().Language);
+        _texts = new AppText(settingsService.Load().Language);
         Tabs = new ReadOnlyObservableCollection<VapourSynthWorkspaceTabViewModel>(_tabs);
     }
 
-    public AppText Texts { get; private set; }
+    public AppText Texts
+    {
+        get => _texts;
+        private set => SetProperty(ref _texts, value);
+    }
 
     public ReadOnlyObservableCollection<VapourSynthWorkspaceTabViewModel> Tabs { get; }
 
@@ -139,6 +146,7 @@ public sealed class VapourSynthWorkspaceViewModel : ObservableObject
         AddTab(tab);
         ActivateTab(tab);
         RefreshActiveTabBindings();
+        ScheduleSessionSave();
         return tab;
     }
 
@@ -149,6 +157,7 @@ public sealed class VapourSynthWorkspaceViewModel : ObservableObject
         if (existingTab is not null)
         {
             ActivateTab(existingTab);
+            ScheduleSessionSave();
             return existingTab;
         }
 
@@ -157,6 +166,7 @@ public sealed class VapourSynthWorkspaceViewModel : ObservableObject
         AddTab(tab);
         ActivateTab(tab);
         RefreshActiveTabBindings();
+        ScheduleSessionSave();
         return tab;
     }
 
@@ -196,6 +206,7 @@ public sealed class VapourSynthWorkspaceViewModel : ObservableObject
         }
 
         RefreshActiveTabBindings();
+        ScheduleSessionSave();
     }
 
     public void SetCompareMode(bool isCompareMode)
@@ -208,6 +219,7 @@ public sealed class VapourSynthWorkspaceViewModel : ObservableObject
             ActiveTab ??= LeftTab ?? _tabs.FirstOrDefault();
             SetWorkspaceStatus(static texts => texts.VapourSynthCompareNeedsTwoTabsStatus);
             RefreshActiveTabBindings();
+            ScheduleSessionSave();
             return;
         }
 
@@ -221,6 +233,7 @@ public sealed class VapourSynthWorkspaceViewModel : ObservableObject
             ActivePane = VapourSynthWorkspacePaneKind.Left;
 
             RefreshActiveTabBindings();
+            ScheduleSessionSave();
             return;
         }
 
@@ -232,6 +245,7 @@ public sealed class VapourSynthWorkspaceViewModel : ObservableObject
         var primaryTab = ActiveTab ?? LeftTab ?? _tabs.FirstOrDefault();
         SetCompareTabs(primaryTab, primaryTab is null ? null : FindAdjacentTab(primaryTab), primaryTab);
         RefreshActiveTabBindings();
+        ScheduleSessionSave();
     }
 
     public void ActivatePane(VapourSynthWorkspacePaneKind paneKind)
@@ -247,6 +261,7 @@ public sealed class VapourSynthWorkspaceViewModel : ObservableObject
         }
 
         RefreshActiveTabBindings();
+        ScheduleSessionSave();
     }
 
     public void ShowTabSideBySide(VapourSynthWorkspaceTabViewModel tab)
@@ -270,6 +285,7 @@ public sealed class VapourSynthWorkspaceViewModel : ObservableObject
             : FindAdjacentTab(tab);
         SetCompareTabs(tab, companion, tab);
         RefreshActiveTabBindings();
+        ScheduleSessionSave();
     }
 
     private void SetCompareTabs(
@@ -311,6 +327,7 @@ public sealed class VapourSynthWorkspaceViewModel : ObservableObject
         ReorderPinnedTabs(tab);
         NormalizeCompareTabsByOrder(ActiveTab);
         RefreshActiveTabBindings();
+        ScheduleSessionSave();
     }
 
     public void CloseTab(VapourSynthWorkspaceTabViewModel tab)
@@ -345,6 +362,7 @@ public sealed class VapourSynthWorkspaceViewModel : ObservableObject
             IsCompareMode = false;
             ActivePane = VapourSynthWorkspacePaneKind.Left;
             RefreshActiveTabBindings();
+            ScheduleSessionSave();
             return;
         }
 
@@ -392,6 +410,7 @@ public sealed class VapourSynthWorkspaceViewModel : ObservableObject
         }
 
         RefreshActiveTabBindings();
+        ScheduleSessionSave();
     }
 
     public VapourSynthWorkspaceTabViewModel? GetPaneTab(VapourSynthWorkspacePaneKind paneKind)
@@ -473,6 +492,7 @@ public sealed class VapourSynthWorkspaceViewModel : ObservableObject
 
         await ActiveTab.ReloadDocumentAsync();
         RefreshActiveTabBindings();
+        ScheduleSessionSave();
     }
 
     public async Task SaveAsync()
@@ -484,6 +504,7 @@ public sealed class VapourSynthWorkspaceViewModel : ObservableObject
 
         await ActiveTab.SaveAsync();
         RefreshActiveTabBindings();
+        ScheduleSessionSave();
     }
 
     public async Task SaveAsAsync(string filePath)
@@ -495,6 +516,7 @@ public sealed class VapourSynthWorkspaceViewModel : ObservableObject
 
         await ActiveTab.SaveAsAsync(filePath);
         RefreshActiveTabBindings();
+        ScheduleSessionSave();
     }
 
     public async Task SaveTabAsync(VapourSynthWorkspaceTabViewModel tab)
@@ -502,6 +524,7 @@ public sealed class VapourSynthWorkspaceViewModel : ObservableObject
         ArgumentNullException.ThrowIfNull(tab);
         await tab.SaveAsync();
         RefreshActiveTabBindings();
+        ScheduleSessionSave();
     }
 
     public async Task SaveTabAsAsync(VapourSynthWorkspaceTabViewModel tab, string filePath)
@@ -509,6 +532,7 @@ public sealed class VapourSynthWorkspaceViewModel : ObservableObject
         ArgumentNullException.ThrowIfNull(tab);
         await tab.SaveAsAsync(filePath);
         RefreshActiveTabBindings();
+        ScheduleSessionSave();
     }
 
     public void ApplyEditorBuffer(string content, int line, int column, int lineCount, int charCount)
@@ -520,6 +544,7 @@ public sealed class VapourSynthWorkspaceViewModel : ObservableObject
 
         ActiveTab.ApplyEditorBuffer(content, line, column, lineCount, charCount);
         RefreshActiveTabBindings();
+        ScheduleSessionSave();
     }
 
     public void ApplyCursorState(int line, int column, int lineCount, int charCount)
@@ -542,6 +567,7 @@ public sealed class VapourSynthWorkspaceViewModel : ObservableObject
 
         ActiveTab.SetWorkspaceStatus(statusText);
         RefreshActiveTabBindings();
+        ScheduleSessionSave();
     }
 
     public void SetWorkspaceStatus(Func<AppText, string> statusFormatter)
@@ -553,6 +579,21 @@ public sealed class VapourSynthWorkspaceViewModel : ObservableObject
 
         ActiveTab.SetWorkspaceStatus(statusFormatter);
         RefreshActiveTabBindings();
+        ScheduleSessionSave();
+    }
+
+    public void SetWorkspaceStatus(VapourSynthWorkspaceTabViewModel tab, Func<AppText, string> statusFormatter)
+    {
+        ArgumentNullException.ThrowIfNull(tab);
+
+        if (!_tabs.Contains(tab))
+        {
+            return;
+        }
+
+        tab.SetWorkspaceStatus(statusFormatter);
+        RefreshActiveTabBindings();
+        ScheduleSessionSave();
     }
 
     public void AppendPreviewLog(VapourSynthPreviewLogEntry entry)
@@ -564,16 +605,47 @@ public sealed class VapourSynthWorkspaceViewModel : ObservableObject
 
         ActiveTab.AppendPreviewLog(entry);
         RefreshActiveTabBindings();
+        ScheduleSessionSave();
+    }
+
+    public void AppendPreviewLog(VapourSynthWorkspaceTabViewModel tab, VapourSynthPreviewLogEntry entry)
+    {
+        ArgumentNullException.ThrowIfNull(tab);
+
+        if (!_tabs.Contains(tab))
+        {
+            return;
+        }
+
+        tab.AppendPreviewLog(entry);
+        RefreshActiveTabBindings();
+        ScheduleSessionSave();
     }
 
     public void ClearPreviewLog()
     {
         ActiveTab?.ClearPreviewLog();
         RefreshActiveTabBindings();
+        ScheduleSessionSave();
+    }
+
+    public void ClearPreviewLog(VapourSynthWorkspaceTabViewModel tab)
+    {
+        ArgumentNullException.ThrowIfNull(tab);
+
+        if (!_tabs.Contains(tab))
+        {
+            return;
+        }
+
+        tab.ClearPreviewLog();
+        RefreshActiveTabBindings();
+        ScheduleSessionSave();
     }
 
     public async Task FlushSessionAsync(bool discardUnsavedChanges = false)
     {
+        CancelScheduledSessionSave();
         await _workspaceService.SaveSessionAsync(BuildSession(discardUnsavedChanges));
     }
 
@@ -600,8 +672,10 @@ public sealed class VapourSynthWorkspaceViewModel : ObservableObject
         foreach (var tabSession in session.Tabs)
         {
             var tab = new VapourSynthWorkspaceTabViewModel(_workspaceService, new ShellSettingsAdapter(Texts.Language));
-            tab.RestoreSessionSnapshot(tabSession);
-            AddTab(tab);
+            if (await tab.RestoreSessionSnapshotAsync(tabSession))
+            {
+                AddTab(tab);
+            }
         }
 
         if (_tabs.Count == 0)
@@ -659,6 +733,45 @@ public sealed class VapourSynthWorkspaceViewModel : ObservableObject
             RightTab?.Id,
             IsCompareMode,
             ActivePane.ToString());
+    }
+
+    private void ScheduleSessionSave()
+    {
+        if (!_isInitialized)
+        {
+            return;
+        }
+
+        CancelScheduledSessionSave();
+        _sessionSaveCancellationTokenSource = new CancellationTokenSource();
+        _ = PersistSessionAfterDelayAsync(_sessionSaveCancellationTokenSource.Token);
+    }
+
+    private async Task PersistSessionAfterDelayAsync(CancellationToken cancellationToken)
+    {
+        try
+        {
+            await Task.Delay(TimeSpan.FromMilliseconds(700), cancellationToken);
+            await _workspaceService.SaveSessionAsync(BuildSession(false), cancellationToken);
+        }
+        catch (OperationCanceledException)
+        {
+        }
+        catch
+        {
+        }
+    }
+
+    private void CancelScheduledSessionSave()
+    {
+        if (_sessionSaveCancellationTokenSource is null)
+        {
+            return;
+        }
+
+        _sessionSaveCancellationTokenSource.Cancel();
+        _sessionSaveCancellationTokenSource.Dispose();
+        _sessionSaveCancellationTokenSource = null;
     }
 
     private void RefreshActiveTabBindings()

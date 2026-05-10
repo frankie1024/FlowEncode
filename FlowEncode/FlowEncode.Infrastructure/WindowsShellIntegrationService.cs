@@ -1,6 +1,7 @@
 using System.Runtime.Versioning;
 using System.Text;
 using FlowEncode.Application;
+using FlowEncode.Domain;
 
 namespace FlowEncode.Infrastructure;
 
@@ -10,16 +11,19 @@ public sealed class WindowsShellIntegrationService : IVapourSynthShellIntegratio
     private const string ShellNewKey = @"Software\Classes\.vpy\ShellNew";
     private const string ExtensionKey = @"Software\Classes\.vpy";
     private const string ProgIdKey = @"Software\Classes\VapourSynthScript";
-    private const string MenuText = "VapourSynth视频脚本";
+    private const string ChineseMenuText = "VapourSynth 视频脚本";
+    private const string EnglishMenuText = "VapourSynth Script";
     private const string TemplateFileName = "VapourSynthScript.vpy";
 
     private static readonly string TemplateContent = string.Empty;
 
     private readonly LocalAppPaths _appPaths;
+    private readonly IAppSettingsService _settingsService;
 
-    public WindowsShellIntegrationService(LocalAppPaths appPaths)
+    public WindowsShellIntegrationService(LocalAppPaths appPaths, IAppSettingsService settingsService)
     {
         _appPaths = appPaths;
+        _settingsService = settingsService;
     }
 
     public void RegisterNewVpyFileMenu()
@@ -34,7 +38,7 @@ public sealed class WindowsShellIntegrationService : IVapourSynthShellIntegratio
 
             using (var progIdKey = Microsoft.Win32.Registry.CurrentUser.CreateSubKey(ProgIdKey))
             {
-                progIdKey.SetValue("", MenuText);
+                progIdKey.SetValue("", GetMenuText());
             }
 
             using var shellNewKey = Microsoft.Win32.Registry.CurrentUser.CreateSubKey(ShellNewKey);
@@ -65,6 +69,20 @@ public sealed class WindowsShellIntegrationService : IVapourSynthShellIntegratio
                 _appPaths,
                 nameof(WindowsShellIntegrationService),
                 $"Failed to unregister .vpy ShellNew. {ex.GetType().Name}: {ex.Message}");
+        }
+    }
+
+    private string GetMenuText()
+    {
+        try
+        {
+            return _settingsService.Load().Language == AppLanguage.English
+                ? EnglishMenuText
+                : ChineseMenuText;
+        }
+        catch
+        {
+            return ChineseMenuText;
         }
     }
 }

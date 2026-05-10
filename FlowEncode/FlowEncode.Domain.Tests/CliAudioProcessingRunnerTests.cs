@@ -2,6 +2,7 @@ using FlowEncode.Application;
 using FlowEncode.Domain;
 using FlowEncode.Infrastructure;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
+using System.Collections.Concurrent;
 using System.Diagnostics;
 
 namespace FlowEncode.Domain.Tests;
@@ -211,11 +212,11 @@ public sealed class CliAudioProcessingRunnerTests
         }));
 
         var request = CreateDdpRequest(sourcePath, outputDirectory);
-        var progressUpdates = new List<AudioProcessingProgress>();
-        var progress = new Progress<AudioProcessingProgress>(update => progressUpdates.Add(update));
+        var progress = new RecordingProgress<AudioProcessingProgress>();
 
         var result = await runner.RunAsync(request, progress);
 
+        var progressUpdates = progress.Snapshot();
         Assert.AreEqual(EncodingJobState.Completed, result.State);
         Assert.IsTrue(
             progressUpdates.Any(update => update.ProgressFraction is > 0 and < 1),
@@ -370,11 +371,11 @@ allowed. Valid value(s): 1,2,6.
             channelCount: 2,
             channelLayout: "stereo",
             sourceDurationSeconds: null);
-        var progressUpdates = new List<AudioProcessingProgress>();
-        var progress = new Progress<AudioProcessingProgress>(update => progressUpdates.Add(update));
+        var progress = new RecordingProgress<AudioProcessingProgress>();
 
         var result = await runner.RunAsync(request, progress);
 
+        var progressUpdates = progress.Snapshot();
         Assert.AreEqual(EncodingJobState.Completed, result.State);
         Assert.IsTrue(File.Exists(outputPath) && new FileInfo(outputPath).Length > 0);
         Assert.IsTrue(
@@ -642,6 +643,21 @@ allowed. Valid value(s): 1,2,6.
 
         public void Save(AppSettings settings)
         {
+        }
+    }
+
+    private sealed class RecordingProgress<T> : IProgress<T>
+    {
+        private readonly ConcurrentQueue<T> _updates = new();
+
+        public void Report(T value)
+        {
+            _updates.Enqueue(value);
+        }
+
+        public T[] Snapshot()
+        {
+            return _updates.ToArray();
         }
     }
 }

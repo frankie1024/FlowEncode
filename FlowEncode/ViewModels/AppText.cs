@@ -213,6 +213,20 @@ public sealed class AppText
         IsChinese ? $"已保存脚本：{filePath}" : $"Saved script: {filePath}";
     public string VapourSynthReloadedStatus(string filePath) =>
         IsChinese ? $"已从磁盘重新载入：{filePath}" : $"Reloaded from disk: {filePath}";
+    public string VapourSynthRestoredFromDiskStatus(string filePath) =>
+        IsChinese ? $"已从磁盘恢复脚本：{filePath}" : $"Restored script from disk: {filePath}";
+    public string VapourSynthRestoredFromSessionSnapshotStatus(string filePath) =>
+        IsChinese ? $"已从会话快照恢复脚本：{filePath}" : $"Restored script from session snapshot: {filePath}";
+    public string VapourSynthRecoveredUnsavedDraftStatus(string filePath) =>
+        IsChinese ? $"已恢复未保存草稿：{filePath}" : $"Recovered unsaved draft: {filePath}";
+    public string VapourSynthRecoveredExternalChangeDraftStatus(string filePath) =>
+        IsChinese
+            ? $"已恢复未保存草稿；磁盘文件也有变更：{filePath}"
+            : $"Recovered unsaved draft; the file also changed on disk: {filePath}";
+    public string VapourSynthRecoveredMissingFileDraftStatus(string filePath) =>
+        IsChinese
+            ? $"原文件不存在，已恢复为未保存草稿：{filePath}"
+            : $"Original file is missing; recovered as an unsaved draft: {filePath}";
     public string VapourSynthEditorCursorStatus(int line, int column, int lineCount, int charCount, bool isDirty) =>
         IsChinese
             ? $"第 {line} 行，第 {column} 列  |  {lineCount} 行  |  {charCount} 字符  |  {(isDirty ? "未保存" : "已保存")}"

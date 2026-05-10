@@ -291,44 +291,70 @@ public sealed class VapourSynthWorkspaceTabViewModel : ObservableObject
             _charCount);
     }
 
-    public void RestoreSessionSnapshot(VapourSynthWorkspaceTabSession session)
+    public async Task<bool> RestoreSessionSnapshotAsync(VapourSynthWorkspaceTabSession session)
     {
         ArgumentNullException.ThrowIfNull(session);
 
-        if (!string.IsNullOrWhiteSpace(session.Id))
+        ApplySessionIdentity(session);
+
+        var filePath = NormalizeFilePath(session.FilePath);
+        var sessionContent = session.Content ?? string.Empty;
+        var sessionSavedContent = session.SavedContent ?? sessionContent;
+        var diskReadFailed = false;
+        var displayPath = filePath ?? Texts.VapourSynthUntitledDocument;
+
+        if (!string.IsNullOrWhiteSpace(filePath) && File.Exists(filePath))
         {
-            _id = session.Id;
-        }
-
-        IsPinned = session.IsPinned;
-        ApplyDocumentState(
-            session.FilePath,
-            session.Content ?? string.Empty,
-            session.SavedContent ?? session.Content ?? string.Empty,
-            session.IsDirty,
-            forceDirtyUntilSave: session.IsDirty && string.IsNullOrWhiteSpace(session.SavedContent));
-
-        _caretLine = Math.Max(1, session.CaretLine);
-        _caretColumn = Math.Max(1, session.CaretColumn);
-        _lineCount = Math.Max(1, session.LineCount);
-        _charCount = Math.Max(0, session.CharCount);
-        WorkspaceStatusText = string.IsNullOrWhiteSpace(session.WorkspaceStatusText)
-            ? WorkspaceStatusText
-            : session.WorkspaceStatusText;
-
-        _previewLogLines.Clear();
-        if (!string.IsNullOrWhiteSpace(session.LogText))
-        {
-            foreach (var line in session.LogText.Split(new[] { Environment.NewLine, "\n" }, StringSplitOptions.None))
+            try
             {
-                if (!string.IsNullOrWhiteSpace(line))
+                var document = await _workspaceService.OpenDocumentAsync(filePath);
+                if (session.IsDirty)
                 {
-                    _previewLogLines.Enqueue(line);
+                    var isStillDirty = !string.Equals(
+                        NormalizeLineEndings(sessionContent),
+                        NormalizeLineEndings(document.Content),
+                        StringComparison.Ordinal);
+                    ApplyDocumentState(document.FilePath, sessionContent, document.Content, isStillDirty);
+                    SetWorkspaceStatus(
+                        !string.Equals(
+                            NormalizeLineEndings(sessionSavedContent),
+                            NormalizeLineEndings(document.Content),
+                            StringComparison.Ordinal)
+                            ? texts => texts.VapourSynthRecoveredExternalChangeDraftStatus(document.FilePath ?? filePath)
+                            : texts => texts.VapourSynthRecoveredUnsavedDraftStatus(document.FilePath ?? filePath));
                 }
-            }
+                else
+                {
+                    ApplyDocumentState(document.FilePath, document.Content, document.Content, false);
+                    SetWorkspaceStatus(texts => texts.VapourSynthRestoredFromDiskStatus(document.FilePath ?? filePath));
+                }
 
-            UpdateLogText();
+                ApplySessionViewState(session, keepWorkspaceStatus: true);
+                return true;
+            }
+            catch
+            {
+                diskReadFailed = true;
+            }
         }
+
+        if (diskReadFailed)
+        {
+            ApplyDocumentState(filePath, sessionContent, sessionSavedContent, session.IsDirty, forceDirtyUntilSave: string.IsNullOrWhiteSpace(session.SavedContent));
+            SetWorkspaceStatus(texts => texts.VapourSynthRestoredFromSessionSnapshotStatus(displayPath));
+            ApplySessionViewState(session, keepWorkspaceStatus: true);
+            return true;
+        }
+
+        if (!session.IsDirty)
+        {
+            return false;
+        }
+
+        ApplyDocumentState(filePath, sessionContent, sessionSavedContent, true, forceDirtyUntilSave: string.IsNullOrWhiteSpace(session.SavedContent));
+        SetWorkspaceStatus(texts => texts.VapourSynthRecoveredMissingFileDraftStatus(displayPath));
+        ApplySessionViewState(session, keepWorkspaceStatus: true);
+        return true;
     }
 
     private void ApplyDocumentState(string? filePath, string content, string savedContent, bool isDirty, bool forceDirtyUntilSave = false)
@@ -355,6 +381,60 @@ public sealed class VapourSynthWorkspaceTabViewModel : ObservableObject
         OnPropertyChanged(nameof(EditorStatusText));
         OnPropertyChanged(nameof(DirtyBadgeVisibility));
         OnPropertyChanged(nameof(CanReload));
+    }
+
+    private void ApplySessionIdentity(VapourSynthWorkspaceTabSession session)
+    {
+        if (!string.IsNullOrWhiteSpace(session.Id))
+        {
+            _id = session.Id;
+        }
+
+        IsPinned = session.IsPinned;
+    }
+
+    private void ApplySessionViewState(VapourSynthWorkspaceTabSession session, bool keepWorkspaceStatus = false)
+    {
+        _caretLine = Math.Max(1, session.CaretLine);
+        _caretColumn = Math.Max(1, session.CaretColumn);
+
+        if (!keepWorkspaceStatus && !string.IsNullOrWhiteSpace(session.WorkspaceStatusText))
+        {
+            _workspaceStatusFormatter = null;
+            WorkspaceStatusText = session.WorkspaceStatusText;
+        }
+
+        _previewLogLines.Clear();
+        if (!string.IsNullOrWhiteSpace(session.LogText))
+        {
+            foreach (var line in session.LogText.Split(new[] { Environment.NewLine, "\n" }, StringSplitOptions.None))
+            {
+                if (!string.IsNullOrWhiteSpace(line))
+                {
+                    _previewLogLines.Enqueue(line);
+                }
+            }
+        }
+
+        UpdateLogText();
+        OnPropertyChanged(nameof(EditorStatusText));
+    }
+
+    private static string? NormalizeFilePath(string? filePath)
+    {
+        if (string.IsNullOrWhiteSpace(filePath))
+        {
+            return null;
+        }
+
+        try
+        {
+            return Path.GetFullPath(filePath);
+        }
+        catch
+        {
+            return null;
+        }
     }
 
     private static int CountLines(string content)

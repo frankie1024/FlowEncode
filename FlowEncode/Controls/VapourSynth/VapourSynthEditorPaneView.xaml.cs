@@ -126,7 +126,7 @@ public sealed partial class VapourSynthEditorPaneView : UserControl, IDisposable
             filePath
         });
 
-        await EditorWebView.ExecuteScriptAsync($"window.vsWorkspaceHost.loadDocument({payload});");
+        await EditorWebView.ExecuteScriptAsync($"window.vsWorkspaceHost.loadDocument({payload}, {{ broadcastState: false }});");
     }
 
     public async Task LoadLanguageFeaturesAsync(object snapshot)
@@ -164,6 +164,17 @@ public sealed partial class VapourSynthEditorPaneView : UserControl, IDisposable
 
         var commandJson = JsonSerializer.Serialize(command);
         await EditorWebView.ExecuteScriptAsync($"window.vsWorkspaceHost.executeCommand({commandJson});");
+    }
+
+    public async Task FocusEditorAsync()
+    {
+        if (!IsEditorReady)
+        {
+            return;
+        }
+
+        EditorWebView.Focus(FocusState.Programmatic);
+        await ExecuteEditorCommandAsync("focus");
     }
 
     public async Task InsertTextAsync(string text, bool onNewLine)

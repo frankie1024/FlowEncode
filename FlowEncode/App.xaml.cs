@@ -41,11 +41,11 @@ public partial class App : Microsoft.UI.Xaml.Application
         return app._services.GetRequiredService<T>();
     }
 
-    protected override void OnLaunched(Microsoft.UI.Xaml.LaunchActivatedEventArgs args)
+    protected override async void OnLaunched(Microsoft.UI.Xaml.LaunchActivatedEventArgs args)
     {
         TrySetProcessAppUserModelId();
 
-        if (!TryConfigureSingleInstance())
+        if (!await TryConfigureSingleInstanceAsync())
         {
             return;
         }
@@ -60,8 +60,9 @@ public partial class App : Microsoft.UI.Xaml.Application
             var shellIntegration = GetService<IVapourSynthShellIntegrationService>();
             shellIntegration.RegisterNewVpyFileMenu();
         }
-        catch
+        catch (Exception ex)
         {
+            WriteLifecycleDiagnostic($"Failed to register .vpy ShellNew menu. {ex.GetType().Name}: {ex.Message}");
         }
 
         _window.Activate();
@@ -127,7 +128,7 @@ public partial class App : Microsoft.UI.Xaml.Application
         return services.BuildServiceProvider();
     }
 
-    private bool TryConfigureSingleInstance()
+    private async Task<bool> TryConfigureSingleInstanceAsync()
     {
         _mainAppInstance = AppInstance.FindOrRegisterForKey(SingleInstanceKey);
         if (_mainAppInstance.IsCurrent)
@@ -136,7 +137,7 @@ public partial class App : Microsoft.UI.Xaml.Application
             return true;
         }
 
-        TrySendExternalOpenRequest(ResolveRequestedVapourSynthFilePath());
+        await TrySendExternalOpenRequestAsync(ResolveRequestedVapourSynthFilePath());
         ShutdownServices();
         Environment.Exit(0);
         return false;
@@ -305,7 +306,7 @@ public partial class App : Microsoft.UI.Xaml.Application
         });
     }
 
-    private static void TrySendExternalOpenRequest(string? filePath)
+    private static async Task TrySendExternalOpenRequestAsync(string? filePath)
     {
         if (string.IsNullOrWhiteSpace(filePath))
         {
@@ -328,23 +329,23 @@ public partial class App : Microsoft.UI.Xaml.Application
                     PipeDirection.Out,
                     PipeOptions.Asynchronous | PipeOptions.CurrentUserOnly);
 
-                client.Connect(200);
+                await client.ConnectAsync(200);
 
                 using var writer = new StreamWriter(client)
                 {
                     AutoFlush = true
                 };
 
-                writer.Write(normalizedPath);
+                await writer.WriteAsync(normalizedPath);
                 return;
             }
             catch (TimeoutException)
             {
-                Thread.Sleep(150);
+                await Task.Delay(150);
             }
             catch (IOException)
             {
-                Thread.Sleep(150);
+                await Task.Delay(150);
             }
         }
 

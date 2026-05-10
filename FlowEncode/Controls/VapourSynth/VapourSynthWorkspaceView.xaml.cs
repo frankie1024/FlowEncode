@@ -12,6 +12,7 @@ using FlowEncode.ViewModels;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Input;
+using Windows.System;
 using WinRT.Interop;
 
 namespace FlowEncode.Controls.VapourSynth;
@@ -30,10 +31,12 @@ public sealed partial class VapourSynthWorkspaceView : UserControl, IDisposable
     private readonly IVapourSynthPreviewService _previewService;
     private readonly string _editorWebViewUserDataFolderPath;
     private VapourSynthPreviewWindow? _previewWindow;
+    private VapourSynthWorkspaceTabViewModel? _previewLogTab;
     private CancellationTokenSource? _diagnosticsCancellationTokenSource;
     private bool _isLoaded;
     private long _diagnosticsVersion;
     private bool _isDisposed;
+    private int _workspaceTabSelectionSuppressionCount;
 
     public VapourSynthWorkspaceViewModel ViewModel { get; }
 
@@ -49,6 +52,7 @@ public sealed partial class VapourSynthWorkspaceView : UserControl, IDisposable
         DataContext = ViewModel;
         LeftEditorPane.PaneKind = VapourSynthWorkspacePaneKind.Left;
         RightEditorPane.PaneKind = VapourSynthWorkspacePaneKind.Right;
+        WorkspaceRoot.KeyDown += WorkspaceRoot_KeyDown;
         AttachEditorPane(LeftEditorPane);
         AttachEditorPane(RightEditorPane);
         Unloaded += UserControl_Unloaded;
@@ -87,9 +91,12 @@ public sealed partial class VapourSynthWorkspaceView : UserControl, IDisposable
         {
             await EnsureWorkspaceInitializedAsync();
 
-            await ViewModel.OpenDocumentAsync(normalizedPath);
-            await RefreshWorkspaceTabsAsync();
-            await FocusEditorAsync();
+            await RunWithWorkspaceTabSelectionSuppressedAsync(async () =>
+            {
+                await ViewModel.OpenDocumentAsync(normalizedPath);
+                await RefreshWorkspaceTabsAsync();
+                await FocusEditorAsync();
+            });
             opened = true;
         });
 
@@ -183,7 +190,6 @@ public sealed partial class VapourSynthWorkspaceView : UserControl, IDisposable
 
         ViewModel.ActivatePane(pane.PaneKind);
         SelectActiveTabViewItem();
-        RefreshCommandState();
     }
 
     private async void EditorPane_EditorReady(object? sender, EventArgs e)
@@ -291,9 +297,33 @@ public sealed partial class VapourSynthWorkspaceView : UserControl, IDisposable
         await RunUiActionAsync(StartNewDocumentAsync);
     }
 
+    private async void WorkspaceRoot_KeyDown(object sender, KeyRoutedEventArgs e)
+    {
+        if (_isDisposed || e.Handled)
+        {
+            return;
+        }
+
+        Func<Task>? action = e.Key switch
+        {
+            VirtualKey.F5 => ShowPreviewDeferredAsync,
+            VirtualKey.F9 => StartEncodeAsync,
+            _ => null
+        };
+
+        if (action is null)
+        {
+            return;
+        }
+
+        e.Handled = true;
+        await RunUiActionAsync(action);
+    }
+
     private async void WorkspaceTabView_SelectionChanged(object sender, SelectionChangedEventArgs e)
     {
-        if (WorkspaceTabView.SelectedItem is not VapourSynthWorkspaceTabViewModel tab
+        if (_workspaceTabSelectionSuppressionCount > 0
+            || WorkspaceTabView.SelectedItem is not VapourSynthWorkspaceTabViewModel tab
             || ReferenceEquals(tab, ViewModel.ActiveTab))
         {
             return;
@@ -335,34 +365,21 @@ public sealed partial class VapourSynthWorkspaceView : UserControl, IDisposable
             return;
         }
 
-        ViewModel.CloseTab(tab);
-
-        if (ViewModel.Tabs.Count == 0)
+        await RunWithWorkspaceTabSelectionSuppressedAsync(async () =>
         {
-            if (await TryCloseAppAfterLastTabClosedAsync())
+            ViewModel.CloseTab(tab);
+
+            if (ViewModel.Tabs.Count == 0)
             {
-                return;
+                if (await TryCloseAppAfterLastTabClosedAsync())
+                {
+                    return;
+                }
+
+                await ViewModel.CreateNewTabAsync();
             }
 
-            await ViewModel.CreateNewTabAsync();
-        }
-
-        await RefreshWorkspaceTabsAsync();
-    }
-
-    private async void PinActiveTabButton_Click(object sender, RoutedEventArgs e)
-    {
-        await RunUiActionAsync(async () =>
-        {
-            if (ViewModel.ActiveTab is null)
-            {
-                return;
-            }
-
-            ViewModel.PinTab(ViewModel.ActiveTab, !ViewModel.ActiveTab.IsPinned);
-            SelectActiveTabViewItem();
-            RefreshCommandState();
-            await Task.CompletedTask;
+            await RefreshWorkspaceTabsAsync();
         });
     }
 
@@ -376,8 +393,11 @@ public sealed partial class VapourSynthWorkspaceView : UserControl, IDisposable
         await RunUiActionAsync(async () =>
         {
             await CaptureVisibleEditorStatesAsync();
-            ViewModel.ShowTabSideBySide(tab);
-            await RefreshWorkspaceTabsAsync();
+            await RunWithWorkspaceTabSelectionSuppressedAsync(async () =>
+            {
+                ViewModel.ShowTabSideBySide(tab);
+                await RefreshWorkspaceTabsAsync();
+            });
         });
     }
 
@@ -386,8 +406,11 @@ public sealed partial class VapourSynthWorkspaceView : UserControl, IDisposable
         await RunUiActionAsync(async () =>
         {
             await CaptureVisibleEditorStatesAsync();
-            ViewModel.SetCompareMode(false);
-            await RefreshWorkspaceTabsAsync();
+            await RunWithWorkspaceTabSelectionSuppressedAsync(async () =>
+            {
+                ViewModel.SetCompareMode(false);
+                await RefreshWorkspaceTabsAsync();
+            });
         });
     }
 
@@ -398,12 +421,14 @@ public sealed partial class VapourSynthWorkspaceView : UserControl, IDisposable
             return;
         }
 
-        await RunUiActionAsync(async () =>
+        await RunUiActionAsync(() =>
         {
-            ViewModel.PinTab(tab, !tab.IsPinned);
-            SelectActiveTabViewItem();
-            RefreshCommandState();
-            await Task.CompletedTask;
+            RunWithWorkspaceTabSelectionSuppressed(() =>
+            {
+                ViewModel.PinTab(tab, !tab.IsPinned);
+                SelectActiveTabViewItem();
+            });
+            return Task.CompletedTask;
         });
     }
 
@@ -427,22 +452,18 @@ public sealed partial class VapourSynthWorkspaceView : UserControl, IDisposable
                 {
                     return;
                 }
-
-                ViewModel.CloseTab(item);
             }
 
-            ViewModel.ActivateTab(tab);
-            await RefreshWorkspaceTabsAsync();
-        });
-    }
+            await RunWithWorkspaceTabSelectionSuppressedAsync(async () =>
+            {
+                foreach (var item in tabsToClose)
+                {
+                    ViewModel.CloseTab(item);
+                }
 
-    private async void CompareModeButton_Click(object sender, RoutedEventArgs e)
-    {
-        await RunUiActionAsync(async () =>
-        {
-            await CaptureVisibleEditorStatesAsync();
-            ViewModel.SetCompareMode(CompareModeButton.IsChecked == true);
-            await RefreshWorkspaceTabsAsync();
+                ViewModel.ActivateTab(tab);
+                await RefreshWorkspaceTabsAsync();
+            });
         });
     }
 
@@ -478,33 +499,6 @@ public sealed partial class VapourSynthWorkspaceView : UserControl, IDisposable
     private async void SaveDocumentAsButton_Click(object sender, RoutedEventArgs e)
     {
         await RunUiActionAsync(() => SaveCurrentDocumentAsAsync());
-    }
-
-    private async void ReloadDocumentButton_Click(object sender, RoutedEventArgs e)
-    {
-        await RunUiActionAsync(async () =>
-        {
-            await CaptureActiveEditorStateAsync();
-            if (ViewModel.HasUnsavedChanges)
-            {
-                var choice = await ShowUnsavedChangesDialogAsync(this.XamlRoot);
-                switch (choice)
-                {
-                    case UnsavedChangesChoice.Save:
-                        if (!await SaveCurrentDocumentAsync(captureEditorState: false))
-                        {
-                            return;
-                        }
-
-                        break;
-                    case UnsavedChangesChoice.Cancel:
-                        return;
-                }
-            }
-
-            await ViewModel.ReloadDocumentAsync();
-            await PushDocumentToEditorAsync(GetActiveEditorPane());
-        });
     }
 
     private async void PreviewButton_Click(object sender, RoutedEventArgs e)
@@ -573,8 +567,11 @@ public sealed partial class VapourSynthWorkspaceView : UserControl, IDisposable
     private async Task StartNewDocumentAsync()
     {
         await CaptureActiveEditorStateAsync();
-        await ViewModel.CreateNewTabAsync();
-        await RefreshWorkspaceTabsAsync();
+        await RunWithWorkspaceTabSelectionSuppressedAsync(async () =>
+        {
+            await ViewModel.CreateNewTabAsync();
+            await RefreshWorkspaceTabsAsync();
+        });
     }
 
     private async Task OpenDocumentAsync()
@@ -586,8 +583,11 @@ public sealed partial class VapourSynthWorkspaceView : UserControl, IDisposable
         }
 
         await CaptureActiveEditorStateAsync();
-        await ViewModel.OpenDocumentAsync(filePath);
-        await RefreshWorkspaceTabsAsync();
+        await RunWithWorkspaceTabSelectionSuppressedAsync(async () =>
+        {
+            await ViewModel.OpenDocumentAsync(filePath);
+            await RefreshWorkspaceTabsAsync();
+        });
     }
 
     private async Task<bool> SaveCurrentDocumentAsync(bool captureEditorState = true)
@@ -628,8 +628,15 @@ public sealed partial class VapourSynthWorkspaceView : UserControl, IDisposable
     private async Task ShowPreviewDeferredAsync()
     {
         await CaptureActiveEditorStateAsync();
-        ViewModel.ClearPreviewLog();
-        var request = CreatePreviewOpenRequest(out var displayName);
+        var previewTab = ViewModel.ActiveTab;
+        if (previewTab is null)
+        {
+            return;
+        }
+
+        _previewLogTab = previewTab;
+        ViewModel.ClearPreviewLog(previewTab);
+        var request = CreatePreviewOpenRequest(previewTab, out var displayName);
         var previewWindow = GetOrCreatePreviewWindow();
 
         var mainWindowViewModel = App.GetService<MainWindow>().ViewModel;
@@ -640,11 +647,11 @@ public sealed partial class VapourSynthWorkspaceView : UserControl, IDisposable
 
         if (opened)
         {
-            ViewModel.SetWorkspaceStatus(texts => texts.VapourSynthPreviewOpenedStatus(displayName));
+            ViewModel.SetWorkspaceStatus(previewTab, texts => texts.VapourSynthPreviewOpenedStatus(displayName));
             return;
         }
 
-        ViewModel.SetWorkspaceStatus(static texts => texts.VapourSynthPreviewEvaluationFailedStatus);
+        ViewModel.SetWorkspaceStatus(previewTab, static texts => texts.VapourSynthPreviewEvaluationFailedStatus);
         await FocusEditorAsync();
     }
 
@@ -701,9 +708,9 @@ public sealed partial class VapourSynthWorkspaceView : UserControl, IDisposable
         return _previewWindow;
     }
 
-    private VapourSynthPreviewOpenRequest CreatePreviewOpenRequest(out string displayName)
+    private VapourSynthPreviewOpenRequest CreatePreviewOpenRequest(VapourSynthWorkspaceTabViewModel tab, out string displayName)
     {
-        var sourceFilePath = ViewModel.CurrentFilePath;
+        var sourceFilePath = tab.CurrentFilePath;
         displayName = string.IsNullOrWhiteSpace(sourceFilePath)
             ? ViewModel.Texts.VapourSynthUntitledDocument
             : Path.GetFileName(sourceFilePath);
@@ -718,7 +725,7 @@ public sealed partial class VapourSynthWorkspaceView : UserControl, IDisposable
         return new VapourSynthPreviewOpenRequest(
             sourceFilePath,
             displayName,
-            ViewModel.CurrentContent,
+            tab.CurrentContent,
             normalizedWorkingDirectory);
     }
 
@@ -728,6 +735,7 @@ public sealed partial class VapourSynthWorkspaceView : UserControl, IDisposable
         if (ReferenceEquals(_previewWindow, previewWindow))
         {
             _previewWindow = null;
+            _previewLogTab = null;
         }
     }
 
@@ -738,10 +746,17 @@ public sealed partial class VapourSynthWorkspaceView : UserControl, IDisposable
             return;
         }
 
+        var targetTab = _previewLogTab;
         DispatcherQueue.TryEnqueue(() =>
         {
             if (_isDisposed)
             {
+                return;
+            }
+
+            if (targetTab is not null && ViewModel.Tabs.Contains(targetTab))
+            {
+                ViewModel.AppendPreviewLog(targetTab, e.Entry);
                 return;
             }
 
@@ -883,7 +898,7 @@ public sealed partial class VapourSynthWorkspaceView : UserControl, IDisposable
 
     private async Task FocusEditorAsync()
     {
-        await GetActiveEditorPane().ExecuteEditorCommandAsync("focus");
+        await GetActiveEditorPane().FocusEditorAsync();
     }
 
     public async Task InsertTextIntoEditorAsync(string text, bool onNewLine = false)
@@ -1038,8 +1053,7 @@ public sealed partial class VapourSynthWorkspaceView : UserControl, IDisposable
     private async Task RefreshWorkspaceTabsAsync()
     {
         CancelPendingDiagnostics();
-        SelectActiveTabViewItem();
-        RefreshCommandState();
+        RunWithWorkspaceTabSelectionSuppressed(SelectActiveTabViewItem);
         UpdateEditorPaneLayout();
         await InitializeEditorAsync();
         await PushDocumentToEditorAsync(LeftEditorPane);
@@ -1052,23 +1066,38 @@ public sealed partial class VapourSynthWorkspaceView : UserControl, IDisposable
         await FocusEditorAsync();
     }
 
+    private async Task RunWithWorkspaceTabSelectionSuppressedAsync(Func<Task> action)
+    {
+        _workspaceTabSelectionSuppressionCount++;
+        try
+        {
+            await action();
+        }
+        finally
+        {
+            _workspaceTabSelectionSuppressionCount--;
+        }
+    }
+
+    private void RunWithWorkspaceTabSelectionSuppressed(Action action)
+    {
+        _workspaceTabSelectionSuppressionCount++;
+        try
+        {
+            action();
+        }
+        finally
+        {
+            _workspaceTabSelectionSuppressionCount--;
+        }
+    }
+
     private void SelectActiveTabViewItem()
     {
         if (!ReferenceEquals(WorkspaceTabView.SelectedItem, ViewModel.ActiveTab))
         {
             WorkspaceTabView.SelectedItem = ViewModel.ActiveTab;
         }
-    }
-
-    private void RefreshCommandState()
-    {
-        PinActiveTabButton.Label = ViewModel.ActiveTab?.IsPinned == true
-            ? ViewModel.Texts.VapourSynthUnpinTabButton
-            : ViewModel.Texts.VapourSynthPinTabButton;
-        CompareModeButton.Label = ViewModel.IsCompareMode
-            ? ViewModel.Texts.VapourSynthExitSideBySideButton
-            : ViewModel.Texts.VapourSynthCompareModeButton;
-        CompareModeButton.IsChecked = ViewModel.IsCompareMode;
     }
 
     private void UpdateEditorPaneLayout()
@@ -1113,13 +1142,19 @@ public sealed partial class VapourSynthWorkspaceView : UserControl, IDisposable
         if (string.IsNullOrWhiteSpace(tab.CurrentFilePath))
         {
             var previousTab = ViewModel.ActiveTab;
-            ViewModel.ActivateTab(tab);
-            SelectActiveTabViewItem();
+            RunWithWorkspaceTabSelectionSuppressed(() =>
+            {
+                ViewModel.ActivateTab(tab);
+                SelectActiveTabViewItem();
+            });
             var filePath = PickSaveFilePath();
             if (previousTab is not null && !ReferenceEquals(previousTab, tab))
             {
-                ViewModel.ActivateTab(previousTab);
-                SelectActiveTabViewItem();
+                RunWithWorkspaceTabSelectionSuppressed(() =>
+                {
+                    ViewModel.ActivateTab(previousTab);
+                    SelectActiveTabViewItem();
+                });
             }
 
             if (string.IsNullOrWhiteSpace(filePath))
@@ -1259,6 +1294,7 @@ public sealed partial class VapourSynthWorkspaceView : UserControl, IDisposable
 
         _isDisposed = true;
         Unloaded -= UserControl_Unloaded;
+        WorkspaceRoot.KeyDown -= WorkspaceRoot_KeyDown;
         CancelPendingDiagnostics();
         _previewService.LogEmitted -= PreviewService_LogEmitted;
         LeftEditorPane.Dispose();

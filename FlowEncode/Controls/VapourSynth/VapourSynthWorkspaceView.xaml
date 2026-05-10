@@ -54,25 +54,6 @@
                         <SymbolIcon Symbol="SaveLocal" />
                     </AppBarButton.Icon>
                 </AppBarButton>
-                <AppBarButton Click="ReloadDocumentButton_Click" IsEnabled="{Binding CanReload}" Label="{Binding Texts.VapourSynthReloadButton}">
-                    <AppBarButton.Icon>
-                        <SymbolIcon Symbol="Refresh" />
-                    </AppBarButton.Icon>
-                </AppBarButton>
-                <AppBarButton x:Name="PinActiveTabButton" Click="PinActiveTabButton_Click" Label="{Binding Texts.VapourSynthPinTabButton}">
-                    <AppBarButton.Icon>
-                        <SymbolIcon Symbol="Pin" />
-                    </AppBarButton.Icon>
-                </AppBarButton>
-                <AppBarToggleButton
-                    x:Name="CompareModeButton"
-                    Click="CompareModeButton_Click"
-                    IsEnabled="{Binding CanCompareTabs}"
-                    Label="{Binding Texts.VapourSynthCompareModeButton}">
-                    <AppBarToggleButton.Icon>
-                        <SymbolIcon Symbol="ViewAll" />
-                    </AppBarToggleButton.Icon>
-                </AppBarToggleButton>
                 <AppBarSeparator />
                 <AppBarButton Click="UndoButton_Click" Label="{Binding Texts.VapourSynthUndoButton}">
                     <AppBarButton.Icon>
