@@ -20,6 +20,7 @@ public partial class App : Microsoft.UI.Xaml.Application
     private const string AppUserModelId = "frankie1024.FlowEncode";
     private const string SingleInstanceKey = "FlowEncode.Main";
     private const string SingleInstancePipeName = "FlowEncode.VapourSynth.Open.v1";
+    private const string SingleInstanceActivateMessage = "__FLOWENCODE_ACTIVATE__";
     private readonly ServiceProvider _services;
     private AppInstance? _mainAppInstance;
     private CancellationTokenSource? _singleInstancePipeCancellationTokenSource;
@@ -280,8 +281,24 @@ public partial class App : Microsoft.UI.Xaml.Application
         }
     }
 
-    private void DispatchExternalOpenRequest(string? filePath)
+    private void DispatchExternalOpenRequest(string? pipePayload)
     {
+        if (string.IsNullOrWhiteSpace(pipePayload))
+        {
+            return;
+        }
+
+        if (string.Equals(pipePayload, SingleInstanceActivateMessage, StringComparison.Ordinal))
+        {
+            if (_window is MainWindow windowToActivate)
+            {
+                windowToActivate.DispatcherQueue.TryEnqueue(windowToActivate.BringToFront);
+            }
+
+            return;
+        }
+
+        var filePath = AppLaunchActivation.NormalizeSupportedScriptPath(pipePayload);
         if (string.IsNullOrWhiteSpace(filePath))
         {
             return;
@@ -308,16 +325,10 @@ public partial class App : Microsoft.UI.Xaml.Application
 
     private static async Task TrySendExternalOpenRequestAsync(string? filePath)
     {
-        if (string.IsNullOrWhiteSpace(filePath))
-        {
-            return;
-        }
-
         var normalizedPath = AppLaunchActivation.NormalizeSupportedScriptPath(filePath);
-        if (string.IsNullOrWhiteSpace(normalizedPath))
-        {
-            return;
-        }
+        var pipePayload = string.IsNullOrWhiteSpace(normalizedPath)
+            ? SingleInstanceActivateMessage
+            : normalizedPath;
 
         for (var attempt = 0; attempt < 20; attempt++)
         {
@@ -336,7 +347,7 @@ public partial class App : Microsoft.UI.Xaml.Application
                     AutoFlush = true
                 };
 
-                await writer.WriteAsync(normalizedPath);
+                await writer.WriteAsync(pipePayload);
                 return;
             }
             catch (TimeoutException)
@@ -350,7 +361,7 @@ public partial class App : Microsoft.UI.Xaml.Application
         }
 
         TryWriteSecondaryActivationDiagnostic(
-            $"Failed to forward external open request to main instance after 20 attempts. Path='{normalizedPath}'.");
+            $"Failed to forward single-instance activation request to main instance after 20 attempts. Payload='{pipePayload}'.");
     }
 
     private void TryWriteActivationErrorLog(Exception exception)

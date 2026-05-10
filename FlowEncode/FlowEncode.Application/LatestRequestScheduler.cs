@@ -84,7 +84,7 @@ public sealed class LatestRequestScheduler<TRequest> : IDisposable
         {
             try
             {
-                await _executeAsync(scheduledRequest).ConfigureAwait(false);
+                await _executeAsync(scheduledRequest);
             }
             catch (Exception ex)
             {

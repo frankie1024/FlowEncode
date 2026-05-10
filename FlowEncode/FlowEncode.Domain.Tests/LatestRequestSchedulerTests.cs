@@ -1,5 +1,6 @@
 using FlowEncode.Application;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
+using System.Collections.Concurrent;
 
 namespace FlowEncode.Domain.Tests;
 
@@ -211,6 +212,46 @@ public sealed class LatestRequestSchedulerTests
         Assert.IsFalse(scheduler.IsBusy);
     }
 
+    [TestMethod]
+    public async Task ScheduleAsync_WhenCallerUsesSingleThreadScheduler_KeepsQueuedExecutionsOnCallerScheduler()
+    {
+        using var affinityScheduler = new SingleThreadTaskScheduler();
+        await Task.Factory.StartNew(async () =>
+        {
+            var ownerThreadId = Thread.CurrentThread.ManagedThreadId;
+            var executionThreadIds = new List<int>();
+            var firstStarted = CreateSignal();
+            var releaseFirst = CreateSignal();
+            var secondCompleted = CreateSignal();
+
+            using var scheduler = new LatestRequestScheduler<int>(async scheduledRequest =>
+            {
+                executionThreadIds.Add(Thread.CurrentThread.ManagedThreadId);
+
+                if (scheduledRequest.Request == 1)
+                {
+                    firstStarted.TrySetResult();
+                    await releaseFirst.Task;
+                }
+
+                if (scheduledRequest.Request == 2)
+                {
+                    secondCompleted.TrySetResult();
+                }
+            });
+
+            var firstExecution = scheduler.ScheduleAsync(1);
+            await firstStarted.Task;
+            await scheduler.ScheduleAsync(2);
+            releaseFirst.TrySetResult();
+
+            await secondCompleted.Task;
+            await firstExecution;
+
+            CollectionAssert.AreEqual(new[] { ownerThreadId, ownerThreadId }, executionThreadIds);
+        }, CancellationToken.None, TaskCreationOptions.None, affinityScheduler).Unwrap();
+    }
+
     private static TaskCompletionSource CreateSignal()
     {
         return new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -230,5 +271,53 @@ public sealed class LatestRequestSchedulerTests
 
         Assert.Fail($"Expected exception of type {typeof(TException).Name} was not thrown.");
         throw new InvalidOperationException("Unreachable assertion path.");
+    }
+
+    private sealed class SingleThreadTaskScheduler : TaskScheduler, IDisposable
+    {
+        private readonly BlockingCollection<Task> _tasks = [];
+        private readonly Thread _thread;
+
+        public SingleThreadTaskScheduler()
+        {
+            _thread = new Thread(Run)
+            {
+                IsBackground = true,
+                Name = nameof(SingleThreadTaskScheduler)
+            };
+            _thread.Start();
+        }
+
+        protected override IEnumerable<Task>? GetScheduledTasks()
+        {
+            return _tasks.ToArray();
+        }
+
+        protected override void QueueTask(Task task)
+        {
+            _tasks.Add(task);
+        }
+
+        protected override bool TryExecuteTaskInline(Task task, bool taskWasPreviouslyQueued)
+        {
+            return !taskWasPreviouslyQueued
+                && Thread.CurrentThread.ManagedThreadId == _thread.ManagedThreadId
+                && TryExecuteTask(task);
+        }
+
+        public void Dispose()
+        {
+            _tasks.CompleteAdding();
+            _thread.Join(TimeSpan.FromSeconds(2));
+            _tasks.Dispose();
+        }
+
+        private void Run()
+        {
+            foreach (var task in _tasks.GetConsumingEnumerable())
+            {
+                TryExecuteTask(task);
+            }
+        }
     }
 }

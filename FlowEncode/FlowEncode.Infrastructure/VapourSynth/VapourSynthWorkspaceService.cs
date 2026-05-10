@@ -18,14 +18,18 @@ public sealed class VapourSynthWorkspaceService : IVapourSynthWorkspaceService
         WriteIndented = true
     };
 
+    private readonly LocalAppPaths _paths;
+    private readonly string _sessionRootPath;
     private readonly string _sessionPath;
+    private readonly SemaphoreSlim _sessionFileGate = new(1, 1);
 
     public VapourSynthWorkspaceService(LocalAppPaths appPaths)
     {
-        var workspaceRootPath = Path.Combine(appPaths.DataRootPath, "vapoursynth-workspace");
-        Directory.CreateDirectory(workspaceRootPath);
+        _paths = appPaths;
+        _sessionRootPath = Path.Combine(appPaths.DataRootPath, "vapoursynth-workspace");
+        Directory.CreateDirectory(_sessionRootPath);
 
-        _sessionPath = Path.Combine(workspaceRootPath, "editor-session.json");
+        _sessionPath = Path.Combine(_sessionRootPath, "editor-session.json");
         EditorAssetsRootPath = Path.Combine(AppContext.BaseDirectory, "Assets", "VapourSynthEditor");
     }
 
@@ -76,44 +80,69 @@ public sealed class VapourSynthWorkspaceService : IVapourSynthWorkspaceService
             return null;
         }
 
-        cancellationToken.ThrowIfCancellationRequested();
-
-        var json = await File.ReadAllTextAsync(_sessionPath, Encoding.UTF8, cancellationToken);
-        if (string.IsNullOrWhiteSpace(json))
+        await _sessionFileGate.WaitAsync(cancellationToken);
+        try
         {
-            return null;
-        }
+            if (!File.Exists(_sessionPath))
+            {
+                return null;
+            }
 
-        var dto = JsonSerializer.Deserialize<WorkspaceSessionDto>(json, SessionSerializerOptions);
-        if (dto is null)
+            try
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+
+                var json = await File.ReadAllTextAsync(_sessionPath, Encoding.UTF8, cancellationToken);
+                if (string.IsNullOrWhiteSpace(json))
+                {
+                    return null;
+                }
+
+                var dto = JsonSerializer.Deserialize<WorkspaceSessionDto>(json, SessionSerializerOptions);
+                if (dto is null)
+                {
+                    return null;
+                }
+
+                var tabs = dto.Tabs
+                    .Where(static tab => !string.IsNullOrWhiteSpace(tab.Id))
+                    .Select(tab => new VapourSynthWorkspaceTabSession(
+                        tab.Id,
+                        string.IsNullOrWhiteSpace(tab.FilePath) ? null : tab.FilePath,
+                        tab.Content,
+                        tab.SavedContent,
+                        tab.IsDirty,
+                        tab.IsPinned,
+                        tab.WorkspaceStatusText,
+                        tab.LogText,
+                        tab.CaretLine,
+                        tab.CaretColumn,
+                        tab.LineCount,
+                        tab.CharCount))
+                    .ToArray();
+
+                return new VapourSynthWorkspaceSession(
+                    tabs,
+                    string.IsNullOrWhiteSpace(dto.ActiveTabId) ? tabs.FirstOrDefault()?.Id : dto.ActiveTabId,
+                    string.IsNullOrWhiteSpace(dto.LeftTabId) ? null : dto.LeftTabId,
+                    string.IsNullOrWhiteSpace(dto.RightTabId) ? null : dto.RightTabId,
+                    dto.IsCompareMode,
+                    string.IsNullOrWhiteSpace(dto.ActivePane) ? null : dto.ActivePane);
+            }
+            catch (OperationCanceledException)
+            {
+                throw;
+            }
+            catch (Exception ex)
+            {
+                RecoverBrokenSessionFile(ex);
+                return null;
+            }
+        }
+        finally
         {
-            return null;
+            _sessionFileGate.Release();
         }
-
-        var tabs = dto.Tabs
-            .Where(static tab => !string.IsNullOrWhiteSpace(tab.Id))
-            .Select(tab => new VapourSynthWorkspaceTabSession(
-                tab.Id,
-                string.IsNullOrWhiteSpace(tab.FilePath) ? null : tab.FilePath,
-                tab.Content,
-                tab.SavedContent,
-                tab.IsDirty,
-                tab.IsPinned,
-                tab.WorkspaceStatusText,
-                tab.LogText,
-                tab.CaretLine,
-                tab.CaretColumn,
-                tab.LineCount,
-                tab.CharCount))
-            .ToArray();
-
-        return new VapourSynthWorkspaceSession(
-            tabs,
-            string.IsNullOrWhiteSpace(dto.ActiveTabId) ? tabs.FirstOrDefault()?.Id : dto.ActiveTabId,
-            string.IsNullOrWhiteSpace(dto.LeftTabId) ? null : dto.LeftTabId,
-            string.IsNullOrWhiteSpace(dto.RightTabId) ? null : dto.RightTabId,
-            dto.IsCompareMode,
-            string.IsNullOrWhiteSpace(dto.ActivePane) ? null : dto.ActivePane);
     }
 
     public async Task SaveSessionAsync(VapourSynthWorkspaceSession session, CancellationToken cancellationToken = default)
@@ -149,8 +178,86 @@ public sealed class VapourSynthWorkspaceService : IVapourSynthWorkspaceService
         };
 
         var json = JsonSerializer.Serialize(dto, SessionSerializerOptions);
-        cancellationToken.ThrowIfCancellationRequested();
-        await File.WriteAllTextAsync(_sessionPath, json, new UTF8Encoding(false), cancellationToken);
+        await _sessionFileGate.WaitAsync(cancellationToken);
+        try
+        {
+            Directory.CreateDirectory(_sessionRootPath);
+            var tempPath = _sessionPath + ".tmp";
+
+            try
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                await File.WriteAllTextAsync(tempPath, json, new UTF8Encoding(false), cancellationToken);
+                File.Move(tempPath, _sessionPath, true);
+            }
+            finally
+            {
+                TryDeleteTemporarySessionFile(tempPath);
+            }
+        }
+        finally
+        {
+            _sessionFileGate.Release();
+        }
+    }
+
+    private void RecoverBrokenSessionFile(Exception exception)
+    {
+        var backupPath = BuildBrokenSessionBackupPath();
+
+        try
+        {
+            Directory.CreateDirectory(_sessionRootPath);
+            File.Move(_sessionPath, backupPath, overwrite: false);
+            WriteDiagnostic(
+                $"Failed to load workspace session from '{_sessionPath}'. {exception.GetType().Name}: {exception.Message}. " +
+                $"Backed up to '{backupPath}'.");
+        }
+        catch (Exception backupException)
+        {
+            WriteDiagnostic(
+                $"Failed to load workspace session from '{_sessionPath}'. {exception.GetType().Name}: {exception.Message}. " +
+                $"Backup also failed. {backupException.GetType().Name}: {backupException.Message}");
+        }
+    }
+
+    private string BuildBrokenSessionBackupPath()
+    {
+        var fileName = Path.GetFileName(_sessionPath);
+
+        for (var attempt = 0; attempt < 1000; attempt++)
+        {
+            var suffix = attempt == 0
+                ? DateTime.Now.ToString("yyyyMMdd_HHmmss")
+                : $"{DateTime.Now:yyyyMMdd_HHmmss}_{attempt + 1}";
+            var candidate = Path.Combine(_sessionRootPath, $"{fileName}.broken-{suffix}");
+            if (!File.Exists(candidate))
+            {
+                return candidate;
+            }
+        }
+
+        return Path.Combine(_sessionRootPath, $"{fileName}.broken-{Guid.NewGuid():N}");
+    }
+
+    private void TryDeleteTemporarySessionFile(string path)
+    {
+        try
+        {
+            if (File.Exists(path))
+            {
+                File.Delete(path);
+            }
+        }
+        catch (Exception ex)
+        {
+            WriteDiagnostic($"Failed to delete temporary workspace session file '{path}'. {ex.GetType().Name}: {ex.Message}");
+        }
+    }
+
+    private void WriteDiagnostic(string message)
+    {
+        AppDiagnosticsLog.Write(_paths, nameof(VapourSynthWorkspaceService), message);
     }
 
     private sealed class WorkspaceSessionDto
