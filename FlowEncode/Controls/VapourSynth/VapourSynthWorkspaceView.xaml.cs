@@ -481,11 +481,6 @@ public sealed partial class VapourSynthWorkspaceView : UserControl, IDisposable
         return true;
     }
 
-    private async void NewDocumentButton_Click(object sender, RoutedEventArgs e)
-    {
-        await RunUiActionAsync(StartNewDocumentAsync);
-    }
-
     private async void OpenDocumentButton_Click(object sender, RoutedEventArgs e)
     {
         await RunUiActionAsync(OpenDocumentAsync);

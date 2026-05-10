@@ -34,11 +34,6 @@
                 DefaultLabelPosition="Right"
                 IsDynamicOverflowEnabled="True"
                 OverflowButtonVisibility="Auto">
-                <AppBarButton Click="NewDocumentButton_Click" Label="{Binding Texts.NewButton}">
-                    <AppBarButton.Icon>
-                        <SymbolIcon Symbol="Page2" />
-                    </AppBarButton.Icon>
-                </AppBarButton>
                 <AppBarButton Click="OpenDocumentButton_Click" Label="{Binding Texts.VapourSynthOpenButton}">
                     <AppBarButton.Icon>
                         <SymbolIcon Symbol="OpenFile" />
