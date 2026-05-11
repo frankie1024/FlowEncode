@@ -580,6 +580,10 @@ public sealed class AppText
     public string WorkspaceDirectoryInvalidLocationMessage => Pick(
         "工作目录不能放在安装目录或 Program Files 下。请选择一个普通可写目录。",
         "The workspace folder cannot live inside the install directory or Program Files. Choose a normal writable folder instead.");
+    public string WorkspaceDirectoryConflictMessage(string relativePath) =>
+        IsChinese
+            ? $"新工作目录里已存在不同内容：{relativePath}\n\n请选择一个空目录，或先清理该冲突项后再重试。"
+            : $"The new workspace folder already contains different content at: {relativePath}\n\nChoose an empty folder, or remove the conflicting item and try again.";
     public string UserTemplateDeletedStatus => Pick("用户模板已删除。", "User template deleted.");
     public string CloseRunningJobsTitle => Pick("确认关闭程序", "Confirm Close");
     public string CloseRunningJobsButton => Pick("关闭程序", "Close App");
@@ -1629,6 +1633,13 @@ public sealed class AppText
         }
 
         return $"The settings file could not be read. FlowEncode reset to defaults, but the original file could not be backed up.\n\nLoad error: {loadError}\nBackup error: {backupError ?? "Unknown error"}";
+    }
+    public string WorkspaceRecoveredTitle => Pick("工作目录已临时回退", "Workspace Folder Temporarily Redirected");
+    public string WorkspaceRecoveredMessage(string configuredPath, string activePath)
+    {
+        return IsChinese
+            ? $"已保存的工作目录当前不可用，FlowEncode 本次启动临时改用：\n{activePath}\n\n原设置仍保留为：\n{configuredPath}\n\n修复原目录后，重启应用即可恢复。"
+            : $"The saved workspace folder is currently unavailable, so FlowEncode is temporarily using:\n{activePath}\n\nThe saved setting is still:\n{configuredPath}\n\nRestore the original folder and restart the app to use it again.";
     }
     public string ErrorCannotSaveTemplateTitle => Pick("无法保存模板", "Unable to Save Template");
     public string EmptyTemplateNameMessage => Pick("模板名称不能为空。", "Template name cannot be empty.");

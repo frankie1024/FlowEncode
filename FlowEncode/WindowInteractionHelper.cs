@@ -266,10 +266,7 @@ internal static class WindowInteractionHelper
     {
         try
         {
-            var mainWindow = App.GetService<MainWindow>();
-            return string.IsNullOrWhiteSpace(mainWindow.ViewModel.WorkspaceRootPath)
-                ? App.GetService<LocalAppPaths>().RootPath
-                : mainWindow.ViewModel.WorkspaceRootPath;
+            return App.GetService<LocalAppPaths>().RootPath;
         }
         catch
         {

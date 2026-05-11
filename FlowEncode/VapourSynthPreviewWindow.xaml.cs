@@ -42,6 +42,10 @@ public sealed partial class VapourSynthPreviewWindow : Window
     private readonly PreviewFrameComposer _frameComposer = new();
     private readonly PreviewRenderDiagnostics _renderDiagnostics;
     private readonly IVapourSynthPreviewService _previewService;
+    private readonly PointerEventHandler _frameSliderPointerPressedHandler;
+    private readonly PointerEventHandler _frameSliderPointerReleasedHandler;
+    private readonly PointerEventHandler _frameSliderPointerCanceledHandler;
+    private readonly PointerEventHandler _frameSliderPointerCaptureLostHandler;
     private CanvasDevice? _previewCanvasDevice;
     private CompositionDrawingSurface? _previewDrawingSurface;
     private CompositionGraphicsDevice? _previewGraphicsDevice;
@@ -95,6 +99,10 @@ public sealed partial class VapourSynthPreviewWindow : Window
         _frameRequestScheduler = new LatestRequestScheduler<PreviewFrameRequest>(ExecuteScheduledFrameRequestAsync);
         _renderDiagnostics = new PreviewRenderDiagnostics(_appPaths);
         InitializeComponent();
+        _frameSliderPointerPressedHandler = new PointerEventHandler(FrameSliderInteraction_PointerPressed);
+        _frameSliderPointerReleasedHandler = new PointerEventHandler(FrameSliderInteraction_PointerReleased);
+        _frameSliderPointerCanceledHandler = new PointerEventHandler(FrameSliderInteraction_PointerCanceled);
+        _frameSliderPointerCaptureLostHandler = new PointerEventHandler(FrameSliderInteraction_PointerCaptureLost);
         _numberBoxEditorKeyDownHandler = new KeyEventHandler(NumberBoxEditor_KeyDown);
 
         if (Content is FrameworkElement root)
@@ -3370,18 +3378,18 @@ public sealed partial class VapourSynthPreviewWindow : Window
     {
         DetachFrameSliderInteractionHandlers();
 
-        FrameSlider.AddHandler(UIElement.PointerPressedEvent, new PointerEventHandler(FrameSliderInteraction_PointerPressed), true);
-        FrameSlider.AddHandler(UIElement.PointerReleasedEvent, new PointerEventHandler(FrameSliderInteraction_PointerReleased), true);
-        FrameSlider.AddHandler(UIElement.PointerCanceledEvent, new PointerEventHandler(FrameSliderInteraction_PointerCanceled), true);
-        FrameSlider.AddHandler(UIElement.PointerCaptureLostEvent, new PointerEventHandler(FrameSliderInteraction_PointerCaptureLost), true);
+        FrameSlider.AddHandler(UIElement.PointerPressedEvent, _frameSliderPointerPressedHandler, true);
+        FrameSlider.AddHandler(UIElement.PointerReleasedEvent, _frameSliderPointerReleasedHandler, true);
+        FrameSlider.AddHandler(UIElement.PointerCanceledEvent, _frameSliderPointerCanceledHandler, true);
+        FrameSlider.AddHandler(UIElement.PointerCaptureLostEvent, _frameSliderPointerCaptureLostHandler, true);
     }
 
     private void DetachFrameSliderInteractionHandlers()
     {
-        FrameSlider.RemoveHandler(UIElement.PointerPressedEvent, new PointerEventHandler(FrameSliderInteraction_PointerPressed));
-        FrameSlider.RemoveHandler(UIElement.PointerReleasedEvent, new PointerEventHandler(FrameSliderInteraction_PointerReleased));
-        FrameSlider.RemoveHandler(UIElement.PointerCanceledEvent, new PointerEventHandler(FrameSliderInteraction_PointerCanceled));
-        FrameSlider.RemoveHandler(UIElement.PointerCaptureLostEvent, new PointerEventHandler(FrameSliderInteraction_PointerCaptureLost));
+        FrameSlider.RemoveHandler(UIElement.PointerPressedEvent, _frameSliderPointerPressedHandler);
+        FrameSlider.RemoveHandler(UIElement.PointerReleasedEvent, _frameSliderPointerReleasedHandler);
+        FrameSlider.RemoveHandler(UIElement.PointerCanceledEvent, _frameSliderPointerCanceledHandler);
+        FrameSlider.RemoveHandler(UIElement.PointerCaptureLostEvent, _frameSliderPointerCaptureLostHandler);
 
         _isFrameSliderInteracting = false;
     }

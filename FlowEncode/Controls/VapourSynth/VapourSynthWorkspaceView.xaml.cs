@@ -23,8 +23,8 @@ public sealed partial class VapourSynthWorkspaceView : UserControl, IDisposable
     {
         PropertyNamingPolicy = JsonNamingPolicy.CamelCase
     };
-    private const double LogSectionMinHeight = 112;
-    private const double LogSectionMaxHeight = 180;
+    private const double LogSectionMinHeight = 88;
+    private const double LogSectionMaxHeight = 144;
 
     private readonly TaskCompletionSource<bool> _workspaceInitializedCompletionSource = new(TaskCreationOptions.RunContinuationsAsynchronously);
     private readonly IVapourSynthWorkspaceLanguageService _languageService;
@@ -1038,7 +1038,7 @@ public sealed partial class VapourSynthWorkspaceView : UserControl, IDisposable
             return;
         }
 
-        var targetLogHeight = Math.Clamp(Math.Round(availableHeight * 0.22), LogSectionMinHeight, LogSectionMaxHeight);
+        var targetLogHeight = Math.Clamp(Math.Round(availableHeight * 0.16), LogSectionMinHeight, LogSectionMaxHeight);
         if (Math.Abs(LogRowDefinition.Height.Value - targetLogHeight) > 0.5)
         {
             LogRowDefinition.Height = new GridLength(targetLogHeight);

@@ -7,13 +7,18 @@ public sealed class LocalAppPaths
 {
     private const string AppFolderName = "FlowEncode";
     private const string WorkspaceRootPathPropertyName = "workspaceRootPath";
+    private readonly object _startupWorkspaceRecoveryGate = new();
+    private WorkspaceRootRecoveryInfo? _startupWorkspaceRecoveryInfo;
 
     public LocalAppPaths()
         : this(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), null)
     {
     }
 
-    internal LocalAppPaths(string localApplicationDataPath, string? installRootPathOverride = null)
+    internal LocalAppPaths(
+        string localApplicationDataPath,
+        string? installRootPathOverride = null,
+        IReadOnlyList<string>? startupFallbackWorkspaceRootCandidates = null)
     {
         LocalStateRootPath = Path.Combine(
             localApplicationDataPath,
@@ -28,11 +33,17 @@ public sealed class LocalAppPaths
         SettingsPath = Path.Combine(SettingsRootPath, "settings.json");
         SetupGuideCachePath = Path.Combine(SettingsRootPath, "setup-guide-cache.json");
 
+        var configuredWorkspaceRootPath = ReadConfiguredWorkspaceRootPath(localApplicationDataPath);
         RootPath = ResolveStartupWorkspaceRootPath(
-            ReadConfiguredWorkspaceRootPath(localApplicationDataPath),
+            configuredWorkspaceRootPath,
             localApplicationDataPath,
-            InstallRootPath);
+            InstallRootPath,
+            startupFallbackWorkspaceRootCandidates,
+            out var resolvedConfiguredWorkspaceRootPath,
+            out var startupWorkspaceRecoveryInfo);
         WorkspaceRootPath = RootPath;
+        ConfiguredWorkspaceRootPath = resolvedConfiguredWorkspaceRootPath;
+        _startupWorkspaceRecoveryInfo = startupWorkspaceRecoveryInfo;
         DownloadsRootPath = Path.Combine(RootPath, "downloads");
         ToolDataRootPath = Path.Combine(RootPath, "encoders");
         ToolsetRootPath = ToolDataRootPath;
@@ -58,6 +69,8 @@ public sealed class LocalAppPaths
 
     public string WorkspaceRootPath { get; }
 
+    public string ConfiguredWorkspaceRootPath { get; }
+
     public string DataRootPath { get; }
 
     public string SettingsRootPath { get; }
@@ -79,6 +92,16 @@ public sealed class LocalAppPaths
     public string SettingsPath { get; }
 
     public string SetupGuideCachePath { get; }
+
+    public WorkspaceRootRecoveryInfo? ConsumeStartupWorkspaceRecoveryInfo()
+    {
+        lock (_startupWorkspaceRecoveryGate)
+        {
+            var recoveryInfo = _startupWorkspaceRecoveryInfo;
+            _startupWorkspaceRecoveryInfo = null;
+            return recoveryInfo;
+        }
+    }
 
     public string NormalizeWorkspaceRootPath(string? configuredWorkspaceRootPath)
     {
@@ -122,11 +145,59 @@ public sealed class LocalAppPaths
             return;
         }
 
+        ValidateWorkspaceRootCopy(DownloadsRootPath, Path.Combine(targetWorkspaceRootPath, "downloads"), "downloads");
+        ValidateWorkspaceRootCopy(ToolDataRootPath, Path.Combine(targetWorkspaceRootPath, "encoders"), "encoders");
+        ValidateWorkspaceRootCopy(ToolsRootPath, Path.Combine(targetWorkspaceRootPath, "tools"), "tools");
+        ValidateWorkspaceRootCopy(WorkspaceTemplatesRootPath, Path.Combine(targetWorkspaceRootPath, "Templates"), "Templates");
+
         Directory.CreateDirectory(targetWorkspaceRootPath);
-        CopyDirectoryContentsIfMissing(DownloadsRootPath, Path.Combine(targetWorkspaceRootPath, "downloads"));
-        CopyDirectoryContentsIfMissing(ToolDataRootPath, Path.Combine(targetWorkspaceRootPath, "encoders"));
-        CopyDirectoryContentsIfMissing(ToolsRootPath, Path.Combine(targetWorkspaceRootPath, "tools"));
-        CopyDirectoryContentsIfMissing(WorkspaceTemplatesRootPath, Path.Combine(targetWorkspaceRootPath, "Templates"));
+        CopyDirectoryContentsIfCompatible(DownloadsRootPath, Path.Combine(targetWorkspaceRootPath, "downloads"), "downloads");
+        CopyDirectoryContentsIfCompatible(ToolDataRootPath, Path.Combine(targetWorkspaceRootPath, "encoders"), "encoders");
+        CopyDirectoryContentsIfCompatible(ToolsRootPath, Path.Combine(targetWorkspaceRootPath, "tools"), "tools");
+        CopyDirectoryContentsIfCompatible(WorkspaceTemplatesRootPath, Path.Combine(targetWorkspaceRootPath, "Templates"), "Templates");
+    }
+
+    private static void ValidateWorkspaceRootCopy(string sourceRootPath, string targetRootPath, string targetRootRelativePath)
+    {
+        if (!Directory.Exists(sourceRootPath) || AreSamePath(sourceRootPath, targetRootPath))
+        {
+            return;
+        }
+
+        var sourceDirectories = Directory.EnumerateDirectories(sourceRootPath, "*", SearchOption.AllDirectories)
+            .Select(sourceDirectory => Path.GetRelativePath(sourceRootPath, sourceDirectory))
+            .ToList();
+        var sourceFiles = Directory.EnumerateFiles(sourceRootPath, "*", SearchOption.AllDirectories)
+            .Select(sourceFile => new
+            {
+                SourceFilePath = sourceFile,
+                RelativePath = Path.GetRelativePath(sourceRootPath, sourceFile)
+            })
+            .ToList();
+
+        foreach (var relativePath in sourceDirectories)
+        {
+            var targetDirectoryPath = Path.Combine(targetRootPath, relativePath);
+            if (File.Exists(targetDirectoryPath))
+            {
+                throw new WorkspaceRootConflictException(CombineWorkspaceRelativePath(targetRootRelativePath, relativePath));
+            }
+        }
+
+        foreach (var sourceFile in sourceFiles)
+        {
+            var targetFilePath = Path.Combine(targetRootPath, sourceFile.RelativePath);
+            if (Directory.Exists(targetFilePath))
+            {
+                throw new WorkspaceRootConflictException(CombineWorkspaceRelativePath(targetRootRelativePath, sourceFile.RelativePath));
+            }
+
+            if (File.Exists(targetFilePath)
+                && !FilesAreIdentical(sourceFile.SourceFilePath, targetFilePath))
+            {
+                throw new WorkspaceRootConflictException(CombineWorkspaceRelativePath(targetRootRelativePath, sourceFile.RelativePath));
+            }
+        }
     }
 
     private static string ResolveExecutableDirectory(string fallbackDirectory)
@@ -151,9 +222,35 @@ public sealed class LocalAppPaths
     private static string ResolveStartupWorkspaceRootPath(
         string? configuredWorkspaceRootPath,
         string localApplicationDataPath,
-        string installRootPath)
+        string installRootPath,
+        IReadOnlyList<string>? startupFallbackWorkspaceRootCandidates,
+        out string resolvedConfiguredWorkspaceRootPath,
+        out WorkspaceRootRecoveryInfo? startupWorkspaceRecoveryInfo)
     {
-        foreach (var candidatePath in EnumerateWorkspaceRootCandidates(configuredWorkspaceRootPath, localApplicationDataPath))
+        startupWorkspaceRecoveryInfo = null;
+        var normalizedConfiguredPath = TryNormalizeExplicitWorkspaceRootPath(configuredWorkspaceRootPath, out var configuredPathError);
+        if (!string.IsNullOrWhiteSpace(normalizedConfiguredPath))
+        {
+            resolvedConfiguredWorkspaceRootPath = normalizedConfiguredPath;
+
+            if (IsWorkspaceRootInsideInstallRoot(normalizedConfiguredPath, installRootPath)
+                || IsWorkspaceRootInsideProgramFilesCore(normalizedConfiguredPath))
+            {
+                configuredPathError = "The saved workspace folder is inside the install directory or Program Files.";
+            }
+            else if (TryEnsureWorkspaceRootAvailable(normalizedConfiguredPath, out var resolvedWorkspaceRootPath, out configuredPathError))
+            {
+                return resolvedWorkspaceRootPath;
+            }
+        }
+        else
+        {
+            resolvedConfiguredWorkspaceRootPath = string.IsNullOrWhiteSpace(configuredWorkspaceRootPath)
+                ? string.Empty
+                : configuredWorkspaceRootPath;
+        }
+
+        foreach (var candidatePath in startupFallbackWorkspaceRootCandidates ?? EnumerateFallbackWorkspaceRootCandidates(localApplicationDataPath))
         {
             if (string.IsNullOrWhiteSpace(candidatePath)
                 || IsWorkspaceRootInsideInstallRoot(candidatePath, installRootPath)
@@ -162,23 +259,58 @@ public sealed class LocalAppPaths
                 continue;
             }
 
-            if (TryEnsureWorkspaceRootAvailable(candidatePath, out var resolvedWorkspaceRootPath))
+            if (TryEnsureWorkspaceRootAvailable(candidatePath, out var resolvedWorkspaceRootPath, out _))
             {
+                if (string.IsNullOrWhiteSpace(resolvedConfiguredWorkspaceRootPath))
+                {
+                    resolvedConfiguredWorkspaceRootPath = resolvedWorkspaceRootPath;
+                }
+
+                if (!string.IsNullOrWhiteSpace(normalizedConfiguredPath))
+                {
+                    startupWorkspaceRecoveryInfo = new WorkspaceRootRecoveryInfo(
+                        normalizedConfiguredPath,
+                        resolvedWorkspaceRootPath,
+                        configuredPathError);
+                }
+                else if (!string.IsNullOrWhiteSpace(configuredWorkspaceRootPath))
+                {
+                    startupWorkspaceRecoveryInfo = new WorkspaceRootRecoveryInfo(
+                        configuredWorkspaceRootPath,
+                        resolvedWorkspaceRootPath,
+                        configuredPathError);
+                }
+
                 return resolvedWorkspaceRootPath;
             }
         }
 
-        return Path.Combine(localApplicationDataPath, AppFolderName, "workspace");
-    }
-
-    private static IEnumerable<string> EnumerateWorkspaceRootCandidates(string? configuredWorkspaceRootPath, string localApplicationDataPath)
-    {
-        var normalizedConfiguredPath = NormalizeExplicitWorkspaceRootPath(configuredWorkspaceRootPath);
-        if (!string.IsNullOrWhiteSpace(normalizedConfiguredPath))
+        var defaultWorkspaceRootPath = Path.Combine(localApplicationDataPath, AppFolderName, "workspace");
+        if (string.IsNullOrWhiteSpace(resolvedConfiguredWorkspaceRootPath))
         {
-            yield return normalizedConfiguredPath;
+            resolvedConfiguredWorkspaceRootPath = defaultWorkspaceRootPath;
         }
 
+        if (!string.IsNullOrWhiteSpace(normalizedConfiguredPath))
+        {
+            startupWorkspaceRecoveryInfo = new WorkspaceRootRecoveryInfo(
+                normalizedConfiguredPath,
+                defaultWorkspaceRootPath,
+                configuredPathError);
+        }
+        else if (!string.IsNullOrWhiteSpace(configuredWorkspaceRootPath))
+        {
+            startupWorkspaceRecoveryInfo = new WorkspaceRootRecoveryInfo(
+                configuredWorkspaceRootPath,
+                defaultWorkspaceRootPath,
+                configuredPathError);
+        }
+
+        return defaultWorkspaceRootPath;
+    }
+
+    private static IEnumerable<string> EnumerateFallbackWorkspaceRootCandidates(string localApplicationDataPath)
+    {
         var preferredDriveRoot = ResolvePreferredNonSystemDriveRootPath();
         if (!string.IsNullOrWhiteSpace(preferredDriveRoot))
         {
@@ -232,6 +364,21 @@ public sealed class LocalAppPaths
 
         var expanded = Environment.ExpandEnvironmentVariables(trimmed);
         return Path.GetFullPath(expanded);
+    }
+
+    private static string? TryNormalizeExplicitWorkspaceRootPath(string? configuredWorkspaceRootPath, out string? error)
+    {
+        error = null;
+
+        try
+        {
+            return NormalizeExplicitWorkspaceRootPath(configuredWorkspaceRootPath);
+        }
+        catch (Exception ex)
+        {
+            error = ex.Message;
+            return null;
+        }
     }
 
     private static string? ResolvePreferredNonSystemDriveRootPath()
@@ -297,23 +444,56 @@ public sealed class LocalAppPaths
         return false;
     }
 
-    private static void CopyDirectoryContentsIfMissing(string sourceRootPath, string targetRootPath)
+    private static void CopyDirectoryContentsIfCompatible(string sourceRootPath, string targetRootPath, string targetRootRelativePath)
     {
         if (!Directory.Exists(sourceRootPath) || AreSamePath(sourceRootPath, targetRootPath))
         {
             return;
         }
 
-        foreach (var sourceDirectory in Directory.EnumerateDirectories(sourceRootPath, "*", SearchOption.AllDirectories))
+        var sourceDirectories = Directory.EnumerateDirectories(sourceRootPath, "*", SearchOption.AllDirectories)
+            .Select(sourceDirectory => Path.GetRelativePath(sourceRootPath, sourceDirectory))
+            .ToList();
+        var sourceFiles = Directory.EnumerateFiles(sourceRootPath, "*", SearchOption.AllDirectories)
+            .Select(sourceFile => new
+            {
+                SourceFilePath = sourceFile,
+                RelativePath = Path.GetRelativePath(sourceRootPath, sourceFile)
+            })
+            .ToList();
+
+        foreach (var relativePath in sourceDirectories)
         {
-            var relativePath = Path.GetRelativePath(sourceRootPath, sourceDirectory);
+            var targetDirectoryPath = Path.Combine(targetRootPath, relativePath);
+            if (File.Exists(targetDirectoryPath))
+            {
+                throw new WorkspaceRootConflictException(CombineWorkspaceRelativePath(targetRootRelativePath, relativePath));
+            }
+        }
+
+        foreach (var sourceFile in sourceFiles)
+        {
+            var targetFilePath = Path.Combine(targetRootPath, sourceFile.RelativePath);
+            if (Directory.Exists(targetFilePath))
+            {
+                throw new WorkspaceRootConflictException(CombineWorkspaceRelativePath(targetRootRelativePath, sourceFile.RelativePath));
+            }
+
+            if (File.Exists(targetFilePath)
+                && !FilesAreIdentical(sourceFile.SourceFilePath, targetFilePath))
+            {
+                throw new WorkspaceRootConflictException(CombineWorkspaceRelativePath(targetRootRelativePath, sourceFile.RelativePath));
+            }
+        }
+
+        foreach (var relativePath in sourceDirectories)
+        {
             Directory.CreateDirectory(Path.Combine(targetRootPath, relativePath));
         }
 
-        foreach (var sourceFile in Directory.EnumerateFiles(sourceRootPath, "*", SearchOption.AllDirectories))
+        foreach (var sourceFile in sourceFiles)
         {
-            var relativePath = Path.GetRelativePath(sourceRootPath, sourceFile);
-            var targetFilePath = Path.Combine(targetRootPath, relativePath);
+            var targetFilePath = Path.Combine(targetRootPath, sourceFile.RelativePath);
             if (File.Exists(targetFilePath))
             {
                 continue;
@@ -325,13 +505,60 @@ public sealed class LocalAppPaths
                 Directory.CreateDirectory(targetDirectory);
             }
 
-            File.Copy(sourceFile, targetFilePath, false);
+            File.Copy(sourceFile.SourceFilePath, targetFilePath, false);
         }
     }
 
-    private static bool TryEnsureWorkspaceRootAvailable(string workspaceRootPath, out string resolvedWorkspaceRootPath)
+    private static string CombineWorkspaceRelativePath(string rootRelativePath, string nestedRelativePath)
+    {
+        return string.IsNullOrWhiteSpace(nestedRelativePath)
+            ? rootRelativePath
+            : Path.Combine(rootRelativePath, nestedRelativePath);
+    }
+
+    private static bool FilesAreIdentical(string sourceFilePath, string targetFilePath)
+    {
+        var sourceInfo = new FileInfo(sourceFilePath);
+        var targetInfo = new FileInfo(targetFilePath);
+        if (sourceInfo.Length != targetInfo.Length)
+        {
+            return false;
+        }
+
+        const int bufferSize = 81920;
+        using var sourceStream = File.OpenRead(sourceFilePath);
+        using var targetStream = File.OpenRead(targetFilePath);
+        var sourceBuffer = new byte[bufferSize];
+        var targetBuffer = new byte[bufferSize];
+
+        while (true)
+        {
+            var sourceRead = sourceStream.Read(sourceBuffer, 0, sourceBuffer.Length);
+            var targetRead = targetStream.Read(targetBuffer, 0, targetBuffer.Length);
+            if (sourceRead != targetRead)
+            {
+                return false;
+            }
+
+            if (sourceRead == 0)
+            {
+                return true;
+            }
+
+            for (var index = 0; index < sourceRead; index++)
+            {
+                if (sourceBuffer[index] != targetBuffer[index])
+                {
+                    return false;
+                }
+            }
+        }
+    }
+
+    private static bool TryEnsureWorkspaceRootAvailable(string workspaceRootPath, out string resolvedWorkspaceRootPath, out string? error)
     {
         resolvedWorkspaceRootPath = string.Empty;
+        error = null;
 
         try
         {
@@ -346,8 +573,9 @@ public sealed class LocalAppPaths
             resolvedWorkspaceRootPath = normalizedWorkspaceRootPath;
             return true;
         }
-        catch
+        catch (Exception ex)
         {
+            error = ex.Message;
             return false;
         }
     }
@@ -417,4 +645,20 @@ public sealed class LocalAppPaths
             _ => throw new ArgumentOutOfRangeException(nameof(kind), kind, null)
         };
     }
+}
+
+public sealed record WorkspaceRootRecoveryInfo(
+    string ConfiguredPath,
+    string ActivePath,
+    string? FailureReason);
+
+public sealed class WorkspaceRootConflictException : InvalidOperationException
+{
+    public WorkspaceRootConflictException(string relativePath)
+        : base($"The target workspace folder already contains different content at '{relativePath}'.")
+    {
+        RelativePath = relativePath;
+    }
+
+    public string RelativePath { get; }
 }

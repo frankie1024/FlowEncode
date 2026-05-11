@@ -182,8 +182,15 @@ internal static class SetupDependencyInteractionHelper
             return;
         }
 
-        Directory.CreateDirectory(path);
-        Process.Start(new ProcessStartInfo("explorer.exe", $"\"{path}\"") { UseShellExecute = true });
+        try
+        {
+            Directory.CreateDirectory(path);
+            Process.Start(new ProcessStartInfo("explorer.exe", $"\"{path}\"") { UseShellExecute = true });
+        }
+        catch (Exception ex)
+        {
+            TryWriteDiagnostic(nameof(SetupDependencyInteractionHelper), $"Failed to open path '{path}'. {ex.GetType().Name}: {ex.Message}");
+        }
     }
 
     public static void OpenUrl(string url)

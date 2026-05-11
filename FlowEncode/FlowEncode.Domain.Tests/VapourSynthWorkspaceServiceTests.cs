@@ -29,7 +29,7 @@ public sealed class VapourSynthWorkspaceServiceTests
     public async Task SaveSessionAsync_WritesSessionAtomicallyWithoutLeavingTempFile()
     {
         var paths = CreatePaths();
-        var service = new VapourSynthWorkspaceService(paths);
+        using var service = new VapourSynthWorkspaceService(paths);
         var session = CreateSession();
 
         await service.SaveSessionAsync(session);
@@ -56,7 +56,7 @@ public sealed class VapourSynthWorkspaceServiceTests
         Directory.CreateDirectory(Path.GetDirectoryName(sessionPath)!);
         await File.WriteAllTextAsync(sessionPath, "{not-json");
 
-        var service = new VapourSynthWorkspaceService(paths);
+        using var service = new VapourSynthWorkspaceService(paths);
 
         var loaded = await service.LoadSessionAsync();
         var backupFiles = Directory.GetFiles(Path.GetDirectoryName(sessionPath)!, "editor-session.json.broken-*");

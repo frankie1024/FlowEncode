@@ -92,6 +92,7 @@ public partial class MainWindowViewModel : CommunityToolkit.Mvvm.ComponentModel.
     private IReadOnlyDictionary<string, string> _manualToolPaths = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
     private bool _hasRunInitialVsPluginDependencyUpdate;
     private string _workspaceRootPath = string.Empty;
+    private string _savedWorkspaceRootPath = string.Empty;
     private AppUpdateCheckResult? _lastAppUpdateResult;
     private string? _lastAppUpdateErrorMessage;
     private EncodingJobItemViewModel? _selectedJob;
@@ -1156,7 +1157,13 @@ public partial class MainWindowViewModel : CommunityToolkit.Mvvm.ComponentModel.
     {
         try
         {
-            var normalizedWorkspaceRootPath = _appPaths.NormalizeWorkspaceRootPath(WorkspaceRootPath);
+            var workspaceRootPathToSave = string.IsNullOrWhiteSpace(WorkspaceRootPath)
+                ? _appPaths.RootPath
+                : WorkspaceRootPath;
+            var workspaceRootChanged = !string.Equals(
+                workspaceRootPathToSave,
+                _savedWorkspaceRootPath,
+                StringComparison.OrdinalIgnoreCase);
             var currentSettings = _settingsService.Load();
             var settings = new AppSettings(
                 PreferSystemEncoders,
@@ -1164,7 +1171,7 @@ public partial class MainWindowViewModel : CommunityToolkit.Mvvm.ComponentModel.
                 CurrentThemePreference,
                 CurrentLanguagePreference,
                 _hasCompletedSetupGuide,
-                normalizedWorkspaceRootPath,
+                workspaceRootPathToSave,
                 new Dictionary<string, string>(_manualToolPaths, StringComparer.OrdinalIgnoreCase),
                 _hasRunInitialVsPluginDependencyUpdate,
                 GetMaxConcurrentEncodingJobCount(),
@@ -1175,12 +1182,14 @@ public partial class MainWindowViewModel : CommunityToolkit.Mvvm.ComponentModel.
             _settingsService.Save(settings);
             _encoderDiscoveryService.InvalidateCache();
             _toolProbeService.InvalidateCache();
-            WorkspaceRootPath = normalizedWorkspaceRootPath;
+            _savedWorkspaceRootPath = workspaceRootPathToSave;
+            WorkspaceRootPath = workspaceRootPathToSave;
             if (updateStatusText)
             {
-                StatusText = string.Equals(normalizedWorkspaceRootPath, _appPaths.RootPath, StringComparison.OrdinalIgnoreCase)
-                    ? Texts.SettingsSavedStatus
-                    : Texts.WorkspaceDirectorySavedStatus;
+                StatusText = workspaceRootChanged
+                    && !string.Equals(workspaceRootPathToSave, _appPaths.RootPath, StringComparison.OrdinalIgnoreCase)
+                    ? Texts.WorkspaceDirectorySavedStatus
+                    : Texts.SettingsSavedStatus;
             }
 
             return null;
@@ -3150,11 +3159,15 @@ public partial class MainWindowViewModel : CommunityToolkit.Mvvm.ComponentModel.
     private void LoadSettings()
     {
         var settings = _settingsService.Load();
+        var configuredWorkspaceRootPath = string.IsNullOrWhiteSpace(_appPaths.ConfiguredWorkspaceRootPath)
+            ? _appPaths.RootPath
+            : _appPaths.ConfiguredWorkspaceRootPath;
         PreferSystemEncoders = settings.PreferSystemEncoders;
         AutoCheckUpdatesOnStartup = settings.AutoCheckUpdatesOnStartup;
         MaxConcurrentEncodingJobs = settings.MaxConcurrentEncodingJobs;
         QueueCompletionAction = settings.QueueCompletionAction;
-        WorkspaceRootPath = _appPaths.RootPath;
+        _savedWorkspaceRootPath = configuredWorkspaceRootPath;
+        WorkspaceRootPath = configuredWorkspaceRootPath;
         _hasCompletedSetupGuide = settings.HasSeenSetupGuide;
         _manualToolPaths = new Dictionary<string, string>(settings.EffectiveManualToolPaths, StringComparer.OrdinalIgnoreCase);
         _hasRunInitialVsPluginDependencyUpdate = settings.HasRunInitialVsPluginDependencyUpdate;
@@ -3235,6 +3248,10 @@ public partial class MainWindowViewModel : CommunityToolkit.Mvvm.ComponentModel.
             await Task.Run(() => _appPaths.PrepareWorkspaceRootChange(normalizedWorkspaceRootPath));
             WorkspaceRootPath = normalizedWorkspaceRootPath;
             return null;
+        }
+        catch (WorkspaceRootConflictException ex)
+        {
+            return Texts.WorkspaceDirectoryConflictMessage(ex.RelativePath);
         }
         catch (Exception ex)
         {

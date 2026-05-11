@@ -10,7 +10,7 @@ using FlowEncode.Application;
 
 namespace FlowEncode.Infrastructure;
 
-public sealed class VapourSynthWorkspaceService : IVapourSynthWorkspaceService
+public sealed class VapourSynthWorkspaceService : IVapourSynthWorkspaceService, IDisposable
 {
     private static readonly JsonSerializerOptions SessionSerializerOptions = new()
     {
@@ -258,6 +258,11 @@ public sealed class VapourSynthWorkspaceService : IVapourSynthWorkspaceService
     private void WriteDiagnostic(string message)
     {
         AppDiagnosticsLog.Write(_paths, nameof(VapourSynthWorkspaceService), message);
+    }
+
+    public void Dispose()
+    {
+        _sessionFileGate.Dispose();
     }
 
     private sealed class WorkspaceSessionDto

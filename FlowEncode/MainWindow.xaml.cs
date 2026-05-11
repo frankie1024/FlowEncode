@@ -177,6 +177,7 @@ public sealed partial class MainWindow : Window, ISettingsViewHost, IShellNaviga
             await Task.Yield();
             await ViewModel.InitializeAsync();
             await ShowRecoveredSettingsNoticeIfNeededAsync();
+            await ShowRecoveredWorkspaceNoticeIfNeededAsync();
             ApplyTheme(ViewModel.SettingsModule.CurrentThemePreference);
             ApplyVapourSynthWorkspacePresentationIfLoaded();
             if (_launchActivation.HasRequestedVapourSynthFile)
@@ -720,6 +721,37 @@ public sealed partial class MainWindow : Window, ISettingsViewHost, IShellNaviga
                 recoveryInfo.BackupError));
     }
 
+    private async Task ShowRecoveredWorkspaceNoticeIfNeededAsync()
+    {
+        WorkspaceRootRecoveryInfo? recoveryInfo;
+
+        try
+        {
+            recoveryInfo = App.GetService<LocalAppPaths>().ConsumeStartupWorkspaceRecoveryInfo();
+        }
+        catch
+        {
+            return;
+        }
+
+        if (recoveryInfo is null)
+        {
+            return;
+        }
+
+        if (!string.IsNullOrWhiteSpace(recoveryInfo.FailureReason))
+        {
+            TryWriteWindowDiagnostic(
+                $"Workspace root fallback: configured='{recoveryInfo.ConfiguredPath}', active='{recoveryInfo.ActivePath}'. {recoveryInfo.FailureReason}");
+        }
+
+        await ShowMessageAsync(
+            ViewModel.Texts.WorkspaceRecoveredTitle,
+            ViewModel.Texts.WorkspaceRecoveredMessage(
+                recoveryInfo.ConfiguredPath,
+                recoveryInfo.ActivePath));
+    }
+
     private async Task ReportNonFatalWindowExceptionAsync(string operationName, string errorTitle, Exception ex)
     {
         TryWriteWindowDiagnostic($"{operationName}. {ex.GetType().Name}: {ex.Message}");
@@ -733,8 +765,15 @@ public sealed partial class MainWindow : Window, ISettingsViewHost, IShellNaviga
             return;
         }
 
-        Directory.CreateDirectory(path);
-        Process.Start(new ProcessStartInfo("explorer.exe", $"\"{path}\"") { UseShellExecute = true });
+        try
+        {
+            Directory.CreateDirectory(path);
+            Process.Start(new ProcessStartInfo("explorer.exe", $"\"{path}\"") { UseShellExecute = true });
+        }
+        catch (Exception ex)
+        {
+            TryWriteWindowDiagnostic($"Failed to open path '{path}'. {ex.GetType().Name}: {ex.Message}");
+        }
     }
 
     private static void OpenUrl(string url)
