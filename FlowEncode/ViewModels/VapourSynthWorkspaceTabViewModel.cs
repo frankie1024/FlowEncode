@@ -94,8 +94,18 @@ public sealed class VapourSynthWorkspaceTabViewModel : ObservableObject
     public string WorkspaceStatusText
     {
         get => _workspaceStatusText;
-        private set => SetProperty(ref _workspaceStatusText, value);
+        private set
+        {
+            if (SetProperty(ref _workspaceStatusText, value))
+            {
+                OnPropertyChanged(nameof(WorkspaceStatusVisibility));
+            }
+        }
     }
+
+    public Visibility WorkspaceStatusVisibility => ShouldShowWorkspaceStatus(WorkspaceStatusText)
+        ? Visibility.Visible
+        : Visibility.Collapsed;
 
     public string LogText
     {
@@ -143,6 +153,7 @@ public sealed class VapourSynthWorkspaceTabViewModel : ObservableObject
         OnPropertyChanged(nameof(PinMenuText));
         OnPropertyChanged(nameof(DocumentPathText));
         OnPropertyChanged(nameof(EditorStatusText));
+        OnPropertyChanged(nameof(WorkspaceStatusVisibility));
         UpdateLogText();
     }
 
@@ -481,6 +492,12 @@ public sealed class VapourSynthWorkspaceTabViewModel : ObservableObject
         return _preferredLineEnding == "\n"
             ? normalized
             : normalized.Replace("\n", _preferredLineEnding, StringComparison.Ordinal);
+    }
+
+    private bool ShouldShowWorkspaceStatus(string? statusText)
+    {
+        return !string.IsNullOrWhiteSpace(statusText)
+            && !string.Equals(statusText, Texts.VapourSynthEditorReadyStatus, StringComparison.Ordinal);
     }
 
     private void UpdateLogText()

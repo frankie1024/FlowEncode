@@ -91,9 +91,15 @@ public sealed class VapourSynthWorkspaceViewModel : ObservableObject
 
     public string WorkspaceStatusText => ActiveTab?.WorkspaceStatusText ?? Texts.VapourSynthEditorReadyStatus;
 
+    public Visibility WorkspaceStatusVisibility => ActiveTab?.WorkspaceStatusVisibility ?? Visibility.Collapsed;
+
     public string LogText => ActiveTab?.LogText ?? Texts.VapourSynthLogEmptyPlaceholder;
 
     public string EditorStatusText => ActiveTab?.EditorStatusText ?? Texts.VapourSynthEditorCursorStatus(1, 1, 1, 0, false);
+
+    public string HeaderStatusText => WorkspaceStatusVisibility == Visibility.Visible
+        ? $"{WorkspaceStatusText}   |   {EditorStatusText}"
+        : EditorStatusText;
 
     public bool CanReload => ActiveTab?.CanReload ?? false;
 
@@ -779,8 +785,10 @@ public sealed class VapourSynthWorkspaceViewModel : ObservableObject
         OnPropertyChanged(nameof(DocumentTitle));
         OnPropertyChanged(nameof(DocumentPathText));
         OnPropertyChanged(nameof(WorkspaceStatusText));
+        OnPropertyChanged(nameof(WorkspaceStatusVisibility));
         OnPropertyChanged(nameof(LogText));
         OnPropertyChanged(nameof(EditorStatusText));
+        OnPropertyChanged(nameof(HeaderStatusText));
         OnPropertyChanged(nameof(CanReload));
         OnPropertyChanged(nameof(DirtyBadgeVisibility));
         OnPropertyChanged(nameof(CurrentFilePath));

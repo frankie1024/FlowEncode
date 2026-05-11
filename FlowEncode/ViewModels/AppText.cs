@@ -229,8 +229,8 @@ public sealed class AppText
             : $"Original file is missing; recovered as an unsaved draft: {filePath}";
     public string VapourSynthEditorCursorStatus(int line, int column, int lineCount, int charCount, bool isDirty) =>
         IsChinese
-            ? $"第 {line} 行，第 {column} 列  |  {lineCount} 行  |  {charCount} 字符  |  {(isDirty ? "未保存" : "已保存")}"
-            : $"Ln {line}, Col {column}  |  {lineCount} lines  |  {charCount} chars  |  {(isDirty ? "modified" : "saved")}";
+            ? $"第 {line} 行，第 {column} 列  |  {lineCount} 行  |  {charCount} 字符"
+            : $"Ln {line}, Col {column}  |  {lineCount} lines  |  {charCount} chars";
     public string VapourSynthUnsavedChangesTitle => Pick("保存脚本修改", "Save Script Changes");
     public string VapourSynthUnsavedChangesMessage => Pick("当前脚本有未保存的修改。是否先保存再继续？", "The current script has unsaved changes. Save before continuing?");
     public string VapourSynthPreviewWindowTitle(string documentName) =>

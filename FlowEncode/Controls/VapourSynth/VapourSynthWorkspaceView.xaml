@@ -169,10 +169,23 @@
                             TextWrapping="WrapWholeWords" />
                     </StackPanel>
 
-                    <StackPanel Grid.Column="1" HorizontalAlignment="Right" Spacing="6">
+                    <StackPanel
+                        Grid.Column="1"
+                        Orientation="Horizontal"
+                        HorizontalAlignment="Right"
+                        VerticalAlignment="Center"
+                        Spacing="12">
+                        <TextBlock
+                            MaxWidth="560"
+                            VerticalAlignment="Center"
+                            FontFamily="{StaticResource AppMonoFont}"
+                            Foreground="{ThemeResource SubtleTextBrush}"
+                            Text="{Binding HeaderStatusText}"
+                            TextTrimming="CharacterEllipsis"
+                            TextWrapping="NoWrap" />
                         <Border
                             Padding="10,4"
-                            HorizontalAlignment="Right"
+                            VerticalAlignment="Center"
                             Background="{ThemeResource AppWarningSoftBrush}"
                             BorderBrush="{ThemeResource AppWarningBrush}"
                             BorderThickness="{StaticResource AppCardBorderThickness}"
@@ -184,19 +197,6 @@
                                 Foreground="{ThemeResource AppWarningBrush}"
                                 Text="{Binding Texts.VapourSynthModifiedBadge}" />
                         </Border>
-                        <TextBlock
-                            MaxWidth="560"
-                            HorizontalAlignment="Right"
-                            Foreground="{ThemeResource SubtleTextBrush}"
-                            Text="{Binding WorkspaceStatusText}"
-                            TextTrimming="CharacterEllipsis"
-                            TextWrapping="NoWrap" />
-                        <TextBlock
-                            HorizontalAlignment="Right"
-                            FontFamily="{StaticResource AppMonoFont}"
-                            Foreground="{ThemeResource SubtleTextBrush}"
-                            Text="{Binding EditorStatusText}"
-                            TextWrapping="WrapWholeWords" />
                     </StackPanel>
                 </Grid>
             </Border>

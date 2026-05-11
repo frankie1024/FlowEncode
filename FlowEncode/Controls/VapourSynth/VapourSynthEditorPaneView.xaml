@@ -22,6 +22,7 @@
                 <TextBlock
                     x:Name="EditorOverlayTextBlock"
                     Text="{Binding WorkspaceStatusText}"
+                    Visibility="{Binding WorkspaceStatusVisibility}"
                     TextWrapping="WrapWholeWords" />
                 <Button
                     x:Name="RetryEditorButton"
