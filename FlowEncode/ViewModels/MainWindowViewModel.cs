@@ -333,6 +333,42 @@ public partial class MainWindowViewModel : CommunityToolkit.Mvvm.ComponentModel.
         || IsAudioProcessingRunning
         || IsBluRayDemuxRunning;
 
+    internal Visibility DashboardBluRayDemuxActivityVisibility => IsDashboardBluRayDemuxActive()
+        ? Visibility.Visible
+        : Visibility.Collapsed;
+
+    internal double DashboardBluRayDemuxProgressValue => IsBluRayDemuxRunning
+        ? BluRayDemuxProgressValue
+        : 0.0;
+
+    internal bool DashboardBluRayDemuxProgressIsIndeterminate => IsBluRayDiscScanning
+        || IsBluRayPlaylistLoading
+        || (IsBluRayDemuxRunning && BluRayDemuxProgressIsIndeterminate);
+
+    internal Visibility DashboardOverviewActivityVisibility => GetDashboardRunningOverviewJob() is not null
+        ? Visibility.Visible
+        : Visibility.Collapsed;
+
+    internal double DashboardOverviewProgressValue => GetDashboardRunningOverviewJob()?.ProgressValue ?? 0.0;
+
+    internal bool DashboardOverviewProgressIsIndeterminate => GetDashboardRunningOverviewJob()?.IsProgressIndeterminate ?? false;
+
+    internal Visibility DashboardAudioProcessingActivityVisibility => IsAudioProcessingRunning
+        ? Visibility.Visible
+        : Visibility.Collapsed;
+
+    internal double DashboardAudioProcessingProgressValue => AudioProcessingProgressValue;
+
+    internal bool DashboardAudioProcessingProgressIsIndeterminate => IsAudioProcessingRunning && AudioProcessingProgressIsIndeterminate;
+
+    internal Visibility DashboardAutoCompressionActivityVisibility => IsAutoCompressionRunning
+        ? Visibility.Visible
+        : Visibility.Collapsed;
+
+    internal double DashboardAutoCompressionProgressValue => AutoCompressionProgressPercent / 100.0;
+
+    internal bool DashboardAutoCompressionProgressIsIndeterminate => IsAutoCompressionRunning && AutoCompressionProgressIsIndeterminate;
+
     internal string PreviewTitle
     {
         get => _previewTitle;
@@ -2109,6 +2145,7 @@ public partial class MainWindowViewModel : CommunityToolkit.Mvvm.ComponentModel.
             {
                 var previousState = job.State;
                 job.ApplyProgress(update);
+                RaiseDashboardCardActivityPropertyChanges();
                 if (previousState != job.State)
                 {
                     RaiseJobStatePropertyChanges();
@@ -2120,6 +2157,7 @@ public partial class MainWindowViewModel : CommunityToolkit.Mvvm.ComponentModel.
                 cancellationSource.Token);
             var previousState = job.State;
             job.ApplyResult(result);
+            RaiseDashboardCardActivityPropertyChanges();
             if (previousState != job.State)
             {
                 RaiseJobStatePropertyChanges();
@@ -3430,7 +3468,36 @@ public partial class MainWindowViewModel : CommunityToolkit.Mvvm.ComponentModel.
 
     private void RaiseJobStatePropertyChanges()
     {
+        OnPropertyChanged(nameof(HasRunningJobs));
+        OnPropertyChanged(nameof(HasRunningAppWork));
         RaiseJobSummaryPropertyChanges();
+        RaiseDashboardCardActivityPropertyChanges();
+    }
+
+    private void RaiseDashboardCardActivityPropertyChanges()
+    {
+        OnPropertyChanged(nameof(DashboardBluRayDemuxActivityVisibility));
+        OnPropertyChanged(nameof(DashboardBluRayDemuxProgressValue));
+        OnPropertyChanged(nameof(DashboardBluRayDemuxProgressIsIndeterminate));
+        OnPropertyChanged(nameof(DashboardOverviewActivityVisibility));
+        OnPropertyChanged(nameof(DashboardOverviewProgressValue));
+        OnPropertyChanged(nameof(DashboardOverviewProgressIsIndeterminate));
+        OnPropertyChanged(nameof(DashboardAudioProcessingActivityVisibility));
+        OnPropertyChanged(nameof(DashboardAudioProcessingProgressValue));
+        OnPropertyChanged(nameof(DashboardAudioProcessingProgressIsIndeterminate));
+        OnPropertyChanged(nameof(DashboardAutoCompressionActivityVisibility));
+        OnPropertyChanged(nameof(DashboardAutoCompressionProgressValue));
+        OnPropertyChanged(nameof(DashboardAutoCompressionProgressIsIndeterminate));
+    }
+
+    private EncodingJobItemViewModel? GetDashboardRunningOverviewJob()
+    {
+        return Jobs.FirstOrDefault(static job => job.State == EncodingJobState.Running);
+    }
+
+    private bool IsDashboardBluRayDemuxActive()
+    {
+        return IsBluRayDiscScanning || IsBluRayPlaylistLoading || IsBluRayDemuxRunning;
     }
 
     private string BuildSelectedJobFramesText()

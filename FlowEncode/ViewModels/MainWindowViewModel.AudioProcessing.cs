@@ -1365,6 +1365,7 @@ public partial class MainWindowViewModel
         SetAudioProcessingPhaseLabel(progress.PhaseLabel ?? string.Empty);
         SetAudioProcessingTelemetry(progress.Telemetry);
         ApplyAudioProcessingLogUpdate(progress);
+        RaiseDashboardCardActivityPropertyChanges();
     }
 
     private void ReplaceAudioProcessingLogLine(string line)
@@ -1635,6 +1636,7 @@ public partial class MainWindowViewModel
         _isAudioProcessingRunning = isRunning;
         _activeAudioProcessingJobId = activeJobId;
         OnPropertyChanged(nameof(IsAudioProcessingRunning));
+        OnPropertyChanged(nameof(HasRunningAppWork));
         OnPropertyChanged(nameof(CanStartAudioProcessing));
         OnPropertyChanged(nameof(CanCancelAudioProcessing));
         OnPropertyChanged(nameof(CanClearAudioProcessingTask));
@@ -1644,6 +1646,7 @@ public partial class MainWindowViewModel
         OnPropertyChanged(nameof(AudioProcessingProgressSecondaryVisibility));
         OnPropertyChanged(nameof(AudioProcessingProgressLabel));
         OnPropertyChanged(nameof(AudioProcessingProgressHintVisibility));
+        RaiseDashboardCardActivityPropertyChanges();
 
         if (isRunning)
         {

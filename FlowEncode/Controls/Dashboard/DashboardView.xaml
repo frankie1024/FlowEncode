@@ -7,6 +7,26 @@
     xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
     mc:Ignorable="d">
+    <UserControl.Resources>
+        <Style x:Key="DashboardActivityIndicatorStyle" TargetType="Border">
+            <Setter Property="Width" Value="10" />
+            <Setter Property="Height" Value="10" />
+            <Setter Property="HorizontalAlignment" Value="Right" />
+            <Setter Property="VerticalAlignment" Value="Top" />
+            <Setter Property="Background" Value="{ThemeResource AppSuccessBrush}" />
+            <Setter Property="CornerRadius" Value="999" />
+        </Style>
+
+        <Style x:Key="DashboardCardProgressBarStyle" TargetType="ProgressBar">
+            <Setter Property="Height" Value="4" />
+            <Setter Property="Maximum" Value="1" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+            <Setter Property="Foreground" Value="{ThemeResource QueueProgressFillBrush}" />
+            <Setter Property="Background" Value="{ThemeResource QueueProgressSoftBrush}" />
+            <Setter Property="IsHitTestVisible" Value="False" />
+        </Style>
+    </UserControl.Resources>
+
     <ScrollViewer x:Name="DashboardScroller" VerticalScrollBarVisibility="Auto">
         <StackPanel x:Name="DashboardContentStack" Padding="28,16,28,28" Spacing="24">
             <Border x:Name="DashboardHeroCard" MinHeight="148" Padding="24" Background="{ThemeResource HeroBrush}" BorderBrush="{ThemeResource CardBorderBrush}" BorderThickness="{StaticResource AppCardBorderThickness}" CornerRadius="{StaticResource AppLargeCornerRadius}">
@@ -55,9 +75,18 @@
                                 <RowDefinition Height="Auto" />
                             </Grid.RowDefinitions>
 
-                            <Viewbox Width="28" Height="28" HorizontalAlignment="Left">
-                                <SymbolIcon Symbol="Library" />
-                            </Viewbox>
+                            <Grid ColumnSpacing="12">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+
+                                <Viewbox Width="28" Height="28" HorizontalAlignment="Left">
+                                    <SymbolIcon Symbol="Library" />
+                                </Viewbox>
+
+                                <Border Grid.Column="1" Style="{StaticResource DashboardActivityIndicatorStyle}" Visibility="{Binding DashboardBluRayDemuxActivityVisibility}" />
+                            </Grid>
 
                             <StackPanel Grid.Row="1" Spacing="8">
                                 <TextBlock FontFamily="{StaticResource AppDisplayFont}" FontSize="26" FontWeight="SemiBold" Text="{Binding Texts.NavBluRayDemux}" TextWrapping="WrapWholeWords" />
@@ -69,7 +98,11 @@
                                     <ColumnDefinition Width="*" />
                                     <ColumnDefinition Width="Auto" />
                                 </Grid.ColumnDefinitions>
-                                <TextBlock FontWeight="SemiBold" Text="{Binding Texts.DashboardOpenModuleButton}" />
+                                <ProgressBar
+                                    Style="{StaticResource DashboardCardProgressBarStyle}"
+                                    IsIndeterminate="{Binding DashboardBluRayDemuxProgressIsIndeterminate}"
+                                    Value="{Binding DashboardBluRayDemuxProgressValue}"
+                                    Visibility="{Binding DashboardBluRayDemuxActivityVisibility}" />
                                 <SymbolIcon Grid.Column="1" Symbol="Forward" />
                             </Grid>
                         </Grid>
@@ -99,7 +132,6 @@
                                     <ColumnDefinition Width="*" />
                                     <ColumnDefinition Width="Auto" />
                                 </Grid.ColumnDefinitions>
-                                <TextBlock FontWeight="SemiBold" Text="{Binding Texts.DashboardOpenModuleButton}" />
                                 <SymbolIcon Grid.Column="1" Symbol="Forward" />
                             </Grid>
                         </Grid>
@@ -115,9 +147,18 @@
                                 <RowDefinition Height="Auto" />
                             </Grid.RowDefinitions>
 
-                            <Viewbox Width="28" Height="28" HorizontalAlignment="Left">
-                                <SymbolIcon Symbol="Video" />
-                            </Viewbox>
+                            <Grid ColumnSpacing="12">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+
+                                <Viewbox Width="28" Height="28" HorizontalAlignment="Left">
+                                    <SymbolIcon Symbol="Video" />
+                                </Viewbox>
+
+                                <Border Grid.Column="1" Style="{StaticResource DashboardActivityIndicatorStyle}" Visibility="{Binding DashboardOverviewActivityVisibility}" />
+                            </Grid>
 
                             <StackPanel Grid.Row="1" Spacing="8">
                                 <TextBlock FontFamily="{StaticResource AppDisplayFont}" FontSize="26" FontWeight="SemiBold" Text="{Binding Texts.NavOverview}" TextWrapping="WrapWholeWords" />
@@ -129,7 +170,11 @@
                                     <ColumnDefinition Width="*" />
                                     <ColumnDefinition Width="Auto" />
                                 </Grid.ColumnDefinitions>
-                                <TextBlock FontWeight="SemiBold" Text="{Binding Texts.DashboardOpenModuleButton}" />
+                                <ProgressBar
+                                    Style="{StaticResource DashboardCardProgressBarStyle}"
+                                    IsIndeterminate="{Binding DashboardOverviewProgressIsIndeterminate}"
+                                    Value="{Binding DashboardOverviewProgressValue}"
+                                    Visibility="{Binding DashboardOverviewActivityVisibility}" />
                                 <SymbolIcon Grid.Column="1" Symbol="Forward" />
                             </Grid>
                         </Grid>
@@ -145,9 +190,18 @@
                                 <RowDefinition Height="Auto" />
                             </Grid.RowDefinitions>
 
-                            <Viewbox Width="28" Height="28" HorizontalAlignment="Left">
-                                <SymbolIcon Symbol="Audio" />
-                            </Viewbox>
+                            <Grid ColumnSpacing="12">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+
+                                <Viewbox Width="28" Height="28" HorizontalAlignment="Left">
+                                    <SymbolIcon Symbol="Audio" />
+                                </Viewbox>
+
+                                <Border Grid.Column="1" Style="{StaticResource DashboardActivityIndicatorStyle}" Visibility="{Binding DashboardAudioProcessingActivityVisibility}" />
+                            </Grid>
 
                             <StackPanel Grid.Row="1" Spacing="8">
                                 <TextBlock FontFamily="{StaticResource AppDisplayFont}" FontSize="26" FontWeight="SemiBold" Text="{Binding Texts.NavAudioProcessing}" TextWrapping="WrapWholeWords" />
@@ -159,7 +213,11 @@
                                     <ColumnDefinition Width="*" />
                                     <ColumnDefinition Width="Auto" />
                                 </Grid.ColumnDefinitions>
-                                <TextBlock FontWeight="SemiBold" Text="{Binding Texts.DashboardOpenModuleButton}" />
+                                <ProgressBar
+                                    Style="{StaticResource DashboardCardProgressBarStyle}"
+                                    IsIndeterminate="{Binding DashboardAudioProcessingProgressIsIndeterminate}"
+                                    Value="{Binding DashboardAudioProcessingProgressValue}"
+                                    Visibility="{Binding DashboardAudioProcessingActivityVisibility}" />
                                 <SymbolIcon Grid.Column="1" Symbol="Forward" />
                             </Grid>
                         </Grid>
@@ -175,9 +233,18 @@
                                 <RowDefinition Height="Auto" />
                             </Grid.RowDefinitions>
 
-                            <Viewbox Width="28" Height="28" HorizontalAlignment="Left">
-                                <SymbolIcon Symbol="Play" />
-                            </Viewbox>
+                            <Grid ColumnSpacing="12">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+
+                                <Viewbox Width="28" Height="28" HorizontalAlignment="Left">
+                                    <SymbolIcon Symbol="Play" />
+                                </Viewbox>
+
+                                <Border Grid.Column="1" Style="{StaticResource DashboardActivityIndicatorStyle}" Visibility="{Binding DashboardAutoCompressionActivityVisibility}" />
+                            </Grid>
 
                             <StackPanel Grid.Row="1" Spacing="8">
                                 <TextBlock FontFamily="{StaticResource AppDisplayFont}" FontSize="26" FontWeight="SemiBold" Text="{Binding Texts.NavAutoCompression}" TextWrapping="WrapWholeWords" />
@@ -189,7 +256,11 @@
                                     <ColumnDefinition Width="*" />
                                     <ColumnDefinition Width="Auto" />
                                 </Grid.ColumnDefinitions>
-                                <TextBlock FontWeight="SemiBold" Text="{Binding Texts.DashboardOpenModuleButton}" />
+                                <ProgressBar
+                                    Style="{StaticResource DashboardCardProgressBarStyle}"
+                                    IsIndeterminate="{Binding DashboardAutoCompressionProgressIsIndeterminate}"
+                                    Value="{Binding DashboardAutoCompressionProgressValue}"
+                                    Visibility="{Binding DashboardAutoCompressionActivityVisibility}" />
                                 <SymbolIcon Grid.Column="1" Symbol="Forward" />
                             </Grid>
                         </Grid>
@@ -219,7 +290,6 @@
                                     <ColumnDefinition Width="*" />
                                     <ColumnDefinition Width="Auto" />
                                 </Grid.ColumnDefinitions>
-                                <TextBlock FontWeight="SemiBold" Text="{Binding Texts.DashboardOpenModuleButton}" />
                                 <SymbolIcon Grid.Column="1" Symbol="Forward" />
                             </Grid>
                         </Grid>

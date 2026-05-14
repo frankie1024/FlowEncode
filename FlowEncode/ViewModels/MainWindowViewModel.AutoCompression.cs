@@ -667,6 +667,7 @@ public partial class MainWindowViewModel
         }
 
         AppendAutoCompressionLogLine(progress.DetailLine);
+        RaiseDashboardCardActivityPropertyChanges();
     }
 
     private void AppendAutoCompressionLogLine(string line)
@@ -748,10 +749,12 @@ public partial class MainWindowViewModel
         _isAutoCompressionRunning = isRunning;
         _activeAutoCompressionJobId = activeJobId;
         OnPropertyChanged(nameof(IsAutoCompressionRunning));
+        OnPropertyChanged(nameof(HasRunningAppWork));
         OnPropertyChanged(nameof(CanStartAutoCompression));
         OnPropertyChanged(nameof(CanCancelAutoCompression));
         OnPropertyChanged(nameof(AutoCompressionProgressLabel));
         OnPropertyChanged(nameof(AutoCompressionProgressHintVisibility));
+        RaiseDashboardCardActivityPropertyChanges();
 
         if (isRunning)
         {

@@ -1100,6 +1100,8 @@ public partial class MainWindowViewModel
             BluRayDemuxStatusText = summary;
             StatusText = summary;
         }
+
+        RaiseDashboardCardActivityPropertyChanges();
     }
 
     private void AppendBluRayDemuxLogLine(string line)
@@ -1276,6 +1278,7 @@ public partial class MainWindowViewModel
         _isBluRayDiscScanning = value;
         OnPropertyChanged(nameof(IsBluRayDiscScanning));
         RaiseBluRayDemuxInputPropertyChanges();
+        RaiseDashboardCardActivityPropertyChanges();
     }
 
     private void SetBluRayPlaylistLoadingState(bool value)
@@ -1288,6 +1291,7 @@ public partial class MainWindowViewModel
         _isBluRayPlaylistLoading = value;
         OnPropertyChanged(nameof(IsBluRayPlaylistLoading));
         RaiseBluRayDemuxInputPropertyChanges();
+        RaiseDashboardCardActivityPropertyChanges();
     }
 
     private void SetBluRayDemuxRunningState(bool isRunning, Guid? jobId)
@@ -1300,7 +1304,9 @@ public partial class MainWindowViewModel
         _isBluRayDemuxRunning = isRunning;
         _activeBluRayDemuxJobId = jobId;
         OnPropertyChanged(nameof(IsBluRayDemuxRunning));
+        OnPropertyChanged(nameof(HasRunningAppWork));
         RaiseBluRayDemuxInputPropertyChanges();
+        RaiseDashboardCardActivityPropertyChanges();
 
         if (isRunning)
         {
