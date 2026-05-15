@@ -369,13 +369,16 @@ public sealed partial class MainWindow : Window, ISettingsViewHost, IShellNaviga
         var deferral = e.GetDeferral();
         try
         {
-            e.AcceptedOperation = await ContainsSupportedScriptFileAsync(e.DataView)
-            ? DataPackageOperation.Copy
-            : DataPackageOperation.None;
+            var containsSupportedScript = await ContainsSupportedScriptFileAsync(e.DataView);
+            e.AcceptedOperation = containsSupportedScript
+                ? DataPackageOperation.Copy
+                : DataPackageOperation.None;
+            SetDragDropOverlayVisible(containsSupportedScript);
         }
         catch (Exception ex)
         {
             e.AcceptedOperation = DataPackageOperation.None;
+            SetDragDropOverlayVisible(false);
             _diagnostics.WriteException(
                 nameof(MainWindow),
                 "Inspect drag-over payload",
@@ -392,6 +395,8 @@ public sealed partial class MainWindow : Window, ISettingsViewHost, IShellNaviga
     {
         try
         {
+            ResetActiveDragState();
+
             if (!e.DataView.Contains(StandardDataFormats.StorageItems))
             {
                 return;
@@ -408,7 +413,6 @@ public sealed partial class MainWindow : Window, ISettingsViewHost, IShellNaviga
             }
 
             e.AcceptedOperation = DataPackageOperation.Copy;
-            ResetActiveDragState();
             await HandleExternalVapourSynthOpenAsync(file.Path);
         }
         catch (Exception ex)
@@ -1057,6 +1061,16 @@ public sealed partial class MainWindow : Window, ISettingsViewHost, IShellNaviga
     {
         _activeDragDataView = null;
         _activeDragContainsSupportedScript = null;
+        SetDragDropOverlayVisible(false);
+    }
+
+    private void SetDragDropOverlayVisible(bool isVisible)
+    {
+        var targetVisibility = isVisible ? Visibility.Visible : Visibility.Collapsed;
+        if (DragDropOverlay.Visibility != targetVisibility)
+        {
+            DragDropOverlay.Visibility = targetVisibility;
+        }
     }
 
     private async Task<bool> PersistSettingsAsync(bool refreshTemplateLibrary)

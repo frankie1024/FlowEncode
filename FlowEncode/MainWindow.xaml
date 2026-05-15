@@ -51,6 +51,46 @@
             <Grid x:Name="ShellContentHost" />
         </NavigationView>
 
+        <Grid
+            x:Name="DragDropOverlay"
+            Grid.Row="1"
+            Background="{ThemeResource AppModalSmokeBrush}"
+            Canvas.ZIndex="15"
+            IsHitTestVisible="False"
+            Visibility="Collapsed">
+            <Border
+                MaxWidth="480"
+                Padding="28"
+                HorizontalAlignment="Center"
+                VerticalAlignment="Center"
+                Background="{ThemeResource CardBrush}"
+                BorderBrush="{ThemeResource CardBorderBrush}"
+                BorderThickness="{StaticResource AppCardBorderThickness}"
+                CornerRadius="{StaticResource AppLargeCornerRadius}">
+                <StackPanel HorizontalAlignment="Center" Spacing="12">
+                    <Viewbox
+                        Width="34"
+                        Height="34"
+                        HorizontalAlignment="Center"
+                        VerticalAlignment="Center">
+                        <SymbolIcon Foreground="{ThemeResource ThemeAccentBrush}" Symbol="OpenFile" />
+                    </Viewbox>
+                    <TextBlock
+                        FontFamily="{StaticResource AppDisplayFont}"
+                        FontSize="22"
+                        FontWeight="SemiBold"
+                        Text="{x:Bind ViewModel.Texts.DragDropOverlayTitle, Mode=OneWay}"
+                        TextAlignment="Center"
+                        TextWrapping="Wrap" />
+                    <TextBlock
+                        Foreground="{ThemeResource SubtleTextBrush}"
+                        Text="{x:Bind ViewModel.Texts.DragDropOverlayHint, Mode=OneWay}"
+                        TextAlignment="Center"
+                        TextWrapping="Wrap" />
+                </StackPanel>
+            </Border>
+        </Grid>
+
         <settings:SetupGuideOverlayView
             x:Name="SetupGuideOverlay"
             DataContext="{x:Bind ViewModel.SetupGuideModule, Mode=OneWay}"

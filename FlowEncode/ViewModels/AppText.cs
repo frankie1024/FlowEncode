@@ -56,6 +56,8 @@ public sealed class AppText
     public string SupportedAudioFileTypeDescription(string pattern) => Pick($"音频文件 ({pattern})", $"Audio files ({pattern})");
     public string AllFilesTypeDescription => Pick("所有文件 (*.*)", "All files (*.*)");
     public string BrowseButton => Pick("浏览", "Browse");
+    public string DragDropOverlayTitle => Pick("拖放脚本以打开", "Drop a script to open it");
+    public string DragDropOverlayHint => Pick("支持 .vpy 和 .py 文件", "Supports .vpy and .py files");
     public string OutputHeader => Pick("输出路径", "Output");
     public string OutputDirectoryHeader => Pick("输出目录", "Output Directory");
     public string SaveAsButton => Pick("另存为", "Save as");
