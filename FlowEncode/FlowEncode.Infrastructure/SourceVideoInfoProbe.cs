@@ -10,6 +10,9 @@ namespace FlowEncode.Infrastructure;
 
 internal sealed partial class SourceVideoInfoProbe
 {
+    private static readonly TimeSpan SourceInfoProbeTimeout = TimeSpan.FromMinutes(2);
+    private static readonly TimeSpan FramePropertyProbeTimeout = TimeSpan.FromSeconds(15);
+
     private readonly ExternalToolLocator _toolLocator;
     private readonly ConcurrentDictionary<SourceVideoInfoCacheKey, Lazy<SourceVideoInfo?>> _cache = new();
 
@@ -69,7 +72,7 @@ internal sealed partial class SourceVideoInfoProbe
         {
             InputPipelineKind.VapourSynth => ProbeVapourSynth(sourcePath, progress, cancellationToken),
             InputPipelineKind.Y4mFile => ProbeY4m(sourcePath),
-            InputPipelineKind.FfmpegPipe => ProbeFfprobe(sourcePath),
+            InputPipelineKind.FfmpegPipe => ProbeFfprobe(sourcePath, cancellationToken),
             InputPipelineKind.RawYuvFile => null,
             _ => null
         };
@@ -109,82 +112,33 @@ internal sealed partial class SourceVideoInfoProbe
     private SourceVideoInfo ProbeVapourSynth(string sourcePath, Action<string>? progress, CancellationToken cancellationToken)
     {
         var executablePath = _toolLocator.ResolveVspipe();
-        var errorBuilder = new StringBuilder();
-        var errorGate = new object();
-        using var process = new Process
+        var startInfo = new ProcessStartInfo
         {
-            StartInfo = new ProcessStartInfo
-            {
-                FileName = executablePath,
-                Arguments = $"--info {Quote(sourcePath)}",
-                UseShellExecute = false,
-                RedirectStandardOutput = true,
-                RedirectStandardError = true,
-                CreateNoWindow = true
-            }
+            FileName = executablePath,
+            Arguments = $"--info {Quote(sourcePath)}",
+            UseShellExecute = false,
+            RedirectStandardOutput = true,
+            RedirectStandardError = true,
+            CreateNoWindow = true
         };
 
-        process.ErrorDataReceived += (_, e) =>
-        {
-            var normalized = ConsoleOutputLineNormalizer.Normalize(e.Data);
-            if (string.IsNullOrWhiteSpace(normalized))
-            {
-                return;
-            }
-
-            lock (errorGate)
-            {
-                if (errorBuilder.Length > 0)
-                {
-                    errorBuilder.AppendLine();
-                }
-
-                errorBuilder.Append(normalized);
-            }
-
-            progress?.Invoke(normalized);
-        };
-
-        VapourSynthRuntimePathResolver.EnrichProcessPath(process.StartInfo);
-        process.Start();
-        using var cancellationRegistration = cancellationToken.Register(state =>
-        {
-            if (state is not Process cancellableProcess)
-            {
-                return;
-            }
-
-            try
-            {
-                if (!cancellableProcess.HasExited)
-                {
-                    cancellableProcess.Kill(entireProcessTree: true);
-                }
-            }
-            catch (Exception ex)
-            {
-                Debug.WriteLine($"Failed to terminate VapourSynth probe process for '{sourcePath}'. {ex}");
-            }
-        }, process);
-
-        process.BeginErrorReadLine();
-        var output = process.StandardOutput.ReadToEnd();
-        process.WaitForExit();
+        VapourSynthRuntimePathResolver.EnrichProcessPath(startInfo);
+        var result = ProcessProbeRunner.Run(
+            startInfo,
+            SourceInfoProbeTimeout,
+            $"vspipe --info 超时，已终止源信息探测：{sourcePath}",
+            cancellationToken,
+            ConsoleOutputLineNormalizer.Normalize,
+            progress);
 
         cancellationToken.ThrowIfCancellationRequested();
-        string error;
-        lock (errorGate)
+        if (result.ExitCode != 0)
         {
-            error = errorBuilder.ToString();
+            throw new InvalidOperationException($"vspipe --info 失败：{FirstMeaningfulLine(result.StandardError)}");
         }
 
-        if (process.ExitCode != 0)
-        {
-            throw new InvalidOperationException($"vspipe --info 失败：{FirstMeaningfulLine(error)}");
-        }
-
-        var sourceInfo = ParseVspipeInfo(output);
-        return MergeVapourSynthFrameProperties(sourcePath, executablePath, sourceInfo);
+        var sourceInfo = ParseVspipeInfo(result.StandardOutput);
+        return MergeVapourSynthFrameProperties(sourcePath, executablePath, sourceInfo, cancellationToken);
     }
 
     private static SourceVideoInfo ProbeY4m(string sourcePath)
@@ -264,42 +218,41 @@ internal sealed partial class SourceVideoInfoProbe
             chromaLocation);
     }
 
-    private SourceVideoInfo ProbeFfprobe(string sourcePath)
+    private SourceVideoInfo ProbeFfprobe(string sourcePath, CancellationToken cancellationToken)
     {
         var output = RunFfprobe(
-            $"-v error -select_streams v:0 -show_entries stream=width,height,avg_frame_rate,r_frame_rate,nb_frames,pix_fmt,bits_per_raw_sample,duration,color_range,color_space,color_transfer,color_primaries,chroma_location:stream_side_data:format=duration -of json {Quote(sourcePath)}");
+            $"-v error -select_streams v:0 -show_entries stream=width,height,avg_frame_rate,r_frame_rate,nb_frames,pix_fmt,bits_per_raw_sample,duration,color_range,color_space,color_transfer,color_primaries,chroma_location:stream_side_data:format=duration -of json {Quote(sourcePath)}",
+            cancellationToken);
 
         return ParseFfprobeInfo(output);
     }
 
-    private string RunFfprobe(string arguments)
+    private string RunFfprobe(string arguments, CancellationToken cancellationToken)
     {
         var executablePath = _toolLocator.ResolveFfprobe();
-        using var process = new Process
+        var startInfo = new ProcessStartInfo
         {
-            StartInfo = new ProcessStartInfo
-            {
-                FileName = executablePath,
-                Arguments = arguments,
-                UseShellExecute = false,
-                RedirectStandardOutput = true,
-                RedirectStandardError = true,
-                CreateNoWindow = true
-            }
+            FileName = executablePath,
+            Arguments = arguments,
+            UseShellExecute = false,
+            RedirectStandardOutput = true,
+            RedirectStandardError = true,
+            CreateNoWindow = true
         };
 
-        VapourSynthRuntimePathResolver.EnrichProcessPath(process.StartInfo);
-        process.Start();
-        var output = process.StandardOutput.ReadToEnd();
-        var error = process.StandardError.ReadToEnd();
-        process.WaitForExit();
+        VapourSynthRuntimePathResolver.EnrichProcessPath(startInfo);
+        var result = ProcessProbeRunner.Run(
+            startInfo,
+            SourceInfoProbeTimeout,
+            "ffprobe 探测超时，已终止源信息探测。",
+            cancellationToken);
 
-        if (process.ExitCode != 0)
+        if (result.ExitCode != 0)
         {
-            throw new InvalidOperationException($"ffprobe 探测失败：{FirstMeaningfulLine(error)}");
+            throw new InvalidOperationException($"ffprobe 探测失败：{FirstMeaningfulLine(result.StandardError)}");
         }
 
-        return output;
+        return result.StandardOutput;
     }
 
     private static SourceVideoInfo ParseVspipeInfo(string output)
@@ -384,17 +337,19 @@ internal sealed partial class SourceVideoInfoProbe
     private static SourceVideoInfo MergeVapourSynthFrameProperties(
         string sourcePath,
         string vspipePath,
-        SourceVideoInfo sourceInfo)
+        SourceVideoInfo sourceInfo,
+        CancellationToken cancellationToken)
     {
         try
         {
+            cancellationToken.ThrowIfCancellationRequested();
             var pythonPath = ResolvePythonForVspipe(vspipePath);
             if (string.IsNullOrWhiteSpace(pythonPath))
             {
                 return sourceInfo;
             }
 
-            var output = RunVapourSynthFramePropertyProbe(pythonPath, sourcePath);
+            var output = RunVapourSynthFramePropertyProbe(pythonPath, sourcePath, cancellationToken);
             if (string.IsNullOrWhiteSpace(output))
             {
                 return sourceInfo;
@@ -411,6 +366,10 @@ internal sealed partial class SourceVideoInfoProbe
                 ColorMatrix = MapH273ColorMatrix(TryGetJsonInt(root, "_Matrix")) ?? sourceInfo.ColorMatrix,
                 ChromaLocation = MapVapourSynthChromaLocation(root) ?? sourceInfo.ChromaLocation
             };
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
         }
         catch (Exception ex)
         {
@@ -448,7 +407,10 @@ internal sealed partial class SourceVideoInfoProbe
         return null;
     }
 
-    private static string RunVapourSynthFramePropertyProbe(string pythonPath, string sourcePath)
+    private static string RunVapourSynthFramePropertyProbe(
+        string pythonPath,
+        string sourcePath,
+        CancellationToken cancellationToken)
     {
         var scriptPath = Path.Combine(Path.GetTempPath(), $"flowencode-vs-props-{Guid.NewGuid():N}.py");
 
@@ -456,32 +418,23 @@ internal sealed partial class SourceVideoInfoProbe
         {
             File.WriteAllText(scriptPath, VapourSynthFramePropertyProbeScript, Encoding.UTF8);
 
-            using var process = new Process
+            var startInfo = new ProcessStartInfo
             {
-                StartInfo = new ProcessStartInfo
-                {
-                    FileName = pythonPath,
-                    Arguments = $"{Quote(scriptPath)} {Quote(sourcePath)}",
-                    UseShellExecute = false,
-                    RedirectStandardOutput = true,
-                    RedirectStandardError = true,
-                    CreateNoWindow = true
-                }
+                FileName = pythonPath,
+                Arguments = $"{Quote(scriptPath)} {Quote(sourcePath)}",
+                UseShellExecute = false,
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+                CreateNoWindow = true
             };
 
-            VapourSynthRuntimePathResolver.EnrichProcessPath(process.StartInfo);
-            process.Start();
-            var outputTask = process.StandardOutput.ReadToEndAsync();
-            var errorTask = process.StandardError.ReadToEndAsync();
-
-            if (!process.WaitForExit(15_000))
-            {
-                process.Kill(true);
-                return string.Empty;
-            }
-
-            Task.WaitAll(outputTask, errorTask);
-            return process.ExitCode == 0 ? outputTask.Result : string.Empty;
+            VapourSynthRuntimePathResolver.EnrichProcessPath(startInfo);
+            var result = ProcessProbeRunner.Run(
+                startInfo,
+                FramePropertyProbeTimeout,
+                $"VapourSynth frame property probe timed out: {sourcePath}",
+                cancellationToken);
+            return result.ExitCode == 0 ? result.StandardOutput : string.Empty;
         }
         finally
         {
