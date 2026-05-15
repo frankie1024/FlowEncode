@@ -4,6 +4,7 @@
     x:Name="RootView"
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:shared="using:FlowEncode.Controls.Shared"
     xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
     mc:Ignorable="d">
@@ -152,8 +153,11 @@
 
                         <TextBox Header="{Binding Texts.UhdArgumentsHeader}" AcceptsReturn="True" IsEnabled="{Binding CanEditTemplateDraft}" MinHeight="88" Text="{Binding DraftUhdParameters, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" TextWrapping="Wrap" Visibility="{Binding X265UhdVisibility}" />
 
-                        <TextBlock FontFamily="{StaticResource AppDisplayFont}" FontSize="18" FontWeight="SemiBold" Text="{Binding Texts.CommandPreviewTitle}" />
-                        <TextBox MinHeight="280" FontFamily="{StaticResource AppMonoFont}" IsReadOnly="True" Text="{Binding PreviewCommandLine, Mode=OneWay}" TextWrapping="Wrap" />
+                        <shared:CommandPreviewBox
+                            Header="{Binding Texts.CommandPreviewTitle}"
+                            PreviewMinHeight="280"
+                            Text="{Binding PreviewCommandLine, Mode=OneWay}"
+                            Texts="{Binding Texts}" />
                     </StackPanel>
                 </Border>
             </Grid>

@@ -1,0 +1,58 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<UserControl
+    x:Class="FlowEncode.Controls.Shared.CommandPreviewBox"
+    x:Name="Root"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <Grid RowSpacing="6">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <Grid ColumnSpacing="12">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+
+            <TextBlock
+                FontFamily="{StaticResource AppDisplayFont}"
+                FontSize="18"
+                FontWeight="SemiBold"
+                Text="{Binding Header, ElementName=Root}"
+                TextTrimming="CharacterEllipsis" />
+
+            <Button
+                x:Name="CopyCommandButton"
+                Grid.Column="1"
+                Click="CopyCommandButton_Click">
+                <StackPanel Orientation="Horizontal" Spacing="6">
+                    <SymbolIcon Symbol="Copy" />
+                    <TextBlock x:Name="CopyCommandButtonLabelTextBlock" />
+                </StackPanel>
+            </Button>
+        </Grid>
+
+        <TextBox
+            Grid.Row="1"
+            Height="{Binding PreviewHeight, ElementName=Root}"
+            MinHeight="{Binding PreviewMinHeight, ElementName=Root}"
+            FontFamily="{StaticResource AppMonoFont}"
+            IsReadOnly="True"
+            PlaceholderText="{Binding PlaceholderText, ElementName=Root}"
+            ScrollViewer.VerticalScrollBarVisibility="Auto"
+            Text="{Binding Text, ElementName=Root, Mode=OneWay}"
+            TextWrapping="Wrap" />
+
+        <TextBlock
+            x:Name="StatusTextBlock"
+            Grid.Row="2"
+            AutomationProperties.LiveSetting="Polite"
+            FontSize="12"
+            Foreground="{ThemeResource SubtleTextBrush}"
+            TextWrapping="WrapWholeWords"
+            Visibility="Collapsed" />
+    </Grid>
+</UserControl>

@@ -31,6 +31,7 @@ public sealed class EncodingJobItemViewModel : ObservableObject
     private string _log;
     private string _logFilePath;
     private string _displayCommand;
+    private bool _isDisplayCommandResolved;
     private CancellationTokenSource? _cancellationTokenSource;
     private readonly StringBuilder _logBuilder = new();
     private string _lastMeaningfulLogLine;
@@ -85,6 +86,12 @@ public sealed class EncodingJobItemViewModel : ObservableObject
     {
         get => _displayCommand;
         private set => SetProperty(ref _displayCommand, value);
+    }
+
+    public bool IsDisplayCommandResolved
+    {
+        get => _isDisplayCommandResolved;
+        private set => SetProperty(ref _isDisplayCommandResolved, value);
     }
 
     public EncodingJobState State
@@ -330,6 +337,7 @@ public sealed class EncodingJobItemViewModel : ObservableObject
         if (!string.IsNullOrWhiteSpace(displayCommand))
         {
             DisplayCommand = displayCommand;
+            IsDisplayCommandResolved = true;
         }
     }
 

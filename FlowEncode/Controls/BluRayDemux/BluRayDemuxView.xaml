@@ -4,6 +4,7 @@
     x:Name="RootView"
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:shared="using:FlowEncode.Controls.Shared"
     xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
     mc:Ignorable="d">
@@ -218,8 +219,11 @@
                             </StackPanel>
                         </Border>
 
-                        <TextBlock FontFamily="{StaticResource AppDisplayFont}" FontSize="18" FontWeight="SemiBold" Text="{Binding Texts.BluRayDemuxCommandTitle}" />
-                        <TextBox MinHeight="120" FontFamily="{StaticResource AppMonoFont}" IsReadOnly="True" PlaceholderText="{Binding Texts.BluRayDemuxCommandPlaceholder}" Text="{Binding BluRayDemuxCommandLine}" TextWrapping="Wrap" />
+                        <shared:CommandPreviewBox
+                            Header="{Binding Texts.BluRayDemuxCommandTitle}"
+                            PlaceholderText="{Binding Texts.BluRayDemuxCommandPlaceholder}"
+                            Text="{Binding BluRayDemuxCommandLine}"
+                            Texts="{Binding Texts}" />
 
                         <TextBlock FontFamily="{StaticResource AppDisplayFont}" FontSize="18" FontWeight="SemiBold" Text="{Binding Texts.BluRayDemuxLogTitle}" />
                         <TextBox Height="360" FontFamily="{StaticResource AppMonoFont}" IsReadOnly="True" PlaceholderText="{Binding Texts.BluRayDemuxLogPlaceholder}" ScrollViewer.VerticalScrollBarVisibility="Auto" Text="{Binding BluRayDemuxLog}" TextWrapping="Wrap" />

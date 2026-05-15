@@ -908,6 +908,10 @@ public partial class MainWindowViewModel : CommunityToolkit.Mvvm.ComponentModel.
         ? Texts.QueueBatchSelectionCommandText
         : SelectedJob?.DisplayCommand ?? Texts.SelectJobForCommandText;
 
+    internal bool CanCopySelectedJobCommand => !IsQueueBatchSelectionActive
+        && SelectedJob?.IsDisplayCommandResolved == true
+        && !string.IsNullOrWhiteSpace(SelectedJob.DisplayCommand);
+
     internal string SelectedJobLogText => IsQueueBatchSelectionActive
         ? Texts.QueueBatchSelectionLogText
         : SelectedJob is null
@@ -3583,7 +3587,9 @@ public partial class MainWindowViewModel : CommunityToolkit.Mvvm.ComponentModel.
                 break;
 
             case nameof(EncodingJobItemViewModel.DisplayCommand):
+            case nameof(EncodingJobItemViewModel.IsDisplayCommandResolved):
                 OnPropertyChanged(nameof(SelectedJobCommandText));
+                OnPropertyChanged(nameof(CanCopySelectedJobCommand));
                 break;
 
             case nameof(EncodingJobItemViewModel.ProgressValue):
@@ -3659,6 +3665,7 @@ public partial class MainWindowViewModel : CommunityToolkit.Mvvm.ComponentModel.
         OnPropertyChanged(nameof(SelectedJobSummary));
         RaiseSelectedJobProgressMetricPropertyChanges();
         OnPropertyChanged(nameof(SelectedJobCommandText));
+        OnPropertyChanged(nameof(CanCopySelectedJobCommand));
         OnPropertyChanged(nameof(SelectedJobLogText));
     }
 

@@ -4,6 +4,7 @@
     x:Name="RootView"
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:shared="using:FlowEncode.Controls.Shared"
     xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
     mc:Ignorable="d">
@@ -463,7 +464,14 @@
                                     </Grid>
                                 </Border>
 
-                                <TextBox Grid.Row="2" Height="72" FontFamily="{StaticResource AppMonoFont}" IsReadOnly="True" ScrollViewer.VerticalScrollBarVisibility="Auto" Text="{Binding SelectedJobCommandText}" TextWrapping="Wrap" />
+                                <shared:CommandPreviewBox
+                                    Grid.Row="2"
+                                    Header="{Binding Texts.CommandPreviewTitle}"
+                                    IsCopyEnabled="{Binding CanCopySelectedJobCommand}"
+                                    PreviewHeight="72"
+                                    PreviewMinHeight="72"
+                                    Text="{Binding SelectedJobCommandText}"
+                                    Texts="{Binding Texts}" />
 
                                 <TextBox Grid.Row="3" Height="180" FontFamily="{StaticResource AppMonoFont}" IsReadOnly="True" ScrollViewer.VerticalScrollBarVisibility="Auto" Text="{Binding SelectedJobLogText}" TextWrapping="Wrap" />
                             </Grid>

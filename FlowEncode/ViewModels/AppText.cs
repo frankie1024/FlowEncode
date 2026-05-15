@@ -99,6 +99,11 @@ public sealed class AppText
         "请先选择一个有效模板并填写模板名称，然后再导出。",
         "Select a valid template and provide a template name before exporting.");
     public string CommandPreviewTitle => Pick("命令预览", "Command Preview");
+    public string CommandPreviewCopyButton => Pick("复制命令", "Copy Command");
+    public string CommandPreviewCopiedStatus => Pick("命令已复制。", "Command copied.");
+    public string CommandPreviewCopyUnavailableStatus => Pick("当前没有可复制的命令。", "No command is available to copy.");
+    public string CommandPreviewCopyFailedStatus(string detail) =>
+        IsChinese ? $"复制命令失败：{detail}" : $"Copying the command failed: {detail}";
     public string QueueTitle => Pick("任务队列", "Queue");
     public string QueueTaskColumn => Pick("任务", "Job");
     public string QueueCodecCrfColumn => Pick("编码 / CRF", "Codec / CRF");
