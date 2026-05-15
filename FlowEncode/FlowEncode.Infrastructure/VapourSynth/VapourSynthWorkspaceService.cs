@@ -181,19 +181,13 @@ public sealed class VapourSynthWorkspaceService : IVapourSynthWorkspaceService, 
         await _sessionFileGate.WaitAsync(cancellationToken);
         try
         {
-            Directory.CreateDirectory(_sessionRootPath);
-            var tempPath = _sessionPath + ".tmp";
-
-            try
-            {
-                cancellationToken.ThrowIfCancellationRequested();
-                await File.WriteAllTextAsync(tempPath, json, new UTF8Encoding(false), cancellationToken);
-                File.Move(tempPath, _sessionPath, true);
-            }
-            finally
-            {
-                TryDeleteTemporarySessionFile(tempPath);
-            }
+            cancellationToken.ThrowIfCancellationRequested();
+            await PersistentFileWriter.WriteAllTextAsync(
+                _sessionPath,
+                json,
+                new UTF8Encoding(encoderShouldEmitUTF8Identifier: false),
+                cancellationToken,
+                WriteDiagnostic);
         }
         finally
         {
@@ -238,21 +232,6 @@ public sealed class VapourSynthWorkspaceService : IVapourSynthWorkspaceService, 
         }
 
         return Path.Combine(_sessionRootPath, $"{fileName}.broken-{Guid.NewGuid():N}");
-    }
-
-    private void TryDeleteTemporarySessionFile(string path)
-    {
-        try
-        {
-            if (File.Exists(path))
-            {
-                File.Delete(path);
-            }
-        }
-        catch (Exception ex)
-        {
-            WriteDiagnostic($"Failed to delete temporary workspace session file '{path}'. {ex.GetType().Name}: {ex.Message}");
-        }
     }
 
     private void WriteDiagnostic(string message)

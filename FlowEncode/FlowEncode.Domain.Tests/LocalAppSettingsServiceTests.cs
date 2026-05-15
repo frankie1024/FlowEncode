@@ -39,8 +39,49 @@ public sealed class LocalAppSettingsServiceTests
         service.Save(settings);
 
         Assert.IsTrue(File.Exists(paths.SettingsPath));
-        Assert.AreEqual(settings, service.Load());
+        var loaded = new LocalAppSettingsService(paths).Load();
+        Assert.AreEqual(settings.WorkspaceRootPath, loaded.WorkspaceRootPath);
+        Assert.AreEqual(settings.AutoCheckUpdatesOnStartup, loaded.AutoCheckUpdatesOnStartup);
         Assert.IsFalse(File.Exists(paths.SettingsPath + ".tmp"));
+        AssertNoTemporaryFiles(paths.SettingsPath);
+    }
+
+    [TestMethod]
+    public void Save_WhenExistingSettingsFileIsLocked_PreservesExistingSettings()
+    {
+        var paths = CreatePaths();
+        var service = new LocalAppSettingsService(paths);
+        var oldSettings = AppSettings.Default with
+        {
+            WorkspaceRootPath = @"D:\workspace\old"
+        };
+        var newSettings = oldSettings with
+        {
+            WorkspaceRootPath = @"D:\workspace\new"
+        };
+        service.Save(oldSettings);
+
+        Exception? exception = null;
+        using (File.Open(paths.SettingsPath, FileMode.Open, FileAccess.Read, FileShare.None))
+        {
+            try
+            {
+                service.Save(newSettings);
+            }
+            catch (Exception ex)
+            {
+                exception = ex;
+            }
+        }
+
+        Assert.IsNotNull(exception);
+        Assert.IsTrue(
+            exception is IOException or UnauthorizedAccessException,
+            $"Unexpected exception type: {exception.GetType().FullName}");
+        AssertNoTemporaryFiles(paths.SettingsPath);
+        var loaded = new LocalAppSettingsService(paths).Load();
+        Assert.AreEqual(oldSettings.WorkspaceRootPath, loaded.WorkspaceRootPath);
+        Assert.AreNotEqual(newSettings.WorkspaceRootPath, loaded.WorkspaceRootPath);
     }
 
     [TestMethod]
@@ -62,6 +103,13 @@ public sealed class LocalAppSettingsServiceTests
         Assert.AreEqual(backupFiles[0], recoveryInfo.BackupPath);
         Assert.IsFalse(File.Exists(paths.SettingsPath));
         Assert.IsNull(service.ConsumeLastLoadRecoveryInfo());
+    }
+
+    private void AssertNoTemporaryFiles(string targetPath)
+    {
+        var directory = Path.GetDirectoryName(targetPath)!;
+        var pattern = $".{Path.GetFileName(targetPath)}.*.tmp";
+        Assert.AreEqual(0, Directory.GetFiles(directory, pattern).Length);
     }
 
     private LocalAppPaths CreatePaths()

@@ -46,6 +46,50 @@ public sealed class VapourSynthWorkspaceServiceTests
         Assert.AreEqual(session.ActivePane, loaded.ActivePane);
         CollectionAssert.AreEqual(session.Tabs.ToArray(), loaded.Tabs.ToArray());
         Assert.IsFalse(File.Exists(sessionPath + ".tmp"));
+        AssertNoTemporaryFiles(sessionPath);
+    }
+
+    [TestMethod]
+    public async Task SaveSessionAsync_WhenExistingSessionFileIsLocked_PreservesExistingSession()
+    {
+        var paths = CreatePaths();
+        using var service = new VapourSynthWorkspaceService(paths);
+        var oldSession = CreateSession();
+        var newSession = new VapourSynthWorkspaceSession(
+            oldSession.Tabs,
+            oldSession.ActiveTabId,
+            oldSession.RightTabId,
+            oldSession.LeftTabId,
+            false,
+            oldSession.ActivePane);
+        await service.SaveSessionAsync(oldSession);
+        var sessionPath = GetSessionPath(paths);
+
+        Exception? exception = null;
+        using (File.Open(sessionPath, FileMode.Open, FileAccess.Read, FileShare.None))
+        {
+            try
+            {
+                await service.SaveSessionAsync(newSession);
+            }
+            catch (Exception ex)
+            {
+                exception = ex;
+            }
+        }
+
+        Assert.IsNotNull(exception);
+        Assert.IsTrue(
+            exception is IOException or UnauthorizedAccessException,
+            $"Unexpected exception type: {exception.GetType().FullName}");
+        AssertNoTemporaryFiles(sessionPath);
+
+        using var reloadedService = new VapourSynthWorkspaceService(paths);
+        var loaded = await reloadedService.LoadSessionAsync();
+        Assert.IsNotNull(loaded);
+        Assert.AreEqual(oldSession.LeftTabId, loaded.LeftTabId);
+        Assert.AreEqual(oldSession.RightTabId, loaded.RightTabId);
+        Assert.AreEqual(oldSession.IsCompareMode, loaded.IsCompareMode);
     }
 
     [TestMethod]
@@ -69,6 +113,13 @@ public sealed class VapourSynthWorkspaceServiceTests
     private LocalAppPaths CreatePaths()
     {
         return new LocalAppPaths(_workspaceRoot!, _workspaceRoot!);
+    }
+
+    private static void AssertNoTemporaryFiles(string targetPath)
+    {
+        var directory = Path.GetDirectoryName(targetPath)!;
+        var pattern = $".{Path.GetFileName(targetPath)}.*.tmp";
+        Assert.AreEqual(0, Directory.GetFiles(directory, pattern).Length);
     }
 
     private static string GetSessionPath(LocalAppPaths paths)

@@ -1,3 +1,4 @@
+using System.Text;
 using System.Text.Json;
 using FlowEncode.Application;
 using FlowEncode.Domain;
@@ -61,17 +62,11 @@ public sealed class LocalAppSettingsService : IAppSettingsService
     {
         lock (_gate)
         {
-            Directory.CreateDirectory(Path.GetDirectoryName(_paths.SettingsPath) ?? _paths.SettingsRootPath);
-            var tempPath = _paths.SettingsPath + ".tmp";
-            try
-            {
-                File.WriteAllText(tempPath, JsonSerializer.Serialize(settings, JsonOptions));
-                File.Move(tempPath, _paths.SettingsPath, true);
-            }
-            finally
-            {
-                TryDeleteTemporarySettingsFile(tempPath);
-            }
+            PersistentFileWriter.WriteAllText(
+                _paths.SettingsPath,
+                JsonSerializer.Serialize(settings, JsonOptions),
+                new UTF8Encoding(encoderShouldEmitUTF8Identifier: false),
+                message => AppDiagnosticsLog.Write(_paths, nameof(LocalAppSettingsService), message));
 
             _cache = settings;
         }
@@ -136,20 +131,6 @@ public sealed class LocalAppSettingsService : IAppSettingsService
         return Path.Combine(directory, $"{fileName}.broken-{Guid.NewGuid():N}");
     }
 
-    private void TryDeleteTemporarySettingsFile(string path)
-    {
-        try
-        {
-            if (File.Exists(path))
-            {
-                File.Delete(path);
-            }
-        }
-        catch (Exception ex)
-        {
-            AppDiagnosticsLog.Write(_paths, nameof(LocalAppSettingsService), $"Failed to delete temporary settings file '{path}'. {ex.GetType().Name}: {ex.Message}");
-        }
-    }
 }
 
 public sealed record SettingsLoadRecoveryInfo(

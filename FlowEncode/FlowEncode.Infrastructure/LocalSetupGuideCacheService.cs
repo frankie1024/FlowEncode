@@ -1,3 +1,4 @@
+using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using FlowEncode.Application;
@@ -73,32 +74,15 @@ public sealed class LocalSetupGuideCacheService : ISetupGuideCacheService
     {
         lock (_gate)
         {
-            Directory.CreateDirectory(Path.GetDirectoryName(_paths.SetupGuideCachePath) ?? _paths.SettingsRootPath);
-            var tempPath = _paths.SetupGuideCachePath + ".tmp";
-            try
-            {
-                File.WriteAllText(tempPath, JsonSerializer.Serialize(snapshot, JsonOptions));
-                File.Move(tempPath, _paths.SetupGuideCachePath, true);
-            }
-            finally
-            {
-                try
-                {
-                    if (File.Exists(tempPath))
-                    {
-                        File.Delete(tempPath);
-                    }
-                }
-                catch (Exception ex)
-                {
-                    AppDiagnosticsLog.Write(
-                        _paths,
-                        nameof(LocalSetupGuideCacheService),
-                        $"Failed to delete temporary setup guide cache '{tempPath}'. {ex.GetType().Name}: {ex.Message}",
-                        AppDiagnosticSeverity.Warning,
-                        exception: ex);
-                }
-            }
+            PersistentFileWriter.WriteAllText(
+                _paths.SetupGuideCachePath,
+                JsonSerializer.Serialize(snapshot, JsonOptions),
+                new UTF8Encoding(encoderShouldEmitUTF8Identifier: false),
+                message => AppDiagnosticsLog.Write(
+                    _paths,
+                    nameof(LocalSetupGuideCacheService),
+                    message,
+                    AppDiagnosticSeverity.Warning));
 
             _cache = snapshot;
             _isLoaded = true;
