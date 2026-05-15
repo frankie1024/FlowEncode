@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Runtime.InteropServices;
 
 namespace FlowEncode.Infrastructure;
@@ -42,8 +43,9 @@ internal static class ErrorDialogSuppression
                     return;
                 }
             }
-            catch
+            catch (Exception ex)
             {
+                Debug.WriteLine($"Failed to set thread error mode. {ex}");
             }
 
             try
@@ -76,8 +78,9 @@ internal static class ErrorDialogSuppression
                     _ = SetErrorMode(_oldMode);
                 }
             }
-            catch
+            catch (Exception ex)
             {
+                Debug.WriteLine($"Failed to restore process error mode. {ex}");
             }
         }
     }

@@ -2,6 +2,7 @@ using System;
 using System.Diagnostics;
 using System.IO;
 using System.Threading.Tasks;
+using FlowEncode.Application;
 using FlowEncode.Domain;
 using FlowEncode.Infrastructure;
 using FlowEncode.ViewModels;
@@ -207,11 +208,11 @@ internal static class SetupDependencyInteractionHelper
     {
         try
         {
-            var paths = App.GetService<LocalAppPaths>();
-            AppDiagnosticsLog.Write(paths, source, message);
+            App.GetService<IAppDiagnostics>().Write(source, message);
         }
-        catch
+        catch (Exception ex)
         {
+            Debug.WriteLine($"Failed to write setup dependency diagnostic. {ex}");
         }
     }
 

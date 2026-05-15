@@ -241,8 +241,9 @@ public sealed class LocalEncodingJobRunner : IEncodingJobRunner
                             process.WaitForExit(2000);
                         }
                     }
-                    catch
+                    catch (Exception ex)
                     {
+                        WriteDiagnostic($"Encoding job {request.JobId}: failed to terminate encoder after source start failure. {ex.GetType().Name}: {ex.Message}");
                     }
 
                     sourceProcess?.Dispose();
@@ -491,8 +492,9 @@ public sealed class LocalEncodingJobRunner : IEncodingJobRunner
             {
                 activeExecution?.Terminate();
             }
-            catch
+            catch (Exception ex)
             {
+                WriteDiagnostic($"Encoding job {request.JobId}: failed to terminate active execution after cancellation. {ex.GetType().Name}: {ex.Message}");
             }
 
             progress?.Report(new EncodingJobProgress(
@@ -510,6 +512,7 @@ public sealed class LocalEncodingJobRunner : IEncodingJobRunner
             }
             catch (OperationCanceledException)
             {
+                // Expected while draining cancelled process output.
             }
 
             await CloseRawLogWriterAsync();
@@ -2146,8 +2149,9 @@ public sealed class LocalEncodingJobRunner : IEncodingJobRunner
             {
                 await destination.DisposeAsync();
             }
-            catch
+            catch (Exception ex)
             {
+                Debug.WriteLine($"Failed to dispose encoding pipe destination. {ex}");
             }
         }
     }
@@ -2435,7 +2439,7 @@ public sealed class LocalEncodingJobRunner : IEncodingJobRunner
             WriteDiagnostic);
     }
 
-    private static void CleanupPlanArtifacts(EncodingExecutionPlan? plan)
+    private void CleanupPlanArtifacts(EncodingExecutionPlan? plan)
     {
         if (plan?.CleanupPaths is null)
         {
@@ -2451,8 +2455,9 @@ public sealed class LocalEncodingJobRunner : IEncodingJobRunner
                     File.Delete(path);
                 }
             }
-            catch
+            catch (Exception ex)
             {
+                WriteDiagnostic($"Failed to delete cleanup path '{path}'. {ex.GetType().Name}: {ex.Message}");
             }
         }
     }

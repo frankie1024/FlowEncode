@@ -1,3 +1,5 @@
+using System.Diagnostics;
+
 namespace FlowEncode.Infrastructure;
 
 internal static class ManagedDirectoryInstaller
@@ -76,8 +78,9 @@ internal static class ManagedDirectoryInstaller
                 {
                     Directory.Move(backupDirectory, normalizedTarget);
                 }
-                catch
+                catch (Exception ex)
                 {
+                    Debug.WriteLine($"Failed to restore backup directory '{backupDirectory}' to '{normalizedTarget}'. {ex}");
                 }
             }
 
@@ -118,8 +121,9 @@ internal static class ManagedDirectoryInstaller
                 Directory.Delete(directory, true);
             }
         }
-        catch
+        catch (Exception ex)
         {
+            Debug.WriteLine($"Failed to delete temporary directory '{directory}'. {ex}");
         }
     }
 }

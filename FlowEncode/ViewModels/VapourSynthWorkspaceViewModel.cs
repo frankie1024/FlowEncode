@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
+using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Threading;
@@ -762,9 +763,11 @@ public sealed class VapourSynthWorkspaceViewModel : ObservableObject
         }
         catch (OperationCanceledException)
         {
+            // Expected when another session save supersedes this delayed save.
         }
-        catch
+        catch (Exception ex)
         {
+            Debug.WriteLine($"Failed to persist VapourSynth workspace session. {ex}");
         }
     }
 

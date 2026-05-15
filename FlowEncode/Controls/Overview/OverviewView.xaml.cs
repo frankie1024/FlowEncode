@@ -4,8 +4,8 @@ using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
+using FlowEncode.Application;
 using FlowEncode.Domain;
-using FlowEncode.Infrastructure;
 using FlowEncode.ViewModels;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
@@ -998,11 +998,11 @@ public sealed partial class OverviewView : UserControl
     {
         try
         {
-            var paths = App.GetService<LocalAppPaths>();
-            AppDiagnosticsLog.Write(paths, nameof(OverviewView), message);
+            App.GetService<IAppDiagnostics>().Write(nameof(OverviewView), message);
         }
-        catch
+        catch (Exception ex)
         {
+            Debug.WriteLine($"Failed to write overview diagnostic. {ex}");
         }
     }
 

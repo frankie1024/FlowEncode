@@ -1,9 +1,10 @@
 using System;
+using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
+using FlowEncode.Application;
 using FlowEncode.Domain;
-using FlowEncode.Infrastructure;
 using FlowEncode.ViewModels;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
@@ -558,11 +559,11 @@ public sealed partial class TemplatesView : UserControl
     {
         try
         {
-            var paths = App.GetService<LocalAppPaths>();
-            AppDiagnosticsLog.Write(paths, nameof(TemplatesView), message);
+            App.GetService<IAppDiagnostics>().Write(nameof(TemplatesView), message);
         }
-        catch
+        catch (Exception ex)
         {
+            Debug.WriteLine($"Failed to write templates diagnostic. {ex}");
         }
     }
 

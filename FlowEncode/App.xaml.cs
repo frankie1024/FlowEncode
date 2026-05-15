@@ -5,6 +5,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Windows.AppLifecycle;
 using Microsoft.UI.Xaml;
 using System;
+using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.IO.Pipes;
@@ -44,6 +45,20 @@ public partial class App : Microsoft.UI.Xaml.Application
 
     protected override async void OnLaunched(Microsoft.UI.Xaml.LaunchActivatedEventArgs args)
     {
+        try
+        {
+            await LaunchAsync();
+        }
+        catch (Exception ex)
+        {
+            TryWriteAppExceptionDiagnostic("Launch application", ex, AppDiagnosticSeverity.Critical);
+            TryWriteExceptionFile("startup-crash.log", ex, "startup crash");
+            throw;
+        }
+    }
+
+    private async Task LaunchAsync()
+    {
         TrySetProcessAppUserModelId();
 
         if (!await TryConfigureSingleInstanceAsync())
@@ -63,7 +78,7 @@ public partial class App : Microsoft.UI.Xaml.Application
         }
         catch (Exception ex)
         {
-            WriteLifecycleDiagnostic($"Failed to register .vpy ShellNew menu. {ex.GetType().Name}: {ex.Message}");
+            TryWriteAppExceptionDiagnostic("Register .vpy ShellNew menu", ex, AppDiagnosticSeverity.Warning);
         }
 
         _window.Activate();
@@ -71,20 +86,8 @@ public partial class App : Microsoft.UI.Xaml.Application
 
     private void App_UnhandledException(object sender, Microsoft.UI.Xaml.UnhandledExceptionEventArgs e)
     {
-        try
-        {
-            var paths = _services.GetService<LocalAppPaths>();
-            var crashRoot = paths?.LogsRootPath
-                ?? GetFallbackCrashRoot();
-            var crashPath = Path.Combine(crashRoot, "startup-crash.log");
-
-            Directory.CreateDirectory(Path.GetDirectoryName(crashPath)!);
-            File.WriteAllText(crashPath, e.Exception.ToString());
-        }
-        catch (Exception ex)
-        {
-            Debug.WriteLine($"Failed to persist startup crash log. {ex}");
-        }
+        TryWriteAppExceptionDiagnostic("Unhandled XAML exception", e.Exception, AppDiagnosticSeverity.Critical);
+        TryWriteExceptionFile("startup-crash.log", e.Exception, "startup crash");
     }
 
     private static ServiceProvider BuildServices()
@@ -92,6 +95,7 @@ public partial class App : Microsoft.UI.Xaml.Application
         var services = new ServiceCollection();
 
         services.AddSingleton<LocalAppPaths>();
+        services.AddSingleton<IAppDiagnostics, LocalAppDiagnostics>();
         services.AddSingleton<AppLaunchActivation>();
         services.AddSingleton<LocalAppSettingsService>();
         services.AddSingleton<IAppSettingsService>(static provider => provider.GetRequiredService<LocalAppSettingsService>());
@@ -151,14 +155,14 @@ public partial class App : Microsoft.UI.Xaml.Application
 
     private void TrySetProcessAppUserModelId()
     {
-        try
-        {
-            SetCurrentProcessExplicitAppUserModelID(AppUserModelId);
-        }
-        catch (Exception ex)
-        {
-            WriteLifecycleDiagnostic($"Failed to set AppUserModelID '{AppUserModelId}'. {ex.GetType().Name}: {ex.Message}");
-        }
+        _services
+            .GetRequiredService<IAppDiagnostics>()
+            .TryRun(
+                nameof(App),
+                "Set process AppUserModelID",
+                () => SetCurrentProcessExplicitAppUserModelID(AppUserModelId),
+                AppDiagnosticSeverity.Warning,
+                DiagnosticContext(("appUserModelId", AppUserModelId)));
     }
 
     private static string? ResolveRequestedVapourSynthFilePath()
@@ -177,7 +181,13 @@ public partial class App : Microsoft.UI.Xaml.Application
         }
 
         _singleInstancePipeCancellationTokenSource = new CancellationTokenSource();
-        _singleInstancePipeServerTask = RunSingleInstancePipeServerAsync(_singleInstancePipeCancellationTokenSource.Token);
+        _singleInstancePipeServerTask = _services
+            .GetRequiredService<IAppDiagnostics>()
+            .RunLoggedAsync(
+                nameof(App),
+                "Run single-instance pipe server",
+                () => RunSingleInstancePipeServerAsync(_singleInstancePipeCancellationTokenSource.Token),
+                AppDiagnosticSeverity.Error);
     }
 
     private void ShutdownServices()
@@ -204,7 +214,8 @@ public partial class App : Microsoft.UI.Xaml.Application
         }
         catch (Exception ex)
         {
-            TryWriteShutdownErrorLog(ex);
+            TryWriteAppExceptionDiagnostic("Dispose application services", ex, AppDiagnosticSeverity.Error);
+            TryWriteExceptionFile("shutdown-error.log", ex, "shutdown error");
         }
     }
 
@@ -224,7 +235,10 @@ public partial class App : Microsoft.UI.Xaml.Application
         }
         catch (ObjectDisposedException ex)
         {
-            WriteLifecycleDiagnostic($"Single-instance pipe cancellation source was already disposed during shutdown. {ex.GetType().Name}: {ex.Message}");
+            TryWriteAppExceptionDiagnostic(
+                "Cancel single-instance pipe server",
+                ex,
+                AppDiagnosticSeverity.Warning);
         }
 
         var pipeServerTask = _singleInstancePipeServerTask;
@@ -267,7 +281,7 @@ public partial class App : Microsoft.UI.Xaml.Application
             }
             catch (Exception ex)
             {
-                TryWriteActivationErrorLog(ex);
+                TryWriteActivationErrorLog(ex, "Receive single-instance activation request");
 
                 try
                 {
@@ -292,7 +306,13 @@ public partial class App : Microsoft.UI.Xaml.Application
         {
             if (_window is MainWindow windowToActivate)
             {
-                windowToActivate.DispatcherQueue.TryEnqueue(windowToActivate.BringToFront);
+                if (!windowToActivate.DispatcherQueue.TryEnqueue(windowToActivate.BringToFront))
+                {
+                    WriteLifecycleDiagnostic(
+                        "Failed to enqueue single-instance activation request.",
+                        AppDiagnosticSeverity.Warning,
+                        DiagnosticContext(("payload", pipePayload)));
+                }
             }
 
             return;
@@ -310,25 +330,32 @@ public partial class App : Microsoft.UI.Xaml.Application
             return;
         }
 
-        mainWindow.DispatcherQueue.TryEnqueue(async () =>
+        if (!mainWindow.DispatcherQueue.TryEnqueue(() =>
         {
-            try
-            {
-                await mainWindow.HandleExternalVapourSynthOpenAsync(filePath);
-            }
-            catch (Exception ex)
-            {
-                TryWriteActivationErrorLog(ex);
-            }
-        });
+            _services
+                .GetRequiredService<IAppDiagnostics>()
+                .RunFireAndForget(
+                    nameof(App),
+                    "Handle external VapourSynth open request",
+                    () => mainWindow.HandleExternalVapourSynthOpenAsync(filePath),
+                    AppDiagnosticSeverity.Error,
+                    DiagnosticContext(("filePath", filePath)));
+        }))
+        {
+            WriteLifecycleDiagnostic(
+                "Failed to enqueue external VapourSynth open request.",
+                AppDiagnosticSeverity.Warning,
+                DiagnosticContext(("filePath", filePath)));
+        }
     }
 
-    private static async Task TrySendExternalOpenRequestAsync(string? filePath)
+    private async Task TrySendExternalOpenRequestAsync(string? filePath)
     {
         var normalizedPath = AppLaunchActivation.NormalizeSupportedScriptPath(filePath);
         var pipePayload = string.IsNullOrWhiteSpace(normalizedPath)
             ? SingleInstanceActivateMessage
             : normalizedPath;
+        Exception? lastException = null;
 
         for (var attempt = 0; attempt < 20; attempt++)
         {
@@ -350,72 +377,46 @@ public partial class App : Microsoft.UI.Xaml.Application
                 await writer.WriteAsync(pipePayload);
                 return;
             }
-            catch (TimeoutException)
+            catch (TimeoutException ex)
             {
+                lastException = ex;
                 await Task.Delay(150);
             }
-            catch (IOException)
+            catch (IOException ex)
             {
+                lastException = ex;
                 await Task.Delay(150);
             }
         }
 
-        TryWriteSecondaryActivationDiagnostic(
-            $"Failed to forward single-instance activation request to main instance after 20 attempts. Payload='{pipePayload}'.");
+        var context = DiagnosticContext(("payload", pipePayload));
+        if (lastException is not null)
+        {
+            TryWriteAppExceptionDiagnostic(
+                "Forward single-instance activation request",
+                lastException,
+                AppDiagnosticSeverity.Warning,
+                context);
+        }
+        else
+        {
+            WriteLifecycleDiagnostic(
+                "Failed to forward single-instance activation request to main instance after 20 attempts.",
+                AppDiagnosticSeverity.Warning,
+                context);
+        }
     }
 
-    private void TryWriteActivationErrorLog(Exception exception)
+    private void TryWriteActivationErrorLog(Exception exception, string operationName)
     {
-        try
-        {
-            var paths = _services.GetService<LocalAppPaths>();
-            var crashRoot = paths?.LogsRootPath
-                ?? GetFallbackCrashRoot();
-            var crashPath = Path.Combine(crashRoot, "activation-error.log");
-
-            Directory.CreateDirectory(Path.GetDirectoryName(crashPath)!);
-            File.WriteAllText(crashPath, exception.ToString());
-        }
-        catch (Exception ex)
-        {
-            Debug.WriteLine($"Failed to persist activation error log. {ex}");
-        }
+        TryWriteAppExceptionDiagnostic(operationName, exception, AppDiagnosticSeverity.Error);
+        TryWriteExceptionFile("activation-error.log", exception, "activation error");
     }
 
-    private void WriteLifecycleDiagnostic(string message)
-    {
-        try
-        {
-            var paths = _services.GetService<LocalAppPaths>();
-            if (paths is not null)
-            {
-                AppDiagnosticsLog.Write(paths, nameof(App), message);
-                return;
-            }
-        }
-        catch (Exception ex)
-        {
-            Debug.WriteLine($"Failed to write lifecycle diagnostic. {ex}");
-        }
-
-        TryWriteShutdownErrorLog(new InvalidOperationException(message));
-    }
-
-    private static void TryWriteShutdownErrorLog(Exception exception)
-    {
-        try
-        {
-            var crashPath = Path.Combine(GetFallbackCrashRoot(), "shutdown-error.log");
-            Directory.CreateDirectory(Path.GetDirectoryName(crashPath)!);
-            File.WriteAllText(crashPath, exception.ToString());
-        }
-        catch (Exception ex)
-        {
-            Debug.WriteLine($"Failed to persist shutdown error log. {ex}");
-        }
-    }
-
-    private static void TryWriteSecondaryActivationDiagnostic(string message)
+    private void WriteLifecycleDiagnostic(
+        string message,
+        AppDiagnosticSeverity severity = AppDiagnosticSeverity.Information,
+        IReadOnlyDictionary<string, string?>? context = null)
     {
         if (string.IsNullOrWhiteSpace(message))
         {
@@ -424,7 +425,79 @@ public partial class App : Microsoft.UI.Xaml.Application
 
         try
         {
-            var crashPath = Path.Combine(GetFallbackCrashRoot(), "activation-error.log");
+            var diagnostics = _services.GetService<IAppDiagnostics>();
+            if (diagnostics is not null)
+            {
+                diagnostics.Write(nameof(App), message, severity, context);
+                return;
+            }
+        }
+        catch (Exception ex)
+        {
+            Debug.WriteLine($"Failed to write lifecycle diagnostic. {ex}");
+        }
+
+        TryWriteMessageFile("diagnostics-fallback.log", message, "lifecycle diagnostic");
+    }
+
+    private void TryWriteAppExceptionDiagnostic(
+        string operationName,
+        Exception exception,
+        AppDiagnosticSeverity severity,
+        IReadOnlyDictionary<string, string?>? context = null)
+    {
+        try
+        {
+            var diagnostics = _services.GetService<IAppDiagnostics>();
+            if (diagnostics is not null)
+            {
+                diagnostics.WriteException(nameof(App), operationName, exception, severity, context);
+                return;
+            }
+        }
+        catch (Exception ex)
+        {
+            Debug.WriteLine($"Failed to write app exception diagnostic. {ex}");
+        }
+
+        TryWriteExceptionFile("diagnostics-fallback.log", exception, operationName);
+    }
+
+    private static IReadOnlyDictionary<string, string?> DiagnosticContext(params (string Key, string? Value)[] fields)
+    {
+        var context = new Dictionary<string, string?>(StringComparer.Ordinal);
+        foreach (var field in fields)
+        {
+            if (!string.IsNullOrWhiteSpace(field.Key))
+            {
+                context[field.Key] = field.Value;
+            }
+        }
+
+        return context;
+    }
+
+    private static void TryWriteExceptionFile(string fileName, Exception exception, string description)
+    {
+        try
+        {
+            var crashPath = Path.Combine(GetFallbackCrashRoot(), fileName);
+            Directory.CreateDirectory(Path.GetDirectoryName(crashPath)!);
+            File.AppendAllText(
+                crashPath,
+                $"[{DateTimeOffset.Now:yyyy-MM-dd HH:mm:ss zzz}] {description}{Environment.NewLine}{exception}{Environment.NewLine}");
+        }
+        catch (Exception ex)
+        {
+            Debug.WriteLine($"Failed to persist {description} log. {ex}");
+        }
+    }
+
+    private static void TryWriteMessageFile(string fileName, string message, string description)
+    {
+        try
+        {
+            var crashPath = Path.Combine(GetFallbackCrashRoot(), fileName);
             Directory.CreateDirectory(Path.GetDirectoryName(crashPath)!);
             File.AppendAllText(
                 crashPath,
@@ -432,7 +505,7 @@ public partial class App : Microsoft.UI.Xaml.Application
         }
         catch (Exception ex)
         {
-            Debug.WriteLine($"Failed to persist secondary activation diagnostic. {ex}");
+            Debug.WriteLine($"Failed to persist {description} log. {ex}");
         }
     }
 

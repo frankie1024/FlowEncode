@@ -242,8 +242,13 @@ public sealed class LocalProfileLibraryService : IProfileLibraryService
                 var template = await ReadTemplateFileAsync(filePath, cancellationToken);
                 entries.Add(new TemplateFileEntry(template, filePath));
             }
-            catch
+            catch (Exception ex)
             {
+                AppDiagnosticsLog.Write(
+                    _paths,
+                    nameof(LocalProfileLibraryService),
+                    $"Skipped template file '{filePath}' because it could not be loaded. {ex.GetType().Name}: {ex.Message}",
+                    AppDiagnosticSeverity.Warning);
             }
         }
 

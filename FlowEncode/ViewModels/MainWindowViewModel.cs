@@ -3983,8 +3983,9 @@ public partial class MainWindowViewModel : CommunityToolkit.Mvvm.ComponentModel.
                 OnPropertyChanged(nameof(SelectedJobCommandText));
             }
         }
-        catch
+        catch (Exception ex)
         {
+            WriteDiagnostic($"Failed to resolve job display command for job {job.JobId}. {ex.GetType().Name}: {ex.Message}");
         }
     }
 

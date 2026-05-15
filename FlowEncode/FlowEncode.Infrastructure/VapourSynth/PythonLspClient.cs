@@ -234,8 +234,9 @@ internal sealed class PythonLspClient : IDisposable
                 {
                     _process.StandardInput.Close();
                 }
-                catch
+                catch (Exception ex)
                 {
+                    Debug.WriteLine($"Failed to close Python LSP stdin. {ex}");
                 }
 
                 if (!_process.HasExited)
@@ -249,8 +250,9 @@ internal sealed class PythonLspClient : IDisposable
                 _process.Dispose();
             }
         }
-        catch
+        catch (Exception ex)
         {
+            Debug.WriteLine($"Failed to dispose Python LSP process. {ex}");
         }
 
         _writeLock.Dispose();
@@ -458,6 +460,7 @@ internal sealed class PythonLspClient : IDisposable
         }
         catch (OperationCanceledException)
         {
+            // Expected during Python LSP shutdown.
         }
         catch (Exception ex)
         {
@@ -489,6 +492,7 @@ internal sealed class PythonLspClient : IDisposable
         }
         catch (OperationCanceledException)
         {
+            // Expected during Python LSP shutdown.
         }
     }
 

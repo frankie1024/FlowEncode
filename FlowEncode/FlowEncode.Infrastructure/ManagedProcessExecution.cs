@@ -94,8 +94,9 @@ internal sealed class ManagedProcessExecution : IDisposable
             _onDiagnostic(
                 $"Failed to terminate PID {processId} ({executablePath}). {ex.GetType().Name}: {ex.Message}");
         }
-        catch
+        catch (Exception diagnosticException)
         {
+            Debug.WriteLine($"Failed to report process termination failure. {diagnosticException}");
         }
     }
 

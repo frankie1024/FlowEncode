@@ -1012,9 +1012,11 @@ public sealed partial class VapourSynthWorkspaceView : UserControl, IDisposable
         }
         catch (OperationCanceledException)
         {
+            // Expected when a newer edit supersedes pending diagnostics.
         }
         catch (Exception ex)
         {
+            TryWriteDiagnosticException("UpdateDiagnosticsAfterDelay", ex, AppDiagnosticSeverity.Warning);
             ViewModel.SetWorkspaceStatus(texts => texts.VapourSynthEditorBridgeFailedStatus(ex.Message));
         }
     }
@@ -1303,9 +1305,30 @@ public sealed partial class VapourSynthWorkspaceView : UserControl, IDisposable
             {
                 previewWindow.Close();
             }
-            catch
+            catch (Exception ex)
             {
+                TryWriteDiagnosticException("ClosePreviewWindow", ex, AppDiagnosticSeverity.Warning);
             }
+        }
+    }
+
+    private static void TryWriteDiagnosticException(
+        string operationName,
+        Exception exception,
+        AppDiagnosticSeverity severity = AppDiagnosticSeverity.Error)
+    {
+        try
+        {
+            App.GetService<IAppDiagnostics>().WriteException(
+                nameof(VapourSynthWorkspaceView),
+                operationName,
+                exception,
+                severity);
+        }
+        catch (Exception logException)
+        {
+            Debug.WriteLine($"Failed to write VapourSynth workspace diagnostic. {logException}");
+            Debug.WriteLine(exception);
         }
     }
 

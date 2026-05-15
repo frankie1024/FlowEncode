@@ -110,8 +110,9 @@ internal sealed class ProcessJobObject : IDisposable
 
             onFailure(builder.ToString());
         }
-        catch
+        catch (Exception diagnosticException)
         {
+            Debug.WriteLine($"Failed to report process job attach failure. {diagnosticException}");
         }
     }
 
@@ -141,8 +142,9 @@ internal sealed class ProcessJobObject : IDisposable
                 TerminateJobObject(_handle, 1);
             }
         }
-        catch
+        catch (Exception ex)
         {
+            Debug.WriteLine($"Failed to terminate process job object. {ex}");
         }
     }
 

@@ -2437,8 +2437,9 @@ public sealed partial class VapourSynthPreviewWindow : Window
                 thumbWidth = thumb.ActualWidth;
             }
         }
-        catch
+        catch (Exception ex)
         {
+            LogWindowOperationFailure("MeasureSliderTrackBounds", ex, AppDiagnosticSeverity.Debug);
         }
 
         return (thumbWidth / 2.0, Math.Max(1, FrameSlider.ActualWidth - thumbWidth));
@@ -2670,12 +2671,30 @@ public sealed partial class VapourSynthPreviewWindow : Window
         return true;
     }
 
-    private void LogWindowOperationFailure(string operationName, Exception exception)
+    private void LogWindowOperationFailure(
+        string operationName,
+        Exception exception,
+        AppDiagnosticSeverity severity = AppDiagnosticSeverity.Error)
     {
-        AppDiagnosticsLog.Write(
-            _appPaths,
-            nameof(VapourSynthPreviewWindow),
-            $"{operationName} failed. {exception.GetType().Name}: {exception.Message}");
+        try
+        {
+            App.GetService<IAppDiagnostics>().WriteException(
+                nameof(VapourSynthPreviewWindow),
+                operationName,
+                exception,
+                severity);
+        }
+        catch (Exception logException)
+        {
+            AppDiagnosticsLog.Write(
+                _appPaths,
+                nameof(VapourSynthPreviewWindow),
+                $"{operationName} failed. {exception.GetType().Name}: {exception.Message}",
+                severity,
+                exception: exception);
+            Debug.WriteLine($"Failed to write preview window diagnostic through app service. {logException}");
+        }
+
         Debug.WriteLine(exception);
     }
 
@@ -2798,9 +2817,10 @@ public sealed partial class VapourSynthPreviewWindow : Window
             _isFullScreenActive = true;
             return true;
         }
-        catch
+        catch (Exception ex)
         {
             _isFullScreenActive = false;
+            LogWindowOperationFailure("TryEnterFullScreen", ex, AppDiagnosticSeverity.Warning);
             return false;
         }
     }
@@ -2817,8 +2837,9 @@ public sealed partial class VapourSynthPreviewWindow : Window
                 return true;
             }
         }
-        catch
+        catch (Exception ex)
         {
+            LogWindowOperationFailure("TryMaximizeWindow", ex, AppDiagnosticSeverity.Warning);
         }
 
         return false;

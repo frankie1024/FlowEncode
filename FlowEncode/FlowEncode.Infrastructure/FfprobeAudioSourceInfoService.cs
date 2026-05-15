@@ -79,8 +79,9 @@ public sealed class FfprobeAudioSourceInfoService : IAudioSourceInfoService
                     durationSeconds = await EstimateDurationFromPacketsAsync(probe.ExecutablePath, sourcePath, cancellationToken)
                         ?? durationSeconds;
                 }
-                catch
+                catch (Exception ex)
                 {
+                    Debug.WriteLine($"Failed to estimate audio duration from packets for '{sourcePath}'. {ex}");
                 }
             }
 

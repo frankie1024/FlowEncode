@@ -565,8 +565,11 @@ public sealed class CliAudioProcessingRunner : IAudioProcessingRunner
             {
                 await Task.WhenAll(pumpOutput, pumpError, pumpSupplementalProgress);
             }
-            catch
+            catch (Exception ex)
             {
+                WriteDebugDiagnostic(
+                    $"Failed to drain audio process output after cancellation for job {request.JobId}",
+                    ex);
             }
 
             throw;
@@ -717,8 +720,11 @@ public sealed class CliAudioProcessingRunner : IAudioProcessingRunner
                     pumpOpusError,
                     pumpSupplementalProgress);
             }
-            catch
+            catch (Exception ex)
             {
+                WriteDebugDiagnostic(
+                    $"Failed to drain Opus pipeline output after cancellation for job {request.JobId}",
+                    ex);
             }
 
             throw;
@@ -736,8 +742,11 @@ public sealed class CliAudioProcessingRunner : IAudioProcessingRunner
                     pumpOpusError,
                     pumpSupplementalProgress);
             }
-            catch
+            catch (Exception ex)
             {
+                WriteDebugDiagnostic(
+                    $"Failed to drain Opus pipeline output after failure for job {request.JobId}",
+                    ex);
             }
 
             throw;
@@ -1098,8 +1107,9 @@ public sealed class CliAudioProcessingRunner : IAudioProcessingRunner
                 File.Delete(path);
             }
         }
-        catch
+        catch (Exception ex)
         {
+            WriteDebugDiagnostic($"Failed to delete temporary audio file '{path}'", ex);
         }
     }
 
@@ -1118,8 +1128,9 @@ public sealed class CliAudioProcessingRunner : IAudioProcessingRunner
                 File.Delete(path);
             }
         }
-        catch
+        catch (Exception ex)
         {
+            WriteDebugDiagnostic($"Failed to delete zero-length audio file '{path}'", ex);
         }
     }
 
@@ -1157,8 +1168,9 @@ public sealed class CliAudioProcessingRunner : IAudioProcessingRunner
                 }
             }
         }
-        catch
+        catch (Exception ex)
         {
+            WriteDebugDiagnostic($"Failed to delete zero-length DDP output files for '{request.OutputPath}'", ex);
         }
     }
 
@@ -1848,8 +1860,9 @@ public sealed class CliAudioProcessingRunner : IAudioProcessingRunner
             {
                 await opusInput.DisposeAsync();
             }
-            catch
+            catch (Exception ex)
             {
+                WriteDebugDiagnostic("Failed to dispose Opus stdin pipe", ex);
             }
         }
     }
@@ -1956,11 +1969,13 @@ public sealed class CliAudioProcessingRunner : IAudioProcessingRunner
 
             return new OpusProgressFileSnapshot(progressTimeLine, speedLine);
         }
-        catch (IOException)
+        catch (IOException ex)
         {
+            WriteDebugDiagnostic($"Failed to read Opus progress file '{path}'", ex);
         }
-        catch (UnauthorizedAccessException)
+        catch (UnauthorizedAccessException ex)
         {
+            WriteDebugDiagnostic($"Access denied while reading Opus progress file '{path}'", ex);
         }
 
         return null;
@@ -1984,10 +1999,16 @@ public sealed class CliAudioProcessingRunner : IAudioProcessingRunner
             process.Kill(true);
             return true;
         }
-        catch
+        catch (Exception ex)
         {
+            WriteDebugDiagnostic("Failed to terminate audio process", ex);
             return false;
         }
+    }
+
+    private static void WriteDebugDiagnostic(string message, Exception exception)
+    {
+        Debug.WriteLine($"{nameof(CliAudioProcessingRunner)}: {message}. {exception}");
     }
 
     private static string BuildStartingSummary(AppLanguage language, AudioProcessingMode mode)

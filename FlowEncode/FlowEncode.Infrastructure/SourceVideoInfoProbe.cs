@@ -87,8 +87,9 @@ internal sealed partial class SourceVideoInfoProbe
         {
             normalizedPath = Path.GetFullPath(sourcePath);
         }
-        catch
+        catch (Exception ex)
         {
+            Debug.WriteLine($"Failed to normalize source video path '{sourcePath}'. {ex}");
             normalizedPath = sourcePath.Trim();
         }
 
@@ -146,7 +147,7 @@ internal sealed partial class SourceVideoInfoProbe
 
         VapourSynthRuntimePathResolver.EnrichProcessPath(process.StartInfo);
         process.Start();
-        using var cancellationRegistration = cancellationToken.Register(static state =>
+        using var cancellationRegistration = cancellationToken.Register(state =>
         {
             if (state is not Process cancellableProcess)
             {
@@ -160,8 +161,9 @@ internal sealed partial class SourceVideoInfoProbe
                     cancellableProcess.Kill(entireProcessTree: true);
                 }
             }
-            catch
+            catch (Exception ex)
             {
+                Debug.WriteLine($"Failed to terminate VapourSynth probe process for '{sourcePath}'. {ex}");
             }
         }, process);
 
@@ -410,8 +412,9 @@ internal sealed partial class SourceVideoInfoProbe
                 ChromaLocation = MapVapourSynthChromaLocation(root) ?? sourceInfo.ChromaLocation
             };
         }
-        catch
+        catch (Exception ex)
         {
+            Debug.WriteLine($"Failed to enrich VapourSynth frame properties for '{sourcePath}'. {ex}");
             return sourceInfo;
         }
     }
@@ -489,8 +492,9 @@ internal sealed partial class SourceVideoInfoProbe
                     File.Delete(scriptPath);
                 }
             }
-            catch
+            catch (Exception ex)
             {
+                Debug.WriteLine($"Failed to delete temporary VapourSynth frame probe script '{scriptPath}'. {ex}");
             }
         }
     }

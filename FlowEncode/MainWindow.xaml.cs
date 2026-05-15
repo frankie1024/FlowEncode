@@ -39,6 +39,7 @@ public sealed partial class MainWindow : Window, ISettingsViewHost, IShellNaviga
     private const int WindowClassLongSmallIcon = -34;
     private readonly AppLaunchActivation _launchActivation;
     private readonly LocalAppSettingsService _localAppSettingsService;
+    private readonly IAppDiagnostics _diagnostics;
     private readonly SemaphoreSlim _externalVapourSynthOpenLock = new(1, 1);
     private readonly TaskCompletionSource<bool> _windowReadyCompletionSource = new(TaskCreationOptions.RunContinuationsAsynchronously);
     private readonly Dictionary<string, MainWindowShellSectionDefinition> _shellSectionDefinitions;
@@ -75,11 +76,16 @@ public sealed partial class MainWindow : Window, ISettingsViewHost, IShellNaviga
 
     private SettingsView? SettingsPanel => GetShellSectionControl<SettingsView>(MainShellSections.Settings);
 
-    public MainWindow(MainWindowViewModel viewModel, AppLaunchActivation launchActivation, LocalAppSettingsService localAppSettingsService)
+    public MainWindow(
+        MainWindowViewModel viewModel,
+        AppLaunchActivation launchActivation,
+        LocalAppSettingsService localAppSettingsService,
+        IAppDiagnostics diagnostics)
     {
         ViewModel = viewModel;
         _launchActivation = launchActivation;
         _localAppSettingsService = localAppSettingsService;
+        _diagnostics = diagnostics;
         InitializeComponent();
         _shellSectionDefinitions = BuildShellSectionDefinitions();
         _shellSections = new MainWindowShellSectionController(ShellContentHost, CreateShellSectionControl, OnShellSectionLoaded);
@@ -294,7 +300,12 @@ public sealed partial class MainWindow : Window, ISettingsViewHost, IShellNaviga
         var normalizedTag = MainShellSections.Normalize(tag);
         if (_shellSectionDefinitions.TryGetValue(normalizedTag, out var definition))
         {
-            definition.OnLoaded?.Invoke(normalizedTag, this);
+            _diagnostics.TryRun(
+                nameof(MainWindow),
+                "Run shell section loaded callback",
+                () => definition.OnLoaded?.Invoke(normalizedTag, this),
+                AppDiagnosticSeverity.Error,
+                DiagnosticContext(("section", normalizedTag)));
         }
     }
 
@@ -361,6 +372,15 @@ public sealed partial class MainWindow : Window, ISettingsViewHost, IShellNaviga
             e.AcceptedOperation = await ContainsSupportedScriptFileAsync(e.DataView)
             ? DataPackageOperation.Copy
             : DataPackageOperation.None;
+        }
+        catch (Exception ex)
+        {
+            e.AcceptedOperation = DataPackageOperation.None;
+            _diagnostics.WriteException(
+                nameof(MainWindow),
+                "Inspect drag-over payload",
+                ex,
+                AppDiagnosticSeverity.Warning);
         }
         finally
         {
@@ -571,16 +591,32 @@ public sealed partial class MainWindow : Window, ISettingsViewHost, IShellNaviga
 
             try
             {
-                Process.Start(new ProcessStartInfo(installerPath)
+                var process = Process.Start(new ProcessStartInfo(installerPath)
                 {
                     UseShellExecute = true,
                     WorkingDirectory = Path.GetDirectoryName(installerPath)
                 });
+                if (process is null)
+                {
+                    _diagnostics.Write(
+                        nameof(MainWindow),
+                        "Installer process did not start.",
+                        AppDiagnosticSeverity.Warning,
+                        DiagnosticContext(("installerPath", installerPath)));
+                    await ShowMessageAsync(settings.Texts.ErrorInstallFailedTitle, settings.AppUpdateStatusText);
+                    return;
+                }
+
                 Close();
             }
             catch (Exception ex)
             {
-                TryWriteWindowDiagnostic($"Failed to launch downloaded installer '{installerPath}'. {ex.GetType().Name}: {ex.Message}");
+                _diagnostics.WriteException(
+                    nameof(MainWindow),
+                    "Launch downloaded installer",
+                    ex,
+                    AppDiagnosticSeverity.Error,
+                    DiagnosticContext(("installerPath", installerPath)));
                 await ShowMessageAsync(settings.Texts.ErrorInstallFailedTitle, ex.Message);
             }
 
@@ -609,6 +645,11 @@ public sealed partial class MainWindow : Window, ISettingsViewHost, IShellNaviga
         var navigationItem = FindNavigationItem(MainShellSections.Normalize(tag));
         if (navigationItem is null)
         {
+            _diagnostics.Write(
+                nameof(MainWindow),
+                "Navigation item was not found.",
+                AppDiagnosticSeverity.Warning,
+                DiagnosticContext(("requestedSection", tag)));
             return;
         }
 
@@ -729,8 +770,13 @@ public sealed partial class MainWindow : Window, ISettingsViewHost, IShellNaviga
         {
             recoveryInfo = App.GetService<LocalAppPaths>().ConsumeStartupWorkspaceRecoveryInfo();
         }
-        catch
+        catch (Exception ex)
         {
+            _diagnostics.WriteException(
+                nameof(MainWindow),
+                "Read startup workspace recovery info",
+                ex,
+                AppDiagnosticSeverity.Warning);
             return;
         }
 
@@ -742,7 +788,11 @@ public sealed partial class MainWindow : Window, ISettingsViewHost, IShellNaviga
         if (!string.IsNullOrWhiteSpace(recoveryInfo.FailureReason))
         {
             TryWriteWindowDiagnostic(
-                $"Workspace root fallback: configured='{recoveryInfo.ConfiguredPath}', active='{recoveryInfo.ActivePath}'. {recoveryInfo.FailureReason}");
+                $"Workspace root fallback. {recoveryInfo.FailureReason}",
+                AppDiagnosticSeverity.Warning,
+                DiagnosticContext(
+                    ("configuredPath", recoveryInfo.ConfiguredPath),
+                    ("activePath", recoveryInfo.ActivePath)));
         }
 
         await ShowMessageAsync(
@@ -754,8 +804,20 @@ public sealed partial class MainWindow : Window, ISettingsViewHost, IShellNaviga
 
     private async Task ReportNonFatalWindowExceptionAsync(string operationName, string errorTitle, Exception ex)
     {
-        TryWriteWindowDiagnostic($"{operationName}. {ex.GetType().Name}: {ex.Message}");
-        await ShowMessageAsync(errorTitle, ex.Message);
+        _diagnostics.WriteException(nameof(MainWindow), operationName, ex, AppDiagnosticSeverity.Error);
+        try
+        {
+            await ShowMessageAsync(errorTitle, ex.Message);
+        }
+        catch (Exception dialogException)
+        {
+            _diagnostics.WriteException(
+                nameof(MainWindow),
+                "Show non-fatal error dialog",
+                dialogException,
+                AppDiagnosticSeverity.Warning,
+                DiagnosticContext(("sourceOperation", operationName)));
+        }
     }
 
     private static void OpenPath(string path)
@@ -768,11 +830,22 @@ public sealed partial class MainWindow : Window, ISettingsViewHost, IShellNaviga
         try
         {
             Directory.CreateDirectory(path);
-            Process.Start(new ProcessStartInfo("explorer.exe", $"\"{path}\"") { UseShellExecute = true });
+            var process = Process.Start(new ProcessStartInfo("explorer.exe", $"\"{path}\"") { UseShellExecute = true });
+            if (process is null)
+            {
+                TryWriteWindowDiagnostic(
+                    "Explorer process did not start.",
+                    AppDiagnosticSeverity.Warning,
+                    DiagnosticContext(("path", path)));
+            }
         }
         catch (Exception ex)
         {
-            TryWriteWindowDiagnostic($"Failed to open path '{path}'. {ex.GetType().Name}: {ex.Message}");
+            TryWriteWindowException(
+                "Open path in Explorer",
+                ex,
+                AppDiagnosticSeverity.Warning,
+                DiagnosticContext(("path", path)));
         }
     }
 
@@ -783,7 +856,25 @@ public sealed partial class MainWindow : Window, ISettingsViewHost, IShellNaviga
             return;
         }
 
-        Process.Start(new ProcessStartInfo(url) { UseShellExecute = true });
+        try
+        {
+            var process = Process.Start(new ProcessStartInfo(url) { UseShellExecute = true });
+            if (process is null)
+            {
+                TryWriteWindowDiagnostic(
+                    "URL process did not start.",
+                    AppDiagnosticSeverity.Warning,
+                    DiagnosticContext(("url", url)));
+            }
+        }
+        catch (Exception ex)
+        {
+            TryWriteWindowException(
+                "Open URL",
+                ex,
+                AppDiagnosticSeverity.Warning,
+                DiagnosticContext(("url", url)));
+        }
     }
 
     private void ActivateAndBringToFront()
@@ -861,7 +952,11 @@ public sealed partial class MainWindow : Window, ISettingsViewHost, IShellNaviga
         }
         catch (Exception ex)
         {
-            TryWriteWindowDiagnostic($"Failed to resolve theme resource '{resourceKey}'. {ex.GetType().Name}: {ex.Message}");
+            TryWriteWindowException(
+                "Resolve theme resource",
+                ex,
+                AppDiagnosticSeverity.Warning,
+                DiagnosticContext(("resourceKey", resourceKey), ("actualTheme", actualTheme.ToString())));
         }
 
         return actualTheme == ElementTheme.Light ? Colors.Black : Colors.White;
@@ -878,7 +973,7 @@ public sealed partial class MainWindow : Window, ISettingsViewHost, IShellNaviga
         }
         catch (Exception ex)
         {
-            TryWriteWindowDiagnostic($"Failed to inspect HighContrast state. {ex.GetType().Name}: {ex.Message}");
+            TryWriteWindowException("Inspect HighContrast state", ex, AppDiagnosticSeverity.Warning);
         }
 
         return actualTheme == ElementTheme.Light ? "Light" : "Dark";
@@ -886,12 +981,29 @@ public sealed partial class MainWindow : Window, ISettingsViewHost, IShellNaviga
 
     private void UiSettings_ColorValuesChanged(UISettings sender, object args)
     {
-        DispatcherQueue.TryEnqueue(() =>
+        if (!DispatcherQueue.TryEnqueue(() =>
         {
-            ApplyTitleBarColors(RootLayout.ActualTheme);
-            ViewModel.RefreshTemplateLibraryView();
-            ApplyVapourSynthWorkspacePresentationIfLoaded();
-        });
+            try
+            {
+                ApplyTitleBarColors(RootLayout.ActualTheme);
+                ViewModel.RefreshTemplateLibraryView();
+                ApplyVapourSynthWorkspacePresentationIfLoaded();
+            }
+            catch (Exception ex)
+            {
+                _diagnostics.WriteException(
+                    nameof(MainWindow),
+                    "Apply system color change",
+                    ex,
+                    AppDiagnosticSeverity.Warning);
+            }
+        }))
+        {
+            _diagnostics.Write(
+                nameof(MainWindow),
+                "Failed to enqueue system color change handling.",
+                AppDiagnosticSeverity.Warning);
+        }
     }
 
     private void ApplyTheme(AppThemePreference preference)
@@ -932,7 +1044,11 @@ public sealed partial class MainWindow : Window, ISettingsViewHost, IShellNaviga
         {
             _activeDragDataView = dataView;
             _activeDragContainsSupportedScript = false;
-            TryWriteWindowDiagnostic($"Failed to inspect drag-and-drop storage items. {ex.GetType().Name}: {ex.Message}");
+            _diagnostics.WriteException(
+                nameof(MainWindow),
+                "Inspect drag-and-drop storage items",
+                ex,
+                AppDiagnosticSeverity.Warning);
             return false;
         }
     }
@@ -1091,7 +1207,11 @@ public sealed partial class MainWindow : Window, ISettingsViewHost, IShellNaviga
         }
         catch (Exception ex)
         {
-            TryWriteWindowDiagnostic($"Failed to apply embedded app icon from '{processPath}'. {ex.GetType().Name}: {ex.Message}");
+            TryWriteWindowException(
+                "Apply embedded app icon",
+                ex,
+                AppDiagnosticSeverity.Warning,
+                DiagnosticContext(("processPath", processPath)));
         }
         finally
         {
@@ -1121,7 +1241,7 @@ public sealed partial class MainWindow : Window, ISettingsViewHost, IShellNaviga
         }
         catch (Exception ex)
         {
-            TryWriteWindowDiagnostic($"Failed to assign AppWindow icon handles. {ex.GetType().Name}: {ex.Message}");
+            TryWriteWindowException("Assign AppWindow icon handles", ex, AppDiagnosticSeverity.Warning);
         }
 
         if (largeIcon != IntPtr.Zero)
@@ -1152,16 +1272,49 @@ public sealed partial class MainWindow : Window, ISettingsViewHost, IShellNaviga
         }
     }
 
-    private static void TryWriteWindowDiagnostic(string message)
+    private static void TryWriteWindowDiagnostic(
+        string message,
+        AppDiagnosticSeverity severity = AppDiagnosticSeverity.Information,
+        IReadOnlyDictionary<string, string?>? context = null)
     {
         try
         {
-            var paths = App.GetService<LocalAppPaths>();
-            AppDiagnosticsLog.Write(paths, nameof(MainWindow), message);
+            App.GetService<IAppDiagnostics>().Write(nameof(MainWindow), message, severity, context);
         }
-        catch
+        catch (Exception ex)
         {
+            Debug.WriteLine($"Failed to write window diagnostic. {ex}");
         }
+    }
+
+    private static void TryWriteWindowException(
+        string operationName,
+        Exception exception,
+        AppDiagnosticSeverity severity = AppDiagnosticSeverity.Error,
+        IReadOnlyDictionary<string, string?>? context = null)
+    {
+        try
+        {
+            App.GetService<IAppDiagnostics>().WriteException(nameof(MainWindow), operationName, exception, severity, context);
+        }
+        catch (Exception ex)
+        {
+            Debug.WriteLine($"Failed to write window exception diagnostic. {ex}");
+        }
+    }
+
+    private static IReadOnlyDictionary<string, string?> DiagnosticContext(params (string Key, string? Value)[] fields)
+    {
+        var context = new Dictionary<string, string?>(StringComparer.Ordinal);
+        foreach (var field in fields)
+        {
+            if (!string.IsNullOrWhiteSpace(field.Key))
+            {
+                context[field.Key] = field.Value;
+            }
+        }
+
+        return context;
     }
 
     [DllImport("Shell32.dll", EntryPoint = "ExtractIconExW", CharSet = CharSet.Unicode, SetLastError = true)]

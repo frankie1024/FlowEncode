@@ -53,9 +53,15 @@ public sealed class LocalSetupGuideCacheService : ISetupGuideCacheService
 
                 _cache = snapshot;
             }
-            catch
+            catch (Exception ex)
             {
                 _cache = null;
+                AppDiagnosticsLog.Write(
+                    _paths,
+                    nameof(LocalSetupGuideCacheService),
+                    $"Failed to load setup guide cache '{_paths.SetupGuideCachePath}'. {ex.GetType().Name}: {ex.Message}",
+                    AppDiagnosticSeverity.Warning,
+                    exception: ex);
                 DeleteCacheFileUnsafe();
             }
 
@@ -83,8 +89,14 @@ public sealed class LocalSetupGuideCacheService : ISetupGuideCacheService
                         File.Delete(tempPath);
                     }
                 }
-                catch
+                catch (Exception ex)
                 {
+                    AppDiagnosticsLog.Write(
+                        _paths,
+                        nameof(LocalSetupGuideCacheService),
+                        $"Failed to delete temporary setup guide cache '{tempPath}'. {ex.GetType().Name}: {ex.Message}",
+                        AppDiagnosticSeverity.Warning,
+                        exception: ex);
                 }
             }
 
@@ -104,8 +116,14 @@ public sealed class LocalSetupGuideCacheService : ISetupGuideCacheService
             {
                 DeleteCacheFileUnsafe();
             }
-            catch
+            catch (Exception ex)
             {
+                AppDiagnosticsLog.Write(
+                    _paths,
+                    nameof(LocalSetupGuideCacheService),
+                    $"Failed to clear setup guide cache '{_paths.SetupGuideCachePath}'. {ex.GetType().Name}: {ex.Message}",
+                    AppDiagnosticSeverity.Warning,
+                    exception: ex);
             }
         }
     }

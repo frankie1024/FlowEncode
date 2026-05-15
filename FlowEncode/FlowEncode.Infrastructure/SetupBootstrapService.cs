@@ -1311,8 +1311,14 @@ public sealed class SetupBootstrapService : ISetupBootstrapService, IDisposable
                 cancellationToken,
                 timeoutMs: 120_000);
         }
-        catch
+        catch (Exception ex)
         {
+            AppDiagnosticsLog.Write(
+                _paths,
+                nameof(SetupBootstrapService),
+                $"Failed to update vsrepo package definitions. {ex.GetType().Name}: {ex.Message}",
+                AppDiagnosticSeverity.Warning,
+                exception: ex);
         }
     }
 
@@ -1666,8 +1672,9 @@ public sealed class SetupBootstrapService : ISetupBootstrapService, IDisposable
                     process.Kill(true);
                 }
             }
-            catch
+            catch (Exception ex)
             {
+                Debug.WriteLine($"Failed to terminate setup bootstrap process after cancellation. {ex}");
             }
         });
 

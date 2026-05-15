@@ -1,4 +1,5 @@
 using System;
+using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
@@ -253,8 +254,9 @@ internal static class WindowInteractionHelper
                 }
             }
         }
-        catch
+        catch (Exception ex)
         {
+            TryWriteDiagnostic($"Failed to resolve common file dialog directory. {ex.GetType().Name}: {ex.Message}");
         }
 
         return string.IsNullOrWhiteSpace(Environment.CurrentDirectory)
@@ -268,8 +270,9 @@ internal static class WindowInteractionHelper
         {
             return App.GetService<LocalAppPaths>().RootPath;
         }
-        catch
+        catch (Exception ex)
         {
+            TryWriteDiagnostic($"Failed to resolve current workspace root path. {ex.GetType().Name}: {ex.Message}");
             return null;
         }
     }
@@ -280,8 +283,9 @@ internal static class WindowInteractionHelper
         {
             return App.GetService<IAppSettingsService>().Load().LastFileDialogDirectory;
         }
-        catch
+        catch (Exception ex)
         {
+            TryWriteDiagnostic($"Failed to load last file dialog directory. {ex.GetType().Name}: {ex.Message}");
             return null;
         }
     }
@@ -344,8 +348,13 @@ internal static class WindowInteractionHelper
         {
             TryWriteDiagnostic($"Overlong file dialog path '{candidatePath}'. {ex.GetType().Name}: {ex.Message}");
         }
-        catch
+        catch (Exception ex) when (writeDiagnostics)
         {
+            TryWriteDiagnostic($"Failed to resolve file dialog path '{candidatePath}'. {ex.GetType().Name}: {ex.Message}");
+        }
+        catch (Exception ex)
+        {
+            Debug.WriteLine($"Failed to resolve file dialog path without diagnostics. {ex}");
         }
 
         return null;
@@ -355,11 +364,11 @@ internal static class WindowInteractionHelper
     {
         try
         {
-            var paths = App.GetService<LocalAppPaths>();
-            AppDiagnosticsLog.Write(paths, nameof(WindowInteractionHelper), message);
+            App.GetService<IAppDiagnostics>().Write(nameof(WindowInteractionHelper), message);
         }
-        catch
+        catch (Exception ex)
         {
+            Debug.WriteLine($"Failed to write window interaction diagnostic. {ex}");
         }
     }
 }

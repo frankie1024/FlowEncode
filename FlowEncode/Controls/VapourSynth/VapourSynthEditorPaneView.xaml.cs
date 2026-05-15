@@ -382,6 +382,7 @@ public sealed partial class VapourSynthEditorPaneView : UserControl, IDisposable
         }
         catch (OperationCanceledException)
         {
+            // Expected when reload or disposal cancels the readiness timeout.
         }
     }
 

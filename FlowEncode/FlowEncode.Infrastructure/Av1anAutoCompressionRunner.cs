@@ -218,8 +218,9 @@ public sealed class Av1anAutoCompressionRunner : IAutoCompressionRunner
             {
                 await Task.WhenAll(pumpOutput, pumpError);
             }
-            catch
+            catch (Exception ex)
             {
+                WriteDiagnostic($"Auto compression job {request.JobId}: failed to drain process output after cancellation. {ex.GetType().Name}: {ex.Message}");
             }
 
             var log = logBuilder.ToString();

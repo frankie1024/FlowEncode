@@ -952,8 +952,9 @@ public partial class MainWindowViewModel
                 _isUpdatingBluRayOutputPath = false;
             }
         }
-        catch
+        catch (Exception ex)
         {
+            WriteDiagnostic($"Failed to populate Blu-ray demux output path. {ex.GetType().Name}: {ex.Message}");
         }
     }
 
