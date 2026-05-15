@@ -23,7 +23,7 @@
 
 ---
 
-FlowEncode is a Windows x64 desktop frontend for video encoding workflows. It coordinates `x264`, `x265`, `SVT-AV1`, `Av1an`, `FFmpeg`, `VapourSynth`, `VSPipe` and related public toolchains through one interface for task configuration, script editing, queue execution, log inspection and template reuse.
+FlowEncode is a Windows x64 desktop frontend for video encoding workflows. It coordinates `x264`, `x265`, `SVT-AV1`, `Av1an`, `FFmpeg`, `VapourSynth`, `VSPipe` and related public toolchains through one interface for Blu-ray demuxing, script editing and preview, video encoding, audio transcoding, auto encoding, queue execution, log inspection and template reuse.
 
 It is designed for users who want a graphical Windows video encoding GUI while keeping the flexibility of command-line encoders, VapourSynth scripts and Av1an automation.
 
@@ -33,7 +33,7 @@ It is designed for users who want a graphical Windows video encoding GUI while k
 > [!NOTE]
 > Transparency note: this project is heavily assisted by AI-generated code. The actual behavior, dependency boundaries and limitations are defined by the source code, release artifacts and this documentation.
 
-![FlowEncode dashboard](./docs/assets/flowencode-dashboard.png)
+![FlowEncode dashboard](./docs/assets/flowencode-dashboard-en.png)
 
 ## Table of Contents
 
@@ -61,30 +61,37 @@ FlowEncode is not a standalone encoder and does not bundle every dependency into
 
 | Module | Capabilities |
 | --- | --- |
-| Dashboard | Entry point for demux, VapourSynth, video encode, audio transcode, auto encode, templates and settings. |
-| VapourSynth | Edit `.vpy` / `.py` scripts, open recent files, inspect diagnostics, preview frames, use crop helpers and read preview logs. |
-| Video Encode | Configure regular encoding tasks with input/output paths, encoder arguments, command previews, job queues and real-time logs. |
-| Auto Encode | Run Av1an-based target-quality workflows with `VMAF`, probe count, parallelism and extra encoder arguments. |
+| Dashboard | Entry point for demux, VapourSynth, video encode, audio transcode, auto encode, templates and settings, with active task indicators. |
+| Blu-ray Demux | Scan Blu-ray folders, choose playlists and tracks, then export video, audio and subtitles through detected or imported `DGDemux` / `eac3to`. |
+| VapourSynth | Edit `.vpy` / `.py` scripts, drop files to open them, manage tabs, compare scripts side by side, inspect diagnostics, preview frames, view frame props, save snapshots, manage chapters, use crop helpers and read preview logs. |
+| Video Encode | Configure regular `x264`, `x265` and `SVT-AV1` jobs with input/output paths, HDR argument import, copyable command previews, job queues, batch actions, keyboard shortcuts and real-time logs. |
+| Audio Transcode | Run standalone `eac3to`, `deew`, `FFmpeg` / `opusenc` audio workflows for FLAC, AC3, DDP, Opus and related outputs; DDP workflows require a user-supplied, properly licensed `Dolby Encoding Engine` / `DEE`. |
+| Auto Encode | Run Av1an-based target-quality workflows with `VMAF`, probe count, parallelism, extra encoder arguments, command previews and real-time logs. |
 | Template Library | Save, load, import, export, pin and overwrite `.profile` templates for reusable encoding presets. |
-| Environment Guide | Check, install, update or remove supported runtimes, plugins, encoders and command-line tools. |
-| Settings and Updates | Manage workspace path, theme, language, dependency status, application updates and first-run guide access. |
+| Environment Guide | Check dependency status; guide installation or updates for publicly supported runtimes, plugins, encoders, `FFmpeg` and `Av1an`, and allow manual import, pinning or removal of app-local copies for selected demuxers and audio tools. |
+| Settings and Updates | Manage workspace path, theme, language, dependency status, application updates, queue completion actions and first-run guide access. |
 
 ## Workflow
 
 ```mermaid
 flowchart LR
-  A["Prepare source files"] --> B["Write or load VapourSynth scripts"]
-  B --> C["Choose encoder and template"]
-  C --> D["Preview command and task settings"]
-  D --> E["Queue and run"]
-  E --> F["Inspect logs and output"]
+  A["Prepare source files or Blu-ray folders"] --> B["Demux / write or load VapourSynth scripts"]
+  B --> C["Choose video, audio or auto-encode workflow"]
+  C --> D["Choose encoder, template and parameters"]
+  D --> E["Preview and copy the resolved command"]
+  E --> F["Queue or run directly"]
+  F --> G["Inspect progress, logs and output"]
 ```
 
 Common usage patterns:
 
-- Maintain `.vpy` scripts in the VapourSynth editor and inspect output frames in the preview window.
-- Configure regular encoding tasks with `x264`, `x265` or `SVT-AV1`.
+- Scan Blu-ray folders, choose playlists and tracks, then demux through prepared `DGDemux` or `eac3to` binaries.
+- Maintain `.vpy` / `.py` scripts in the VapourSynth editor and inspect output frames, frame properties, chapters and crop parameters in the preview window.
+- Drop scripts onto the main window to open them, or create empty `.vpy` scripts from the Windows Explorer new-file menu.
+- Configure regular encoding tasks with `x264`, `x265` or `SVT-AV1`, then copy the resolved command for review or debugging.
+- Run standalone audio transcode jobs for FLAC, AC3, DDP, Opus and related formats; DDP output depends on a user-supplied, properly licensed `Dolby Encoding Engine` / `DEE`.
 - Run VMAF-based target-quality automation through `Av1an`.
+- Start, cancel, delete and reorder queued jobs in batches, use keyboard shortcuts for faster queue work, and optionally sleep or shut down after a successful queue drain and system idle.
 - Save stable settings as `.profile` templates and reuse them in future jobs.
 
 ## Supported Toolchain
@@ -93,12 +100,16 @@ Common usage patterns:
 | --- | --- |
 | Video encoders | `x264`, `x265`, `SVT-AV1` |
 | Auto encoding | `Av1an`, `VMAF` |
+| Blu-ray demuxing | `DGDemux`, `eac3to` |
+| Audio processing | `eac3to`, `deew`, `opusenc` / `Opus Encoder`, `FFmpeg`; DDP output requires a user-supplied, properly licensed `Dolby Encoding Engine` / `DEE` |
 | Media probing and pipelines | `FFmpeg`, `FFprobe` |
 | Script runtime | `Python 3.12`, `VapourSynth`, `vsrepo`, public VapourSynth plugins |
 | Input bridge | `VSPipe`, `Avs2PipeMod` |
 | Application framework | `.NET 8`, `WinUI 3`, `Windows App SDK` |
 
 Support depth depends on upstream versions, local runtime state, plugin availability and user environment configuration. FlowEncode provides detection and guidance where possible, but it does not replace upstream installation instructions or licenses.
+
+In-app automatic installation or updates mainly cover `Python 3.12`, `VapourSynth` / `vsrepo` and public plugin packages, `awsmfunc`, `vsjetpack`, `FFmpeg`, `x264`, `x265`, `SVT-AV1` and `Av1an`. `Avs2PipeMod`, `DGDemux`, `eac3to`, `deew`, `Dolby Encoding Engine` / `DEE`, and `opusenc` / `Opus Encoder` are user-supplied external tools governed by their own licenses; FlowEncode only detects them, imports local binaries, pins paths and invokes them. It does not distribute those tools in the installer or grant rights to use them.
 
 ## Installation and Runtime Requirements
 
@@ -141,6 +152,7 @@ FlowEncode is local-first by default:
 
 - It does not actively upload source files, output files, templates or local paths.
 - Lightweight runtime state is stored under `%LocalAppData%\FlowEncode\data`.
+- The current-user `.vpy` new-file menu template is stored under `%LocalAppData%\FlowEncode\data\Templates`.
 - User templates are stored in the workspace `Templates` folder and `.profile` files are loaded automatically.
 - Large runtime directories such as `downloads`, `tools` and `encoders` are kept under the configured workspace.
 - Review and redact logs, screenshots or cache files before sharing them publicly.

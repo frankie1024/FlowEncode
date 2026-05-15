@@ -1,6 +1,6 @@
 # FlowEncode Third-Party Licenses
 
-This document records the public third-party components and tools that FlowEncode may bundle, invoke, detect, or guide users to install.
+This document records the third-party components and tools that FlowEncode may bundle, invoke, detect, guide users to install, or allow users to import manually.
 
 FlowEncode's own source code is distributed under `GPL-3.0-only`. That license applies to this repository's source code, not to independent runtimes, NuGet packages, encoders, media tools, VapourSynth plugins, or user-installed tools. Each third-party component remains governed by its own license.
 
@@ -34,9 +34,23 @@ FlowEncode's own source code is distributed under `GPL-3.0-only`. That license a
 | Av1an | Target-quality encoding orchestration | GPL-3.0 |
 | Avs2PipeMod | `.avs` input bridge | GPL-3.0 |
 
+FlowEncode's setup guide currently supports automatic installation or updates for Python 3.12, VapourSynth / vsrepo related Python packages, the public VapourSynth plugin bundle, awsmfunc, vs-jetpack, FFmpeg / FFprobe, x264, x265, SVT-AV1, and Av1an. Other command-line tools are detected, pinned, or manually imported only.
+
+## Optional User-Supplied Tools
+
+These tools are optional external binaries. FlowEncode may detect them from configured paths, the local tools folder, or `PATH`, and may allow users to copy a local binary into the app workspace. FlowEncode does not bundle them in the installer, download them automatically, or grant a license to use them.
+
+| Component | Role | License / Terms |
+| --- | --- | --- |
+| DGDemux | Blu-ray / UHD Blu-ray demux backend | Upstream/distributor terms; user-supplied only |
+| eac3to | Blu-ray demux and audio conversion backend | Upstream/distributor terms; user-supplied only |
+| deew | Wrapper used by the DDP workflow | MIT |
+| Dolby Encoding Engine / DEE | Dolby audio encoding backend used by deew | Proprietary Dolby component; user-supplied and separately licensed |
+| Opus Encoder / opusenc | Opus command-line encoder | opus-tools terms; opusenc is covered by the three-clause BSD-style Opus tools license |
+
 ## Release Checklist
 
 - Release assets do not bundle the repository `LICENSE` or this `THIRD_PARTY_LICENSES.md` file; these notices are maintained in the public repository.
-- README and release notes must only mention public, license-clear, and publicly usable tools.
-- README and release notes must not present locally supplied, private, non-open, unauthorized, or license-unclear tools as supported public dependencies.
+- README and release notes must clearly distinguish automatically installable public toolchain components from optional user-supplied or manually imported binaries.
+- README and release notes must not present locally supplied, private, non-open, unauthorized, proprietary, or license-unclear tools as bundled, auto-installed, publicly licensed, or granted-by-FlowEncode dependencies.
 - Release notes must not include UI details, internal implementation details, build commands, validation output, test results, SHA256 values, checksum logs, or internal QA notes.
