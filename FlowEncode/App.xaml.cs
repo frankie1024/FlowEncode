@@ -95,6 +95,7 @@ public partial class App : Microsoft.UI.Xaml.Application
         var services = new ServiceCollection();
 
         services.AddSingleton<LocalAppPaths>();
+        services.AddSingleton<IFlowEncodeHttpClientFactory, FlowEncodeHttpClientFactory>();
         services.AddSingleton<IAppDiagnostics, LocalAppDiagnostics>();
         services.AddSingleton<AppLaunchActivation>();
         services.AddSingleton<LocalAppSettingsService>();

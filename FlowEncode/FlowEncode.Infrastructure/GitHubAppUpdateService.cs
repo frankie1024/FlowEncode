@@ -21,13 +21,16 @@ public sealed class GitHubAppUpdateService : IAppUpdateService, IDisposable
     private const string ReleasesApiUrl = "https://api.github.com/repos/frankie1024/FlowEncode/releases?per_page=30";
 
     private readonly LocalAppPaths _paths;
-    private readonly HttpClient _httpClient;
+    private readonly HttpClient _apiHttpClient;
+    private readonly HttpClient _downloadHttpClient;
 
-    public GitHubAppUpdateService(LocalAppPaths paths)
+    public GitHubAppUpdateService(LocalAppPaths paths, IFlowEncodeHttpClientFactory httpClientFactory)
     {
+        ArgumentNullException.ThrowIfNull(httpClientFactory);
+
         _paths = paths;
-        _httpClient = new HttpClient();
-        _httpClient.DefaultRequestHeaders.UserAgent.Add(new ProductInfoHeaderValue("FlowEncode", ResolveUserAgentVersion()));
+        _apiHttpClient = httpClientFactory.CreateClient(FlowEncodeHttpClientProfile.Api);
+        _downloadHttpClient = httpClientFactory.CreateClient(FlowEncodeHttpClientProfile.Download);
     }
 
     public async Task<AppUpdateCheckResult> CheckForUpdatesAsync(CancellationToken cancellationToken = default)
@@ -126,7 +129,7 @@ public sealed class GitHubAppUpdateService : IAppUpdateService, IDisposable
             NoCache = true
         };
 
-        return await _httpClient.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, cancellationToken);
+        return await _apiHttpClient.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, cancellationToken);
     }
 
     public async Task<string> DownloadInstallerAsync(
@@ -202,7 +205,8 @@ public sealed class GitHubAppUpdateService : IAppUpdateService, IDisposable
 
     public void Dispose()
     {
-        _httpClient.Dispose();
+        _apiHttpClient.Dispose();
+        _downloadHttpClient.Dispose();
     }
 
     private void WriteDiagnostic(string message)
@@ -220,18 +224,6 @@ public sealed class GitHubAppUpdateService : IAppUpdateService, IDisposable
         return NormalizeVersionLabel(informationalVersion)
             ?? NormalizeVersionLabel(assembly.GetName().Version?.ToString())
             ?? "0.0.0";
-    }
-
-    private static string ResolveUserAgentVersion()
-    {
-        var assembly = Assembly.GetEntryAssembly() ?? Assembly.GetExecutingAssembly();
-        var informationalVersion = assembly
-            .GetCustomAttribute<AssemblyInformationalVersionAttribute>()?
-            .InformationalVersion;
-
-        return NormalizeVersionLabel(informationalVersion)
-            ?? NormalizeVersionLabel(assembly.GetName().Version?.ToString())
-            ?? "1.0.0";
     }
 
     private static string? NormalizeVersionLabel(string? value)
@@ -313,7 +305,7 @@ public sealed class GitHubAppUpdateService : IAppUpdateService, IDisposable
             Directory.CreateDirectory(targetDirectory);
         }
 
-        using var response = await _httpClient.GetAsync(url, HttpCompletionOption.ResponseHeadersRead, cancellationToken);
+        using var response = await _downloadHttpClient.GetAsync(url, HttpCompletionOption.ResponseHeadersRead, cancellationToken);
         response.EnsureSuccessStatusCode();
         await using var target = File.Open(filePath, FileMode.Create, FileAccess.Write, FileShare.None);
         await using var stream = await response.Content.ReadAsStreamAsync(cancellationToken);

@@ -1,4 +1,3 @@
-using System.Net.Http.Headers;
 using System.Security.Cryptography;
 using System.Text.Json;
 using System.Text.Json.Serialization;
@@ -13,16 +12,19 @@ public sealed class GitHubReleaseEncoderUpdateService : IEncoderUpdateService, I
 {
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
 
-    private readonly HttpClient _httpClient;
+    private readonly HttpClient _apiHttpClient;
+    private readonly HttpClient _downloadHttpClient;
     private readonly LocalAppPaths _paths;
     private readonly EncoderCpuProfile _cpuProfile;
 
-    public GitHubReleaseEncoderUpdateService(LocalAppPaths paths)
+    public GitHubReleaseEncoderUpdateService(LocalAppPaths paths, IFlowEncodeHttpClientFactory httpClientFactory)
     {
+        ArgumentNullException.ThrowIfNull(httpClientFactory);
+
         _paths = paths;
         _cpuProfile = EncoderCpuCompatibilityPolicy.DetectCurrent();
-        _httpClient = new HttpClient();
-        _httpClient.DefaultRequestHeaders.UserAgent.Add(new ProductInfoHeaderValue("FlowEncode", "1.0"));
+        _apiHttpClient = httpClientFactory.CreateClient(FlowEncodeHttpClientProfile.Api);
+        _downloadHttpClient = httpClientFactory.CreateClient(FlowEncodeHttpClientProfile.Download);
     }
 
     public async Task<IReadOnlyList<EncoderUpdatePackage>> GetAvailableUpdatesAsync(CancellationToken cancellationToken = default)
@@ -162,7 +164,8 @@ public sealed class GitHubReleaseEncoderUpdateService : IEncoderUpdateService, I
 
     public void Dispose()
     {
-        _httpClient.Dispose();
+        _apiHttpClient.Dispose();
+        _downloadHttpClient.Dispose();
     }
 
     private void WriteDiagnostic(string message)
@@ -270,7 +273,7 @@ public sealed class GitHubReleaseEncoderUpdateService : IEncoderUpdateService, I
         string notes,
         CancellationToken cancellationToken)
     {
-        var response = await _httpClient.GetAsync($"https://api.github.com/repos/{repository}/releases/latest", cancellationToken);
+        var response = await _apiHttpClient.GetAsync($"https://api.github.com/repos/{repository}/releases/latest", cancellationToken);
         response.EnsureSuccessStatusCode();
 
         await using var contentStream = await response.Content.ReadAsStreamAsync(cancellationToken);
@@ -322,7 +325,7 @@ public sealed class GitHubReleaseEncoderUpdateService : IEncoderUpdateService, I
     {
         Directory.CreateDirectory(Path.GetDirectoryName(filePath)!);
         await using var target = File.Open(filePath, FileMode.Create, FileAccess.Write, FileShare.None);
-        using var response = await _httpClient.GetAsync(url, HttpCompletionOption.ResponseHeadersRead, cancellationToken);
+        using var response = await _downloadHttpClient.GetAsync(url, HttpCompletionOption.ResponseHeadersRead, cancellationToken);
         response.EnsureSuccessStatusCode();
         await using var stream = await response.Content.ReadAsStreamAsync(cancellationToken);
         await stream.CopyToAsync(target, cancellationToken);

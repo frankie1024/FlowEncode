@@ -1,7 +1,6 @@
 using System.Collections.Concurrent;
 using System.Diagnostics;
 using System.Globalization;
-using System.Net.Http.Headers;
 using System.Runtime.Versioning;
 using System.Text.Json;
 using System.Text.RegularExpressions;
@@ -39,20 +38,24 @@ public sealed class SetupBootstrapService : ISetupBootstrapService, IDisposable
     private readonly IEncoderUpdateService _encoderUpdateService;
     private readonly IEncoderToolchainService _toolchainService;
     private readonly IExternalToolService _externalToolService;
-    private readonly HttpClient _httpClient;
+    private readonly HttpClient _apiHttpClient;
+    private readonly HttpClient _downloadHttpClient;
 
     public SetupBootstrapService(
         LocalAppPaths paths,
         IEncoderUpdateService encoderUpdateService,
         IEncoderToolchainService toolchainService,
-        IExternalToolService externalToolService)
+        IExternalToolService externalToolService,
+        IFlowEncodeHttpClientFactory httpClientFactory)
     {
+        ArgumentNullException.ThrowIfNull(httpClientFactory);
+
         _paths = paths;
         _encoderUpdateService = encoderUpdateService;
         _toolchainService = toolchainService;
         _externalToolService = externalToolService;
-        _httpClient = new HttpClient();
-        _httpClient.DefaultRequestHeaders.UserAgent.Add(new ProductInfoHeaderValue("FlowEncode", "1.0"));
+        _apiHttpClient = httpClientFactory.CreateClient(FlowEncodeHttpClientProfile.Api);
+        _downloadHttpClient = httpClientFactory.CreateClient(FlowEncodeHttpClientProfile.Download);
     }
 
     public Task<SetupDependencyStatusReport> GetStatusReportAsync(
@@ -139,7 +142,8 @@ public sealed class SetupBootstrapService : ISetupBootstrapService, IDisposable
 
     public void Dispose()
     {
-        _httpClient.Dispose();
+        _apiHttpClient.Dispose();
+        _downloadHttpClient.Dispose();
     }
 
     private async Task<SetupDependencyStatusReport> GetStatusReportCoreAsync(
@@ -1066,7 +1070,7 @@ public sealed class SetupBootstrapService : ISetupBootstrapService, IDisposable
         IProgress<SetupInstallProgress>? progress,
         CancellationToken cancellationToken)
     {
-        using var response = await _httpClient.GetAsync(url, HttpCompletionOption.ResponseHeadersRead, cancellationToken);
+        using var response = await _downloadHttpClient.GetAsync(url, HttpCompletionOption.ResponseHeadersRead, cancellationToken);
         response.EnsureSuccessStatusCode();
 
         var totalBytes = response.Content.Headers.ContentLength;
@@ -1190,7 +1194,7 @@ public sealed class SetupBootstrapService : ISetupBootstrapService, IDisposable
     {
         try
         {
-            using var response = await _httpClient.GetAsync($"https://pypi.org/pypi/{packageName}/json", cancellationToken);
+            using var response = await _apiHttpClient.GetAsync($"https://pypi.org/pypi/{packageName}/json", cancellationToken);
             response.EnsureSuccessStatusCode();
 
             await using var stream = await response.Content.ReadAsStreamAsync(cancellationToken);
