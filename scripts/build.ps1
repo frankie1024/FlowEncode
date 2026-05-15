@@ -40,6 +40,10 @@ $buildArgs = @(
     "/m"
 )
 
+if ($env:CI -eq "true") {
+    $buildArgs += "/p:RestoreLockedMode=true"
+}
+
 if (-not $RestoreOnly) {
     $buildArgs = @($projectPath, "/restore") + $buildArgs[1..($buildArgs.Count - 1)]
 }

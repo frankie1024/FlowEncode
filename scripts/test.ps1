@@ -27,6 +27,10 @@ $testArgs = @(
     "minimal"
 )
 
+if ($env:CI -eq "true") {
+    $testArgs += "/p:RestoreLockedMode=true"
+}
+
 Write-Host "Running tests: $testProjectPath"
 & dotnet @testArgs
 
