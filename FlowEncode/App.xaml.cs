@@ -22,6 +22,10 @@ public partial class App : Microsoft.UI.Xaml.Application
     private const string SingleInstanceKey = "FlowEncode.Main";
     private const string SingleInstancePipeName = "FlowEncode.VapourSynth.Open.v1";
     private const string SingleInstanceActivateMessage = "__FLOWENCODE_ACTIVATE__";
+    private static readonly TimeSpan SingleInstanceForwardTimeout = TimeSpan.FromSeconds(2);
+    private static readonly TimeSpan SingleInstanceForwardConnectTimeout = TimeSpan.FromMilliseconds(150);
+    private static readonly TimeSpan SingleInstanceForwardInitialDelay = TimeSpan.FromMilliseconds(50);
+    private static readonly TimeSpan SingleInstanceForwardMaxDelay = TimeSpan.FromMilliseconds(250);
     private readonly ServiceProvider _services;
     private AppInstance? _mainAppInstance;
     private CancellationTokenSource? _singleInstancePipeCancellationTokenSource;
@@ -357,18 +361,28 @@ public partial class App : Microsoft.UI.Xaml.Application
             ? SingleInstanceActivateMessage
             : normalizedPath;
         Exception? lastException = null;
+        var startedAt = Stopwatch.GetTimestamp();
+        var attempts = 0;
+        var retryDelay = SingleInstanceForwardInitialDelay;
 
-        for (var attempt = 0; attempt < 20; attempt++)
+        while (Stopwatch.GetElapsedTime(startedAt) < SingleInstanceForwardTimeout)
         {
             try
             {
+                attempts++;
+                var remaining = SingleInstanceForwardTimeout - Stopwatch.GetElapsedTime(startedAt);
+                var connectTimeout = remaining < SingleInstanceForwardConnectTimeout
+                    ? remaining
+                    : SingleInstanceForwardConnectTimeout;
+                var connectTimeoutMilliseconds = Math.Max(1, (int)Math.Ceiling(connectTimeout.TotalMilliseconds));
+
                 using var client = new NamedPipeClientStream(
                     ".",
                     SingleInstancePipeName,
                     PipeDirection.Out,
                     PipeOptions.Asynchronous | PipeOptions.CurrentUserOnly);
 
-                await client.ConnectAsync(200);
+                await client.ConnectAsync(connectTimeoutMilliseconds);
 
                 using var writer = new StreamWriter(client)
                 {
@@ -381,16 +395,34 @@ public partial class App : Microsoft.UI.Xaml.Application
             catch (TimeoutException ex)
             {
                 lastException = ex;
-                await Task.Delay(150);
             }
             catch (IOException ex)
             {
                 lastException = ex;
-                await Task.Delay(150);
             }
+
+            var remainingDelay = SingleInstanceForwardTimeout - Stopwatch.GetElapsedTime(startedAt);
+            if (remainingDelay <= TimeSpan.Zero)
+            {
+                break;
+            }
+
+            var delay = retryDelay < remainingDelay
+                ? retryDelay
+                : remainingDelay;
+            await Task.Delay(delay);
+
+            retryDelay = TimeSpan.FromMilliseconds(Math.Min(
+                retryDelay.TotalMilliseconds * 2,
+                SingleInstanceForwardMaxDelay.TotalMilliseconds));
         }
 
-        var context = DiagnosticContext(("payload", pipePayload));
+        var elapsed = Stopwatch.GetElapsedTime(startedAt);
+        var context = DiagnosticContext(
+            ("payload", pipePayload),
+            ("attempts", attempts.ToString()),
+            ("timeoutMs", ((int)SingleInstanceForwardTimeout.TotalMilliseconds).ToString()),
+            ("elapsedMs", ((int)elapsed.TotalMilliseconds).ToString()));
         if (lastException is not null)
         {
             TryWriteAppExceptionDiagnostic(
@@ -402,7 +434,7 @@ public partial class App : Microsoft.UI.Xaml.Application
         else
         {
             WriteLifecycleDiagnostic(
-                "Failed to forward single-instance activation request to main instance after 20 attempts.",
+                "Failed to forward single-instance activation request to main instance within the retry window.",
                 AppDiagnosticSeverity.Warning,
                 context);
         }
