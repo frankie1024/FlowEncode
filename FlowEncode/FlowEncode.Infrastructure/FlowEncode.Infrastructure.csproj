@@ -9,6 +9,10 @@
     <PackageReference Include="SharpCompress" />
   </ItemGroup>
 
+  <ItemGroup>
+    <EmbeddedResource Include="Resources\VapourSynthFramePropertyProbe.py" />
+  </ItemGroup>
+
   <PropertyGroup>
     <TargetFramework>net8.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>

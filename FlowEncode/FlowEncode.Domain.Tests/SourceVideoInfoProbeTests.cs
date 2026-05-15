@@ -45,6 +45,42 @@ public sealed class SourceVideoInfoProbeTests
         }
     }
 
+    [TestMethod]
+    public void VapourSynthFramePropertyProbeScriptResource_CanBeRead()
+    {
+        var script = SourceVideoInfoProbe.ReadVapourSynthFramePropertyProbeScriptForTesting();
+
+        StringAssert.Contains(script, "import vapoursynth as vs");
+        StringAssert.Contains(script, "json.dumps");
+        StringAssert.Contains(script, "vs.get_output(0)");
+    }
+
+    [TestMethod]
+    public void CleanupStaleFramePropertyProbeScriptsForTesting_DeletesOnlyOldMatchingScripts()
+    {
+        var now = new DateTimeOffset(2026, 5, 15, 12, 0, 0, TimeSpan.Zero);
+        var oldMatchingScript = Path.Combine(_testRoot!, "flowencode-vs-props-old.py");
+        var freshMatchingScript = Path.Combine(_testRoot!, "flowencode-vs-props-fresh.py");
+        var oldNonMatchingScript = Path.Combine(_testRoot!, "other.py");
+
+        File.WriteAllText(oldMatchingScript, string.Empty);
+        File.WriteAllText(freshMatchingScript, string.Empty);
+        File.WriteAllText(oldNonMatchingScript, string.Empty);
+        File.SetLastWriteTimeUtc(oldMatchingScript, now.AddDays(-2).UtcDateTime);
+        File.SetLastWriteTimeUtc(freshMatchingScript, now.AddMinutes(-10).UtcDateTime);
+        File.SetLastWriteTimeUtc(oldNonMatchingScript, now.AddDays(-2).UtcDateTime);
+
+        var deletedCount = SourceVideoInfoProbe.CleanupStaleFramePropertyProbeScriptsForTesting(
+            _testRoot!,
+            now,
+            TimeSpan.FromDays(1));
+
+        Assert.AreEqual(1, deletedCount);
+        Assert.IsFalse(File.Exists(oldMatchingScript));
+        Assert.IsTrue(File.Exists(freshMatchingScript));
+        Assert.IsTrue(File.Exists(oldNonMatchingScript));
+    }
+
     private ExternalToolLocator CreateToolLocator()
     {
         var localStatePath = Path.Combine(_testRoot!, "local-state");

@@ -11,9 +11,11 @@ namespace FlowEncode.Infrastructure;
 internal sealed partial class SourceVideoInfoProbe
 {
     private const int DefaultMaxCachedSourceInfoEntries = 256;
+    private const string VapourSynthFramePropertyProbeResourceName = "FlowEncode.Infrastructure.Resources.VapourSynthFramePropertyProbe.py";
 
     private static readonly TimeSpan SourceInfoProbeTimeout = TimeSpan.FromMinutes(2);
     private static readonly TimeSpan FramePropertyProbeTimeout = TimeSpan.FromSeconds(15);
+    private static readonly TimeSpan StaleFramePropertyProbeScriptAge = TimeSpan.FromDays(1);
 
     private readonly object _cacheTrimGate = new();
     private readonly ExternalToolLocator _toolLocator;
@@ -443,11 +445,14 @@ internal sealed partial class SourceVideoInfoProbe
         string sourcePath,
         CancellationToken cancellationToken)
     {
-        var scriptPath = Path.Combine(Path.GetTempPath(), $"flowencode-vs-props-{Guid.NewGuid():N}.py");
+        var tempRoot = Path.GetTempPath();
+        CleanupStaleFramePropertyProbeScripts(tempRoot, DateTimeOffset.UtcNow, StaleFramePropertyProbeScriptAge);
+
+        var scriptPath = Path.Combine(tempRoot, $"flowencode-vs-props-{Guid.NewGuid():N}.py");
 
         try
         {
-            File.WriteAllText(scriptPath, VapourSynthFramePropertyProbeScript, Encoding.UTF8);
+            File.WriteAllText(scriptPath, ReadVapourSynthFramePropertyProbeScript(), Encoding.UTF8);
 
             var startInfo = new ProcessStartInfo
             {
@@ -481,6 +486,77 @@ internal sealed partial class SourceVideoInfoProbe
                 Debug.WriteLine($"Failed to delete temporary VapourSynth frame probe script '{scriptPath}'. {ex}");
             }
         }
+    }
+
+    internal static string ReadVapourSynthFramePropertyProbeScriptForTesting()
+    {
+        return ReadVapourSynthFramePropertyProbeScript();
+    }
+
+    internal static int CleanupStaleFramePropertyProbeScriptsForTesting(
+        string tempRoot,
+        DateTimeOffset now,
+        TimeSpan minAge)
+    {
+        return CleanupStaleFramePropertyProbeScripts(tempRoot, now, minAge);
+    }
+
+    private static string ReadVapourSynthFramePropertyProbeScript()
+    {
+        var assembly = typeof(SourceVideoInfoProbe).Assembly;
+        using var stream = assembly.GetManifestResourceStream(VapourSynthFramePropertyProbeResourceName);
+        if (stream is null)
+        {
+            throw new InvalidOperationException(
+                $"VapourSynth frame property probe script resource '{VapourSynthFramePropertyProbeResourceName}' was not found.");
+        }
+
+        using var reader = new StreamReader(stream, Encoding.UTF8, detectEncodingFromByteOrderMarks: true);
+        return reader.ReadToEnd();
+    }
+
+    private static int CleanupStaleFramePropertyProbeScripts(
+        string tempRoot,
+        DateTimeOffset now,
+        TimeSpan minAge)
+    {
+        if (string.IsNullOrWhiteSpace(tempRoot) || !Directory.Exists(tempRoot))
+        {
+            return 0;
+        }
+
+        string[] scriptPaths;
+        try
+        {
+            scriptPaths = Directory.EnumerateFiles(tempRoot, "flowencode-vs-props-*.py", SearchOption.TopDirectoryOnly).ToArray();
+        }
+        catch (Exception ex)
+        {
+            Debug.WriteLine($"Failed to enumerate stale VapourSynth frame probe scripts in '{tempRoot}'. {ex}");
+            return 0;
+        }
+
+        var deletedCount = 0;
+        foreach (var scriptPath in scriptPaths)
+        {
+            try
+            {
+                var lastWriteTime = new DateTimeOffset(File.GetLastWriteTimeUtc(scriptPath), TimeSpan.Zero);
+                if (now - lastWriteTime < minAge)
+                {
+                    continue;
+                }
+
+                File.Delete(scriptPath);
+                deletedCount++;
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"Failed to delete stale VapourSynth frame probe script '{scriptPath}'. {ex}");
+            }
+        }
+
+        return deletedCount;
     }
 
     private static void ReadY4mExtendedColorToken(
@@ -979,56 +1055,6 @@ internal sealed partial class SourceVideoInfoProbe
             }
         }
     }
-
-    private const string VapourSynthFramePropertyProbeScript = """
-import contextlib
-import json
-import os
-import runpy
-import sys
-
-import vapoursynth as vs
-
-
-def normalize(value):
-    if isinstance(value, bytes):
-        return value.decode("utf-8", "replace")
-
-    try:
-        return int(value)
-    except Exception:
-        return str(value)
-
-
-def main():
-    source_path = sys.argv[1]
-
-    with open(os.devnull, "w", encoding="utf-8") as sink:
-        with contextlib.redirect_stdout(sink):
-            runpy.run_path(source_path, run_name="__vapoursynth_probe__")
-
-    output = vs.get_output(0)
-    frame = output.clip.get_frame(0)
-    props = frame.props
-    result = {}
-
-    for key in (
-        "_Matrix",
-        "_Primaries",
-        "_Transfer",
-        "_Range",
-        "_ColorRange",
-        "_ChromaLocation",
-    ):
-        if key in props:
-            result[key] = normalize(props[key])
-
-    print(json.dumps(result, ensure_ascii=False))
-
-
-if __name__ == "__main__":
-    main()
-""";
 
     private static string FirstMeaningfulLine(string output)
     {
