@@ -510,6 +510,8 @@ public sealed class AppText
     public string JobMenuCancel => Pick("取消任务", "Cancel Job");
     public string JobMenuRestart => Pick("重启任务", "Restart Job");
     public string JobMenuDelete => Pick("删除任务", "Delete Job");
+    public string QueueEnterSelectionModeButton => Pick("批量选择", "Batch Select");
+    public string QueueExitSelectionModeButton => Pick("完成", "Done");
     public string QueueSelectAllButton => Pick("全选", "Select All");
     public string QueueInvertSelectionButton => Pick("反选", "Invert");
     public string QueueClearSelectionButton => Pick("清空选择", "Clear Selection");

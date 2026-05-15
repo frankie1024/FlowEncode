@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
@@ -16,6 +17,8 @@ public sealed partial class OverviewView : UserControl
 {
     private bool _interactionsInitialized;
     private bool _isLoaded;
+    private bool _isQueueSelectionModeActive;
+    private bool _isQueueSelectionModeChanging;
     private bool _selectionSyncInProgress;
     private double _lastWidth;
 
@@ -30,6 +33,7 @@ public sealed partial class OverviewView : UserControl
         InitializeComponent();
         Loaded += OverviewView_Loaded;
         OverviewScrollViewer.SizeChanged += OverviewScrollViewer_SizeChanged;
+        UpdateQueueSelectionModeUi();
     }
 
     public void ApplyLayout(double width, Thickness contentPadding)
@@ -487,16 +491,35 @@ public sealed partial class OverviewView : UserControl
         }
 
         SyncListSelectionFromViewModel();
+        ExitQueueSelectionModeIfQueueIsEmpty();
+    }
+
+    private void EnterQueueSelectionModeMenuItem_Click(object sender, RoutedEventArgs e)
+    {
+        if (TryGetJobFromMenu(sender, out var job))
+        {
+            SelectQueueJobInList(job);
+            QueueViewModel?.SelectJob(job);
+        }
+
+        SetQueueSelectionModeActive(true);
+    }
+
+    private void ExitQueueSelectionModeButton_Click(object sender, RoutedEventArgs e)
+    {
+        SetQueueSelectionModeActive(false);
     }
 
     private void SelectAllQueueJobsButton_Click(object sender, RoutedEventArgs e)
     {
+        SetQueueSelectionModeActive(true);
         JobsList.SelectAll();
         SyncSelectedQueueJobs();
     }
 
     private void InvertQueueSelectionButton_Click(object sender, RoutedEventArgs e)
     {
+        SetQueueSelectionModeActive(true);
         var selectedJobs = JobsList.SelectedItems
             .OfType<EncodingJobItemViewModel>()
             .ToHashSet();
@@ -611,12 +634,13 @@ public sealed partial class OverviewView : UserControl
         }
 
         SyncListSelectionFromViewModel();
+        ExitQueueSelectionModeIfQueueIsEmpty();
     }
 
     private void JobsList_SelectionChanged(object sender, SelectionChangedEventArgs e)
     {
         var queueViewModel = QueueViewModel;
-        if (queueViewModel is null)
+        if (queueViewModel is null || _isQueueSelectionModeChanging)
         {
             return;
         }
@@ -647,13 +671,17 @@ public sealed partial class OverviewView : UserControl
     {
         if (QueueViewModel is not null)
         {
-            QueueViewModel.UpdateSelectedQueueJobs(JobsList.SelectedItems.OfType<EncodingJobItemViewModel>());
+            QueueViewModel.UpdateSelectedQueueJobs(GetSelectedQueueJobs());
         }
     }
 
     private void SelectQueueJobForSingleAction(EncodingJobItemViewModel job)
     {
-        if (!JobsList.SelectedItems.Contains(job))
+        if (JobsList.SelectionMode == ListViewSelectionMode.Single)
+        {
+            JobsList.SelectedItem = job;
+        }
+        else if (!JobsList.SelectedItems.Contains(job))
         {
             JobsList.SelectedItems.Add(job);
         }
@@ -670,23 +698,155 @@ public sealed partial class OverviewView : UserControl
             return;
         }
 
+        if (JobsList.SelectionMode == ListViewSelectionMode.Single)
+        {
+            var selectedJob = JobsList.SelectedItem as EncodingJobItemViewModel;
+            if (selectedJob is not null && queueViewModel.Jobs.Contains(selectedJob))
+            {
+                SyncSelectedQueueJobs();
+                return;
+            }
+
+            SelectQueueJobInList(queueViewModel.SelectedJob is not null && queueViewModel.Jobs.Contains(queueViewModel.SelectedJob)
+                ? queueViewModel.SelectedJob
+                : null);
+            SyncSelectedQueueJobs();
+            return;
+        }
+
         var selectedJobs = JobsList.SelectedItems
             .OfType<EncodingJobItemViewModel>()
             .Where(job => queueViewModel.Jobs.Contains(job))
             .ToList();
 
-        if (selectedJobs.Count == JobsList.SelectedItems.Count)
+        if (selectedJobs.Count != JobsList.SelectedItems.Count)
         {
+            JobsList.SelectedItems.Clear();
+            foreach (var job in selectedJobs)
+            {
+                JobsList.SelectedItems.Add(job);
+            }
+        }
+
+        SyncSelectedQueueJobs();
+    }
+
+    private void SetQueueSelectionModeActive(bool isActive)
+    {
+        if (_isQueueSelectionModeActive == isActive
+            && JobsList.SelectionMode == (isActive ? ListViewSelectionMode.Multiple : ListViewSelectionMode.Single))
+        {
+            UpdateQueueSelectionModeUi();
+            return;
+        }
+
+        var activeJob = GetCurrentQueueJobSelection();
+        _isQueueSelectionModeChanging = true;
+
+        try
+        {
+            if (isActive)
+            {
+                JobsList.SelectionMode = ListViewSelectionMode.Multiple;
+                if (activeJob is not null && !JobsList.SelectedItems.Contains(activeJob))
+                {
+                    JobsList.SelectedItems.Add(activeJob);
+                }
+            }
+            else
+            {
+                if (JobsList.SelectionMode != ListViewSelectionMode.Single)
+                {
+                    JobsList.SelectedItems.Clear();
+                }
+
+                JobsList.SelectionMode = ListViewSelectionMode.Single;
+                JobsList.SelectedItem = activeJob;
+            }
+
+            _isQueueSelectionModeActive = isActive;
+        }
+        finally
+        {
+            _isQueueSelectionModeChanging = false;
+        }
+
+        UpdateQueueSelectionModeUi();
+        SyncSelectedQueueJobs();
+        QueueViewModel?.SelectJob(activeJob);
+    }
+
+    private void UpdateQueueSelectionModeUi()
+    {
+        var selectionModeVisibility = _isQueueSelectionModeActive
+            ? Visibility.Visible
+            : Visibility.Collapsed;
+
+        QueueSelectionCommandBar.Visibility = selectionModeVisibility;
+        QueueExitSelectionModeButton.Visibility = selectionModeVisibility;
+        QueueSelectionModeSeparator.Visibility = selectionModeVisibility;
+        QueueSelectAllJobsButton.Visibility = selectionModeVisibility;
+        QueueInvertSelectionButton.Visibility = selectionModeVisibility;
+        QueueBatchActionSeparator.Visibility = selectionModeVisibility;
+        QueueBatchStartButton.Visibility = selectionModeVisibility;
+        QueueBatchCancelButton.Visibility = selectionModeVisibility;
+        QueueBatchDeleteButton.Visibility = selectionModeVisibility;
+        QueueSelectionStatusTextBlock.Visibility = selectionModeVisibility;
+    }
+
+    private EncodingJobItemViewModel? GetCurrentQueueJobSelection()
+    {
+        var queueViewModel = QueueViewModel;
+        var selectedJob = JobsList.SelectedItems
+            .OfType<EncodingJobItemViewModel>()
+            .LastOrDefault()
+            ?? JobsList.SelectedItem as EncodingJobItemViewModel
+            ?? queueViewModel?.SelectedJob;
+
+        return selectedJob is not null && queueViewModel?.Jobs.Contains(selectedJob) == true
+            ? selectedJob
+            : null;
+    }
+
+    private void SelectQueueJobInList(EncodingJobItemViewModel? job)
+    {
+        if (JobsList.SelectionMode == ListViewSelectionMode.Single)
+        {
+            JobsList.SelectedItem = job;
             return;
         }
 
         JobsList.SelectedItems.Clear();
-        foreach (var job in selectedJobs)
+        if (job is not null)
         {
             JobsList.SelectedItems.Add(job);
         }
+    }
 
-        SyncSelectedQueueJobs();
+    private IEnumerable<EncodingJobItemViewModel> GetSelectedQueueJobs()
+    {
+        if (JobsList.SelectionMode == ListViewSelectionMode.Single)
+        {
+            if (JobsList.SelectedItem is EncodingJobItemViewModel selectedJob)
+            {
+                yield return selectedJob;
+            }
+
+            yield break;
+        }
+
+        foreach (var job in JobsList.SelectedItems.OfType<EncodingJobItemViewModel>())
+        {
+            yield return job;
+        }
+    }
+
+    private void ExitQueueSelectionModeIfQueueIsEmpty()
+    {
+        if (QueueViewModel?.Jobs.Count == 0)
+        {
+            SetQueueSelectionModeActive(false);
+        }
     }
 
     private async Task<bool> ShowConfirmationAsync(
@@ -759,8 +919,7 @@ public sealed partial class OverviewView : UserControl
 
         if (queueViewModel.SelectedJob is not null)
         {
-            JobsList.SelectedItems.Clear();
-            JobsList.SelectedItems.Add(queueViewModel.SelectedJob);
+            SelectQueueJobInList(queueViewModel.SelectedJob);
         }
 
         SyncSelectedQueueJobs();

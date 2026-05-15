@@ -321,25 +321,33 @@
                                     <TextBlock Grid.Column="3" FontWeight="SemiBold" HorizontalAlignment="Center" Text="{Binding Texts.QueueProgressColumn}" />
                                 </Grid>
 
-                                <CommandBar x:Name="QueueSelectionCommandBar" Grid.Row="1" Padding="6,0" Background="Transparent" DefaultLabelPosition="Right" IsDynamicOverflowEnabled="False" OverflowButtonVisibility="Collapsed" Visibility="{Binding QueueSelectionCommandBarVisibility}">
-                                    <AppBarButton Icon="SelectAll" Label="{Binding Texts.QueueSelectAllButton}" Click="SelectAllQueueJobsButton_Click" IsEnabled="{Binding CanSelectAllQueueJobs}" />
-                                    <AppBarButton Icon="Switch" Label="{Binding Texts.QueueInvertSelectionButton}" Click="InvertQueueSelectionButton_Click" IsEnabled="{Binding CanInvertQueueSelection}" />
-                                    <AppBarSeparator />
-                                    <AppBarButton Icon="Play" Label="{Binding Texts.QueueBatchStartButton}" Click="StartSelectedJobsButton_Click" IsEnabled="{Binding CanStartSelectedJobs}" />
-                                    <AppBarButton Icon="Cancel" Label="{Binding Texts.QueueBatchCancelButton}" Click="CancelSelectedJobsButton_Click" IsEnabled="{Binding CanCancelSelectedJobs}" />
-                                    <AppBarButton Icon="Delete" Label="{Binding Texts.QueueBatchDeleteButton}" Click="DeleteSelectedJobsButton_Click" IsEnabled="{Binding CanDeleteSelectedJobs}" />
+                                <CommandBar x:Name="QueueSelectionCommandBar" Grid.Row="1" Padding="6,0" Background="Transparent" DefaultLabelPosition="Right" IsDynamicOverflowEnabled="False" OverflowButtonVisibility="Collapsed" Visibility="Collapsed">
+                                    <AppBarButton x:Name="QueueExitSelectionModeButton" Icon="Accept" Label="{Binding Texts.QueueExitSelectionModeButton}" Click="ExitQueueSelectionModeButton_Click" Visibility="Collapsed" />
+                                    <AppBarSeparator x:Name="QueueSelectionModeSeparator" Visibility="Collapsed" />
+                                    <AppBarButton x:Name="QueueSelectAllJobsButton" Icon="SelectAll" Label="{Binding Texts.QueueSelectAllButton}" Click="SelectAllQueueJobsButton_Click" IsEnabled="{Binding CanSelectAllQueueJobs}" Visibility="Collapsed" />
+                                    <AppBarButton x:Name="QueueInvertSelectionButton" Icon="Switch" Label="{Binding Texts.QueueInvertSelectionButton}" Click="InvertQueueSelectionButton_Click" IsEnabled="{Binding CanInvertQueueSelection}" Visibility="Collapsed" />
+                                    <AppBarSeparator x:Name="QueueBatchActionSeparator" Visibility="Collapsed" />
+                                    <AppBarButton x:Name="QueueBatchStartButton" Icon="Play" Label="{Binding Texts.QueueBatchStartButton}" Click="StartSelectedJobsButton_Click" IsEnabled="{Binding CanStartSelectedJobs}" Visibility="Collapsed" />
+                                    <AppBarButton x:Name="QueueBatchCancelButton" Icon="Cancel" Label="{Binding Texts.QueueBatchCancelButton}" Click="CancelSelectedJobsButton_Click" IsEnabled="{Binding CanCancelSelectedJobs}" Visibility="Collapsed" />
+                                    <AppBarButton x:Name="QueueBatchDeleteButton" Icon="Delete" Label="{Binding Texts.QueueBatchDeleteButton}" Click="DeleteSelectedJobsButton_Click" IsEnabled="{Binding CanDeleteSelectedJobs}" Visibility="Collapsed" />
                                     <CommandBar.Content>
-                                        <TextBlock VerticalAlignment="Center" Foreground="{ThemeResource SubtleTextBrush}" Text="{Binding QueueSelectionStatusText}" TextTrimming="CharacterEllipsis" />
+                                        <TextBlock x:Name="QueueSelectionStatusTextBlock" VerticalAlignment="Center" Foreground="{ThemeResource SubtleTextBrush}" Text="{Binding QueueSelectionStatusText}" TextTrimming="CharacterEllipsis" Visibility="Collapsed" />
                                     </CommandBar.Content>
                                 </CommandBar>
 
                                 <Grid Grid.Row="2">
-                                    <ListView x:Name="JobsList" ItemsSource="{Binding Jobs}" MinHeight="320" SelectionMode="Multiple" SelectionChanged="JobsList_SelectionChanged">
+                                    <ListView x:Name="JobsList" ItemsSource="{Binding Jobs}" MinHeight="320" SelectionMode="Single" SelectionChanged="JobsList_SelectionChanged">
                                         <ListView.ItemTemplate>
                                             <DataTemplate>
                                                 <Grid Padding="14,12">
                                                     <Grid.ContextFlyout>
                                                         <MenuFlyout>
+                                                            <MenuFlyoutItem Text="{Binding DataContext.Texts.QueueEnterSelectionModeButton, ElementName=RootView}" Click="EnterQueueSelectionModeMenuItem_Click" CommandParameter="{Binding}">
+                                                                <MenuFlyoutItem.Icon>
+                                                                    <SymbolIcon Symbol="Edit" />
+                                                                </MenuFlyoutItem.Icon>
+                                                            </MenuFlyoutItem>
+                                                            <MenuFlyoutSeparator />
                                                             <MenuFlyoutItem Text="{Binding DataContext.Texts.JobMenuStart, ElementName=RootView}" Click="StartQueuedJobMenuItem_Click" CommandParameter="{Binding}" IsEnabled="{Binding CanStart}">
                                                                 <MenuFlyoutItem.Icon>
                                                                     <SymbolIcon Symbol="Play" />
