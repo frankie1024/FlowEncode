@@ -10,6 +10,7 @@ using FlowEncode.ViewModels;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Input;
+using Windows.System;
 
 namespace FlowEncode.Controls.Overview;
 
@@ -101,6 +102,7 @@ public sealed partial class OverviewView : UserControl
             _interactionsInitialized = true;
             SourcePathTextBox.AddHandler(UIElement.DoubleTappedEvent, new DoubleTappedEventHandler(SourcePathTextBox_DoubleTapped), true);
             OutputPathTextBox.AddHandler(UIElement.DoubleTappedEvent, new DoubleTappedEventHandler(OutputPathTextBox_DoubleTapped), true);
+            JobsList.AddHandler(UIElement.KeyDownEvent, new KeyEventHandler(JobsList_KeyDown), true);
         }
 
         _isLoaded = true;
@@ -544,18 +546,7 @@ public sealed partial class OverviewView : UserControl
 
     private async void StartSelectedJobsButton_Click(object sender, RoutedEventArgs e)
     {
-        var queueViewModel = QueueViewModel;
-        if (queueViewModel is null)
-        {
-            return;
-        }
-
-        SyncSelectedQueueJobs();
-        var error = queueViewModel.StartSelectedJobsNow();
-        if (!string.IsNullOrWhiteSpace(error))
-        {
-            await ShowMessageAsync(queueViewModel.Texts.ErrorCannotStartTitle, error);
-        }
+        await StartSelectedQueueJobsAsync();
     }
 
     private async void CancelSelectedJobsButton_Click(object sender, RoutedEventArgs e)
@@ -598,6 +589,117 @@ public sealed partial class OverviewView : UserControl
 
     private async void DeleteSelectedJobsButton_Click(object sender, RoutedEventArgs e)
     {
+        await DeleteSelectedQueueJobsAsync();
+    }
+
+    private async void JobsList_KeyDown(object sender, KeyRoutedEventArgs e)
+    {
+        if (ShouldIgnoreQueueShortcut())
+        {
+            return;
+        }
+
+        switch (e.Key)
+        {
+            case VirtualKey.Enter:
+                e.Handled = true;
+                if (_isQueueSelectionModeActive)
+                {
+                    await StartSelectedQueueJobsAsync();
+                }
+                else
+                {
+                    await StartCurrentQueueJobAsync();
+                }
+
+                break;
+            case VirtualKey.Delete:
+                e.Handled = true;
+                if (_isQueueSelectionModeActive)
+                {
+                    await DeleteSelectedQueueJobsAsync();
+                }
+                else
+                {
+                    await DeleteCurrentQueueJobAsync();
+                }
+
+                break;
+            case VirtualKey.Escape:
+                if (_isQueueSelectionModeActive)
+                {
+                    e.Handled = true;
+                    SetQueueSelectionModeActive(false);
+                }
+
+                break;
+        }
+    }
+
+    private async Task StartCurrentQueueJobAsync()
+    {
+        var queueViewModel = QueueViewModel;
+        if (queueViewModel is null)
+        {
+            return;
+        }
+
+        var job = GetCurrentQueueJobSelection();
+        if (job is not null)
+        {
+            SelectQueueJobForSingleAction(job);
+        }
+
+        var error = queueViewModel.StartJobNow(job);
+        if (!string.IsNullOrWhiteSpace(error))
+        {
+            await ShowMessageAsync(queueViewModel.Texts.ErrorCannotStartTitle, error);
+        }
+    }
+
+    private async Task StartSelectedQueueJobsAsync()
+    {
+        var queueViewModel = QueueViewModel;
+        if (queueViewModel is null)
+        {
+            return;
+        }
+
+        SyncSelectedQueueJobs();
+        var error = queueViewModel.StartSelectedJobsNow();
+        if (!string.IsNullOrWhiteSpace(error))
+        {
+            await ShowMessageAsync(queueViewModel.Texts.ErrorCannotStartTitle, error);
+        }
+    }
+
+    private async Task DeleteCurrentQueueJobAsync()
+    {
+        var queueViewModel = QueueViewModel;
+        if (queueViewModel is null)
+        {
+            return;
+        }
+
+        var job = GetCurrentQueueJobSelection();
+        if (job is not null)
+        {
+            SelectQueueJobForSingleAction(job);
+        }
+
+        var error = queueViewModel.RemoveJob(job);
+        if (!string.IsNullOrWhiteSpace(error))
+        {
+            await ShowMessageAsync(queueViewModel.Texts.ErrorCannotDeleteTitle, error);
+            return;
+        }
+
+        SyncListSelectionFromViewModel();
+        ExitQueueSelectionModeIfQueueIsEmpty();
+    }
+
+    private async Task DeleteSelectedQueueJobsAsync()
+    {
         var queueViewModel = QueueViewModel;
         if (queueViewModel is null)
         {
@@ -635,6 +737,16 @@ public sealed partial class OverviewView : UserControl
 
         SyncListSelectionFromViewModel();
         ExitQueueSelectionModeIfQueueIsEmpty();
+    }
+
+    private bool ShouldIgnoreQueueShortcut()
+    {
+        var focusedElement = FocusManager.GetFocusedElement(XamlRoot);
+        return focusedElement is TextBox
+            or PasswordBox
+            or RichEditBox
+            or ComboBox
+            or NumberBox;
     }
 
     private void JobsList_SelectionChanged(object sender, SelectionChangedEventArgs e)
