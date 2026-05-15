@@ -10,16 +10,30 @@ namespace FlowEncode.Infrastructure;
 
 internal sealed partial class SourceVideoInfoProbe
 {
+    private const int DefaultMaxCachedSourceInfoEntries = 256;
+
     private static readonly TimeSpan SourceInfoProbeTimeout = TimeSpan.FromMinutes(2);
     private static readonly TimeSpan FramePropertyProbeTimeout = TimeSpan.FromSeconds(15);
 
+    private readonly object _cacheTrimGate = new();
     private readonly ExternalToolLocator _toolLocator;
+    private readonly int _maxCachedEntries;
     private readonly ConcurrentDictionary<SourceVideoInfoCacheKey, Lazy<SourceVideoInfo?>> _cache = new();
 
     public SourceVideoInfoProbe(ExternalToolLocator toolLocator)
+        : this(toolLocator, DefaultMaxCachedSourceInfoEntries)
+    {
+    }
+
+    internal SourceVideoInfoProbe(ExternalToolLocator toolLocator, int maxCachedEntries)
     {
         _toolLocator = toolLocator;
+        _maxCachedEntries = maxCachedEntries > 0
+            ? maxCachedEntries
+            : throw new ArgumentOutOfRangeException(nameof(maxCachedEntries), maxCachedEntries, "Cache capacity must be positive.");
     }
+
+    internal int CacheCountForTesting => _cache.Count;
 
     public SourceVideoInfo? Probe(
         string sourcePath,
@@ -44,6 +58,7 @@ internal sealed partial class SourceVideoInfoProbe
         CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
+        TrimCacheBeforeAdding(cacheKey);
 
         var lazy = _cache.GetOrAdd(
             cacheKey,
@@ -59,6 +74,22 @@ internal sealed partial class SourceVideoInfoProbe
         {
             _cache.TryRemove(cacheKey, out _);
             throw;
+        }
+    }
+
+    private void TrimCacheBeforeAdding(SourceVideoInfoCacheKey cacheKey)
+    {
+        if (_cache.ContainsKey(cacheKey) || _cache.Count < _maxCachedEntries)
+        {
+            return;
+        }
+
+        lock (_cacheTrimGate)
+        {
+            if (!_cache.ContainsKey(cacheKey) && _cache.Count >= _maxCachedEntries)
+            {
+                _cache.Clear();
+            }
         }
     }
 

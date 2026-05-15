@@ -8,7 +8,11 @@ namespace FlowEncode.Infrastructure;
 internal static class AppDiagnosticsLog
 {
     private static readonly object SyncRoot = new();
+    private static readonly Encoding LogEncoding = new UTF8Encoding(false);
+
     private const string FileName = "diagnostics.log";
+    private const long MaxLogFileBytes = 10L * 1024 * 1024;
+    private const int RetainedArchiveCount = 3;
 
     public static void Write(
         LocalAppPaths appPaths,
@@ -16,7 +20,9 @@ internal static class AppDiagnosticsLog
         string message,
         AppDiagnosticSeverity severity = AppDiagnosticSeverity.Information,
         IReadOnlyDictionary<string, string?>? context = null,
-        Exception? exception = null)
+        Exception? exception = null,
+        long maxLogFileBytes = MaxLogFileBytes,
+        int retainedArchiveCount = RetainedArchiveCount)
     {
         if (string.IsNullOrWhiteSpace(message) && exception is null)
         {
@@ -31,7 +37,8 @@ internal static class AppDiagnosticsLog
 
             lock (SyncRoot)
             {
-                File.AppendAllText(path, line, new UTF8Encoding(false));
+                TryRotateIfNeeded(path, LogEncoding.GetByteCount(line), maxLogFileBytes, retainedArchiveCount);
+                File.AppendAllText(path, line, LogEncoding);
             }
         }
         catch (Exception ex)
@@ -39,6 +46,64 @@ internal static class AppDiagnosticsLog
             Debug.WriteLine($"Failed to write app diagnostic log. {ex}");
         }
     }
+
+    private static void TryRotateIfNeeded(
+        string path,
+        long incomingByteCount,
+        long maxLogFileBytes,
+        int retainedArchiveCount)
+    {
+        try
+        {
+            RotateIfNeeded(path, incomingByteCount, maxLogFileBytes, retainedArchiveCount);
+        }
+        catch (Exception ex)
+        {
+            Debug.WriteLine($"Failed to rotate app diagnostic log '{path}'. {ex}");
+        }
+    }
+
+    private static void RotateIfNeeded(
+        string path,
+        long incomingByteCount,
+        long maxLogFileBytes,
+        int retainedArchiveCount)
+    {
+        if (maxLogFileBytes <= 0
+            || retainedArchiveCount <= 0
+            || !File.Exists(path))
+        {
+            return;
+        }
+
+        var currentLength = new FileInfo(path).Length;
+        if (currentLength + incomingByteCount <= maxLogFileBytes)
+        {
+            return;
+        }
+
+        var lastArchivePath = BuildArchivePath(path, retainedArchiveCount);
+        if (File.Exists(lastArchivePath))
+        {
+            File.Delete(lastArchivePath);
+        }
+
+        for (var index = retainedArchiveCount - 1; index >= 1; index--)
+        {
+            var archivePath = BuildArchivePath(path, index);
+            if (!File.Exists(archivePath))
+            {
+                continue;
+            }
+
+            File.Move(archivePath, BuildArchivePath(path, index + 1), overwrite: true);
+        }
+
+        File.Move(path, BuildArchivePath(path, 1), overwrite: true);
+    }
+
+    private static string BuildArchivePath(string path, int index) =>
+        string.Create(CultureInfo.InvariantCulture, $"{path}.{index}");
 
     private static string FormatLine(
         string source,
