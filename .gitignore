@@ -6,6 +6,13 @@
 *.suo
 *.user
 *.rsuser
+*.nupkg
+*.snupkg
+.env
+.env.*
+!.env.example
+.idea/
+.vscode/
 .vs/
 ipch/
 out/

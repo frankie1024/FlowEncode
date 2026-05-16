@@ -7,8 +7,15 @@ using System.Diagnostics;
 namespace FlowEncode.Domain.Tests;
 
 [TestClass]
+[TestCategory("ExternalToolSmoke")]
 public sealed class LocalEncodingJobRunnerSmokeTests
 {
+    private const string RunExternalSmokeTestsVariable = "FLOWENCODE_RUN_EXTERNAL_SMOKE_TESTS";
+    private const string X264PathVariable = "FLOWENCODE_SMOKE_X264_PATH";
+    private const string X265PathVariable = "FLOWENCODE_SMOKE_X265_PATH";
+    private const string SvtAv1PathVariable = "FLOWENCODE_SMOKE_SVTAV1_PATH";
+    private const string FfmpegPathVariable = "FLOWENCODE_SMOKE_FFMPEG_PATH";
+
     private static readonly string SmokeRoot = Path.Combine(
         Path.GetTempPath(),
         "FlowEncodeSmoke");
@@ -18,7 +25,7 @@ public sealed class LocalEncodingJobRunnerSmokeTests
     {
         var sourcePath = EnsureSmokeSource();
         var outputPath = Path.Combine(SmokeRoot, "x264-smoke.264");
-        var runner = CreateRunner(EncoderKind.X264, @"E:\cmct_encode\encoders\x264\x64\x264.exe");
+        var runner = CreateRunner(EncoderKind.X264);
 
         var result = await runner.RunAsync(new EncodingJobRequest(
             Guid.NewGuid(),
@@ -54,7 +61,7 @@ public sealed class LocalEncodingJobRunnerSmokeTests
         var metadataPath = Path.Combine(metadataDirectory, "hdr10plus.json");
         await File.WriteAllTextAsync(metadataPath, "{}");
         var outputPath = Path.Combine(SmokeRoot, "x265-smoke.hevc");
-        var runner = CreateRunner(EncoderKind.X265, @"E:\cmct_encode\encoders\x265\x64\x265.exe");
+        var runner = CreateRunner(EncoderKind.X265);
 
         var result = await runner.RunAsync(new EncodingJobRequest(
             Guid.NewGuid(),
@@ -86,7 +93,7 @@ public sealed class LocalEncodingJobRunnerSmokeTests
     {
         var sourcePath = EnsureSmokeSource();
         var outputPath = Path.Combine(SmokeRoot, "x264-2pass-smoke.264");
-        var runner = CreateRunner(EncoderKind.X264, @"E:\cmct_encode\encoders\x264\x64\x264.exe");
+        var runner = CreateRunner(EncoderKind.X264);
 
         var result = await runner.RunAsync(new EncodingJobRequest(
             Guid.NewGuid(),
@@ -118,7 +125,7 @@ public sealed class LocalEncodingJobRunnerSmokeTests
     {
         var sourcePath = EnsureSmokeSource();
         var outputPath = Path.Combine(SmokeRoot, "x265-2pass-smoke.hevc");
-        var runner = CreateRunner(EncoderKind.X265, @"E:\cmct_encode\encoders\x265\x64\x265.exe");
+        var runner = CreateRunner(EncoderKind.X265);
 
         var result = await runner.RunAsync(new EncodingJobRequest(
             Guid.NewGuid(),
@@ -150,7 +157,7 @@ public sealed class LocalEncodingJobRunnerSmokeTests
     {
         var sourcePath = EnsureSmokeSource();
         var outputPath = Path.Combine(SmokeRoot, "svt-2pass-smoke.ivf");
-        var runner = CreateRunner(EncoderKind.SvtAv1, @"E:\cmct_encode\encoders\svt-av1\x64\SvtAv1EncApp.exe");
+        var runner = CreateRunner(EncoderKind.SvtAv1);
 
         var result = await runner.RunAsync(new EncodingJobRequest(
             Guid.NewGuid(),
@@ -182,7 +189,7 @@ public sealed class LocalEncodingJobRunnerSmokeTests
     {
         var sourcePath = EnsureSmokeSource();
         var outputPath = Path.Combine(SmokeRoot, "svt-smoke.ivf");
-        var runner = CreateRunner(EncoderKind.SvtAv1, @"E:\cmct_encode\encoders\svt-av1\x64\SvtAv1EncApp.exe");
+        var runner = CreateRunner(EncoderKind.SvtAv1);
 
         var result = await runner.RunAsync(new EncodingJobRequest(
             Guid.NewGuid(),
@@ -214,7 +221,7 @@ public sealed class LocalEncodingJobRunnerSmokeTests
     {
         var sourcePath = EnsureSmokeSource();
         var outputPath = Path.Combine(SmokeRoot, "svt-preview.ivf");
-        var runner = CreateRunner(EncoderKind.SvtAv1, @"E:\cmct_encode\encoders\svt-av1\x64\SvtAv1EncApp.exe");
+        var runner = CreateRunner(EncoderKind.SvtAv1);
 
         var command = runner.BuildDisplayCommand(new EncodingJobRequest(
             Guid.NewGuid(),
@@ -246,7 +253,7 @@ public sealed class LocalEncodingJobRunnerSmokeTests
     {
         var sourcePath = EnsureSmokeMp4();
         var outputPath = Path.Combine(SmokeRoot, "x264-ffmpeg-pipe-smoke.264");
-        var runner = CreateRunner(EncoderKind.X264, @"E:\cmct_encode\encoders\x264\x64\x264.exe");
+        var runner = CreateRunner(EncoderKind.X264);
 
         var result = await runner.RunAsync(new EncodingJobRequest(
             Guid.NewGuid(),
@@ -278,7 +285,7 @@ public sealed class LocalEncodingJobRunnerSmokeTests
     {
         var sourcePath = EnsureSmokeVpy();
         var outputPath = Path.Combine(SmokeRoot, "x264-vspipe-smoke.264");
-        var runner = CreateRunner(EncoderKind.X264, @"E:\cmct_encode\encoders\x264\x64\x264.exe");
+        var runner = CreateRunner(EncoderKind.X264);
 
         var result = await runner.RunAsync(new EncodingJobRequest(
             Guid.NewGuid(),
@@ -310,7 +317,7 @@ public sealed class LocalEncodingJobRunnerSmokeTests
     {
         var sourcePath = EnsureSmokeVpy();
         var outputPath = Path.Combine(SmokeRoot, "x264-vspipe-invalid.264");
-        var runner = CreateRunner(EncoderKind.X264, @"E:\cmct_encode\encoders\x264\x64\x264.exe");
+        var runner = CreateRunner(EncoderKind.X264);
 
         var result = await runner.RunAsync(new EncodingJobRequest(
             Guid.NewGuid(),
@@ -344,7 +351,7 @@ public sealed class LocalEncodingJobRunnerSmokeTests
     {
         var sourcePath = EnsureLongRunningSmokeVpy();
         var outputPath = Path.Combine(SmokeRoot, "x265-vspipe-cancel-smoke.hevc");
-        var runner = CreateRunner(EncoderKind.X265, @"E:\cmct_encode\encoders\x265\x64\x265.exe");
+        var runner = CreateRunner(EncoderKind.X265);
         using var cancellationTokenSource = new CancellationTokenSource();
         using var progressSignal = new ManualResetEventSlim(false);
 
@@ -386,10 +393,11 @@ public sealed class LocalEncodingJobRunnerSmokeTests
         AssertNoRunningProcess("vspipe");
     }
 
-    private static LocalEncodingJobRunner CreateRunner(EncoderKind kind, string executablePath)
+    private static LocalEncodingJobRunner CreateRunner(EncoderKind kind)
     {
         Directory.CreateDirectory(SmokeRoot);
-        RequireFile(executablePath, $"Smoke test requires {Path.GetFileName(executablePath)}");
+        RequireExternalSmokeTestsEnabled();
+        var executablePath = ResolveSmokeToolPath(kind);
         var paths = new LocalAppPaths();
         var discovery = new FakeEncoderDiscoveryService(kind, executablePath);
         var settings = new FakeAppSettingsService(AppSettings.Default with
@@ -428,6 +436,7 @@ public sealed class LocalEncodingJobRunnerSmokeTests
 
     private static string EnsureSmokeMp4()
     {
+        RequireExternalSmokeTestsEnabled();
         var y4mPath = EnsureSmokeSource();
         var mp4Path = Path.Combine(SmokeRoot, "tiny64.mp4");
         if (File.Exists(mp4Path) && new FileInfo(mp4Path).Length > 0)
@@ -435,8 +444,7 @@ public sealed class LocalEncodingJobRunnerSmokeTests
             return mp4Path;
         }
 
-        const string ffmpegPath = @"E:\cmct_encode\tools\ffmpeg.exe";
-        RequireFile(ffmpegPath, "Smoke test requires ffmpeg.exe");
+        var ffmpegPath = ResolveSmokeToolPath(environmentVariableName: FfmpegPathVariable, toolName: "ffmpeg.exe");
         var process = Process.Start(new ProcessStartInfo
         {
             FileName = ffmpegPath,
@@ -470,6 +478,45 @@ public sealed class LocalEncodingJobRunnerSmokeTests
         }
 
         return mp4Path;
+    }
+
+    private static string ResolveSmokeToolPath(EncoderKind kind)
+    {
+        return kind switch
+        {
+            EncoderKind.X264 => ResolveSmokeToolPath(X264PathVariable, "x264.exe"),
+            EncoderKind.X265 => ResolveSmokeToolPath(X265PathVariable, "x265.exe"),
+            EncoderKind.SvtAv1 => ResolveSmokeToolPath(SvtAv1PathVariable, "SvtAv1EncApp.exe"),
+            _ => throw new ArgumentOutOfRangeException(nameof(kind), kind, null)
+        };
+    }
+
+    private static string ResolveSmokeToolPath(string environmentVariableName, string toolName)
+    {
+        RequireExternalSmokeTestsEnabled();
+
+        var configuredPath = Environment.GetEnvironmentVariable(environmentVariableName);
+        if (string.IsNullOrWhiteSpace(configuredPath))
+        {
+            Assert.Inconclusive(
+                $"External smoke tests require {toolName}. Set {environmentVariableName} and enable {RunExternalSmokeTestsVariable}=true.");
+            throw new UnreachableException("Assert.Inconclusive should stop test execution.");
+        }
+
+        RequireFile(configuredPath, $"Smoke test requires {toolName}");
+        return configuredPath;
+    }
+
+    private static void RequireExternalSmokeTestsEnabled()
+    {
+        var enabledValue = Environment.GetEnvironmentVariable(RunExternalSmokeTestsVariable);
+        var isEnabled = string.Equals(enabledValue, "true", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(enabledValue, "1", StringComparison.OrdinalIgnoreCase);
+        if (!isEnabled)
+        {
+            Assert.Inconclusive(
+                $"External smoke tests are disabled. Set {RunExternalSmokeTestsVariable}=true and provide tool paths to run them.");
+        }
     }
 
     private static void RequireFile(string path, string requirement)
@@ -520,30 +567,38 @@ public sealed class LocalEncodingJobRunnerSmokeTests
     private static void AssertNoRunningProcess(string processName)
     {
         var deadline = DateTime.UtcNow.AddSeconds(3);
-        while (true)
+        while (DateTime.UtcNow < deadline)
         {
             var processes = Process.GetProcessesByName(processName);
-            if (processes.Length == 0)
+            try
+            {
+                if (processes.Length == 0)
+                {
+                    return;
+                }
+            }
+            finally
             {
                 foreach (var process in processes)
                 {
                     process.Dispose();
                 }
-
-                return;
-            }
-
-            foreach (var process in processes)
-            {
-                process.Dispose();
-            }
-
-            if (DateTime.UtcNow >= deadline)
-            {
-                Assert.AreEqual(0, processes.Length, $"Expected no running {processName} process after cancellation, but found {processes.Length}.");
             }
 
             Thread.Sleep(100);
+        }
+
+        var remaining = Process.GetProcessesByName(processName);
+        try
+        {
+            Assert.AreEqual(0, remaining.Length, $"Expected no running {processName} process after cancellation, but found {remaining.Length}.");
+        }
+        finally
+        {
+            foreach (var process in remaining)
+            {
+                process.Dispose();
+            }
         }
     }
 
