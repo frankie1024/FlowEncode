@@ -11,7 +11,7 @@ public sealed class LocalEncodingJobRunnerVisibleLogTests
     {
         const string text = "line-1\r\nline-2";
 
-        var trimmed = LocalEncodingJobRunner.TrimVisibleLogForTesting(text);
+        var trimmed = EncodingJobLogWriter.TrimVisibleLogForTesting(text);
 
         Assert.AreEqual(text, trimmed);
     }
@@ -23,7 +23,7 @@ public sealed class LocalEncodingJobRunnerVisibleLogTests
             Environment.NewLine,
             Enumerable.Range(0, 30_000).Select(index => $"line-{index:00000}"));
 
-        var trimmed = LocalEncodingJobRunner.TrimVisibleLogForTesting(oversized);
+        var trimmed = EncodingJobLogWriter.TrimVisibleLogForTesting(oversized);
 
         StringAssert.StartsWith(trimmed, "[Log truncated; only latest output is kept]");
         Assert.AreEqual(1, CountOccurrences(trimmed, "[Log truncated; only latest output is kept]"));
