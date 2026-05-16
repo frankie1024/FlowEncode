@@ -10,7 +10,6 @@ namespace FlowEncode.Infrastructure;
 public sealed class LocalProfileLibraryService : IProfileLibraryService
 {
     private const string TemplateExchangeFormat = "flowencode/template/v1";
-    private const string TemplateFileExtension = ".profile";
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web)
     {
         Encoder = JavaScriptEncoder.Create(UnicodeRanges.All),
@@ -46,7 +45,7 @@ public sealed class LocalProfileLibraryService : IProfileLibraryService
             throw new FileNotFoundException("The selected template file does not exist.", filePath);
         }
 
-        if (!string.Equals(Path.GetExtension(filePath), TemplateFileExtension, StringComparison.OrdinalIgnoreCase))
+        if (!string.Equals(Path.GetExtension(filePath), SavedTemplateFilePathPlanner.TemplateFileExtension, StringComparison.OrdinalIgnoreCase))
         {
             throw new InvalidDataException("The selected file is not a valid FlowEncode template.");
         }
@@ -121,7 +120,10 @@ public sealed class LocalProfileLibraryService : IProfileLibraryService
             .Select(static entry => entry.FilePath)
             .Except(pathsToDelete, StringComparer.OrdinalIgnoreCase)
             .ToHashSet(StringComparer.OrdinalIgnoreCase);
-        var targetPath = BuildAvailableTemplateFilePath(normalizedName, occupiedPaths);
+        var targetPath = SavedTemplateFilePathPlanner.BuildAvailableFilePath(
+            _paths.WorkspaceTemplatesRootPath,
+            normalizedName,
+            occupiedPaths);
         var template = SavedTemplateNormalizer.Normalize(
             new SavedTemplate(
                 resolvedTemplateId,
@@ -215,7 +217,7 @@ public sealed class LocalProfileLibraryService : IProfileLibraryService
         Directory.CreateDirectory(_paths.WorkspaceTemplatesRootPath);
 
         var entries = new List<TemplateFileEntry>();
-        foreach (var filePath in Directory.EnumerateFiles(_paths.WorkspaceTemplatesRootPath, $"*{TemplateFileExtension}", SearchOption.TopDirectoryOnly)
+        foreach (var filePath in Directory.EnumerateFiles(_paths.WorkspaceTemplatesRootPath, $"*{SavedTemplateFilePathPlanner.TemplateFileExtension}", SearchOption.TopDirectoryOnly)
                      .OrderBy(static path => path, StringComparer.OrdinalIgnoreCase))
         {
             cancellationToken.ThrowIfCancellationRequested();
@@ -356,38 +358,6 @@ public sealed class LocalProfileLibraryService : IProfileLibraryService
     {
         var updatedAt = document.UpdatedAt ?? document.ExportedAt ?? DateTimeOffset.Now;
         return updatedAt == default ? DateTimeOffset.Now : updatedAt;
-    }
-
-    private string BuildAvailableTemplateFilePath(string templateName, ISet<string> occupiedPaths)
-    {
-        var sanitizedName = SanitizeFileName(templateName);
-        var candidate = Path.Combine(_paths.WorkspaceTemplatesRootPath, $"{sanitizedName}{TemplateFileExtension}");
-        if (!occupiedPaths.Contains(candidate))
-        {
-            return candidate;
-        }
-
-        for (var suffix = 2; suffix < short.MaxValue; suffix++)
-        {
-            candidate = Path.Combine(_paths.WorkspaceTemplatesRootPath, $"{sanitizedName}-{suffix}{TemplateFileExtension}");
-            if (!occupiedPaths.Contains(candidate))
-            {
-                return candidate;
-            }
-        }
-
-        throw new IOException("Unable to allocate a template file name.");
-    }
-
-    private static string SanitizeFileName(string fileName)
-    {
-        var invalidChars = Path.GetInvalidFileNameChars();
-        var sanitized = new string(fileName
-            .Select(ch => invalidChars.Contains(ch) ? '_' : ch)
-            .ToArray())
-            .Trim();
-
-        return string.IsNullOrWhiteSpace(sanitized) ? "template" : sanitized;
     }
 
     private static void DeleteFileIfExists(string filePath)
