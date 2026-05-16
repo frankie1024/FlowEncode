@@ -22,13 +22,40 @@ jobs:
       - name: Resolve ref
         id: resolve_ref
         shell: pwsh
+        env:
+          FLOWENCODE_RELEASE_INPUT_TAG: ${{ inputs.tag }}
         run: |
-          $ref = if ("${{ github.event_name }}" -eq "workflow_dispatch") {
-            "refs/tags/${{ inputs.tag }}"
+          $ref = if ($env:GITHUB_EVENT_NAME -eq "workflow_dispatch") {
+            $tagName = $env:FLOWENCODE_RELEASE_INPUT_TAG.Trim()
+            if ([string]::IsNullOrWhiteSpace($tagName) -or -not $tagName.StartsWith("v", [System.StringComparison]::Ordinal)) {
+              throw "Workflow dispatch release tag must be a non-empty v* tag name."
+            }
+
+            if ($tagName.StartsWith("refs/", [System.StringComparison]::Ordinal)) {
+              throw "Workflow dispatch release tag must be a tag name, not a ref."
+            }
+
+            $candidateRef = "refs/tags/$tagName"
+            git check-ref-format $candidateRef
+            if ($LASTEXITCODE -ne 0) {
+              throw "Workflow dispatch release tag is not a valid Git ref name: $tagName"
+            }
+
+            $candidateRef
           }
           else {
-            "${{ github.ref }}"
+            $env:GITHUB_REF
           }
+
+          if ([string]::IsNullOrWhiteSpace($ref) -or -not $ref.StartsWith("refs/tags/v", [System.StringComparison]::Ordinal)) {
+            throw "Release ref must be a refs/tags/v* ref. Resolved: '$ref'"
+          }
+
+          git check-ref-format $ref
+          if ($LASTEXITCODE -ne 0) {
+            throw "Release ref is not a valid Git ref name: $ref"
+          }
+
           "ref=$ref" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
 
       - name: Checkout
@@ -55,7 +82,9 @@ jobs:
 
       - name: Verify release tag
         shell: pwsh
-        run: ./scripts/assert-release-tag.ps1 -TagRef "${{ steps.resolve_ref.outputs.ref }}"
+        env:
+          FLOWENCODE_RELEASE_REF: ${{ steps.resolve_ref.outputs.ref }}
+        run: ./scripts/assert-release-tag.ps1 -TagRef $env:FLOWENCODE_RELEASE_REF
 
       - name: Build
         shell: pwsh
@@ -67,8 +96,10 @@ jobs:
 
       - name: Resolve release version
         shell: pwsh
+        env:
+          FLOWENCODE_RELEASE_REF: ${{ steps.resolve_ref.outputs.ref }}
         run: |
-          $tagRef = "${{ steps.resolve_ref.outputs.ref }}"
+          $tagRef = $env:FLOWENCODE_RELEASE_REF
           $tagName = $tagRef.Substring("refs/tags/".Length)
           . ./scripts/repo-build-common.ps1
           $versionInfo = Get-FlowEncodeVersionInfo
