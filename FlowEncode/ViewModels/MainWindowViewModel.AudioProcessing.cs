@@ -720,7 +720,7 @@ public partial class MainWindowViewModel
             throw new InvalidOperationException(Texts.AudioSourceOutputPathConflictError);
         }
 
-        return new AudioProcessingRequest(
+        var request = new AudioProcessingRequest(
             Guid.NewGuid(),
             normalizedSource,
             normalizedOutput,
@@ -732,6 +732,8 @@ public partial class MainWindowViewModel
             _audioSourceInfo?.ChannelLayout,
             opusBitrateKbps,
             AudioOpusUseMappingFamily1);
+        RequestValidation.ValidateAudioProcessingRequest(request);
+        return request;
     }
 
     private void EnsureDirectAudioSourceSupported(string sourcePath, string workflowLabel)

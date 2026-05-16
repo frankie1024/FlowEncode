@@ -602,7 +602,7 @@ public partial class MainWindowViewModel : CommunityToolkit.Mvvm.ComponentModel.
         get => _draftQuality;
         set
         {
-            var normalized = Math.Max(0, value);
+            var normalized = NormalizeBoundedDouble(value, 0, double.MaxValue);
             if (SetProperty(ref _draftQuality, normalized) && !_isSynchronizingDraft)
             {
                 FinalizeDraftChange(syncOutputPath: false, markAsCustomized: true);
@@ -615,7 +615,7 @@ public partial class MainWindowViewModel : CommunityToolkit.Mvvm.ComponentModel.
         get => _draftBitrate;
         set
         {
-            var normalized = Math.Max(1, value);
+            var normalized = NormalizeBoundedDouble(value, 1, int.MaxValue);
             if (SetProperty(ref _draftBitrate, normalized) && !_isSynchronizingDraft)
             {
                 FinalizeDraftChange(syncOutputPath: false, markAsCustomized: true);
@@ -1205,7 +1205,7 @@ public partial class MainWindowViewModel : CommunityToolkit.Mvvm.ComponentModel.
                 _savedWorkspaceRootPath,
                 StringComparison.OrdinalIgnoreCase);
             var currentSettings = _settingsService.Load();
-            var settings = new AppSettings(
+            var settings = RequestValidation.NormalizeAppSettings(new AppSettings(
                 PreferSystemEncoders,
                 AutoCheckUpdatesOnStartup,
                 CurrentThemePreference,
@@ -1217,7 +1217,7 @@ public partial class MainWindowViewModel : CommunityToolkit.Mvvm.ComponentModel.
                 GetMaxConcurrentEncodingJobCount(),
                 QueueCompletionAction,
                 currentSettings.PreviewScalingAlgorithm,
-                currentSettings.LastFileDialogDirectory);
+                currentSettings.LastFileDialogDirectory));
 
             _settingsService.Save(settings);
             _encoderDiscoveryService.InvalidateCache();
@@ -1933,13 +1933,7 @@ public partial class MainWindowViewModel : CommunityToolkit.Mvvm.ComponentModel.
 
     private static int NormalizeConcurrentEncodingJobs(double value)
     {
-        if (double.IsNaN(value) || double.IsInfinity(value))
-        {
-            return MinConcurrentEncodingJobs;
-        }
-
-        var rounded = (int)Math.Round(value, MidpointRounding.AwayFromZero);
-        return Math.Clamp(rounded, MinConcurrentEncodingJobs, MaxConcurrentEncodingJobsLimit);
+        return RequestValidation.NormalizeConcurrentEncodingJobs(value);
     }
 
     private void SyncSelectedConcurrentEncodingJobOption(int normalizedValue)
@@ -2382,6 +2376,7 @@ public partial class MainWindowViewModel : CommunityToolkit.Mvvm.ComponentModel.
             InputSourceSupport.ResolvePipelineKind(normalizedSource),
             EncoderArchitecture.X64);
 
+        RequestValidation.ValidateEncodingJobRequest(request);
         EnsureRequestConstraintsSatisfied(request);
         return request;
     }
@@ -3085,7 +3080,7 @@ public partial class MainWindowViewModel : CommunityToolkit.Mvvm.ComponentModel.
             return null;
         }
 
-        return new EncodingProfile(
+        var profile = new EncodingProfile(
             SelectedEncoder.Value,
             _draftProfileName,
             _draftProfileDescription,
@@ -3098,6 +3093,8 @@ public partial class MainWindowViewModel : CommunityToolkit.Mvvm.ComponentModel.
             SelectedOutputFormat.Value,
             GetSanitizedAdditionalArguments(),
             GetSanitizedUhdParameters());
+        RequestValidation.ValidateEncodingProfile(profile);
+        return profile;
     }
 
     private EncoderCapability? GetSelectedCapability()

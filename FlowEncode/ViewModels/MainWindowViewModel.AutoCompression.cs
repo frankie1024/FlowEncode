@@ -105,7 +105,7 @@ public partial class MainWindowViewModel
         get => _autoCompressionTargetVmaf;
         set
         {
-            var normalized = Math.Clamp(value, 1, 100);
+            var normalized = NormalizeBoundedDouble(value, 1, 100);
             if (SetProperty(ref _autoCompressionTargetVmaf, normalized))
             {
                 OnPropertyChanged(nameof(CanStartAutoCompression));
@@ -121,7 +121,7 @@ public partial class MainWindowViewModel
         get => _autoCompressionProbes;
         set
         {
-            var normalized = Math.Max(1, value);
+            var normalized = NormalizeBoundedDouble(value, 1, int.MaxValue);
             if (SetProperty(ref _autoCompressionProbes, normalized))
             {
                 OnPropertyChanged(nameof(CanStartAutoCompression));
@@ -135,7 +135,7 @@ public partial class MainWindowViewModel
         get => _autoCompressionWorkers;
         set
         {
-            var normalized = Math.Max(0, value);
+            var normalized = NormalizeBoundedDouble(value, 0, int.MaxValue);
             if (SetProperty(ref _autoCompressionWorkers, normalized))
             {
                 OnPropertyChanged(nameof(CanStartAutoCompression));
@@ -414,7 +414,7 @@ public partial class MainWindowViewModel
         var workers = AutoCompressionWorkers > 0
             ? (int?)Math.Round(AutoCompressionWorkers, MidpointRounding.AwayFromZero)
             : null;
-        return new AutoCompressionRequest(
+        var request = new AutoCompressionRequest(
             Guid.NewGuid(),
             normalizedSource,
             normalizedOutput,
@@ -423,6 +423,8 @@ public partial class MainWindowViewModel
             probes,
             AutoCompressionVideoParameters.Trim(),
             workers);
+        RequestValidation.ValidateAutoCompressionRequest(request);
+        return request;
     }
 
     private bool TryCreateAutoCompressionRequest(
@@ -796,5 +798,12 @@ public partial class MainWindowViewModel
         OnPropertyChanged(nameof(CanStartAutoCompression));
         OnPropertyChanged(nameof(AutoCompressionSuggestedOutputFileName));
         OnPropertyChanged(nameof(AutoCompressionOutputPreviewText));
+    }
+
+    private static double NormalizeBoundedDouble(double value, double minimum, double maximum)
+    {
+        return double.IsNaN(value) || double.IsInfinity(value)
+            ? minimum
+            : Math.Clamp(value, minimum, maximum);
     }
 }

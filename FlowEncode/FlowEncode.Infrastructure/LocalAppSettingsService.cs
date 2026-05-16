@@ -41,7 +41,8 @@ public sealed class LocalAppSettingsService : IAppSettingsService
             try
             {
                 var json = File.ReadAllText(_paths.SettingsPath);
-                _cache = JsonSerializer.Deserialize<AppSettings>(json, JsonOptions) ?? AppSettings.Default;
+                _cache = RequestValidation.NormalizeAppSettings(
+                    JsonSerializer.Deserialize<AppSettings>(json, JsonOptions) ?? AppSettings.Default);
                 _lastLoadRecoveryInfo = null;
             }
             catch (Exception ex)
@@ -62,6 +63,7 @@ public sealed class LocalAppSettingsService : IAppSettingsService
     {
         lock (_gate)
         {
+            settings = RequestValidation.NormalizeAppSettings(settings);
             PersistentFileWriter.WriteAllText(
                 _paths.SettingsPath,
                 JsonSerializer.Serialize(settings, JsonOptions),
