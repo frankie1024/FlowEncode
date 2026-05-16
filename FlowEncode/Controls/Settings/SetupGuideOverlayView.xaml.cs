@@ -257,36 +257,51 @@ public sealed partial class SetupGuideOverlayView : UserControl
     {
         ResetSetupGuideWheelArmState();
 
-        if (_pendingSetupGuideScrollAnchor == SetupGuideScrollAnchor.None || SetupGuideFlipView.SelectedIndex < 0)
+        var viewModel = ViewModel;
+        if (viewModel is null)
         {
-            ScheduleLayoutRefresh();
             return;
         }
 
-        var targetAnchor = _pendingSetupGuideScrollAnchor;
-        _pendingSetupGuideScrollAnchor = SetupGuideScrollAnchor.None;
+        await SetupDependencyInteractionHelper.RunGuardedAsync(
+            viewModel,
+            this,
+            nameof(SetupGuideOverlayView),
+            "Failed to synchronize setup guide page scroll",
+            viewModel.Texts.ErrorSaveFailedTitle,
+            async () =>
+            {
+                if (_pendingSetupGuideScrollAnchor == SetupGuideScrollAnchor.None || SetupGuideFlipView.SelectedIndex < 0)
+                {
+                    ScheduleLayoutRefresh();
+                    return;
+                }
 
-        await Task.Yield();
-        SetupGuideFlipView.UpdateLayout();
+                var targetAnchor = _pendingSetupGuideScrollAnchor;
+                _pendingSetupGuideScrollAnchor = SetupGuideScrollAnchor.None;
 
-        if (SetupGuideFlipView.ContainerFromIndex(SetupGuideFlipView.SelectedIndex) is not DependencyObject container)
-        {
-            ScheduleLayoutRefresh();
-            return;
-        }
+                await Task.Yield();
+                SetupGuideFlipView.UpdateLayout();
 
-        var scrollViewer = FindDescendant<ScrollViewer>(container);
-        if (scrollViewer is null)
-        {
-            ScheduleLayoutRefresh();
-            return;
-        }
+                if (SetupGuideFlipView.ContainerFromIndex(SetupGuideFlipView.SelectedIndex) is not DependencyObject container)
+                {
+                    ScheduleLayoutRefresh();
+                    return;
+                }
 
-        var verticalOffset = targetAnchor == SetupGuideScrollAnchor.Bottom
-            ? scrollViewer.ScrollableHeight
-            : 0;
-        scrollViewer.ChangeView(null, verticalOffset, null, true);
-        ScheduleLayoutRefresh();
+                var scrollViewer = FindDescendant<ScrollViewer>(container);
+                if (scrollViewer is null)
+                {
+                    ScheduleLayoutRefresh();
+                    return;
+                }
+
+                var verticalOffset = targetAnchor == SetupGuideScrollAnchor.Bottom
+                    ? scrollViewer.ScrollableHeight
+                    : 0;
+                scrollViewer.ChangeView(null, verticalOffset, null, true);
+                ScheduleLayoutRefresh();
+            });
     }
 
     private async void InstallSetupDependencyButton_Click(object sender, RoutedEventArgs e)
@@ -316,7 +331,7 @@ public sealed partial class SetupGuideOverlayView : UserControl
             return;
         }
 
-        await SetupDependencyInteractionHelper.ClearManualPinnedSetupDependencyAsync(ViewModel, this, kind);
+        await SetupDependencyInteractionHelper.ClearManualPinnedSetupDependencyAsync(ViewModel, this, kind, nameof(SetupGuideOverlayView));
     }
 
     private async void UninstallSetupDependencyButton_Click(object sender, RoutedEventArgs e)
@@ -326,7 +341,7 @@ public sealed partial class SetupGuideOverlayView : UserControl
             return;
         }
 
-        await SetupDependencyInteractionHelper.UninstallSetupDependencyAsync(ViewModel, this, kind);
+        await SetupDependencyInteractionHelper.UninstallSetupDependencyAsync(ViewModel, this, kind, nameof(SetupGuideOverlayView));
     }
 
     private void OpenUrlButton_Click(object sender, RoutedEventArgs e)

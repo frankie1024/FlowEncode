@@ -5,6 +5,7 @@ using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
 using FlowEncode.Application;
+using FlowEncode.Controls.Shared;
 using FlowEncode.Domain;
 using FlowEncode.ViewModels;
 using Microsoft.UI.Xaml;
@@ -124,13 +125,13 @@ public sealed partial class OverviewView : UserControl
 
     private async void BrowseSourceButton_Click(object sender, RoutedEventArgs e)
     {
-        await PickSourceFileAsync();
+        await RunGuardedAsync(nameof(BrowseSourceButton_Click), PickSourceFileAsync);
     }
 
     private async void SourcePathTextBox_DoubleTapped(object sender, DoubleTappedRoutedEventArgs e)
     {
         e.Handled = true;
-        await PickSourceFileAsync();
+        await RunGuardedAsync(nameof(SourcePathTextBox_DoubleTapped), PickSourceFileAsync);
     }
 
     private async Task PickSourceFileAsync()
@@ -157,13 +158,13 @@ public sealed partial class OverviewView : UserControl
 
     private async void BrowseOutputButton_Click(object sender, RoutedEventArgs e)
     {
-        await PickOutputFolderAsync();
+        await RunGuardedAsync(nameof(BrowseOutputButton_Click), PickOutputFolderAsync);
     }
 
     private async void OutputPathTextBox_DoubleTapped(object sender, DoubleTappedRoutedEventArgs e)
     {
         e.Handled = true;
-        await PickOutputFolderAsync();
+        await RunGuardedAsync(nameof(OutputPathTextBox_DoubleTapped), PickOutputFolderAsync);
     }
 
     private async Task PickOutputFolderAsync()
@@ -189,311 +190,393 @@ public sealed partial class OverviewView : UserControl
 
     private async void QueueOnlyButton_Click(object sender, RoutedEventArgs e)
     {
-        await QueueCurrentJobWithConfirmationAsync(startImmediately: false);
+        await RunGuardedAsync(
+            nameof(QueueOnlyButton_Click),
+            () => QueueCurrentJobWithConfirmationAsync(startImmediately: false),
+            ComposerViewModel?.Texts.ErrorCannotQueueTitle);
     }
 
     private async void QueueJobButton_Click(object sender, RoutedEventArgs e)
     {
-        await QueueCurrentJobWithConfirmationAsync(startImmediately: true);
+        await RunGuardedAsync(
+            nameof(QueueJobButton_Click),
+            () => QueueCurrentJobWithConfirmationAsync(startImmediately: true),
+            ComposerViewModel?.Texts.ErrorCannotQueueTitle);
     }
 
     private async void OverviewTemplatePicker_SelectionChanged(object sender, SelectionChangedEventArgs e)
     {
-        var composerViewModel = ComposerViewModel;
-        if (_selectionSyncInProgress || composerViewModel is null)
-        {
-            return;
-        }
+        await RunGuardedAsync(
+            nameof(OverviewTemplatePicker_SelectionChanged),
+            async () =>
+            {
+                var composerViewModel = ComposerViewModel;
+                if (_selectionSyncInProgress || composerViewModel is null)
+                {
+                    return;
+                }
 
-        if (OverviewTemplatePicker.SelectedItem is not TemplateLibraryItemViewModel templateItem
-            || templateItem.UserTemplate is null)
-        {
-            return;
-        }
+                if (OverviewTemplatePicker.SelectedItem is not TemplateLibraryItemViewModel templateItem
+                    || templateItem.UserTemplate is null)
+                {
+                    return;
+                }
 
-        RunWithTemplateSelectionSync(() =>
-        {
-            SavedTemplatesQuickSelect.SelectedItem = templateItem.UserTemplate;
-        });
+                RunWithTemplateSelectionSync(() =>
+                {
+                    SavedTemplatesQuickSelect.SelectedItem = templateItem.UserTemplate;
+                });
 
-        await composerViewModel.ApplyUserTemplateToEncodingDraftAsync(templateItem.UserTemplate);
+                await composerViewModel.ApplyUserTemplateToEncodingDraftAsync(templateItem.UserTemplate);
+            });
     }
 
     private async void SaveCurrentConfigurationButton_Click(object sender, RoutedEventArgs e)
     {
-        var composerViewModel = ComposerViewModel;
-        if (composerViewModel is null || Host is null)
-        {
-            return;
-        }
-
-        var nameTextBox = new TextBox
-        {
-            Header = composerViewModel.Texts.TemplateNameHeader,
-            Text = composerViewModel.DraftTemplateName ?? string.Empty
-        };
-
-        var notesTextBox = new TextBox
-        {
-            Header = composerViewModel.Texts.TemplateNotesHeader,
-            AcceptsReturn = true,
-            MinHeight = 96,
-            Text = composerViewModel.DraftTemplateNotes ?? string.Empty,
-            TextWrapping = TextWrapping.Wrap
-        };
-
-        var dialog = new ContentDialog
-        {
-            Title = composerViewModel.Texts.SaveCurrentConfigurationButton,
-            Content = new StackPanel
+        await RunGuardedAsync(
+            nameof(SaveCurrentConfigurationButton_Click),
+            async () =>
             {
-                Spacing = 12,
-                Children =
+                var composerViewModel = ComposerViewModel;
+                if (composerViewModel is null || Host is null)
                 {
-                    nameTextBox,
-                    notesTextBox
+                    return;
+                }
+
+                var nameTextBox = new TextBox
+                {
+                    Header = composerViewModel.Texts.TemplateNameHeader,
+                    Text = composerViewModel.DraftTemplateName ?? string.Empty
+                };
+
+                var notesTextBox = new TextBox
+                {
+                    Header = composerViewModel.Texts.TemplateNotesHeader,
+                    AcceptsReturn = true,
+                    MinHeight = 96,
+                    Text = composerViewModel.DraftTemplateNotes ?? string.Empty,
+                    TextWrapping = TextWrapping.Wrap
+                };
+
+                var dialog = new ContentDialog
+                {
+                    Title = composerViewModel.Texts.SaveCurrentConfigurationButton,
+                    Content = new StackPanel
+                    {
+                        Spacing = 12,
+                        Children =
+                        {
+                            nameTextBox,
+                            notesTextBox
+                        }
+                    },
+                    PrimaryButtonText = composerViewModel.Texts.SaveButton,
+                    CloseButtonText = composerViewModel.Texts.CancelButton,
+                    DefaultButton = ContentDialogButton.Primary,
+                    XamlRoot = XamlRoot,
+                    RequestedTheme = ActualTheme
+                };
+
+                if (await WindowInteractionHelper.ShowContentDialogAsync(dialog, nameof(OverviewView)) != ContentDialogResult.Primary)
+                {
+                    return;
+                }
+
+                composerViewModel.DraftTemplateName = nameTextBox.Text;
+                composerViewModel.DraftTemplateNotes = notesTextBox.Text;
+
+                try
+                {
+                    await Host.SaveCurrentTemplateAsync();
+                }
+                catch (Exception ex)
+                {
+                    TryWriteDiagnostic($"Failed to save template from save-as dialog. {ex.GetType().Name}: {ex.Message}");
+                    await ShowMessageAsync(composerViewModel.Texts.ErrorSaveFailedTitle, ex.Message);
                 }
             },
-            PrimaryButtonText = composerViewModel.Texts.SaveButton,
-            CloseButtonText = composerViewModel.Texts.CancelButton,
-            DefaultButton = ContentDialogButton.Primary,
-            XamlRoot = XamlRoot,
-            RequestedTheme = ActualTheme
-        };
-
-        if (await WindowInteractionHelper.ShowContentDialogAsync(dialog, nameof(OverviewView)) != ContentDialogResult.Primary)
-        {
-            return;
-        }
-
-        composerViewModel.DraftTemplateName = nameTextBox.Text;
-        composerViewModel.DraftTemplateNotes = notesTextBox.Text;
-
-        try
-        {
-            await Host.SaveCurrentTemplateAsync();
-        }
-        catch (Exception ex)
-        {
-            TryWriteDiagnostic($"Failed to save template from save-as dialog. {ex.GetType().Name}: {ex.Message}");
-            await ShowMessageAsync(composerViewModel.Texts.ErrorSaveFailedTitle, ex.Message);
-        }
+            ComposerViewModel?.Texts.ErrorSaveFailedTitle);
     }
 
     private async void ImportHdrButton_Click(object sender, RoutedEventArgs e)
     {
-        var composerViewModel = ComposerViewModel;
-        if (composerViewModel is null)
-        {
-            return;
-        }
+        await RunGuardedAsync(
+            nameof(ImportHdrButton_Click),
+            async () =>
+            {
+                var composerViewModel = ComposerViewModel;
+                if (composerViewModel is null)
+                {
+                    return;
+                }
 
-        var inputTextBox = new TextBox
-        {
-            Header = composerViewModel.Texts.ImportHdrDialogDescription,
-            AcceptsReturn = true,
-            MinHeight = 180,
-            PlaceholderText = composerViewModel.Texts.ImportHdrDialogPlaceholder,
-            TextWrapping = TextWrapping.Wrap
-        };
+                var inputTextBox = new TextBox
+                {
+                    Header = composerViewModel.Texts.ImportHdrDialogDescription,
+                    AcceptsReturn = true,
+                    MinHeight = 180,
+                    PlaceholderText = composerViewModel.Texts.ImportHdrDialogPlaceholder,
+                    TextWrapping = TextWrapping.Wrap
+                };
 
-        var dialog = new ContentDialog
-        {
-            Title = composerViewModel.Texts.ImportHdrDialogTitle,
-            Content = inputTextBox,
-            PrimaryButtonText = composerViewModel.Texts.ImportButton,
-            CloseButtonText = composerViewModel.Texts.CancelButton,
-            DefaultButton = ContentDialogButton.Primary,
-            XamlRoot = XamlRoot,
-            RequestedTheme = ActualTheme
-        };
+                var dialog = new ContentDialog
+                {
+                    Title = composerViewModel.Texts.ImportHdrDialogTitle,
+                    Content = inputTextBox,
+                    PrimaryButtonText = composerViewModel.Texts.ImportButton,
+                    CloseButtonText = composerViewModel.Texts.CancelButton,
+                    DefaultButton = ContentDialogButton.Primary,
+                    XamlRoot = XamlRoot,
+                    RequestedTheme = ActualTheme
+                };
 
-        if (await WindowInteractionHelper.ShowContentDialogAsync(dialog, nameof(OverviewView)) != ContentDialogResult.Primary)
-        {
-            return;
-        }
+                if (await WindowInteractionHelper.ShowContentDialogAsync(dialog, nameof(OverviewView)) != ContentDialogResult.Primary)
+                {
+                    return;
+                }
 
-        var error = composerViewModel.ImportHdrParametersFromText(inputTextBox.Text);
-        if (!string.IsNullOrWhiteSpace(error))
-        {
-            await ShowMessageAsync(composerViewModel.Texts.ErrorImportFailedTitle, error);
-        }
+                var error = composerViewModel.ImportHdrParametersFromText(inputTextBox.Text);
+                if (!string.IsNullOrWhiteSpace(error))
+                {
+                    await ShowMessageAsync(composerViewModel.Texts.ErrorImportFailedTitle, error);
+                }
+            },
+            ComposerViewModel?.Texts.ErrorImportFailedTitle);
     }
 
     private async void SavedTemplatesQuickSelect_SelectionChanged(object sender, SelectionChangedEventArgs e)
     {
-        var composerViewModel = ComposerViewModel;
-        if (_selectionSyncInProgress || composerViewModel is null)
-        {
-            return;
-        }
+        await RunGuardedAsync(
+            nameof(SavedTemplatesQuickSelect_SelectionChanged),
+            async () =>
+            {
+                var composerViewModel = ComposerViewModel;
+                if (_selectionSyncInProgress || composerViewModel is null)
+                {
+                    return;
+                }
 
-        if (SavedTemplatesQuickSelect.SelectedItem is not SavedTemplate template)
-        {
-            return;
-        }
+                if (SavedTemplatesQuickSelect.SelectedItem is not SavedTemplate template)
+                {
+                    return;
+                }
 
-        var templateItem = composerViewModel.TemplateLibraryItems
-            .FirstOrDefault(item => string.Equals(item.TemplateId, template.Id, StringComparison.OrdinalIgnoreCase));
-        RunWithTemplateSelectionSync(() => OverviewTemplatePicker.SelectedItem = templateItem);
-        Host?.SetTemplateLibrarySelection(templateItem);
-        await composerViewModel.SelectUserTemplateAsync(template);
+                var templateItem = composerViewModel.TemplateLibraryItems
+                    .FirstOrDefault(item => string.Equals(item.TemplateId, template.Id, StringComparison.OrdinalIgnoreCase));
+                RunWithTemplateSelectionSync(() => OverviewTemplatePicker.SelectedItem = templateItem);
+                Host?.SetTemplateLibrarySelection(templateItem);
+                await composerViewModel.SelectUserTemplateAsync(template);
+            });
     }
 
     private async void StartJobMenuItem_Click(object sender, RoutedEventArgs e)
     {
-        var queueViewModel = QueueViewModel;
-        if (!TryGetJobFromMenu(sender, out var job) || queueViewModel is null)
-        {
-            return;
-        }
+        await RunGuardedAsync(
+            nameof(StartJobMenuItem_Click),
+            async () =>
+            {
+                var queueViewModel = QueueViewModel;
+                if (!TryGetJobFromMenu(sender, out var job) || queueViewModel is null)
+                {
+                    return;
+                }
 
-        SelectQueueJobForSingleAction(job);
-        var error = queueViewModel.PrioritizeJob(job);
-        if (!string.IsNullOrWhiteSpace(error))
-        {
-            await ShowMessageAsync(queueViewModel.Texts.ErrorCannotReorderTitle, error);
-        }
+                SelectQueueJobForSingleAction(job);
+                var error = queueViewModel.PrioritizeJob(job);
+                if (!string.IsNullOrWhiteSpace(error))
+                {
+                    await ShowMessageAsync(queueViewModel.Texts.ErrorCannotReorderTitle, error);
+                }
+            },
+            QueueViewModel?.Texts.ErrorCannotReorderTitle);
     }
 
     private async void StartQueuedJobMenuItem_Click(object sender, RoutedEventArgs e)
     {
-        var queueViewModel = QueueViewModel;
-        if (!TryGetJobFromMenu(sender, out var job) || queueViewModel is null)
-        {
-            return;
-        }
+        await RunGuardedAsync(
+            nameof(StartQueuedJobMenuItem_Click),
+            async () =>
+            {
+                var queueViewModel = QueueViewModel;
+                if (!TryGetJobFromMenu(sender, out var job) || queueViewModel is null)
+                {
+                    return;
+                }
 
-        SelectQueueJobForSingleAction(job);
-        var error = queueViewModel.StartJobNow(job);
-        if (!string.IsNullOrWhiteSpace(error))
-        {
-            await ShowMessageAsync(queueViewModel.Texts.ErrorCannotStartTitle, error);
-        }
+                SelectQueueJobForSingleAction(job);
+                var error = queueViewModel.StartJobNow(job);
+                if (!string.IsNullOrWhiteSpace(error))
+                {
+                    await ShowMessageAsync(queueViewModel.Texts.ErrorCannotStartTitle, error);
+                }
+            },
+            QueueViewModel?.Texts.ErrorCannotStartTitle);
     }
 
     private async void MoveJobToTopMenuItem_Click(object sender, RoutedEventArgs e)
     {
-        var queueViewModel = QueueViewModel;
-        if (!TryGetJobFromMenu(sender, out var job) || queueViewModel is null)
-        {
-            return;
-        }
+        await RunGuardedAsync(
+            nameof(MoveJobToTopMenuItem_Click),
+            async () =>
+            {
+                var queueViewModel = QueueViewModel;
+                if (!TryGetJobFromMenu(sender, out var job) || queueViewModel is null)
+                {
+                    return;
+                }
 
-        SelectQueueJobForSingleAction(job);
-        var error = queueViewModel.MoveJobToTop(job);
-        if (!string.IsNullOrWhiteSpace(error))
-        {
-            await ShowMessageAsync(queueViewModel.Texts.ErrorCannotReorderTitle, error);
-        }
+                SelectQueueJobForSingleAction(job);
+                var error = queueViewModel.MoveJobToTop(job);
+                if (!string.IsNullOrWhiteSpace(error))
+                {
+                    await ShowMessageAsync(queueViewModel.Texts.ErrorCannotReorderTitle, error);
+                }
+            },
+            QueueViewModel?.Texts.ErrorCannotReorderTitle);
     }
 
     private async void MoveJobUpMenuItem_Click(object sender, RoutedEventArgs e)
     {
-        var queueViewModel = QueueViewModel;
-        if (!TryGetJobFromMenu(sender, out var job) || queueViewModel is null)
-        {
-            return;
-        }
+        await RunGuardedAsync(
+            nameof(MoveJobUpMenuItem_Click),
+            async () =>
+            {
+                var queueViewModel = QueueViewModel;
+                if (!TryGetJobFromMenu(sender, out var job) || queueViewModel is null)
+                {
+                    return;
+                }
 
-        SelectQueueJobForSingleAction(job);
-        var error = queueViewModel.MoveJobUp(job);
-        if (!string.IsNullOrWhiteSpace(error))
-        {
-            await ShowMessageAsync(queueViewModel.Texts.ErrorCannotReorderTitle, error);
-        }
+                SelectQueueJobForSingleAction(job);
+                var error = queueViewModel.MoveJobUp(job);
+                if (!string.IsNullOrWhiteSpace(error))
+                {
+                    await ShowMessageAsync(queueViewModel.Texts.ErrorCannotReorderTitle, error);
+                }
+            },
+            QueueViewModel?.Texts.ErrorCannotReorderTitle);
     }
 
     private async void MoveJobDownMenuItem_Click(object sender, RoutedEventArgs e)
     {
-        var queueViewModel = QueueViewModel;
-        if (!TryGetJobFromMenu(sender, out var job) || queueViewModel is null)
-        {
-            return;
-        }
+        await RunGuardedAsync(
+            nameof(MoveJobDownMenuItem_Click),
+            async () =>
+            {
+                var queueViewModel = QueueViewModel;
+                if (!TryGetJobFromMenu(sender, out var job) || queueViewModel is null)
+                {
+                    return;
+                }
 
-        SelectQueueJobForSingleAction(job);
-        var error = queueViewModel.MoveJobDown(job);
-        if (!string.IsNullOrWhiteSpace(error))
-        {
-            await ShowMessageAsync(queueViewModel.Texts.ErrorCannotReorderTitle, error);
-        }
+                SelectQueueJobForSingleAction(job);
+                var error = queueViewModel.MoveJobDown(job);
+                if (!string.IsNullOrWhiteSpace(error))
+                {
+                    await ShowMessageAsync(queueViewModel.Texts.ErrorCannotReorderTitle, error);
+                }
+            },
+            QueueViewModel?.Texts.ErrorCannotReorderTitle);
     }
 
     private async void MoveJobToBottomMenuItem_Click(object sender, RoutedEventArgs e)
     {
-        var queueViewModel = QueueViewModel;
-        if (!TryGetJobFromMenu(sender, out var job) || queueViewModel is null)
-        {
-            return;
-        }
+        await RunGuardedAsync(
+            nameof(MoveJobToBottomMenuItem_Click),
+            async () =>
+            {
+                var queueViewModel = QueueViewModel;
+                if (!TryGetJobFromMenu(sender, out var job) || queueViewModel is null)
+                {
+                    return;
+                }
 
-        SelectQueueJobForSingleAction(job);
-        var error = queueViewModel.MoveJobToBottom(job);
-        if (!string.IsNullOrWhiteSpace(error))
-        {
-            await ShowMessageAsync(queueViewModel.Texts.ErrorCannotReorderTitle, error);
-        }
+                SelectQueueJobForSingleAction(job);
+                var error = queueViewModel.MoveJobToBottom(job);
+                if (!string.IsNullOrWhiteSpace(error))
+                {
+                    await ShowMessageAsync(queueViewModel.Texts.ErrorCannotReorderTitle, error);
+                }
+            },
+            QueueViewModel?.Texts.ErrorCannotReorderTitle);
     }
 
     private async void AbortJobMenuItem_Click(object sender, RoutedEventArgs e)
     {
-        var queueViewModel = QueueViewModel;
-        if (!TryGetJobFromMenu(sender, out var job) || queueViewModel is null || !job.CanCancel)
-        {
-            return;
-        }
+        await RunGuardedAsync(
+            nameof(AbortJobMenuItem_Click),
+            async () =>
+            {
+                var queueViewModel = QueueViewModel;
+                if (!TryGetJobFromMenu(sender, out var job) || queueViewModel is null || !job.CanCancel)
+                {
+                    return;
+                }
 
-        SelectQueueJobForSingleAction(job);
-        var confirmed = await ShowConfirmationAsync(
-            queueViewModel.Texts.ConfirmCancelJobTitle,
-            queueViewModel.Texts.ConfirmCancelJobMessage(job.SourceFileName, job.State),
-            queueViewModel.Texts.ConfirmCancelJobButton,
-            queueViewModel.Texts.CancelButton,
-            ContentDialogButton.Close);
+                SelectQueueJobForSingleAction(job);
+                var confirmed = await ShowConfirmationAsync(
+                    queueViewModel.Texts.ConfirmCancelJobTitle,
+                    queueViewModel.Texts.ConfirmCancelJobMessage(job.SourceFileName, job.State),
+                    queueViewModel.Texts.ConfirmCancelJobButton,
+                    queueViewModel.Texts.CancelButton,
+                    ContentDialogButton.Close);
 
-        if (!confirmed)
-        {
-            return;
-        }
+                if (!confirmed)
+                {
+                    return;
+                }
 
-        await queueViewModel.CancelJobAsync(job);
+                await queueViewModel.CancelJobAsync(job);
+            },
+            QueueViewModel?.Texts.ErrorCannotCancelTitle);
     }
 
     private async void RestartJobMenuItem_Click(object sender, RoutedEventArgs e)
     {
-        var queueViewModel = QueueViewModel;
-        if (!TryGetJobFromMenu(sender, out var job) || queueViewModel is null)
-        {
-            return;
-        }
+        await RunGuardedAsync(
+            nameof(RestartJobMenuItem_Click),
+            async () =>
+            {
+                var queueViewModel = QueueViewModel;
+                if (!TryGetJobFromMenu(sender, out var job) || queueViewModel is null)
+                {
+                    return;
+                }
 
-        SelectQueueJobForSingleAction(job);
-        var error = await queueViewModel.RestartJobAsync(job);
-        if (!string.IsNullOrWhiteSpace(error))
-        {
-            await ShowMessageAsync(queueViewModel.Texts.ErrorCannotRestartTitle, error);
-        }
+                SelectQueueJobForSingleAction(job);
+                var error = await queueViewModel.RestartJobAsync(job);
+                if (!string.IsNullOrWhiteSpace(error))
+                {
+                    await ShowMessageAsync(queueViewModel.Texts.ErrorCannotRestartTitle, error);
+                }
+            },
+            QueueViewModel?.Texts.ErrorCannotRestartTitle);
     }
 
     private async void DeleteJobMenuItem_Click(object sender, RoutedEventArgs e)
     {
-        var queueViewModel = QueueViewModel;
-        if (!TryGetJobFromMenu(sender, out var job) || queueViewModel is null)
-        {
-            return;
-        }
+        await RunGuardedAsync(
+            nameof(DeleteJobMenuItem_Click),
+            async () =>
+            {
+                var queueViewModel = QueueViewModel;
+                if (!TryGetJobFromMenu(sender, out var job) || queueViewModel is null)
+                {
+                    return;
+                }
 
-        SelectQueueJobForSingleAction(job);
-        var error = queueViewModel.RemoveJob(job);
-        if (!string.IsNullOrWhiteSpace(error))
-        {
-            await ShowMessageAsync(queueViewModel.Texts.ErrorCannotDeleteTitle, error);
-            return;
-        }
+                SelectQueueJobForSingleAction(job);
+                var error = queueViewModel.RemoveJob(job);
+                if (!string.IsNullOrWhiteSpace(error))
+                {
+                    await ShowMessageAsync(queueViewModel.Texts.ErrorCannotDeleteTitle, error);
+                    return;
+                }
 
-        SyncListSelectionFromViewModel();
-        ExitQueueSelectionModeIfQueueIsEmpty();
+                SyncListSelectionFromViewModel();
+                ExitQueueSelectionModeIfQueueIsEmpty();
+            },
+            QueueViewModel?.Texts.ErrorCannotDeleteTitle);
     }
 
     private void EnterQueueSelectionModeMenuItem_Click(object sender, RoutedEventArgs e)
@@ -546,94 +629,111 @@ public sealed partial class OverviewView : UserControl
 
     private async void StartSelectedJobsButton_Click(object sender, RoutedEventArgs e)
     {
-        await StartSelectedQueueJobsAsync();
+        await RunGuardedAsync(
+            nameof(StartSelectedJobsButton_Click),
+            StartSelectedQueueJobsAsync,
+            QueueViewModel?.Texts.ErrorCannotStartTitle);
     }
 
     private async void CancelSelectedJobsButton_Click(object sender, RoutedEventArgs e)
     {
-        var queueViewModel = QueueViewModel;
-        if (queueViewModel is null)
-        {
-            return;
-        }
+        await RunGuardedAsync(
+            nameof(CancelSelectedJobsButton_Click),
+            async () =>
+            {
+                var queueViewModel = QueueViewModel;
+                if (queueViewModel is null)
+                {
+                    return;
+                }
 
-        SyncSelectedQueueJobs();
-        if (queueViewModel.SelectedQueueJobCount == 0)
-        {
-            await ShowMessageAsync(queueViewModel.Texts.ErrorCannotCancelTitle, queueViewModel.Texts.NoSelectedJobsError);
-            return;
-        }
+                SyncSelectedQueueJobs();
+                if (queueViewModel.SelectedQueueJobCount == 0)
+                {
+                    await ShowMessageAsync(queueViewModel.Texts.ErrorCannotCancelTitle, queueViewModel.Texts.NoSelectedJobsError);
+                    return;
+                }
 
-        var confirmed = await ShowConfirmationAsync(
-            queueViewModel.Texts.ConfirmCancelSelectedJobsTitle,
-            queueViewModel.Texts.ConfirmCancelSelectedJobsMessage(
-                queueViewModel.SelectedQueueJobCount,
-                queueViewModel.SelectedCancelableQueueJobCount,
-                queueViewModel.SelectedRunningJobCount,
-                queueViewModel.SelectedQueuedJobCount),
-            queueViewModel.Texts.ConfirmCancelSelectedJobsButton,
-            queueViewModel.Texts.CancelButton,
-            ContentDialogButton.Close);
+                var confirmed = await ShowConfirmationAsync(
+                    queueViewModel.Texts.ConfirmCancelSelectedJobsTitle,
+                    queueViewModel.Texts.ConfirmCancelSelectedJobsMessage(
+                        queueViewModel.SelectedQueueJobCount,
+                        queueViewModel.SelectedCancelableQueueJobCount,
+                        queueViewModel.SelectedRunningJobCount,
+                        queueViewModel.SelectedQueuedJobCount),
+                    queueViewModel.Texts.ConfirmCancelSelectedJobsButton,
+                    queueViewModel.Texts.CancelButton,
+                    ContentDialogButton.Close);
 
-        if (!confirmed)
-        {
-            return;
-        }
+                if (!confirmed)
+                {
+                    return;
+                }
 
-        var error = queueViewModel.CancelSelectedJobs();
-        if (!string.IsNullOrWhiteSpace(error))
-        {
-            await ShowMessageAsync(queueViewModel.Texts.ErrorCannotCancelTitle, error);
-        }
+                var error = queueViewModel.CancelSelectedJobs();
+                if (!string.IsNullOrWhiteSpace(error))
+                {
+                    await ShowMessageAsync(queueViewModel.Texts.ErrorCannotCancelTitle, error);
+                }
+            },
+            QueueViewModel?.Texts.ErrorCannotCancelTitle);
     }
 
     private async void DeleteSelectedJobsButton_Click(object sender, RoutedEventArgs e)
     {
-        await DeleteSelectedQueueJobsAsync();
+        await RunGuardedAsync(
+            nameof(DeleteSelectedJobsButton_Click),
+            DeleteSelectedQueueJobsAsync,
+            QueueViewModel?.Texts.ErrorCannotDeleteTitle);
     }
 
     private async void JobsList_KeyDown(object sender, KeyRoutedEventArgs e)
     {
-        if (ShouldIgnoreQueueShortcut())
-        {
-            return;
-        }
-
-        switch (e.Key)
-        {
-            case VirtualKey.Enter:
-                e.Handled = true;
-                if (_isQueueSelectionModeActive)
+        await RunGuardedAsync(
+            nameof(JobsList_KeyDown),
+            async () =>
+            {
+                if (ShouldIgnoreQueueShortcut())
                 {
-                    await StartSelectedQueueJobsAsync();
-                }
-                else
-                {
-                    await StartCurrentQueueJobAsync();
+                    return;
                 }
 
-                break;
-            case VirtualKey.Delete:
-                e.Handled = true;
-                if (_isQueueSelectionModeActive)
+                switch (e.Key)
                 {
-                    await DeleteSelectedQueueJobsAsync();
-                }
-                else
-                {
-                    await DeleteCurrentQueueJobAsync();
-                }
+                    case VirtualKey.Enter:
+                        e.Handled = true;
+                        if (_isQueueSelectionModeActive)
+                        {
+                            await StartSelectedQueueJobsAsync();
+                        }
+                        else
+                        {
+                            await StartCurrentQueueJobAsync();
+                        }
 
-                break;
-            case VirtualKey.Escape:
-                if (_isQueueSelectionModeActive)
-                {
-                    e.Handled = true;
-                    SetQueueSelectionModeActive(false);
-                }
+                        break;
+                    case VirtualKey.Delete:
+                        e.Handled = true;
+                        if (_isQueueSelectionModeActive)
+                        {
+                            await DeleteSelectedQueueJobsAsync();
+                        }
+                        else
+                        {
+                            await DeleteCurrentQueueJobAsync();
+                        }
 
-                break;
-        }
+                        break;
+                    case VirtualKey.Escape:
+                        if (_isQueueSelectionModeActive)
+                        {
+                            e.Handled = true;
+                            SetQueueSelectionModeActive(false);
+                        }
+
+                        break;
+                }
+            });
     }
 
     private async Task StartCurrentQueueJobAsync()
@@ -771,12 +871,18 @@ public sealed partial class OverviewView : UserControl
 
     private async void QueueHeaderComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
     {
-        if (sender is not ComboBox { SelectedItem: not null } || Host is null)
-        {
-            return;
-        }
+        await RunGuardedAsync(
+            nameof(QueueHeaderComboBox_SelectionChanged),
+            async () =>
+            {
+                if (sender is not ComboBox { SelectedItem: not null } || Host is null)
+                {
+                    return;
+                }
 
-        await Host.PersistSettingsAsync(refreshTemplateLibrary: false);
+                await Host.PersistSettingsAsync(refreshTemplateLibrary: false);
+            },
+            ViewModel?.Texts.ErrorSaveSettingsFailedTitle);
     }
 
     private void SyncSelectedQueueJobs()
@@ -1051,6 +1157,18 @@ public sealed partial class OverviewView : UserControl
             viewModel.Texts.OkButton,
             title,
             message);
+    }
+
+    private Task RunGuardedAsync(string actionName, Func<Task> action, string? errorTitle = null)
+    {
+        var texts = ViewModel?.Texts;
+        return UiActionGuard.RunAsync(
+            this,
+            nameof(OverviewView),
+            actionName,
+            errorTitle ?? texts?.ErrorSelectionFailedTitle ?? "Operation failed",
+            texts?.OkButton ?? "OK",
+            action);
     }
 
     private void RunWithTemplateSelectionSync(Action action)

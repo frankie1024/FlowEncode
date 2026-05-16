@@ -1,5 +1,6 @@
 using System;
 using System.Threading.Tasks;
+using FlowEncode.Controls.Shared;
 using FlowEncode.ViewModels;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
@@ -118,13 +119,13 @@ public sealed partial class BluRayDemuxView : UserControl
 
     private async void BrowseBluRaySourceButton_Click(object sender, RoutedEventArgs e)
     {
-        await PickBluRaySourceFolderAsync();
+        await RunGuardedAsync(nameof(BrowseBluRaySourceButton_Click), PickBluRaySourceFolderAsync);
     }
 
     private async void BluRaySourcePathTextBox_DoubleTapped(object sender, DoubleTappedRoutedEventArgs e)
     {
         e.Handled = true;
-        await PickBluRaySourceFolderAsync();
+        await RunGuardedAsync(nameof(BluRaySourcePathTextBox_DoubleTapped), PickBluRaySourceFolderAsync);
     }
 
     private async Task PickBluRaySourceFolderAsync()
@@ -147,13 +148,13 @@ public sealed partial class BluRayDemuxView : UserControl
 
     private async void BrowseBluRayOutputButton_Click(object sender, RoutedEventArgs e)
     {
-        await PickBluRayOutputFolderAsync();
+        await RunGuardedAsync(nameof(BrowseBluRayOutputButton_Click), PickBluRayOutputFolderAsync);
     }
 
     private async void BluRayOutputPathTextBox_DoubleTapped(object sender, DoubleTappedRoutedEventArgs e)
     {
         e.Handled = true;
-        await PickBluRayOutputFolderAsync();
+        await RunGuardedAsync(nameof(BluRayOutputPathTextBox_DoubleTapped), PickBluRayOutputFolderAsync);
     }
 
     private async Task PickBluRayOutputFolderAsync()
@@ -176,21 +177,24 @@ public sealed partial class BluRayDemuxView : UserControl
 
     private async void ScanBluRayButton_Click(object sender, RoutedEventArgs e)
     {
-        if (DiscViewModel is not null)
-        {
-            await DiscViewModel.ScanBluRayDiscAsync();
-        }
+        await RunGuardedAsync(
+            nameof(ScanBluRayButton_Click),
+            () => DiscViewModel?.ScanBluRayDiscAsync() ?? Task.CompletedTask);
     }
 
     private async void BluRayPlaylistListView_SelectionChanged(object sender, SelectionChangedEventArgs e)
     {
-        if (DiscViewModel is not null)
-        {
-            await DiscViewModel.LoadSelectedBluRayPlaylistAsync();
-        }
+        await RunGuardedAsync(
+            nameof(BluRayPlaylistListView_SelectionChanged),
+            () => DiscViewModel?.LoadSelectedBluRayPlaylistAsync() ?? Task.CompletedTask);
     }
 
     private async void StartBluRayDemuxButton_Click(object sender, RoutedEventArgs e)
+    {
+        await RunGuardedAsync(nameof(StartBluRayDemuxButton_Click), StartBluRayDemuxAsync);
+    }
+
+    private async Task StartBluRayDemuxAsync()
     {
         var taskViewModel = TaskViewModel;
         if (taskViewModel is null)
@@ -220,6 +224,18 @@ public sealed partial class BluRayDemuxView : UserControl
                 taskViewModel.Texts.ErrorCannotStartBluRayDemuxTitle,
                 error);
         }
+    }
+
+    private Task RunGuardedAsync(string actionName, Func<Task> action)
+    {
+        var texts = ViewModel?.Texts;
+        return UiActionGuard.RunAsync(
+            this,
+            nameof(BluRayDemuxView),
+            actionName,
+            texts?.ErrorCannotStartBluRayDemuxTitle ?? "Blu-ray demux failed",
+            texts?.OkButton ?? "OK",
+            action);
     }
 
     private void CancelBluRayDemuxButton_Click(object sender, RoutedEventArgs e)

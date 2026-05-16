@@ -4,6 +4,7 @@ using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
 using FlowEncode.Application;
+using FlowEncode.Controls.Shared;
 using FlowEncode.Domain;
 using FlowEncode.ViewModels;
 using Microsoft.UI.Xaml;
@@ -86,212 +87,252 @@ public sealed partial class TemplatesView : UserControl
 
     private async void TemplateLibraryList_SelectionChanged(object sender, SelectionChangedEventArgs e)
     {
-        if (_selectionSyncInProgress || LibraryViewModel is null)
-        {
-            return;
-        }
+        await RunGuardedAsync(
+            nameof(TemplateLibraryList_SelectionChanged),
+            async () =>
+            {
+                if (_selectionSyncInProgress || LibraryViewModel is null)
+                {
+                    return;
+                }
 
-        if (TemplateLibraryList.SelectedItem is not TemplateLibraryItemViewModel templateItem)
-        {
-            return;
-        }
+                if (TemplateLibraryList.SelectedItem is not TemplateLibraryItemViewModel templateItem)
+                {
+                    return;
+                }
 
-        await SelectTemplateItemAsync(templateItem);
+                await SelectTemplateItemAsync(templateItem);
+            });
     }
 
     private async void SaveTemplateButton_Click(object sender, RoutedEventArgs e)
     {
-        var editorViewModel = EditorViewModel;
-        if (editorViewModel is null)
-        {
-            return;
-        }
+        await RunGuardedAsync(
+            nameof(SaveTemplateButton_Click),
+            async () =>
+            {
+                var editorViewModel = EditorViewModel;
+                if (editorViewModel is null)
+                {
+                    return;
+                }
 
-        try
-        {
-            await SaveCurrentTemplateAsync();
-        }
-        catch (Exception ex)
-        {
-            await ShowMessageAsync(editorViewModel.Texts.ErrorSaveFailedTitle, ex.Message);
-        }
+                try
+                {
+                    await SaveCurrentTemplateAsync();
+                }
+                catch (Exception ex)
+                {
+                    await ShowMessageAsync(editorViewModel.Texts.ErrorSaveFailedTitle, ex.Message);
+                }
+            },
+            EditorViewModel?.Texts.ErrorSaveFailedTitle);
     }
 
     private async void NewTemplateButton_Click(object sender, RoutedEventArgs e)
     {
-        var editorViewModel = EditorViewModel;
-        if (editorViewModel is null)
-        {
-            return;
-        }
-
-        if (!await ConfirmTemplateChangeAsync())
-        {
-            RestoreCurrentTemplateSelection();
-            return;
-        }
-
-        RunWithTemplateSelectionSync(() => TemplateLibraryList.SelectedItem = null);
-        Host?.SetSavedTemplateQuickSelection(null);
-        editorViewModel.BeginNewTemplateDraft();
-    }
-
-    private async void ImportTemplateButton_Click(object sender, RoutedEventArgs e)
-    {
-        var libraryViewModel = LibraryViewModel;
-        if (libraryViewModel is null)
-        {
-            return;
-        }
-
-        if (!await ConfirmTemplateChangeAsync())
-        {
-            RestoreCurrentTemplateSelection();
-            return;
-        }
-
-        try
-        {
-            var filePath = PickTemplateImportFilePath();
-            if (string.IsNullOrWhiteSpace(filePath))
+        await RunGuardedAsync(
+            nameof(NewTemplateButton_Click),
+            async () =>
             {
-                return;
-            }
+                var editorViewModel = EditorViewModel;
+                if (editorViewModel is null)
+                {
+                    return;
+                }
 
-            var importedTemplate = await libraryViewModel.ReadTemplateAsync(filePath);
-            var existingTemplate = libraryViewModel.FindUserTemplateByName(importedTemplate.Name);
-            if (existingTemplate?.IsPinned == true)
-            {
-                await ShowMessageAsync(libraryViewModel.Texts.ErrorImportFailedTitle, libraryViewModel.Texts.PinnedTemplateLockedMessage);
-                RestoreCurrentTemplateSelection();
-                return;
-            }
-
-            if (existingTemplate is not null)
-            {
-                var overwriteConfirmed = await ShowConfirmationAsync(
-                    libraryViewModel.Texts.OverwriteTemplateTitle,
-                    libraryViewModel.Texts.OverwriteTemplateMessage(importedTemplate.Name),
-                    libraryViewModel.Texts.OverwriteButton,
-                    libraryViewModel.Texts.CancelButton);
-
-                if (!overwriteConfirmed)
+                if (!await ConfirmTemplateChangeAsync())
                 {
                     RestoreCurrentTemplateSelection();
                     return;
                 }
-            }
 
-            var savedTemplate = await libraryViewModel.ImportTemplateAsync(importedTemplate, existingTemplate?.Id);
-            var templateItem = libraryViewModel.TemplateLibraryItems.FirstOrDefault(item =>
-                string.Equals(item.TemplateId, savedTemplate.Id, StringComparison.OrdinalIgnoreCase));
-            SyncTemplateSelectors(templateItem);
-        }
-        catch (Exception ex)
-        {
-            TryWriteDiagnostic($"Failed to import template. {ex.GetType().Name}: {ex.Message}");
-            await ShowMessageAsync(libraryViewModel.Texts.ErrorImportFailedTitle, ex.Message);
-        }
+                RunWithTemplateSelectionSync(() => TemplateLibraryList.SelectedItem = null);
+                Host?.SetSavedTemplateQuickSelection(null);
+                editorViewModel.BeginNewTemplateDraft();
+            });
+    }
+
+    private async void ImportTemplateButton_Click(object sender, RoutedEventArgs e)
+    {
+        await RunGuardedAsync(
+            nameof(ImportTemplateButton_Click),
+            async () =>
+            {
+                var libraryViewModel = LibraryViewModel;
+                if (libraryViewModel is null)
+                {
+                    return;
+                }
+
+                if (!await ConfirmTemplateChangeAsync())
+                {
+                    RestoreCurrentTemplateSelection();
+                    return;
+                }
+
+                try
+                {
+                    var filePath = PickTemplateImportFilePath();
+                    if (string.IsNullOrWhiteSpace(filePath))
+                    {
+                        return;
+                    }
+
+                    var importedTemplate = await libraryViewModel.ReadTemplateAsync(filePath);
+                    var existingTemplate = libraryViewModel.FindUserTemplateByName(importedTemplate.Name);
+                    if (existingTemplate?.IsPinned == true)
+                    {
+                        await ShowMessageAsync(libraryViewModel.Texts.ErrorImportFailedTitle, libraryViewModel.Texts.PinnedTemplateLockedMessage);
+                        RestoreCurrentTemplateSelection();
+                        return;
+                    }
+
+                    if (existingTemplate is not null)
+                    {
+                        var overwriteConfirmed = await ShowConfirmationAsync(
+                            libraryViewModel.Texts.OverwriteTemplateTitle,
+                            libraryViewModel.Texts.OverwriteTemplateMessage(importedTemplate.Name),
+                            libraryViewModel.Texts.OverwriteButton,
+                            libraryViewModel.Texts.CancelButton);
+
+                        if (!overwriteConfirmed)
+                        {
+                            RestoreCurrentTemplateSelection();
+                            return;
+                        }
+                    }
+
+                    var savedTemplate = await libraryViewModel.ImportTemplateAsync(importedTemplate, existingTemplate?.Id);
+                    var templateItem = libraryViewModel.TemplateLibraryItems.FirstOrDefault(item =>
+                        string.Equals(item.TemplateId, savedTemplate.Id, StringComparison.OrdinalIgnoreCase));
+                    SyncTemplateSelectors(templateItem);
+                }
+                catch (Exception ex)
+                {
+                    TryWriteDiagnostic($"Failed to import template. {ex.GetType().Name}: {ex.Message}");
+                    await ShowMessageAsync(libraryViewModel.Texts.ErrorImportFailedTitle, ex.Message);
+                }
+            },
+            LibraryViewModel?.Texts.ErrorImportFailedTitle);
     }
 
     private async void ExportTemplateButton_Click(object sender, RoutedEventArgs e)
     {
-        var editorViewModel = EditorViewModel;
-        if (editorViewModel is null)
-        {
-            return;
-        }
-
-        try
-        {
-            var filePath = PickTemplateExportFilePath();
-            if (string.IsNullOrWhiteSpace(filePath))
+        await RunGuardedAsync(
+            nameof(ExportTemplateButton_Click),
+            async () =>
             {
-                return;
-            }
+                var editorViewModel = EditorViewModel;
+                if (editorViewModel is null)
+                {
+                    return;
+                }
 
-            await editorViewModel.ExportCurrentTemplateAsync(filePath);
-        }
-        catch (Exception ex)
-        {
-            TryWriteDiagnostic($"Failed to export template. {ex.GetType().Name}: {ex.Message}");
-            await ShowMessageAsync(editorViewModel.Texts.ErrorExportFailedTitle, ex.Message);
-        }
+                try
+                {
+                    var filePath = PickTemplateExportFilePath();
+                    if (string.IsNullOrWhiteSpace(filePath))
+                    {
+                        return;
+                    }
+
+                    await editorViewModel.ExportCurrentTemplateAsync(filePath);
+                }
+                catch (Exception ex)
+                {
+                    TryWriteDiagnostic($"Failed to export template. {ex.GetType().Name}: {ex.Message}");
+                    await ShowMessageAsync(editorViewModel.Texts.ErrorExportFailedTitle, ex.Message);
+                }
+            },
+            EditorViewModel?.Texts.ErrorExportFailedTitle);
     }
 
     private async void DeleteTemplateButton_Click(object sender, RoutedEventArgs e)
     {
-        var libraryViewModel = LibraryViewModel;
-        if (libraryViewModel is null
-            || !TryGetTemplateItem(sender, out var templateItem)
-            || templateItem.UserTemplate is not { } template)
-        {
-            return;
-        }
-
-        try
-        {
-            if (template.IsPinned)
+        await RunGuardedAsync(
+            nameof(DeleteTemplateButton_Click),
+            async () =>
             {
-                await ShowMessageAsync(libraryViewModel.Texts.ErrorDeleteFailedTitle, libraryViewModel.Texts.PinnedTemplateLockedMessage);
-                return;
-            }
+                var libraryViewModel = LibraryViewModel;
+                if (libraryViewModel is null
+                    || !TryGetTemplateItem(sender, out var templateItem)
+                    || templateItem.UserTemplate is not { } template)
+                {
+                    return;
+                }
 
-            var confirmed = await ShowConfirmationAsync(
-                libraryViewModel.Texts.ConfirmDeleteTemplateTitle,
-                libraryViewModel.Texts.ConfirmDeleteTemplateMessage(template.Name),
-                libraryViewModel.Texts.DeleteTemplateButton,
-                libraryViewModel.Texts.CancelButton);
-            if (!confirmed)
-            {
-                return;
-            }
+                try
+                {
+                    if (template.IsPinned)
+                    {
+                        await ShowMessageAsync(libraryViewModel.Texts.ErrorDeleteFailedTitle, libraryViewModel.Texts.PinnedTemplateLockedMessage);
+                        return;
+                    }
 
-            var deletedCurrentTemplate = string.Equals(
-                libraryViewModel.CurrentTemplateSelectionKey,
-                templateItem.Key,
-                StringComparison.Ordinal);
-            await libraryViewModel.DeleteTemplateAsync(template.Id);
+                    var confirmed = await ShowConfirmationAsync(
+                        libraryViewModel.Texts.ConfirmDeleteTemplateTitle,
+                        libraryViewModel.Texts.ConfirmDeleteTemplateMessage(template.Name),
+                        libraryViewModel.Texts.DeleteTemplateButton,
+                        libraryViewModel.Texts.CancelButton);
+                    if (!confirmed)
+                    {
+                        return;
+                    }
 
-            if (deletedCurrentTemplate)
-            {
-                SyncTemplateSelectors(null);
-            }
-            else
-            {
-                RestoreCurrentTemplateSelection();
-            }
-        }
-        catch (Exception ex)
-        {
-            TryWriteDiagnostic($"Failed to delete template '{template.Name}'. {ex.GetType().Name}: {ex.Message}");
-            await ShowMessageAsync(libraryViewModel.Texts.ErrorDeleteFailedTitle, ex.Message);
-        }
+                    var deletedCurrentTemplate = string.Equals(
+                        libraryViewModel.CurrentTemplateSelectionKey,
+                        templateItem.Key,
+                        StringComparison.Ordinal);
+                    await libraryViewModel.DeleteTemplateAsync(template.Id);
+
+                    if (deletedCurrentTemplate)
+                    {
+                        SyncTemplateSelectors(null);
+                    }
+                    else
+                    {
+                        RestoreCurrentTemplateSelection();
+                    }
+                }
+                catch (Exception ex)
+                {
+                    TryWriteDiagnostic($"Failed to delete template '{template.Name}'. {ex.GetType().Name}: {ex.Message}");
+                    await ShowMessageAsync(libraryViewModel.Texts.ErrorDeleteFailedTitle, ex.Message);
+                }
+            },
+            LibraryViewModel?.Texts.ErrorDeleteFailedTitle);
     }
 
     private async void PinTemplateButton_Click(object sender, RoutedEventArgs e)
     {
-        var libraryViewModel = LibraryViewModel;
-        if (libraryViewModel is null || !TryGetTemplateItem(sender, out var templateItem))
-        {
-            return;
-        }
+        await RunGuardedAsync(
+            nameof(PinTemplateButton_Click),
+            async () =>
+            {
+                var libraryViewModel = LibraryViewModel;
+                if (libraryViewModel is null || !TryGetTemplateItem(sender, out var templateItem))
+                {
+                    return;
+                }
 
-        try
-        {
-            var currentTemplate = templateItem.UserTemplate
-                ?? libraryViewModel.FindUserTemplateById(templateItem.TemplateId)
-                ?? throw new InvalidOperationException(libraryViewModel.Texts.TemplateMissingMessage);
-            var updatedTemplate = await libraryViewModel.SetTemplatePinnedAsync(currentTemplate.Id, !currentTemplate.IsPinned);
-            var updatedTemplateItem = libraryViewModel.TemplateLibraryItems.FirstOrDefault(item =>
-                string.Equals(item.TemplateId, updatedTemplate.Id, StringComparison.OrdinalIgnoreCase));
-            SyncTemplateSelectors(updatedTemplateItem);
-        }
-        catch (Exception ex)
-        {
-            TryWriteDiagnostic($"Failed to toggle pinned state for template '{templateItem.TemplateId}'. {ex.GetType().Name}: {ex.Message}");
-            await ShowMessageAsync(libraryViewModel.Texts.ErrorPinFailedTitle, ex.Message);
-        }
+                try
+                {
+                    var currentTemplate = templateItem.UserTemplate
+                        ?? libraryViewModel.FindUserTemplateById(templateItem.TemplateId)
+                        ?? throw new InvalidOperationException(libraryViewModel.Texts.TemplateMissingMessage);
+                    var updatedTemplate = await libraryViewModel.SetTemplatePinnedAsync(currentTemplate.Id, !currentTemplate.IsPinned);
+                    var updatedTemplateItem = libraryViewModel.TemplateLibraryItems.FirstOrDefault(item =>
+                        string.Equals(item.TemplateId, updatedTemplate.Id, StringComparison.OrdinalIgnoreCase));
+                    SyncTemplateSelectors(updatedTemplateItem);
+                }
+                catch (Exception ex)
+                {
+                    TryWriteDiagnostic($"Failed to toggle pinned state for template '{templateItem.TemplateId}'. {ex.GetType().Name}: {ex.Message}");
+                    await ShowMessageAsync(libraryViewModel.Texts.ErrorPinFailedTitle, ex.Message);
+                }
+            },
+            LibraryViewModel?.Texts.ErrorPinFailedTitle);
     }
 
     public async Task<SavedTemplate?> SaveCurrentTemplateAsync()
@@ -492,6 +533,18 @@ public sealed partial class TemplatesView : UserControl
             viewModel.Texts.OkButton,
             title,
             message);
+    }
+
+    private Task RunGuardedAsync(string actionName, Func<Task> action, string? errorTitle = null)
+    {
+        var texts = ViewModel?.Texts;
+        return UiActionGuard.RunAsync(
+            this,
+            nameof(TemplatesView),
+            actionName,
+            errorTitle ?? texts?.ErrorSelectionFailedTitle ?? "Operation failed",
+            texts?.OkButton ?? "OK",
+            action);
     }
 
     private async Task<bool> ShowConfirmationAsync(

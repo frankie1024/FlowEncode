@@ -3,6 +3,7 @@ using System.Diagnostics;
 using System.IO;
 using System.Threading.Tasks;
 using FlowEncode.Application;
+using FlowEncode.Controls.Shared;
 using FlowEncode.Domain;
 using FlowEncode.Infrastructure;
 using FlowEncode.ViewModels;
@@ -21,15 +22,13 @@ internal static class SetupDependencyInteractionHelper
         string errorTitle,
         Func<Task> action)
     {
-        try
-        {
-            await action();
-        }
-        catch (Exception ex)
-        {
-            TryWriteDiagnostic(diagnosticSource, $"{diagnosticAction}. {ex.GetType().Name}: {ex.Message}");
-            await ShowMessageAsync(viewModel, owner, errorTitle, ex.Message);
-        }
+        await UiActionGuard.RunAsync(
+            owner,
+            diagnosticSource,
+            diagnosticAction,
+            errorTitle,
+            viewModel.Texts.OkButton,
+            action);
     }
 
     public static async Task InstallSetupDependencyAsync(
@@ -122,25 +121,45 @@ internal static class SetupDependencyInteractionHelper
     public static async Task ClearManualPinnedSetupDependencyAsync(
         ISetupDependencyModuleViewModel viewModel,
         FrameworkElement owner,
-        SetupDependencyKind kind)
+        SetupDependencyKind kind,
+        string diagnosticSource = nameof(SetupDependencyInteractionHelper))
     {
-        var error = await viewModel.ClearManualPinnedSetupDependencyAsync(kind);
-        if (!string.IsNullOrWhiteSpace(error))
-        {
-            await ShowMessageAsync(viewModel, owner, viewModel.Texts.ErrorSaveSettingsFailedTitle, error);
-        }
+        await RunGuardedAsync(
+            viewModel,
+            owner,
+            diagnosticSource,
+            $"Failed to clear manually pinned setup dependency '{kind}'",
+            viewModel.Texts.ErrorSaveSettingsFailedTitle,
+            async () =>
+            {
+                var error = await viewModel.ClearManualPinnedSetupDependencyAsync(kind);
+                if (!string.IsNullOrWhiteSpace(error))
+                {
+                    await ShowMessageAsync(viewModel, owner, viewModel.Texts.ErrorSaveSettingsFailedTitle, error);
+                }
+            });
     }
 
     public static async Task UninstallSetupDependencyAsync(
         ISetupDependencyModuleViewModel viewModel,
         FrameworkElement owner,
-        SetupDependencyKind kind)
+        SetupDependencyKind kind,
+        string diagnosticSource = nameof(SetupDependencyInteractionHelper))
     {
-        var error = await viewModel.UninstallSetupDependencyAsync(kind);
-        if (!string.IsNullOrWhiteSpace(error))
-        {
-            await ShowMessageAsync(viewModel, owner, viewModel.Texts.ErrorUninstallFailedTitle, error);
-        }
+        await RunGuardedAsync(
+            viewModel,
+            owner,
+            diagnosticSource,
+            $"Failed to uninstall setup dependency '{kind}'",
+            viewModel.Texts.ErrorUninstallFailedTitle,
+            async () =>
+            {
+                var error = await viewModel.UninstallSetupDependencyAsync(kind);
+                if (!string.IsNullOrWhiteSpace(error))
+                {
+                    await ShowMessageAsync(viewModel, owner, viewModel.Texts.ErrorUninstallFailedTitle, error);
+                }
+            });
     }
 
     public static Task<bool> ShowConfirmationAsync(

@@ -1,4 +1,6 @@
+using System;
 using System.Threading.Tasks;
+using FlowEncode.Controls.Shared;
 using FlowEncode.Domain;
 using FlowEncode.ViewModels;
 using Microsoft.UI.Xaml;
@@ -58,13 +60,13 @@ public sealed partial class AudioProcessingView : UserControl
 
     private async void BrowseAudioSourceButton_Click(object sender, RoutedEventArgs e)
     {
-        await PickAudioSourceFileAsync();
+        await RunGuardedAsync(nameof(BrowseAudioSourceButton_Click), PickAudioSourceFileAsync);
     }
 
     private async void AudioSourcePathTextBox_DoubleTapped(object sender, DoubleTappedRoutedEventArgs e)
     {
         e.Handled = true;
-        await PickAudioSourceFileAsync();
+        await RunGuardedAsync(nameof(AudioSourcePathTextBox_DoubleTapped), PickAudioSourceFileAsync);
     }
 
     private async Task PickAudioSourceFileAsync()
@@ -93,13 +95,13 @@ public sealed partial class AudioProcessingView : UserControl
 
     private async void BrowseAudioOutputButton_Click(object sender, RoutedEventArgs e)
     {
-        await PickAudioOutputAsync();
+        await RunGuardedAsync(nameof(BrowseAudioOutputButton_Click), PickAudioOutputAsync);
     }
 
     private async void AudioOutputPathTextBox_DoubleTapped(object sender, DoubleTappedRoutedEventArgs e)
     {
         e.Handled = true;
-        await PickAudioOutputAsync();
+        await RunGuardedAsync(nameof(AudioOutputPathTextBox_DoubleTapped), PickAudioOutputAsync);
     }
 
     private async Task PickAudioOutputAsync()
@@ -124,6 +126,11 @@ public sealed partial class AudioProcessingView : UserControl
     }
 
     private async void StartAudioProcessingButton_Click(object sender, RoutedEventArgs e)
+    {
+        await RunGuardedAsync(nameof(StartAudioProcessingButton_Click), StartAudioProcessingAsync);
+    }
+
+    private async Task StartAudioProcessingAsync()
     {
         var formViewModel = FormViewModel;
         if (formViewModel is null)
@@ -170,6 +177,18 @@ public sealed partial class AudioProcessingView : UserControl
                 formViewModel.Texts.ErrorCannotStartAudioProcessingTitle,
                 error);
         }
+    }
+
+    private Task RunGuardedAsync(string actionName, Func<Task> action)
+    {
+        var texts = ViewModel?.Texts;
+        return UiActionGuard.RunAsync(
+            this,
+            nameof(AudioProcessingView),
+            actionName,
+            texts?.ErrorCannotStartAudioProcessingTitle ?? "Audio processing failed",
+            texts?.OkButton ?? "OK",
+            action);
     }
 
     private void CancelAudioProcessingButton_Click(object sender, RoutedEventArgs e)

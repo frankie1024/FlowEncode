@@ -579,21 +579,32 @@ public sealed partial class VapourSynthPreviewWindow : Window
 
     private async void ReloadPreviewButton_Click(object sender, RoutedEventArgs e)
     {
-        var loaded = await LoadSessionAsync(preserveCurrentFrame: true);
-        if (!loaded && !_isClosed)
-        {
-            Close();
-        }
+        await RunWindowEventHandlerAsync(
+            nameof(ReloadPreviewButton_Click),
+            async () =>
+            {
+                var loaded = await LoadSessionAsync(preserveCurrentFrame: true);
+                if (!loaded && !_isClosed)
+                {
+                    Close();
+                }
+            });
     }
 
     private async void SaveSnapshotButton_Click(object sender, RoutedEventArgs e)
     {
-        await SaveCurrentSnapshotAsync();
+        await RunWindowEventHandlerAsync(
+            nameof(SaveSnapshotButton_Click),
+            SaveCurrentSnapshotAsync,
+            ViewModel.Texts.VapourSynthPreviewSnapshotSaveFailedStatus);
     }
 
     private async void SaveAllOutputsButton_Click(object sender, RoutedEventArgs e)
     {
-        await SaveAllOutputsAtCurrentFrameAsync();
+        await RunWindowEventHandlerAsync(
+            nameof(SaveAllOutputsButton_Click),
+            SaveAllOutputsAtCurrentFrameAsync,
+            ViewModel.Texts.VapourSynthPreviewAllSnapshotsFailedStatus);
     }
 
     private async Task SaveCurrentSnapshotAsync()
@@ -745,54 +756,76 @@ public sealed partial class VapourSynthPreviewWindow : Window
 
     private async void CropToggleButton_Checked(object sender, RoutedEventArgs e)
     {
-        await UpdateCropPanelVisibilityAsync(true);
+        await RunWindowEventHandlerAsync(
+            nameof(CropToggleButton_Checked),
+            () => UpdateCropPanelVisibilityAsync(true));
     }
 
     private async void CropToggleButton_Unchecked(object sender, RoutedEventArgs e)
     {
-        await UpdateCropPanelVisibilityAsync(false);
+        await RunWindowEventHandlerAsync(
+            nameof(CropToggleButton_Unchecked),
+            () => UpdateCropPanelVisibilityAsync(false));
     }
 
     private async void AdvancedSettingsButton_Click(object sender, RoutedEventArgs e)
     {
-        await ShowAdvancedSettingsAsync();
+        await RunWindowEventHandlerAsync(
+            nameof(AdvancedSettingsButton_Click),
+            ShowAdvancedSettingsAsync,
+            ViewModel.Texts.VapourSynthPreviewAdvancedSettingsFailedStatus);
     }
 
     private async void OutputSelectorComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
     {
-        if (_isInternalControlUpdate
-            || OutputSelectorComboBox.SelectedItem is not VapourSynthPreviewOutputOption option)
-        {
-            return;
-        }
+        await RunWindowEventHandlerAsync(
+            nameof(OutputSelectorComboBox_SelectionChanged),
+            async () =>
+            {
+                if (_isInternalControlUpdate
+                    || OutputSelectorComboBox.SelectedItem is not VapourSynthPreviewOutputOption option)
+                {
+                    return;
+                }
 
-        await SelectOutputAsync(option.Info);
+                await SelectOutputAsync(option.Info);
+            });
     }
 
     private async void FrameNumberBox_ValueChanged(NumberBox sender, NumberBoxValueChangedEventArgs args)
     {
-        if (_isInternalControlUpdate || double.IsNaN(sender.Value))
-        {
-            return;
-        }
+        await RunWindowEventHandlerAsync(
+            nameof(FrameNumberBox_ValueChanged),
+            async () =>
+            {
+                if (_isInternalControlUpdate || double.IsNaN(sender.Value))
+                {
+                    return;
+                }
 
-        var requestedFrame = (int)Math.Round(sender.Value);
-        if (requestedFrame == ViewModel.CurrentFrame)
-        {
-            return;
-        }
+                var requestedFrame = (int)Math.Round(sender.Value);
+                if (requestedFrame == ViewModel.CurrentFrame)
+                {
+                    return;
+                }
 
-        await RequestFrameAsync(requestedFrame);
+                await RequestFrameAsync(requestedFrame);
+            });
     }
 
     private async void FrameNumberBox_LostFocus(object sender, RoutedEventArgs e)
     {
-        if (_isInternalControlUpdate || double.IsNaN(FrameNumberBox.Value))
-        {
-            return;
-        }
+        await RunWindowEventHandlerAsync(
+            nameof(FrameNumberBox_LostFocus),
+            async () =>
+            {
+                if (_isInternalControlUpdate || double.IsNaN(FrameNumberBox.Value))
+                {
+                    return;
+                }
 
-        await RequestFrameAsync((int)Math.Round(FrameNumberBox.Value));
+                await RequestFrameAsync((int)Math.Round(FrameNumberBox.Value));
+            });
     }
 
     private void ZoomModeComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
@@ -839,15 +872,19 @@ public sealed partial class VapourSynthPreviewWindow : Window
 
     private async void TimeStepBackButton_Click(object sender, RoutedEventArgs e)
     {
-        await StepByTimeAsync(-ViewModel.TimeStepSeconds);
+        await RunWindowEventHandlerAsync(
+            nameof(TimeStepBackButton_Click),
+            () => StepByTimeAsync(-ViewModel.TimeStepSeconds));
     }
 
     private async void TimeStepForwardButton_Click(object sender, RoutedEventArgs e)
     {
-        await StepByTimeAsync(ViewModel.TimeStepSeconds);
+        await RunWindowEventHandlerAsync(
+            nameof(TimeStepForwardButton_Click),
+            () => StepByTimeAsync(ViewModel.TimeStepSeconds));
     }
 
-    private async void CropModeComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    private void CropModeComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
     {
         if (_isInternalControlUpdate || _selectedOutputInfo is null)
         {
@@ -864,32 +901,44 @@ public sealed partial class VapourSynthPreviewWindow : Window
 
     private async void CropLeftBox_ValueChanged(NumberBox sender, NumberBoxValueChangedEventArgs args)
     {
-        await UpdateCropValueAsync(CropField.Left, sender);
+        await RunWindowEventHandlerAsync(
+            nameof(CropLeftBox_ValueChanged),
+            () => UpdateCropValueAsync(CropField.Left, sender));
     }
 
     private async void CropTopBox_ValueChanged(NumberBox sender, NumberBoxValueChangedEventArgs args)
     {
-        await UpdateCropValueAsync(CropField.Top, sender);
+        await RunWindowEventHandlerAsync(
+            nameof(CropTopBox_ValueChanged),
+            () => UpdateCropValueAsync(CropField.Top, sender));
     }
 
     private async void CropWidthBox_ValueChanged(NumberBox sender, NumberBoxValueChangedEventArgs args)
     {
-        await UpdateCropValueAsync(CropField.Width, sender);
+        await RunWindowEventHandlerAsync(
+            nameof(CropWidthBox_ValueChanged),
+            () => UpdateCropValueAsync(CropField.Width, sender));
     }
 
     private async void CropHeightBox_ValueChanged(NumberBox sender, NumberBoxValueChangedEventArgs args)
     {
-        await UpdateCropValueAsync(CropField.Height, sender);
+        await RunWindowEventHandlerAsync(
+            nameof(CropHeightBox_ValueChanged),
+            () => UpdateCropValueAsync(CropField.Height, sender));
     }
 
     private async void CropRightBox_ValueChanged(NumberBox sender, NumberBoxValueChangedEventArgs args)
     {
-        await UpdateCropValueAsync(CropField.Right, sender);
+        await RunWindowEventHandlerAsync(
+            nameof(CropRightBox_ValueChanged),
+            () => UpdateCropValueAsync(CropField.Right, sender));
     }
 
     private async void CropBottomBox_ValueChanged(NumberBox sender, NumberBoxValueChangedEventArgs args)
     {
-        await UpdateCropValueAsync(CropField.Bottom, sender);
+        await RunWindowEventHandlerAsync(
+            nameof(CropBottomBox_ValueChanged),
+            () => UpdateCropValueAsync(CropField.Bottom, sender));
     }
 
     private void CropZoomBox_ValueChanged(NumberBox sender, NumberBoxValueChangedEventArgs args)
@@ -1055,15 +1104,19 @@ public sealed partial class VapourSynthPreviewWindow : Window
 
     private async void FirstFrameButton_Click(object sender, RoutedEventArgs e)
     {
-        await RequestFrameAsync(0);
+        await RunWindowEventHandlerAsync(
+            nameof(FirstFrameButton_Click),
+            () => RequestFrameAsync(0));
     }
 
     private async void StepBackButton_Click(object sender, RoutedEventArgs e)
     {
-        await RequestFrameAsync(Math.Max(0, ViewModel.CurrentFrame - ViewModel.StepSize));
+        await RunWindowEventHandlerAsync(
+            nameof(StepBackButton_Click),
+            () => RequestFrameAsync(Math.Max(0, ViewModel.CurrentFrame - ViewModel.StepSize)));
     }
 
-    private async void PlayPauseButton_Click(object sender, RoutedEventArgs e)
+    private void PlayPauseButton_Click(object sender, RoutedEventArgs e)
     {
         if (_isPlaying)
         {
@@ -1088,12 +1141,16 @@ public sealed partial class VapourSynthPreviewWindow : Window
 
     private async void StepForwardButton_Click(object sender, RoutedEventArgs e)
     {
-        await RequestFrameAsync(Math.Min(Math.Max(0, ViewModel.TotalFrames - 1), ViewModel.CurrentFrame + ViewModel.StepSize));
+        await RunWindowEventHandlerAsync(
+            nameof(StepForwardButton_Click),
+            () => RequestFrameAsync(Math.Min(Math.Max(0, ViewModel.TotalFrames - 1), ViewModel.CurrentFrame + ViewModel.StepSize)));
     }
 
     private async void LastFrameButton_Click(object sender, RoutedEventArgs e)
     {
-        await RequestFrameAsync(Math.Max(0, ViewModel.TotalFrames - 1));
+        await RunWindowEventHandlerAsync(
+            nameof(LastFrameButton_Click),
+            () => RequestFrameAsync(Math.Max(0, ViewModel.TotalFrames - 1)));
     }
 
     private void StepSizeBox_ValueChanged(NumberBox sender, NumberBoxValueChangedEventArgs args)
@@ -1108,62 +1165,72 @@ public sealed partial class VapourSynthPreviewWindow : Window
 
     private async void FrameSlider_ValueChanged(object sender, RangeBaseValueChangedEventArgs e)
     {
-        if (_isInternalControlUpdate)
-        {
-            return;
-        }
+        await RunWindowEventHandlerAsync(
+            nameof(FrameSlider_ValueChanged),
+            async () =>
+            {
+                if (_isInternalControlUpdate)
+                {
+                    return;
+                }
 
-        var frameNumber = (int)Math.Round(e.NewValue);
-        if (_isFrameSliderInteracting)
-        {
-            UpdateFrameNumberDisplay(frameNumber);
-            return;
-        }
+                var frameNumber = (int)Math.Round(e.NewValue);
+                if (_isFrameSliderInteracting)
+                {
+                    UpdateFrameNumberDisplay(frameNumber);
+                    return;
+                }
 
-        UpdateActiveChapter(frameNumber);
-        await RequestFrameAsync(frameNumber);
+                UpdateActiveChapter(frameNumber);
+                await RequestFrameAsync(frameNumber);
+            });
     }
 
     private async void FrameSliderHost_PointerPressed(object sender, PointerRoutedEventArgs e)
     {
-        if (_selectedOutputInfo is null || ViewModel.Chapters.Count == 0)
-        {
-            return;
-        }
-
-        var point = e.GetCurrentPoint(FrameSliderHost).Position;
-        var track = MeasureSliderTrackBounds();
-        if (track.width <= 0)
-        {
-            return;
-        }
-
-        var clickedFrame = (int)Math.Round(Math.Clamp((point.X - track.offset) / track.width, 0, 1) * ViewModel.FrameSliderMaximum);
-        var nearest = ViewModel.Chapters
-            .Select((chapter, index) => new
+        await RunWindowEventHandlerAsync(
+            nameof(FrameSliderHost_PointerPressed),
+            async () =>
             {
-                Chapter = chapter,
-                Index = index,
-                Frame = TimecodeToFrame(chapter.Timecode, _selectedOutputInfo)
-            })
-            .OrderBy(item => Math.Abs(item.Frame - clickedFrame))
-            .FirstOrDefault();
+                if (_selectedOutputInfo is null || ViewModel.Chapters.Count == 0)
+                {
+                    return;
+                }
 
-        if (nearest is null)
-        {
-            return;
-        }
+                var point = e.GetCurrentPoint(FrameSliderHost).Position;
+                var track = MeasureSliderTrackBounds();
+                if (track.width <= 0)
+                {
+                    return;
+                }
 
-        var toleranceFrames = Math.Max(3, (int)Math.Round(GetOutputFps(_selectedOutputInfo) * 0.5));
-        if (Math.Abs(nearest.Frame - clickedFrame) > toleranceFrames)
-        {
-            return;
-        }
+                var clickedFrame = (int)Math.Round(Math.Clamp((point.X - track.offset) / track.width, 0, 1) * ViewModel.FrameSliderMaximum);
+                var nearest = ViewModel.Chapters
+                    .Select((chapter, index) => new
+                    {
+                        Chapter = chapter,
+                        Index = index,
+                        Frame = TimecodeToFrame(chapter.Timecode, _selectedOutputInfo)
+                    })
+                    .OrderBy(item => Math.Abs(item.Frame - clickedFrame))
+                    .FirstOrDefault();
 
-        _activeChapterIndex = nearest.Index;
-        RedrawChapterMarkers();
-        e.Handled = true;
-        await RequestFrameAsync(nearest.Frame);
+                if (nearest is null)
+                {
+                    return;
+                }
+
+                var toleranceFrames = Math.Max(3, (int)Math.Round(GetOutputFps(_selectedOutputInfo) * 0.5));
+                if (Math.Abs(nearest.Frame - clickedFrame) > toleranceFrames)
+                {
+                    return;
+                }
+
+                _activeChapterIndex = nearest.Index;
+                RedrawChapterMarkers();
+                e.Handled = true;
+                await RequestFrameAsync(nearest.Frame);
+            });
     }
 
     private void ChapterMarkerCanvas_SizeChanged(object sender, SizeChangedEventArgs e)
@@ -1173,124 +1240,141 @@ public sealed partial class VapourSynthPreviewWindow : Window
 
     private async void ChapterSelectorComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
     {
-        if (_isInternalControlUpdate
-            || _selectedOutputInfo is null
-            || ChapterSelectorComboBox.SelectedItem is not VapourSynthPreviewChapterOption chapter)
-        {
-            return;
-        }
+        await RunWindowEventHandlerAsync(
+            nameof(ChapterSelectorComboBox_SelectionChanged),
+            async () =>
+            {
+                if (_isInternalControlUpdate
+                    || _selectedOutputInfo is null
+                    || ChapterSelectorComboBox.SelectedItem is not VapourSynthPreviewChapterOption chapter)
+                {
+                    return;
+                }
 
-        var index = ViewModel.Chapters.IndexOf(chapter);
-        if (index < 0)
-        {
-            return;
-        }
+                var index = ViewModel.Chapters.IndexOf(chapter);
+                if (index < 0)
+                {
+                    return;
+                }
 
-        _activeChapterIndex = index;
-        RedrawChapterMarkers();
-        await RequestFrameAsync(TimecodeToFrame(chapter.Timecode, _selectedOutputInfo));
+                _activeChapterIndex = index;
+                RedrawChapterMarkers();
+                await RequestFrameAsync(TimecodeToFrame(chapter.Timecode, _selectedOutputInfo));
+            });
     }
 
     private async void ImportChapterButton_Click(object sender, RoutedEventArgs e)
     {
-        NativeFileDialogHelper.FileDialogResult? PickChapterImportFile()
-        {
-            var path = WindowInteractionHelper.PickOpenFilePath(
-                GetWindowHandle(),
-                ViewModel.Texts.ImportButton,
-                ResolvePreviewDialogCurrentPath(),
-                new NativeFileDialogHelper.FileDialogFilter(
-                    ViewModel.Texts.VapourSynthPreviewChapterFileTypeDescription,
-                    "*.txt;*.xml"),
-                new NativeFileDialogHelper.FileDialogFilter(
-                    ViewModel.Texts.VapourSynthPreviewOgmChapterFileTypeDescription,
-                    "*.txt"),
-                new NativeFileDialogHelper.FileDialogFilter(
-                    ViewModel.Texts.VapourSynthPreviewXmlChapterFileTypeDescription,
-                    "*.xml"));
-            return string.IsNullOrWhiteSpace(path)
-                ? null
-                : new NativeFileDialogHelper.FileDialogResult(path, 1);
-        }
+        await RunWindowEventHandlerAsync(
+            nameof(ImportChapterButton_Click),
+            async () =>
+            {
+                NativeFileDialogHelper.FileDialogResult? PickChapterImportFile()
+                {
+                    var path = WindowInteractionHelper.PickOpenFilePath(
+                        GetWindowHandle(),
+                        ViewModel.Texts.ImportButton,
+                        ResolvePreviewDialogCurrentPath(),
+                        new NativeFileDialogHelper.FileDialogFilter(
+                            ViewModel.Texts.VapourSynthPreviewChapterFileTypeDescription,
+                            "*.txt;*.xml"),
+                        new NativeFileDialogHelper.FileDialogFilter(
+                            ViewModel.Texts.VapourSynthPreviewOgmChapterFileTypeDescription,
+                            "*.txt"),
+                        new NativeFileDialogHelper.FileDialogFilter(
+                            ViewModel.Texts.VapourSynthPreviewXmlChapterFileTypeDescription,
+                            "*.xml"));
+                    return string.IsNullOrWhiteSpace(path)
+                        ? null
+                        : new NativeFileDialogHelper.FileDialogResult(path, 1);
+                }
 
-        var (pickSucceeded, file) = await TryRunWindowOperationAsync(
-            "PickChapterImportFile",
-            () => Task.FromResult(PickChapterImportFile()),
+                var (pickSucceeded, file) = await TryRunWindowOperationAsync(
+                    "PickChapterImportFile",
+                    () => Task.FromResult(PickChapterImportFile()),
+                    ViewModel.Texts.VapourSynthPreviewChapterImportFailedStatus);
+                if (!pickSucceeded || file is null)
+                {
+                    return;
+                }
+
+                try
+                {
+                    var chapters = await LoadChapterFileAsync(file.Value.Path);
+                    ViewModel.ReplaceChapters(BuildChapterOptions(chapters));
+                    _activeChapterIndex = -1;
+                    UpdateChapterButtons();
+                    RedrawChapterMarkers();
+                    SetStatusText(ViewModel.Chapters.Count > 0
+                        ? ViewModel.Texts.VapourSynthPreviewChaptersImportedStatus(ViewModel.Chapters.Count)
+                        : ViewModel.Texts.VapourSynthPreviewNoChaptersFoundStatus);
+                }
+                catch (Exception ex)
+                {
+                    LogWindowOperationFailure("LoadChapterFile", ex);
+                    SetStatusText(ViewModel.Texts.VapourSynthPreviewChapterImportFailedStatus(GetWindowOperationErrorDetail(ex)));
+                }
+            },
             ViewModel.Texts.VapourSynthPreviewChapterImportFailedStatus);
-        if (!pickSucceeded || file is null)
-        {
-            return;
-        }
-
-        try
-        {
-            var chapters = await LoadChapterFileAsync(file.Value.Path);
-            ViewModel.ReplaceChapters(BuildChapterOptions(chapters));
-            _activeChapterIndex = -1;
-            UpdateChapterButtons();
-            RedrawChapterMarkers();
-            SetStatusText(ViewModel.Chapters.Count > 0
-                ? ViewModel.Texts.VapourSynthPreviewChaptersImportedStatus(ViewModel.Chapters.Count)
-                : ViewModel.Texts.VapourSynthPreviewNoChaptersFoundStatus);
-        }
-        catch (Exception ex)
-        {
-            LogWindowOperationFailure("LoadChapterFile", ex);
-            SetStatusText(ViewModel.Texts.VapourSynthPreviewChapterImportFailedStatus(GetWindowOperationErrorDetail(ex)));
-        }
     }
 
     private async void ExportChapterButton_Click(object sender, RoutedEventArgs e)
     {
-        if (ViewModel.Chapters.Count == 0)
-        {
-            return;
-        }
+        await RunWindowEventHandlerAsync(
+            nameof(ExportChapterButton_Click),
+            async () =>
+            {
+                if (ViewModel.Chapters.Count == 0)
+                {
+                    return;
+                }
 
-        var (pickSucceeded, file) = await TryRunWindowOperationAsync(
-            "PickChapterExportFile",
-            () => Task.FromResult(
-                WindowInteractionHelper.PickSaveFilePath(
-                    GetWindowHandle(),
-                    ViewModel.Texts.ExportButton,
-                    ResolvePreviewDialogCurrentPath(),
-                    "chapters",
-                    ".txt",
-                    new NativeFileDialogHelper.FileDialogFilter(
-                        ViewModel.Texts.VapourSynthPreviewOgmChapterFileTypeDescription,
-                        "*.txt"),
-                    new NativeFileDialogHelper.FileDialogFilter(
-                        ViewModel.Texts.VapourSynthPreviewXmlChapterFileTypeDescription,
-                        "*.xml"))),
+                var (pickSucceeded, file) = await TryRunWindowOperationAsync(
+                    "PickChapterExportFile",
+                    () => Task.FromResult(
+                        WindowInteractionHelper.PickSaveFilePath(
+                            GetWindowHandle(),
+                            ViewModel.Texts.ExportButton,
+                            ResolvePreviewDialogCurrentPath(),
+                            "chapters",
+                            ".txt",
+                            new NativeFileDialogHelper.FileDialogFilter(
+                                ViewModel.Texts.VapourSynthPreviewOgmChapterFileTypeDescription,
+                                "*.txt"),
+                            new NativeFileDialogHelper.FileDialogFilter(
+                                ViewModel.Texts.VapourSynthPreviewXmlChapterFileTypeDescription,
+                                "*.xml"))),
+                    ViewModel.Texts.VapourSynthPreviewChapterExportFailedStatus);
+                if (!pickSucceeded || file is null)
+                {
+                    return;
+                }
+
+                var selectedPath = file.Value.Path;
+                var targetExtension = ResolveChapterExportExtension(file.Value.SelectedFilterIndex);
+                selectedPath = Path.ChangeExtension(selectedPath, targetExtension);
+
+                try
+                {
+                    var chapters = GetChapterEntries();
+                    if (string.Equals(targetExtension, ".xml", StringComparison.OrdinalIgnoreCase))
+                    {
+                        await File.WriteAllTextAsync(selectedPath, BuildMatroskaChaptersXml(chapters));
+                    }
+                    else
+                    {
+                        await File.WriteAllLinesAsync(selectedPath, BuildOgmChapterLines(chapters));
+                    }
+
+                    SetStatusText(ViewModel.Texts.VapourSynthPreviewChaptersExportedStatus(chapters.Count, selectedPath));
+                }
+                catch (Exception ex)
+                {
+                    LogWindowOperationFailure("ExportChapterFile", ex);
+                    SetStatusText(ViewModel.Texts.VapourSynthPreviewChapterExportFailedStatus(GetWindowOperationErrorDetail(ex)));
+                }
+            },
             ViewModel.Texts.VapourSynthPreviewChapterExportFailedStatus);
-        if (!pickSucceeded || file is null)
-        {
-            return;
-        }
-
-        var selectedPath = file.Value.Path;
-        var targetExtension = ResolveChapterExportExtension(file.Value.SelectedFilterIndex);
-        selectedPath = Path.ChangeExtension(selectedPath, targetExtension);
-
-        try
-        {
-            var chapters = GetChapterEntries();
-            if (string.Equals(targetExtension, ".xml", StringComparison.OrdinalIgnoreCase))
-            {
-                await File.WriteAllTextAsync(selectedPath, BuildMatroskaChaptersXml(chapters));
-            }
-            else
-            {
-                await File.WriteAllLinesAsync(selectedPath, BuildOgmChapterLines(chapters));
-            }
-
-            SetStatusText(ViewModel.Texts.VapourSynthPreviewChaptersExportedStatus(chapters.Count, selectedPath));
-        }
-        catch (Exception ex)
-        {
-            LogWindowOperationFailure("ExportChapterFile", ex);
-            SetStatusText(ViewModel.Texts.VapourSynthPreviewChapterExportFailedStatus(GetWindowOperationErrorDetail(ex)));
-        }
     }
 
     private static string ResolveChapterExportExtension(int selectedFilterIndex)
@@ -1300,52 +1384,64 @@ public sealed partial class VapourSynthPreviewWindow : Window
 
     private async void AddChapterButton_Click(object sender, RoutedEventArgs e)
     {
-        var timecode = CurrentFrameToTimecode();
-        var title = ViewModel.Texts.VapourSynthPreviewChapterFallbackTitle(ViewModel.Chapters.Count + 1);
-        var result = await ShowChapterEditDialogAsync(timecode, title);
-        if (result is null)
-        {
-            return;
-        }
+        await RunWindowEventHandlerAsync(
+            nameof(AddChapterButton_Click),
+            async () =>
+            {
+                var timecode = CurrentFrameToTimecode();
+                var title = ViewModel.Texts.VapourSynthPreviewChapterFallbackTitle(ViewModel.Chapters.Count + 1);
+                var result = await ShowChapterEditDialogAsync(timecode, title);
+                if (result is null)
+                {
+                    return;
+                }
 
-        var chapters = GetChapterEntries();
-        chapters.Add(result);
-        ViewModel.ReplaceChapters(BuildChapterOptions(chapters));
-        UpdateActiveChapter(TimecodeToFrame(result.Timecode, _selectedOutputInfo));
-        UpdateChapterButtons();
-        RedrawChapterMarkers();
-        SetStatusText(ViewModel.Texts.VapourSynthPreviewChapterAddedStatus(result.Title));
-        await RequestFrameAsync(TimecodeToFrame(result.Timecode, _selectedOutputInfo));
+                var chapters = GetChapterEntries();
+                chapters.Add(result);
+                ViewModel.ReplaceChapters(BuildChapterOptions(chapters));
+                UpdateActiveChapter(TimecodeToFrame(result.Timecode, _selectedOutputInfo));
+                UpdateChapterButtons();
+                RedrawChapterMarkers();
+                SetStatusText(ViewModel.Texts.VapourSynthPreviewChapterAddedStatus(result.Title));
+                await RequestFrameAsync(TimecodeToFrame(result.Timecode, _selectedOutputInfo));
+            },
+            ViewModel.Texts.VapourSynthPreviewChapterDialogFailedStatus);
     }
 
     private async void EditChapterButton_Click(object sender, RoutedEventArgs e)
     {
-        if (ViewModel.Chapters.Count == 0)
-        {
-            return;
-        }
+        await RunWindowEventHandlerAsync(
+            nameof(EditChapterButton_Click),
+            async () =>
+            {
+                if (ViewModel.Chapters.Count == 0)
+                {
+                    return;
+                }
 
-        var index = ResolveActiveChapterIndex();
-        if (index < 0)
-        {
-            return;
-        }
+                var index = ResolveActiveChapterIndex();
+                if (index < 0)
+                {
+                    return;
+                }
 
-        var current = ViewModel.Chapters[index];
-        var result = await ShowChapterEditDialogAsync(current.Timecode, current.Title);
-        if (result is null)
-        {
-            return;
-        }
+                var current = ViewModel.Chapters[index];
+                var result = await ShowChapterEditDialogAsync(current.Timecode, current.Title);
+                if (result is null)
+                {
+                    return;
+                }
 
-        var chapters = GetChapterEntries();
-        chapters[index] = result;
-        ViewModel.ReplaceChapters(BuildChapterOptions(chapters));
-        UpdateActiveChapter(TimecodeToFrame(result.Timecode, _selectedOutputInfo));
-        UpdateChapterButtons();
-        RedrawChapterMarkers();
-        SetStatusText(ViewModel.Texts.VapourSynthPreviewChapterUpdatedStatus(result.Title));
-        await RequestFrameAsync(TimecodeToFrame(result.Timecode, _selectedOutputInfo));
+                var chapters = GetChapterEntries();
+                chapters[index] = result;
+                ViewModel.ReplaceChapters(BuildChapterOptions(chapters));
+                UpdateActiveChapter(TimecodeToFrame(result.Timecode, _selectedOutputInfo));
+                UpdateChapterButtons();
+                RedrawChapterMarkers();
+                SetStatusText(ViewModel.Texts.VapourSynthPreviewChapterUpdatedStatus(result.Title));
+                await RequestFrameAsync(TimecodeToFrame(result.Timecode, _selectedOutputInfo));
+            },
+            ViewModel.Texts.VapourSynthPreviewChapterDialogFailedStatus);
     }
 
     private void DeleteChapterButton_Click(object sender, RoutedEventArgs e)
@@ -1373,75 +1469,96 @@ public sealed partial class VapourSynthPreviewWindow : Window
 
     private async void NextChapterButton_Click(object sender, RoutedEventArgs e)
     {
-        if (ViewModel.Chapters.Count == 0)
-        {
-            return;
-        }
-
-        var currentFrame = ViewModel.CurrentFrame;
-        var next = ViewModel.Chapters
-            .Select((chapter, index) => new
+        await RunWindowEventHandlerAsync(
+            nameof(NextChapterButton_Click),
+            async () =>
             {
-                Chapter = chapter,
-                Index = index,
-                Frame = TimecodeToFrame(chapter.Timecode, _selectedOutputInfo)
-            })
-            .Where(item => item.Frame > currentFrame)
-            .OrderBy(item => item.Frame)
-            .FirstOrDefault()
-            ?? ViewModel.Chapters
-                .Select((chapter, index) => new
+                if (ViewModel.Chapters.Count == 0)
                 {
-                    Chapter = chapter,
-                    Index = index,
-                    Frame = TimecodeToFrame(chapter.Timecode, _selectedOutputInfo)
-                })
-                .OrderBy(item => item.Frame)
-                .First();
+                    return;
+                }
 
-        _activeChapterIndex = next.Index;
-        RedrawChapterMarkers();
-        await RequestFrameAsync(next.Frame);
+                var currentFrame = ViewModel.CurrentFrame;
+                var next = ViewModel.Chapters
+                    .Select((chapter, index) => new
+                    {
+                        Chapter = chapter,
+                        Index = index,
+                        Frame = TimecodeToFrame(chapter.Timecode, _selectedOutputInfo)
+                    })
+                    .Where(item => item.Frame > currentFrame)
+                    .OrderBy(item => item.Frame)
+                    .FirstOrDefault()
+                    ?? ViewModel.Chapters
+                        .Select((chapter, index) => new
+                        {
+                            Chapter = chapter,
+                            Index = index,
+                            Frame = TimecodeToFrame(chapter.Timecode, _selectedOutputInfo)
+                        })
+                        .OrderBy(item => item.Frame)
+                        .First();
+
+                _activeChapterIndex = next.Index;
+                RedrawChapterMarkers();
+                await RequestFrameAsync(next.Frame);
+            });
     }
 
     private async void PlaybackTimer_Tick(object? sender, object e)
     {
-        if (_frameRequestScheduler.IsBusy)
-        {
-            return;
-        }
+        await RunWindowEventHandlerAsync(
+            nameof(PlaybackTimer_Tick),
+            async () =>
+            {
+                if (_frameRequestScheduler.IsBusy)
+                {
+                    return;
+                }
 
-        if (_selectedOutputInfo is null || ViewModel.CurrentFrame >= Math.Max(0, ViewModel.TotalFrames - 1))
-        {
-            StopPlayback(updateStatus: true);
-            return;
-        }
+                if (_selectedOutputInfo is null || ViewModel.CurrentFrame >= Math.Max(0, ViewModel.TotalFrames - 1))
+                {
+                    StopPlayback(updateStatus: true);
+                    return;
+                }
 
-        await RequestRelativeFrameAsync(1);
+                await RequestRelativeFrameAsync(1);
+            });
     }
 
     private async void VapourSynthPreviewWindow_Closed(object sender, WindowEventArgs args)
     {
-        if (_isClosed)
-        {
-            return;
-        }
+        await RunWindowEventHandlerAsync(
+            nameof(VapourSynthPreviewWindow_Closed),
+            async () =>
+            {
+                if (_isClosed)
+                {
+                    return;
+                }
 
-        _isClosed = true;
-        StopPlayback();
-        _frameRequestScheduler.Dispose();
-        SaveCurrentOutputState();
-        DetachXamlRoot();
-        DetachFrameSliderInteractionHandlers();
-        DetachPreviewNumberBoxEditorHandlers();
-        RootLayout.Loaded -= RootLayout_Loaded;
-        RootLayout.Unloaded -= RootLayout_Unloaded;
-        RootLayout.ActualThemeChanged -= RootLayout_ActualThemeChanged;
-        PreviewImageHost.SizeChanged -= PreviewImageHost_SizeChanged;
-        ViewModel.PropertyChanged -= ViewModel_PropertyChanged;
-        DetachPreviewImageVisual();
-        await ClosePreviewSessionIfNeededAsync();
-        PreviewWindowClosed?.Invoke(this, EventArgs.Empty);
+                _isClosed = true;
+                StopPlayback();
+                _frameRequestScheduler.Dispose();
+                SaveCurrentOutputState();
+                DetachXamlRoot();
+                DetachFrameSliderInteractionHandlers();
+                DetachPreviewNumberBoxEditorHandlers();
+                RootLayout.Loaded -= RootLayout_Loaded;
+                RootLayout.Unloaded -= RootLayout_Unloaded;
+                RootLayout.ActualThemeChanged -= RootLayout_ActualThemeChanged;
+                PreviewImageHost.SizeChanged -= PreviewImageHost_SizeChanged;
+                ViewModel.PropertyChanged -= ViewModel_PropertyChanged;
+                DetachPreviewImageVisual();
+                try
+                {
+                    await ClosePreviewSessionIfNeededAsync();
+                }
+                finally
+                {
+                    PreviewWindowClosed?.Invoke(this, EventArgs.Empty);
+                }
+            });
     }
 
     private Task ClosePreviewSessionIfNeededAsync()
@@ -2628,6 +2745,30 @@ public sealed partial class VapourSynthPreviewWindow : Window
         }
     }
 
+    private async Task RunWindowEventHandlerAsync(
+        string operationName,
+        Func<Task> operationAsync,
+        Func<string, string>? failureStatusFactory = null)
+    {
+        try
+        {
+            await operationAsync();
+        }
+        catch (OperationCanceledException ex)
+        {
+            LogWindowOperationFailure(operationName, ex, AppDiagnosticSeverity.Warning);
+        }
+        catch (Exception ex)
+        {
+            LogWindowOperationFailure(operationName, ex);
+            if (!_isClosed)
+            {
+                var statusFactory = failureStatusFactory ?? ViewModel.Texts.VapourSynthPreviewRenderFailedStatus;
+                SetStatusText(statusFactory(GetWindowOperationErrorDetail(ex)));
+            }
+        }
+    }
+
     private async Task<(bool Success, TResult Result)> TryRunWindowOperationAsync<TResult>(
         string operationName,
         Func<Task<TResult>> operationAsync,
@@ -3220,73 +3361,83 @@ public sealed partial class VapourSynthPreviewWindow : Window
 
     private async void RootLayout_KeyDown(object sender, KeyRoutedEventArgs e)
     {
-        if (e.Handled)
-        {
-            return;
-        }
-
-        if (e.Key == VirtualKey.F11)
-        {
-            e.Handled = _isFullScreenActive
-                ? TryRestoreWindowedPresentation()
-                : TryEnterFullScreen();
-            return;
-        }
-
-        if (e.Key == VirtualKey.Escape)
-        {
-            e.Handled = true;
-            Close();
-            return;
-        }
-
-        if (IsEditingShortcutSuppressed())
-        {
-            return;
-        }
-
-        if (TryGetOutputIndexFromKey(e.Key, out var outputIndex))
-        {
-            var target = ViewModel.Outputs.FirstOrDefault(option => option.Info.Index == outputIndex);
-            if (target is not null)
+        await RunWindowEventHandlerAsync(
+            nameof(RootLayout_KeyDown),
+            async () =>
             {
-                e.Handled = true;
-                await SelectOutputAsync(target.Info);
-            }
+                if (e.Handled)
+                {
+                    return;
+                }
 
-            return;
-        }
+                if (e.Key == VirtualKey.F11)
+                {
+                    e.Handled = _isFullScreenActive
+                        ? TryRestoreWindowedPresentation()
+                        : TryEnterFullScreen();
+                    return;
+                }
 
-        if (TryGetFrameNavigationDelta(e.Key, out var frameDelta))
-        {
-            e.Handled = true;
-            await RequestRelativeFrameAsync(frameDelta);
-            return;
-        }
+                if (e.Key == VirtualKey.Escape)
+                {
+                    e.Handled = true;
+                    Close();
+                    return;
+                }
 
-        if (e.Key == VirtualKey.S)
-        {
-            e.Handled = true;
-            if (IsControlKeyPressed())
-            {
-                await SaveCurrentSnapshotAsync();
-            }
-            else
-            {
-                await QuickSaveSnapshotAsync();
-            }
-        }
+                if (IsEditingShortcutSuppressed())
+                {
+                    return;
+                }
+
+                if (TryGetOutputIndexFromKey(e.Key, out var outputIndex))
+                {
+                    var target = ViewModel.Outputs.FirstOrDefault(option => option.Info.Index == outputIndex);
+                    if (target is not null)
+                    {
+                        e.Handled = true;
+                        await SelectOutputAsync(target.Info);
+                    }
+
+                    return;
+                }
+
+                if (TryGetFrameNavigationDelta(e.Key, out var frameDelta))
+                {
+                    e.Handled = true;
+                    await RequestRelativeFrameAsync(frameDelta);
+                    return;
+                }
+
+                if (e.Key == VirtualKey.S)
+                {
+                    e.Handled = true;
+                    if (IsControlKeyPressed())
+                    {
+                        await SaveCurrentSnapshotAsync();
+                    }
+                    else
+                    {
+                        await QuickSaveSnapshotAsync();
+                    }
+                }
+            });
     }
 
     private async void PreviewImageHost_KeyDown(object sender, KeyRoutedEventArgs e)
     {
-        if (e.Handled || !TryGetFrameNavigationDelta(e.Key, out var frameDelta))
-        {
-            return;
-        }
+        await RunWindowEventHandlerAsync(
+            nameof(PreviewImageHost_KeyDown),
+            async () =>
+            {
+                if (e.Handled || !TryGetFrameNavigationDelta(e.Key, out var frameDelta))
+                {
+                    return;
+                }
 
-        e.Handled = true;
-        await RequestRelativeFrameAsync(frameDelta);
+                e.Handled = true;
+                await RequestRelativeFrameAsync(frameDelta);
+            });
     }
 
     private void RootLayout_KeyUp(object sender, KeyRoutedEventArgs e)

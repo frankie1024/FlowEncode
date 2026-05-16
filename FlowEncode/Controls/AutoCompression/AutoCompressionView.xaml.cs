@@ -1,4 +1,6 @@
+using System;
 using System.Threading.Tasks;
+using FlowEncode.Controls.Shared;
 using FlowEncode.Domain;
 using FlowEncode.ViewModels;
 using Microsoft.UI.Xaml;
@@ -57,13 +59,13 @@ public sealed partial class AutoCompressionView : UserControl
 
     private async void BrowseAutoSourceButton_Click(object sender, RoutedEventArgs e)
     {
-        await PickAutoSourceFileAsync();
+        await RunGuardedAsync(nameof(BrowseAutoSourceButton_Click), PickAutoSourceFileAsync);
     }
 
     private async void AutoSourcePathTextBox_DoubleTapped(object sender, DoubleTappedRoutedEventArgs e)
     {
         e.Handled = true;
-        await PickAutoSourceFileAsync();
+        await RunGuardedAsync(nameof(AutoSourcePathTextBox_DoubleTapped), PickAutoSourceFileAsync);
     }
 
     private async Task PickAutoSourceFileAsync()
@@ -90,13 +92,13 @@ public sealed partial class AutoCompressionView : UserControl
 
     private async void BrowseAutoOutputButton_Click(object sender, RoutedEventArgs e)
     {
-        await PickAutoOutputFolderAsync();
+        await RunGuardedAsync(nameof(BrowseAutoOutputButton_Click), PickAutoOutputFolderAsync);
     }
 
     private async void AutoOutputPathTextBox_DoubleTapped(object sender, DoubleTappedRoutedEventArgs e)
     {
         e.Handled = true;
-        await PickAutoOutputFolderAsync();
+        await RunGuardedAsync(nameof(AutoOutputPathTextBox_DoubleTapped), PickAutoOutputFolderAsync);
     }
 
     private async Task PickAutoOutputFolderAsync()
@@ -121,6 +123,11 @@ public sealed partial class AutoCompressionView : UserControl
     }
 
     private async void StartAutoCompressionButton_Click(object sender, RoutedEventArgs e)
+    {
+        await RunGuardedAsync(nameof(StartAutoCompressionButton_Click), StartAutoCompressionAsync);
+    }
+
+    private async Task StartAutoCompressionAsync()
     {
         var formViewModel = FormViewModel;
         if (formViewModel is null)
@@ -167,6 +174,18 @@ public sealed partial class AutoCompressionView : UserControl
                 formViewModel.Texts.ErrorCannotStartAutoCompressionTitle,
                 error);
         }
+    }
+
+    private Task RunGuardedAsync(string actionName, Func<Task> action)
+    {
+        var texts = FormViewModel?.Texts;
+        return UiActionGuard.RunAsync(
+            this,
+            nameof(AutoCompressionView),
+            actionName,
+            texts?.ErrorCannotStartAutoCompressionTitle ?? "Auto compression failed",
+            texts?.OkButton ?? "OK",
+            action);
     }
 
     private void CancelAutoCompressionButton_Click(object sender, RoutedEventArgs e)

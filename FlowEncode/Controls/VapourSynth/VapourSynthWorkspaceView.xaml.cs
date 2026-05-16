@@ -199,16 +199,19 @@ public sealed partial class VapourSynthWorkspaceView : UserControl, IDisposable
             return;
         }
 
-        ViewModel.SetWorkspaceStatus(static texts => texts.VapourSynthEditorReadyStatus);
-        await pane.ApplyThemeAsync(ActualTheme);
-        await LoadLanguageFeaturesAsync(pane);
-        await PushDocumentToEditorAsync(pane);
-        if (ReferenceEquals(pane, GetActiveEditorPane()))
+        await RunUiActionAsync(async () =>
         {
-            await FocusEditorAsync();
-        }
+            ViewModel.SetWorkspaceStatus(static texts => texts.VapourSynthEditorReadyStatus);
+            await pane.ApplyThemeAsync(ActualTheme);
+            await LoadLanguageFeaturesAsync(pane);
+            await PushDocumentToEditorAsync(pane);
+            if (ReferenceEquals(pane, GetActiveEditorPane()))
+            {
+                await FocusEditorAsync();
+            }
 
-        _ = WarmupPythonLanguageServerAsync();
+            _ = WarmupPythonLanguageServerAsync();
+        });
     }
 
     private void EditorPane_LoadFailed(object? sender, string message)
@@ -258,8 +261,11 @@ public sealed partial class VapourSynthWorkspaceView : UserControl, IDisposable
             return;
         }
 
-        ViewModel.ActivatePane(pane.PaneKind);
-        await HandleLanguageRequestAsync(pane, root);
+        await RunUiActionAsync(async () =>
+        {
+            ViewModel.ActivatePane(pane.PaneKind);
+            await HandleLanguageRequestAsync(pane, root);
+        });
     }
 
     private void EditorPane_BridgeFailed(object? sender, string message)
@@ -715,11 +721,14 @@ public sealed partial class VapourSynthWorkspaceView : UserControl, IDisposable
             return;
         }
 
-        DetachPreviewWindow(window);
-        var mainWindow = App.GetService<MainWindow>();
-        mainWindow.BringToFront();
-        await Task.Yield();
-        await FocusEditorAsync();
+        await RunUiActionAsync(async () =>
+        {
+            DetachPreviewWindow(window);
+            var mainWindow = App.GetService<MainWindow>();
+            mainWindow.BringToFront();
+            await Task.Yield();
+            await FocusEditorAsync();
+        });
     }
 
     public async Task ClosePreviewWindowForAppShutdownAsync()
@@ -814,8 +823,13 @@ public sealed partial class VapourSynthWorkspaceView : UserControl, IDisposable
         {
             await action();
         }
+        catch (OperationCanceledException ex)
+        {
+            TryWriteDiagnosticException("RunUiAction", ex, AppDiagnosticSeverity.Warning);
+        }
         catch (Exception ex)
         {
+            TryWriteDiagnosticException("RunUiAction", ex);
             ViewModel.SetWorkspaceStatus(ex.Message);
             await ShowMessageAsync(ViewModel.Texts.VapourSynthWorkspaceTitle, ex.Message, this.XamlRoot);
         }

@@ -1,5 +1,6 @@
 using System;
 using System.Threading.Tasks;
+using FlowEncode.Controls.Shared;
 using FlowEncode.Domain;
 using FlowEncode.ViewModels;
 using Microsoft.UI.Xaml;
@@ -143,7 +144,7 @@ public sealed partial class SettingsView : UserControl
             return;
         }
 
-        await SetupDependencyInteractionHelper.ClearManualPinnedSetupDependencyAsync(DependenciesViewModel, this, kind);
+        await SetupDependencyInteractionHelper.ClearManualPinnedSetupDependencyAsync(DependenciesViewModel, this, kind, nameof(SettingsView));
     }
 
     private async void UninstallSetupDependencyButton_Click(object sender, RoutedEventArgs e)
@@ -153,7 +154,7 @@ public sealed partial class SettingsView : UserControl
             return;
         }
 
-        await SetupDependencyInteractionHelper.UninstallSetupDependencyAsync(DependenciesViewModel, this, kind);
+        await SetupDependencyInteractionHelper.UninstallSetupDependencyAsync(DependenciesViewModel, this, kind, nameof(SettingsView));
     }
 
     private void OpenTaggedFolderButton_Click(object sender, RoutedEventArgs e)
@@ -245,15 +246,13 @@ public sealed partial class SettingsView : UserControl
 
     private async Task RunGeneralGuardedAsync(string diagnosticAction, string errorTitle, Func<Task> action)
     {
-        try
-        {
-            await action();
-        }
-        catch (Exception ex)
-        {
-            SetupDependencyInteractionHelper.TryWriteDiagnostic(nameof(SettingsView), $"{diagnosticAction}. {ex.GetType().Name}: {ex.Message}");
-            await ShowGeneralMessageAsync(errorTitle, ex.Message);
-        }
+        await UiActionGuard.RunAsync(
+            this,
+            nameof(SettingsView),
+            diagnosticAction,
+            errorTitle,
+            GeneralViewModel?.Texts.OkButton ?? "OK",
+            action);
     }
 
     private async Task ShowGeneralMessageAsync(string title, string message)
