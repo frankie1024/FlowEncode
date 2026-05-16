@@ -32,7 +32,17 @@ public sealed class FfprobeAudioSourceInfoService : IAudioSourceInfoService
 
         var output = await RunFfprobeAsync(
             probe.ExecutablePath,
-            $"-v error -select_streams a:0 -show_entries format=duration,format_name:stream=codec_name,profile,channels,channel_layout,sample_rate,bits_per_sample,bits_per_raw_sample,sample_fmt,duration -of json {Quote(sourcePath)}",
+            [
+                "-v",
+                "error",
+                "-select_streams",
+                "a:0",
+                "-show_entries",
+                "format=duration,format_name:stream=codec_name,profile,channels,channel_layout,sample_rate,bits_per_sample,bits_per_raw_sample,sample_fmt,duration",
+                "-of",
+                "json",
+                sourcePath
+            ],
             "ffprobe failed to inspect the selected audio source.",
             cancellationToken);
 
@@ -81,24 +91,27 @@ public sealed class FfprobeAudioSourceInfoService : IAudioSourceInfoService
         return null;
     }
 
-    private static string Quote(string value) => $"\"{value}\"";
-
     private static async Task<string> RunFfprobeAsync(
         string ffprobePath,
-        string arguments,
+        IReadOnlyList<string> arguments,
         string failureMessage,
         CancellationToken cancellationToken)
     {
+        var startInfo = new ProcessStartInfo
+        {
+            FileName = ffprobePath,
+            UseShellExecute = false,
+            RedirectStandardOutput = true,
+            RedirectStandardError = true,
+            CreateNoWindow = true
+        };
+        foreach (var argument in arguments)
+        {
+            startInfo.ArgumentList.Add(argument);
+        }
+
         var result = await ProcessProbeRunner.RunAsync(
-            new ProcessStartInfo
-            {
-                FileName = ffprobePath,
-                Arguments = arguments,
-                UseShellExecute = false,
-                RedirectStandardOutput = true,
-                RedirectStandardError = true,
-                CreateNoWindow = true
-            },
+            startInfo,
             ProbeTimeout,
             "ffprobe audio source probe timed out.",
             cancellationToken);
@@ -204,7 +217,20 @@ public sealed class FfprobeAudioSourceInfoService : IAudioSourceInfoService
     {
         var output = await RunFfprobeAsync(
             ffprobePath,
-            $"-v error -select_streams a:0 -show_packets -show_entries packet=duration_time -read_intervals 0%+#1 -of json {Quote(sourcePath)}",
+            [
+                "-v",
+                "error",
+                "-select_streams",
+                "a:0",
+                "-show_packets",
+                "-show_entries",
+                "packet=duration_time",
+                "-read_intervals",
+                "0%+#1",
+                "-of",
+                "json",
+                sourcePath
+            ],
             "ffprobe failed to inspect the selected audio source.",
             cancellationToken);
 
@@ -230,7 +256,18 @@ public sealed class FfprobeAudioSourceInfoService : IAudioSourceInfoService
     {
         var output = await RunFfprobeAsync(
             ffprobePath,
-            $"-v error -select_streams a:0 -count_packets -show_entries stream=nb_read_packets -of json {Quote(sourcePath)}",
+            [
+                "-v",
+                "error",
+                "-select_streams",
+                "a:0",
+                "-count_packets",
+                "-show_entries",
+                "stream=nb_read_packets",
+                "-of",
+                "json",
+                sourcePath
+            ],
             "ffprobe failed to inspect the selected audio source.",
             cancellationToken);
 

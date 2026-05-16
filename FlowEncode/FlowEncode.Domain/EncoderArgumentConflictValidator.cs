@@ -1,5 +1,3 @@
-using System.Text.RegularExpressions;
-
 namespace FlowEncode.Domain;
 
 public enum EncoderArgumentSource
@@ -24,7 +22,7 @@ public sealed record EncoderArgumentConflict(
     string? SecondValue,
     EncoderArgumentSource SecondSource);
 
-public static partial class EncoderArgumentConflictValidator
+public static class EncoderArgumentConflictValidator
 {
     public static EncoderArgumentConflict? FindFirstConflict(
         EncoderKind kind,
@@ -131,7 +129,7 @@ public static partial class EncoderArgumentConflictValidator
             return;
         }
 
-        var tokens = Tokenize(arguments);
+        var tokens = CommandArgumentTokenizer.Tokenize(arguments);
         for (var index = 0; index < tokens.Count; index++)
         {
             if (!TryReadOption(tokens, ref index, out var optionName, out var value))
@@ -161,13 +159,13 @@ public static partial class EncoderArgumentConflictValidator
             return false;
         }
 
-        if (TryParseInlineOption(token, out optionName, out value))
+        if (CommandArgumentTokenizer.TryParseInlineOption(token, out optionName, out value))
         {
             return true;
         }
 
         optionName = token;
-        if (TryReadValue(tokens, index, out var explicitValue))
+        if (CommandArgumentTokenizer.TryReadValue(tokens, index, out var explicitValue))
         {
             value = explicitValue;
             index++;
@@ -233,42 +231,6 @@ public static partial class EncoderArgumentConflictValidator
         return true;
     }
 
-    private static bool TryParseInlineOption(string token, out string optionName, out string value)
-    {
-        optionName = string.Empty;
-        value = string.Empty;
-
-        var separatorIndex = token.IndexOf('=');
-        if (separatorIndex <= 2)
-        {
-            return false;
-        }
-
-        optionName = token[..separatorIndex];
-        value = token[(separatorIndex + 1)..];
-        return optionName.StartsWith("--", StringComparison.Ordinal);
-    }
-
-    private static bool TryReadValue(IReadOnlyList<string> tokens, int optionIndex, out string value)
-    {
-        value = string.Empty;
-        if (optionIndex + 1 >= tokens.Count)
-        {
-            return false;
-        }
-
-        value = tokens[optionIndex + 1];
-        return !IsOptionToken(value);
-    }
-
-    private static bool IsOptionToken(string value)
-    {
-        return value.StartsWith("--", StringComparison.Ordinal)
-            || (value.StartsWith("-", StringComparison.Ordinal)
-                && value.Length > 1
-                && char.IsLetter(value[1]));
-    }
-
     private static bool TryParseBooleanValue(string value, out bool result)
     {
         switch (value.Trim().ToLowerInvariant())
@@ -290,22 +252,6 @@ public static partial class EncoderArgumentConflictValidator
                 return false;
         }
     }
-
-    private static List<string> Tokenize(string value)
-    {
-        return TokenRegex()
-            .Matches(value)
-            .Select(match => match.Groups[1].Success
-                ? match.Groups[1].Value
-                : match.Groups[2].Success
-                    ? match.Groups[2].Value
-                    : match.Groups[3].Value)
-            .Where(static token => !string.IsNullOrWhiteSpace(token))
-            .ToList();
-    }
-
-    [GeneratedRegex("\"([^\"]*)\"|'([^']*)'|(\\S+)")]
-    private static partial Regex TokenRegex();
 
     private sealed record ArgumentOccurrence(
         string OptionName,

@@ -102,7 +102,7 @@ internal static partial class HdrTextImportParser
         }
 
         arguments.Add(quoteValue
-            ? $"{optionName} \"{value}\""
+            ? $"{optionName} {CommandLineDisplay.Quote(value)}"
             : $"{optionName} {value}");
     }
 

@@ -81,6 +81,24 @@ public sealed class EncoderArgumentConflictValidatorTests
     }
 
     [TestMethod]
+    public void FindFirstConflict_WhenQuotedInlineAndSplitValuesDisagree_ReturnsConflictingValues()
+    {
+        // Arrange
+        const string additionalArguments = "--master-display=\"G(1 2)\"";
+        const string uhdParameters = "--master-display \"G(3 4)\"";
+
+        // Act
+        var conflict = EncoderArgumentConflictValidator.FindFirstConflict(EncoderKind.X265, additionalArguments, uhdParameters);
+
+        // Assert
+        Assert.IsNotNull(conflict);
+        Assert.AreEqual(EncoderArgumentConflictKind.ConflictingValues, conflict!.Kind);
+        Assert.AreEqual("--master-display", conflict.OptionName);
+        Assert.AreEqual("G(1 2)", conflict.FirstValue);
+        Assert.AreEqual("G(3 4)", conflict.SecondValue);
+    }
+
+    [TestMethod]
     public void FindFirstConflict_WhenRepeatedValueMatches_ReturnsNull()
     {
         // Arrange

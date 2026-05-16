@@ -148,11 +148,15 @@ internal sealed partial class SourceVideoInfoProbe
         var startInfo = new ProcessStartInfo
         {
             FileName = executablePath,
-            Arguments = $"--info {Quote(sourcePath)}",
             UseShellExecute = false,
             RedirectStandardOutput = true,
             RedirectStandardError = true,
-            CreateNoWindow = true
+            CreateNoWindow = true,
+            ArgumentList =
+            {
+                "--info",
+                sourcePath
+            }
         };
 
         VapourSynthRuntimePathResolver.EnrichProcessPath(startInfo);
@@ -254,24 +258,37 @@ internal sealed partial class SourceVideoInfoProbe
     private SourceVideoInfo ProbeFfprobe(string sourcePath, CancellationToken cancellationToken)
     {
         var output = RunFfprobe(
-            $"-v error -select_streams v:0 -show_entries stream=width,height,avg_frame_rate,r_frame_rate,nb_frames,pix_fmt,bits_per_raw_sample,duration,color_range,color_space,color_transfer,color_primaries,chroma_location:stream_side_data:format=duration -of json {Quote(sourcePath)}",
+            [
+                "-v",
+                "error",
+                "-select_streams",
+                "v:0",
+                "-show_entries",
+                "stream=width,height,avg_frame_rate,r_frame_rate,nb_frames,pix_fmt,bits_per_raw_sample,duration,color_range,color_space,color_transfer,color_primaries,chroma_location:stream_side_data:format=duration",
+                "-of",
+                "json",
+                sourcePath
+            ],
             cancellationToken);
 
         return ParseFfprobeInfo(output);
     }
 
-    private string RunFfprobe(string arguments, CancellationToken cancellationToken)
+    private string RunFfprobe(IReadOnlyList<string> arguments, CancellationToken cancellationToken)
     {
         var executablePath = _toolLocator.ResolveFfprobe();
         var startInfo = new ProcessStartInfo
         {
             FileName = executablePath,
-            Arguments = arguments,
             UseShellExecute = false,
             RedirectStandardOutput = true,
             RedirectStandardError = true,
             CreateNoWindow = true
         };
+        foreach (var argument in arguments)
+        {
+            startInfo.ArgumentList.Add(argument);
+        }
 
         VapourSynthRuntimePathResolver.EnrichProcessPath(startInfo);
         var result = ProcessProbeRunner.Run(
@@ -457,11 +474,15 @@ internal sealed partial class SourceVideoInfoProbe
             var startInfo = new ProcessStartInfo
             {
                 FileName = pythonPath,
-                Arguments = $"{Quote(scriptPath)} {Quote(sourcePath)}",
                 UseShellExecute = false,
                 RedirectStandardOutput = true,
                 RedirectStandardError = true,
-                CreateNoWindow = true
+                CreateNoWindow = true,
+                ArgumentList =
+                {
+                    scriptPath,
+                    sourcePath
+                }
             };
 
             VapourSynthRuntimePathResolver.EnrichProcessPath(startInfo);
@@ -1062,11 +1083,6 @@ internal sealed partial class SourceVideoInfoProbe
             .Split(['\r', '\n'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
             .FirstOrDefault(static line => !string.IsNullOrWhiteSpace(line))
             ?? "未返回可读的错误信息。";
-    }
-
-    private static string Quote(string value)
-    {
-        return $"\"{value}\"";
     }
 
     [GeneratedRegex(@"^(?<key>[^:]+):\s*(?<value>.+)$", RegexOptions.Compiled)]

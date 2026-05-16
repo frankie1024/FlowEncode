@@ -36,8 +36,8 @@ public sealed class CliAudioProcessingRunner : IAudioProcessingRunner
     {
         return request.Mode switch
         {
-            AudioProcessingMode.Eac3To => $"eac3to.exe {BuildEac3ToArguments(request)}",
-            AudioProcessingMode.Ddp => $"deew.exe -i {Quote(request.SourcePath)} -o {Quote(request.OutputPath)} -np",
+            AudioProcessingMode.Eac3To => $"eac3to.exe {BuildEac3ToDisplayArguments(request)}",
+            AudioProcessingMode.Ddp => $"deew.exe {BuildDdpDisplayArguments(request.SourcePath, request.OutputPath)}",
             AudioProcessingMode.Opus => BuildOpusCommand(request, "ffmpeg.exe", "opusenc.exe"),
             _ => throw new ArgumentOutOfRangeException(nameof(request), request.Mode, null)
         };
@@ -77,24 +77,28 @@ public sealed class CliAudioProcessingRunner : IAudioProcessingRunner
         CancellationToken cancellationToken)
     {
         var eac3toPath = await ResolveToolPathAsync(RegisteredToolKind.Eac3To, cancellationToken);
-        var arguments = BuildEac3ToArguments(request);
-        var command = $"{Quote(eac3toPath)} {arguments}";
+        var arguments = BuildEac3ToArgumentParts(request);
+        var command = $"{Quote(eac3toPath)} {CommandLineDisplay.JoinArguments(arguments)}";
+        var startInfo = new ProcessStartInfo
+        {
+            FileName = eac3toPath,
+            UseShellExecute = false,
+            RedirectStandardOutput = true,
+            RedirectStandardError = true,
+            StandardOutputEncoding = Encoding.UTF8,
+            StandardErrorEncoding = Encoding.UTF8,
+            CreateNoWindow = true
+        };
+        foreach (var argument in arguments)
+        {
+            startInfo.ArgumentList.Add(argument);
+        }
 
         return await RunProcessAsync(
             request,
             progress,
             command,
-            new ProcessStartInfo
-            {
-                FileName = eac3toPath,
-                Arguments = arguments,
-                UseShellExecute = false,
-                RedirectStandardOutput = true,
-                RedirectStandardError = true,
-                StandardOutputEncoding = Encoding.UTF8,
-                StandardErrorEncoding = Encoding.UTF8,
-                CreateNoWindow = true
-            },
+            startInfo,
             cancellationToken);
     }
 
@@ -113,11 +117,10 @@ public sealed class CliAudioProcessingRunner : IAudioProcessingRunner
             : request.OutputPath;
         Directory.CreateDirectory(outputDirectory);
 
-        var command = $"{Quote(deewPath)} -i {Quote(request.SourcePath)} -o {Quote(outputDirectory)} -np";
+        var command = $"{Quote(deewPath)} {BuildDdpDisplayArguments(request.SourcePath, outputDirectory)}";
         var startInfo = new ProcessStartInfo
         {
             FileName = deewPath,
-            Arguments = $"-i {Quote(request.SourcePath)} -o {Quote(outputDirectory)} -np",
             UseShellExecute = false,
             RedirectStandardOutput = true,
             RedirectStandardError = true,
@@ -125,6 +128,11 @@ public sealed class CliAudioProcessingRunner : IAudioProcessingRunner
             StandardErrorEncoding = Encoding.UTF8,
             CreateNoWindow = true
         };
+        startInfo.ArgumentList.Add("-i");
+        startInfo.ArgumentList.Add(request.SourcePath);
+        startInfo.ArgumentList.Add("-o");
+        startInfo.ArgumentList.Add(outputDirectory);
+        startInfo.ArgumentList.Add("-np");
 
         PrepareDeewEnvironment(startInfo, deewPath, deePath, ffmpegPath, ffprobePath);
         return await RunProcessAsync(request, progress, command, startInfo, cancellationToken);
@@ -146,25 +154,29 @@ public sealed class CliAudioProcessingRunner : IAudioProcessingRunner
         {
             if (ShouldUseFfmpegLibOpusMappingFamily1(request))
             {
-                var displayArguments = BuildFfmpegLibOpusArguments(request);
-                var runArguments = BuildFfmpegLibOpusArguments(runPlan.ExecutionRequest, progressFilePath);
+                var displayArguments = BuildFfmpegLibOpusDisplayArguments(request);
+                var runArguments = BuildFfmpegLibOpusArgumentParts(runPlan.ExecutionRequest, progressFilePath);
                 var command = $"{Quote(ffmpegPath)} {displayArguments}";
+                var startInfo = new ProcessStartInfo
+                {
+                    FileName = ffmpegPath,
+                    UseShellExecute = false,
+                    RedirectStandardOutput = true,
+                    RedirectStandardError = true,
+                    StandardOutputEncoding = Encoding.UTF8,
+                    StandardErrorEncoding = Encoding.UTF8,
+                    CreateNoWindow = true
+                };
+                foreach (var argument in runArguments)
+                {
+                    startInfo.ArgumentList.Add(argument);
+                }
 
                 return await RunProcessAsync(
                     runPlan,
                     progress,
                     command,
-                    new ProcessStartInfo
-                    {
-                        FileName = ffmpegPath,
-                        Arguments = runArguments,
-                        UseShellExecute = false,
-                        RedirectStandardOutput = true,
-                        RedirectStandardError = true,
-                        StandardOutputEncoding = Encoding.UTF8,
-                        StandardErrorEncoding = Encoding.UTF8,
-                        CreateNoWindow = true
-                    },
+                    startInfo,
                     cancellationToken,
                     progressFilePath);
             }
@@ -761,7 +773,7 @@ public sealed class CliAudioProcessingRunner : IAudioProcessingRunner
     private static string BuildOpusCommand(AudioProcessingRequest request, string ffmpegExecutable, string opusEncoderExecutable)
     {
         return ShouldUseFfmpegLibOpusMappingFamily1(request)
-            ? $"{Quote(ffmpegExecutable)} {BuildFfmpegLibOpusArguments(request)}"
+            ? $"{Quote(ffmpegExecutable)} {BuildFfmpegLibOpusDisplayArguments(request)}"
             : BuildOpusPipelineCommand(request, ffmpegExecutable, opusEncoderExecutable);
     }
 
@@ -772,7 +784,7 @@ public sealed class CliAudioProcessingRunner : IAudioProcessingRunner
         string? progressTarget = null)
     {
         var bitrateKbps = GetRequiredOpusBitrateKbps(request);
-        var ffmpegArguments = string.Join(' ', BuildOpusPipelineFfmpegDisplayArgumentParts(request, progressTarget));
+        var ffmpegArguments = CommandLineDisplay.JoinArguments(BuildOpusPipelineFfmpegArgumentParts(request, progressTarget));
         return $"{Quote(ffmpegExecutable)} {ffmpegArguments} | {Quote(opusEncoderExecutable)} --bitrate {bitrateKbps} --ignorelength - {Quote(request.OutputPath)}";
     }
 
@@ -818,7 +830,12 @@ public sealed class CliAudioProcessingRunner : IAudioProcessingRunner
         return new OpusPipelineStartInfos(ffmpegStartInfo, opusEncoderStartInfo);
     }
 
-    private static string BuildFfmpegLibOpusArguments(AudioProcessingRequest request, string? progressTarget = null)
+    private static string BuildFfmpegLibOpusDisplayArguments(AudioProcessingRequest request, string? progressTarget = null)
+    {
+        return CommandLineDisplay.JoinArguments(BuildFfmpegLibOpusArgumentParts(request, progressTarget));
+    }
+
+    private static IReadOnlyList<string> BuildFfmpegLibOpusArgumentParts(AudioProcessingRequest request, string? progressTarget = null)
     {
         var bitrateKbps = GetRequiredOpusBitrateKbps(request);
         var parts = new List<string>
@@ -828,11 +845,11 @@ public sealed class CliAudioProcessingRunner : IAudioProcessingRunner
             "-nostats",
         };
 
-        parts.AddRange(BuildFfmpegProgressArgumentParts(progressTarget, quoteTarget: true));
+        parts.AddRange(BuildFfmpegProgressArgumentParts(progressTarget));
         parts.AddRange(
         [
             "-i",
-            Quote(request.SourcePath),
+            request.SourcePath,
             "-map",
             "0:a:0",
             "-vn",
@@ -844,7 +861,7 @@ public sealed class CliAudioProcessingRunner : IAudioProcessingRunner
         if (!string.IsNullOrWhiteSpace(mappingPlan.FilterGraph))
         {
             parts.Add("-filter:a");
-            parts.Add(Quote(mappingPlan.FilterGraph));
+            parts.Add(mappingPlan.FilterGraph);
         }
 
         parts.AddRange(
@@ -861,10 +878,10 @@ public sealed class CliAudioProcessingRunner : IAudioProcessingRunner
             "48000",
             "-mapping_family",
             "1",
-            Quote(request.OutputPath)
+            request.OutputPath
         ]);
 
-        return string.Join(' ', parts);
+        return parts;
     }
 
     private static IReadOnlyList<string> BuildOpusPipelineFfmpegArgumentParts(
@@ -877,7 +894,7 @@ public sealed class CliAudioProcessingRunner : IAudioProcessingRunner
             "-nostats"
         };
 
-        parts.AddRange(BuildFfmpegProgressArgumentParts(progressTarget, quoteTarget: false));
+        parts.AddRange(BuildFfmpegProgressArgumentParts(progressTarget));
         parts.AddRange(
         [
             "-i",
@@ -899,27 +916,11 @@ public sealed class CliAudioProcessingRunner : IAudioProcessingRunner
         return parts;
     }
 
-    private static IReadOnlyList<string> BuildOpusPipelineFfmpegDisplayArgumentParts(
-        AudioProcessingRequest request,
-        string? progressTarget)
-    {
-        return BuildOpusPipelineFfmpegArgumentParts(request, progressTarget)
-            .Select(argument => ShouldQuoteDisplayArgument(argument) ? Quote(argument) : argument)
-            .ToArray();
-    }
-
-    private static string BuildFfmpegProgressArguments(string? progressTarget)
-    {
-        return string.Join(' ', BuildFfmpegProgressArgumentParts(progressTarget, quoteTarget: true));
-    }
-
-    private static IReadOnlyList<string> BuildFfmpegProgressArgumentParts(string? progressTarget, bool quoteTarget)
+    private static IReadOnlyList<string> BuildFfmpegProgressArgumentParts(string? progressTarget)
     {
         var target = string.IsNullOrWhiteSpace(progressTarget)
             ? "pipe:2"
-            : quoteTarget
-                ? Quote(progressTarget)
-                : progressTarget;
+            : progressTarget;
 
         return
         [
@@ -930,12 +931,22 @@ public sealed class CliAudioProcessingRunner : IAudioProcessingRunner
         ];
     }
 
-    private static string BuildEac3ToArguments(AudioProcessingRequest request)
+    private static string BuildDdpDisplayArguments(string sourcePath, string outputDirectory)
+    {
+        return CommandLineDisplay.JoinArguments(new[] { "-i", sourcePath, "-o", outputDirectory, "-np" });
+    }
+
+    private static string BuildEac3ToDisplayArguments(AudioProcessingRequest request)
+    {
+        return CommandLineDisplay.JoinArguments(BuildEac3ToArgumentParts(request));
+    }
+
+    private static IReadOnlyList<string> BuildEac3ToArgumentParts(AudioProcessingRequest request)
     {
         var parts = new List<string>
         {
-            Quote(request.SourcePath),
-            Quote(request.OutputPath)
+            request.SourcePath,
+            request.OutputPath
         };
 
         if (request.Eac3ToAdditionalArguments.Count > 0)
@@ -944,7 +955,7 @@ public sealed class CliAudioProcessingRunner : IAudioProcessingRunner
         }
 
         parts.Add("-progressnumbers");
-        return string.Join(' ', parts);
+        return parts;
     }
 
     private static int GetRequiredOpusBitrateKbps(AudioProcessingRequest request)
@@ -1008,12 +1019,6 @@ public sealed class CliAudioProcessingRunner : IAudioProcessingRunner
         return string.IsNullOrWhiteSpace(layout)
             ? string.Empty
             : layout.Trim().Replace(" ", string.Empty, StringComparison.Ordinal).ToLowerInvariant();
-    }
-
-    private static bool ShouldQuoteDisplayArgument(string argument)
-    {
-        return argument.IndexOfAny([' ', '\t', '"', '|']) >= 0
-            || Path.IsPathFullyQualified(argument);
     }
 
     internal static AudioProcessingRunPlan CreateRunPlan(AudioProcessingRequest request)
@@ -2120,7 +2125,7 @@ public sealed class CliAudioProcessingRunner : IAudioProcessingRunner
     private static string T(AppLanguage language, string en, string zh) =>
         language == AppLanguage.English ? en : zh;
 
-    private static string Quote(string value) => $"\"{value}\"";
+    private static string Quote(string value) => CommandLineDisplay.Quote(value);
 
     private static void FlushConsoleSegment(StringBuilder segmentBuilder, Action<string> onLine)
     {

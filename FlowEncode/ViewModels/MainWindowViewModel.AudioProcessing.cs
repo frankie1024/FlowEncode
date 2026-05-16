@@ -3,7 +3,6 @@ using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.IO;
 using System.Linq;
-using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using FlowEncode.Domain;
@@ -766,44 +765,14 @@ public partial class MainWindowViewModel
 
     private static IReadOnlyList<string> SplitCommandLineArguments(string value)
     {
-        var tokens = new List<string>();
-        var builder = new StringBuilder();
-        var inQuotes = false;
-
-        foreach (var character in value)
+        try
         {
-            if (character == '"')
-            {
-                inQuotes = !inQuotes;
-                builder.Append(character);
-                continue;
-            }
-
-            if (char.IsWhiteSpace(character) && !inQuotes)
-            {
-                if (builder.Length > 0)
-                {
-                    tokens.Add(builder.ToString());
-                    builder.Clear();
-                }
-
-                continue;
-            }
-
-            builder.Append(character);
+            return CommandArgumentTokenizer.Tokenize(value, throwOnUnclosedQuote: true);
         }
-
-        if (inQuotes)
+        catch (InvalidOperationException)
         {
             throw new InvalidOperationException("eac3to 额外参数中的引号未闭合。");
         }
-
-        if (builder.Length > 0)
-        {
-            tokens.Add(builder.ToString());
-        }
-
-        return tokens;
     }
 
     private int? ResolveOpusBitrateKbps()
