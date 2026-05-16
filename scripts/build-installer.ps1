@@ -107,6 +107,38 @@ function Save-WebView2Bootstrapper {
     if ($downloadedFile.Length -le 0) {
         throw "WebView2 bootstrapper download produced an empty file: $DestinationPath"
     }
+
+    Test-MicrosoftAuthenticodeSignature -Path $DestinationPath -Label "WebView2 bootstrapper"
+}
+
+function Test-MicrosoftAuthenticodeSignature {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$Path,
+        [Parameter(Mandatory = $true)]
+        [string]$Label
+    )
+
+    $signature = Get-AuthenticodeSignature -LiteralPath $Path
+    if ($null -eq $signature) {
+        throw "$Label does not have an Authenticode signature: $Path"
+    }
+
+    if ($signature.Status -ne [System.Management.Automation.SignatureStatus]::Valid) {
+        throw "$Label signature is not valid: $($signature.Status). $($signature.StatusMessage)"
+    }
+
+    $certificate = $signature.SignerCertificate
+    if ($null -eq $certificate) {
+        throw "$Label does not have a signer certificate: $Path"
+    }
+
+    $subject = $certificate.Subject
+    if ($subject -notlike "*O=Microsoft Corporation*" -and $subject -notlike "*CN=Microsoft Corporation*") {
+        throw "$Label signer is not Microsoft Corporation: $subject"
+    }
+
+    Write-Host "$Label signature verified: $subject"
 }
 
 $repoRoot = Split-Path -Parent $PSScriptRoot

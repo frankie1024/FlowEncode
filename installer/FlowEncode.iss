@@ -325,6 +325,52 @@ begin
   StdErrText := Trim(JoinCapturedOutput(Output.StdErr));
 end;
 
+function VerifyMicrosoftSignedInstaller(const InstallerPath: string; var FailureDetail: string): Boolean;
+var
+  ResultCode: Integer;
+  StdOutText: string;
+  StdErrText: string;
+  ScriptBody: string;
+begin
+  FailureDetail := '';
+  ScriptBody :=
+    '$path = @''' + #13#10 +
+    InstallerPath + #13#10 +
+    '''@' + #13#10 +
+    '$signature = Get-AuthenticodeSignature -LiteralPath $path' + #13#10 +
+    'if ($null -eq $signature) { Write-Error ''The file does not have an Authenticode signature.''; exit 1 }' + #13#10 +
+    'if ($signature.Status -ne ''Valid'') { Write-Error (''Signature status: '' + $signature.Status + ''. '' + $signature.StatusMessage); exit 1 }' + #13#10 +
+    '$certificate = $signature.SignerCertificate' + #13#10 +
+    'if ($null -eq $certificate) { Write-Error ''The file does not have a signer certificate.''; exit 1 }' + #13#10 +
+    '$subject = $certificate.Subject' + #13#10 +
+    'if (($subject -notlike ''*O=Microsoft Corporation*'') -and ($subject -notlike ''*CN=Microsoft Corporation*'')) { Write-Error (''Unexpected signer: '' + $subject); exit 1 }' + #13#10 +
+    'Write-Output (''Verified signer: '' + $subject)';
+
+  if not ExecutePowerShellScriptAndCapture(ScriptBody, ResultCode, StdOutText, StdErrText) then
+  begin
+    FailureDetail := 'Signature verification could not be started.';
+    if StdErrText <> '' then
+      FailureDetail := FailureDetail + ' ' + StdErrText;
+    Result := False;
+    exit;
+  end;
+
+  if ResultCode <> 0 then
+  begin
+    FailureDetail := 'Signature verification failed.';
+    if StdErrText <> '' then
+      FailureDetail := FailureDetail + ' ' + StdErrText
+    else if StdOutText <> '' then
+      FailureDetail := FailureDetail + ' ' + StdOutText;
+    Result := False;
+    exit;
+  end;
+
+  if StdOutText <> '' then
+    Log(StdOutText);
+  Result := True;
+end;
+
 function TryDetectWindowsAppRuntimeVersion(var VersionText: string; var FailureDetail: string): Boolean;
 var
   ResultCode: Integer;
@@ -580,6 +626,8 @@ begin
     Result := FileExists(InstallerPath);
     if not Result then
       FailureDetail := 'The embedded WebView2 bootstrapper could not be extracted.';
+    if Result and not VerifyMicrosoftSignedInstaller(InstallerPath, FailureDetail) then
+      Result := False;
     exit;
 #endif
   end;
@@ -615,7 +663,12 @@ begin
 
   Result := FileExists(InstallerPath);
   if not Result then
+  begin
     FailureDetail := 'The prerequisite installer download did not produce a file.';
+    exit;
+  end;
+
+  Result := VerifyMicrosoftSignedInstaller(InstallerPath, FailureDetail);
 end;
 
 function IsPrerequisiteInstallerSuccessCode(const ResultCode: Integer): Boolean;
