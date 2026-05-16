@@ -3610,6 +3610,31 @@ public partial class MainWindowViewModel : CommunityToolkit.Mvvm.ComponentModel.
         OnPropertyChanged(nameof(QueueSelectionCommandBarVisibility));
         OnPropertyChanged(nameof(QueueSummary));
         RaiseQueueSelectionPropertyChanges();
+        RefreshJobPositionFlags();
+    }
+
+    private void RefreshJobPositionFlags()
+    {
+        var floorIndex = GetQueuedMoveFloorIndex();
+        var lastIndex = Jobs.Count - 1;
+
+        for (var i = 0; i < Jobs.Count; i++)
+        {
+            var job = Jobs[i];
+            if (job.State != EncodingJobState.Queued)
+            {
+                job.UpdatePositionFlags(false, false, false, false);
+                continue;
+            }
+
+            var isFirstQueued = i == floorIndex;
+            var isLastQueued = i == lastIndex;
+            job.UpdatePositionFlags(
+                canMoveUp: !isFirstQueued,
+                canMoveDown: !isLastQueued,
+                canMoveToTop: !isFirstQueued,
+                canMoveToBottom: !isLastQueued);
+        }
     }
 
     private void RaiseSelectedJobPropertyChanges()

@@ -292,6 +292,43 @@ public sealed class EncodingJobItemViewModel : ObservableObject
 
     public bool CanRemove => State != EncodingJobState.Running;
 
+    private bool _canMoveUp;
+    private bool _canMoveDown;
+    private bool _canMoveToTop;
+    private bool _canMoveToBottom;
+
+    public bool CanMoveUp
+    {
+        get => _canMoveUp;
+        private set => SetProperty(ref _canMoveUp, value);
+    }
+
+    public bool CanMoveDown
+    {
+        get => _canMoveDown;
+        private set => SetProperty(ref _canMoveDown, value);
+    }
+
+    public bool CanMoveToTop
+    {
+        get => _canMoveToTop;
+        private set => SetProperty(ref _canMoveToTop, value);
+    }
+
+    public bool CanMoveToBottom
+    {
+        get => _canMoveToBottom;
+        private set => SetProperty(ref _canMoveToBottom, value);
+    }
+
+    internal void UpdatePositionFlags(bool canMoveUp, bool canMoveDown, bool canMoveToTop, bool canMoveToBottom)
+    {
+        CanMoveUp = canMoveUp;
+        CanMoveDown = canMoveDown;
+        CanMoveToTop = canMoveToTop;
+        CanMoveToBottom = canMoveToBottom;
+    }
+
     public bool IsProgressIndeterminate => State == EncodingJobState.Running
         && !ProgressFraction.HasValue
         && !CurrentFrame.HasValue;

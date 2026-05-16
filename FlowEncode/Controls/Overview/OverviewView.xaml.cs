@@ -10,7 +10,9 @@ using FlowEncode.Domain;
 using FlowEncode.ViewModels;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
+using Microsoft.UI.Xaml.Controls.Primitives;
 using Microsoft.UI.Xaml.Input;
+using Microsoft.UI.Xaml.Media;
 using Windows.System;
 
 namespace FlowEncode.Controls.Overview;
@@ -847,6 +849,47 @@ public sealed partial class OverviewView : UserControl
             or RichEditBox
             or ComboBox
             or NumberBox;
+    }
+
+    private void JobsList_RightTapped(object sender, RightTappedRoutedEventArgs e)
+    {
+        var source = e.OriginalSource as DependencyObject;
+        while (source is not null and not ListViewItem)
+        {
+            if (source is FrameworkElement fe && fe.DataContext is EncodingJobItemViewModel)
+            {
+                break;
+            }
+
+            source = VisualTreeHelper.GetParent(source);
+        }
+
+        if (source is FrameworkElement element)
+        {
+            var grid = FindChild<Grid>(element);
+            grid?.ContextFlyout?.ShowAt(grid, new FlyoutShowOptions { Position = e.GetPosition(grid) });
+            e.Handled = true;
+        }
+    }
+
+    private static T? FindChild<T>(DependencyObject parent) where T : DependencyObject
+    {
+        for (var i = 0; i < VisualTreeHelper.GetChildrenCount(parent); i++)
+        {
+            var child = VisualTreeHelper.GetChild(parent, i);
+            if (child is T match)
+            {
+                return match;
+            }
+
+            var result = FindChild<T>(child);
+            if (result is not null)
+            {
+                return result;
+            }
+        }
+
+        return null;
     }
 
     private void JobsList_SelectionChanged(object sender, SelectionChangedEventArgs e)

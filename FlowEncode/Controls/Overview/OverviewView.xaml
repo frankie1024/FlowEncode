@@ -337,7 +337,7 @@
                                 </CommandBar>
 
                                 <Grid Grid.Row="2">
-                                    <ListView x:Name="JobsList" ItemsSource="{Binding Jobs}" MinHeight="320" SelectionMode="Single" SelectionChanged="JobsList_SelectionChanged">
+                                    <ListView x:Name="JobsList" ItemsSource="{Binding Jobs}" MinHeight="320" SelectionMode="Single" SelectionChanged="JobsList_SelectionChanged" RightTapped="JobsList_RightTapped">
                                         <ListView.ItemTemplate>
                                             <DataTemplate>
                                                 <Grid Padding="14,12">
@@ -359,31 +359,31 @@
                                                                     <SymbolIcon Symbol="Play" />
                                                                 </MenuFlyoutItem.Icon>
                                                             </MenuFlyoutItem>
-                                                            <MenuFlyoutItem Text="{Binding DataContext.Texts.JobMenuMoveTop, ElementName=RootView}" Click="MoveJobToTopMenuItem_Click" CommandParameter="{Binding}">
+                                                            <MenuFlyoutItem Text="{Binding DataContext.Texts.JobMenuMoveTop, ElementName=RootView}" Click="MoveJobToTopMenuItem_Click" CommandParameter="{Binding}" IsEnabled="{Binding CanMoveToTop}">
                                                                 <MenuFlyoutItem.Icon>
                                                                     <SymbolIcon Symbol="Upload" />
                                                                 </MenuFlyoutItem.Icon>
                                                             </MenuFlyoutItem>
-                                                            <MenuFlyoutItem Text="{Binding DataContext.Texts.JobMenuMoveUp, ElementName=RootView}" Click="MoveJobUpMenuItem_Click" CommandParameter="{Binding}" />
-                                                            <MenuFlyoutItem Text="{Binding DataContext.Texts.JobMenuMoveDown, ElementName=RootView}" Click="MoveJobDownMenuItem_Click" CommandParameter="{Binding}" />
-                                                            <MenuFlyoutItem Text="{Binding DataContext.Texts.JobMenuMoveBottom, ElementName=RootView}" Click="MoveJobToBottomMenuItem_Click" CommandParameter="{Binding}">
+                                                            <MenuFlyoutItem Text="{Binding DataContext.Texts.JobMenuMoveUp, ElementName=RootView}" Click="MoveJobUpMenuItem_Click" CommandParameter="{Binding}" IsEnabled="{Binding CanMoveUp}" />
+                                                            <MenuFlyoutItem Text="{Binding DataContext.Texts.JobMenuMoveDown, ElementName=RootView}" Click="MoveJobDownMenuItem_Click" CommandParameter="{Binding}" IsEnabled="{Binding CanMoveDown}" />
+                                                            <MenuFlyoutItem Text="{Binding DataContext.Texts.JobMenuMoveBottom, ElementName=RootView}" Click="MoveJobToBottomMenuItem_Click" CommandParameter="{Binding}" IsEnabled="{Binding CanMoveToBottom}">
                                                                 <MenuFlyoutItem.Icon>
                                                                     <SymbolIcon Symbol="Download" />
                                                                 </MenuFlyoutItem.Icon>
                                                             </MenuFlyoutItem>
                                                             <MenuFlyoutSeparator />
-                                                            <MenuFlyoutItem Text="{Binding DataContext.Texts.JobMenuCancel, ElementName=RootView}" Click="AbortJobMenuItem_Click" CommandParameter="{Binding}">
+                                                            <MenuFlyoutItem Text="{Binding DataContext.Texts.JobMenuCancel, ElementName=RootView}" Click="AbortJobMenuItem_Click" CommandParameter="{Binding}" IsEnabled="{Binding CanCancel}">
                                                                 <MenuFlyoutItem.Icon>
                                                                     <SymbolIcon Symbol="Cancel" />
                                                                 </MenuFlyoutItem.Icon>
                                                             </MenuFlyoutItem>
                                                             <MenuFlyoutSeparator />
-                                                            <MenuFlyoutItem Text="{Binding DataContext.Texts.JobMenuRestart, ElementName=RootView}" Click="RestartJobMenuItem_Click" CommandParameter="{Binding}">
+                                                            <MenuFlyoutItem Text="{Binding DataContext.Texts.JobMenuRestart, ElementName=RootView}" Click="RestartJobMenuItem_Click" CommandParameter="{Binding}" IsEnabled="{Binding CanRestart}">
                                                                 <MenuFlyoutItem.Icon>
                                                                     <SymbolIcon Symbol="Refresh" />
                                                                 </MenuFlyoutItem.Icon>
                                                             </MenuFlyoutItem>
-                                                            <MenuFlyoutItem Text="{Binding DataContext.Texts.JobMenuDelete, ElementName=RootView}" Click="DeleteJobMenuItem_Click" CommandParameter="{Binding}">
+                                                            <MenuFlyoutItem Text="{Binding DataContext.Texts.JobMenuDelete, ElementName=RootView}" Click="DeleteJobMenuItem_Click" CommandParameter="{Binding}" IsEnabled="{Binding CanRemove}">
                                                                 <MenuFlyoutItem.Icon>
                                                                     <SymbolIcon Symbol="Delete" />
                                                                 </MenuFlyoutItem.Icon>
