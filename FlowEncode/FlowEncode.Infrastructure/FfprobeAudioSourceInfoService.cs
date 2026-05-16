@@ -8,6 +8,8 @@ namespace FlowEncode.Infrastructure;
 
 public sealed class FfprobeAudioSourceInfoService : IAudioSourceInfoService
 {
+    private static readonly TimeSpan ProbeTimeout = TimeSpan.FromMinutes(2);
+
     private readonly IToolProbeService _toolProbeService;
 
     public FfprobeAudioSourceInfoService(IToolProbeService toolProbeService)
@@ -28,30 +30,11 @@ public sealed class FfprobeAudioSourceInfoService : IAudioSourceInfoService
             return null;
         }
 
-        using var process = new Process
-        {
-            StartInfo = new ProcessStartInfo
-            {
-                FileName = probe.ExecutablePath,
-                Arguments = $"-v error -select_streams a:0 -show_entries format=duration,format_name:stream=codec_name,profile,channels,channel_layout,sample_rate,bits_per_sample,bits_per_raw_sample,sample_fmt,duration -of json {Quote(sourcePath)}",
-                UseShellExecute = false,
-                RedirectStandardOutput = true,
-                RedirectStandardError = true,
-                CreateNoWindow = true
-            }
-        };
-
-        process.Start();
-        var output = await process.StandardOutput.ReadToEndAsync(cancellationToken);
-        var error = await process.StandardError.ReadToEndAsync(cancellationToken);
-        await process.WaitForExitAsync(cancellationToken);
-
-        if (process.ExitCode != 0)
-        {
-            throw new InvalidOperationException(string.IsNullOrWhiteSpace(error)
-                ? "ffprobe failed to inspect the selected audio source."
-                : error.Trim());
-        }
+        var output = await RunFfprobeAsync(
+            probe.ExecutablePath,
+            $"-v error -select_streams a:0 -show_entries format=duration,format_name:stream=codec_name,profile,channels,channel_layout,sample_rate,bits_per_sample,bits_per_raw_sample,sample_fmt,duration -of json {Quote(sourcePath)}",
+            "ffprobe failed to inspect the selected audio source.",
+            cancellationToken);
 
         using var document = JsonDocument.Parse(output);
         if (!document.RootElement.TryGetProperty("streams", out var streams)
@@ -99,6 +82,36 @@ public sealed class FfprobeAudioSourceInfoService : IAudioSourceInfoService
     }
 
     private static string Quote(string value) => $"\"{value}\"";
+
+    private static async Task<string> RunFfprobeAsync(
+        string ffprobePath,
+        string arguments,
+        string failureMessage,
+        CancellationToken cancellationToken)
+    {
+        var result = await ProcessProbeRunner.RunAsync(
+            new ProcessStartInfo
+            {
+                FileName = ffprobePath,
+                Arguments = arguments,
+                UseShellExecute = false,
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+                CreateNoWindow = true
+            },
+            ProbeTimeout,
+            "ffprobe audio source probe timed out.",
+            cancellationToken);
+
+        if (result.ExitCode != 0)
+        {
+            throw new InvalidOperationException(string.IsNullOrWhiteSpace(result.StandardError)
+                ? failureMessage
+                : result.StandardError.Trim());
+        }
+
+        return result.StandardOutput;
+    }
 
     private static string GetJsonString(JsonElement element, string propertyName)
     {
@@ -189,29 +202,11 @@ public sealed class FfprobeAudioSourceInfoService : IAudioSourceInfoService
         string sourcePath,
         CancellationToken cancellationToken)
     {
-        using var process = new Process
-        {
-            StartInfo = new ProcessStartInfo
-            {
-                FileName = ffprobePath,
-                Arguments = $"-v error -select_streams a:0 -show_packets -show_entries packet=duration_time -read_intervals 0%+#1 -of json {Quote(sourcePath)}",
-                UseShellExecute = false,
-                RedirectStandardOutput = true,
-                RedirectStandardError = true,
-                CreateNoWindow = true
-            }
-        };
-
-        process.Start();
-        var output = await process.StandardOutput.ReadToEndAsync(cancellationToken);
-        var error = await process.StandardError.ReadToEndAsync(cancellationToken);
-        await process.WaitForExitAsync(cancellationToken);
-        if (process.ExitCode != 0)
-        {
-            throw new InvalidOperationException(string.IsNullOrWhiteSpace(error)
-                ? "ffprobe failed to inspect the selected audio source."
-                : error.Trim());
-        }
+        var output = await RunFfprobeAsync(
+            ffprobePath,
+            $"-v error -select_streams a:0 -show_packets -show_entries packet=duration_time -read_intervals 0%+#1 -of json {Quote(sourcePath)}",
+            "ffprobe failed to inspect the selected audio source.",
+            cancellationToken);
 
         using var document = JsonDocument.Parse(output);
         if (!document.RootElement.TryGetProperty("packets", out var packets)
@@ -233,29 +228,11 @@ public sealed class FfprobeAudioSourceInfoService : IAudioSourceInfoService
         string sourcePath,
         CancellationToken cancellationToken)
     {
-        using var process = new Process
-        {
-            StartInfo = new ProcessStartInfo
-            {
-                FileName = ffprobePath,
-                Arguments = $"-v error -select_streams a:0 -count_packets -show_entries stream=nb_read_packets -of json {Quote(sourcePath)}",
-                UseShellExecute = false,
-                RedirectStandardOutput = true,
-                RedirectStandardError = true,
-                CreateNoWindow = true
-            }
-        };
-
-        process.Start();
-        var output = await process.StandardOutput.ReadToEndAsync(cancellationToken);
-        var error = await process.StandardError.ReadToEndAsync(cancellationToken);
-        await process.WaitForExitAsync(cancellationToken);
-        if (process.ExitCode != 0)
-        {
-            throw new InvalidOperationException(string.IsNullOrWhiteSpace(error)
-                ? "ffprobe failed to inspect the selected audio source."
-                : error.Trim());
-        }
+        var output = await RunFfprobeAsync(
+            ffprobePath,
+            $"-v error -select_streams a:0 -count_packets -show_entries stream=nb_read_packets -of json {Quote(sourcePath)}",
+            "ffprobe failed to inspect the selected audio source.",
+            cancellationToken);
 
         using var document = JsonDocument.Parse(output);
         if (!document.RootElement.TryGetProperty("streams", out var streams)

@@ -26,13 +26,13 @@ internal static class ProcessProbeRunner
             .GetResult();
     }
 
-    private static async Task<ProcessProbeResult> RunAsync(
+    public static async Task<ProcessProbeResult> RunAsync(
         ProcessStartInfo startInfo,
         TimeSpan timeout,
         string timeoutMessage,
-        CancellationToken cancellationToken,
-        Func<string?, string>? standardErrorLineNormalizer,
-        Action<string>? standardErrorProgress)
+        CancellationToken cancellationToken = default,
+        Func<string?, string>? standardErrorLineNormalizer = null,
+        Action<string>? standardErrorProgress = null)
     {
         if (!startInfo.RedirectStandardOutput || !startInfo.RedirectStandardError)
         {

@@ -224,10 +224,17 @@ internal static class SetupDependencyInteractionHelper
             return;
         }
 
-        using var process = Process.Start(new ProcessStartInfo(url) { UseShellExecute = true });
-        if (process is null)
+        try
         {
-            TryWriteDiagnostic(nameof(SetupDependencyInteractionHelper), $"URL process did not start for '{url}'.");
+            using var process = Process.Start(new ProcessStartInfo(url) { UseShellExecute = true });
+            if (process is null)
+            {
+                TryWriteDiagnostic(nameof(SetupDependencyInteractionHelper), $"URL process did not start for '{url}'.");
+            }
+        }
+        catch (Exception ex)
+        {
+            TryWriteDiagnostic(nameof(SetupDependencyInteractionHelper), $"Failed to open URL '{url}'. {ex.GetType().Name}: {ex.Message}");
         }
     }
 
