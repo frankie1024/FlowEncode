@@ -2383,52 +2383,7 @@ public partial class MainWindowViewModel : CommunityToolkit.Mvvm.ComponentModel.
 
     private static string ResolveDraftOutputPath(string sourcePath, string outputDirectory, EncodingProfile? profile)
     {
-        var fileName = BuildDraftOutputBaseFileName(sourcePath, profile);
-
-        var extension = string.IsNullOrWhiteSpace(profile?.OutputContainer)
-            ? "264"
-            : profile.OutputContainer.Trim().TrimStart('.');
-        if (string.IsNullOrWhiteSpace(extension))
-        {
-            extension = "264";
-        }
-
-        return Path.Combine(outputDirectory, $"{fileName}.{extension}");
-    }
-
-    private static string BuildDraftOutputBaseFileName(string sourcePath, EncodingProfile? profile)
-    {
-        var fileName = Path.GetFileNameWithoutExtension(sourcePath);
-        if (string.IsNullOrWhiteSpace(fileName))
-        {
-            fileName = "encode";
-        }
-
-        if (profile?.RateControl != RateControlMode.Crf)
-        {
-            return fileName;
-        }
-
-        return $"{fileName}-{GetDraftOutputEncoderToken(profile.Kind)}-crf{FormatOutputTokenNumber(profile.Quality)}";
-    }
-
-    private static string GetDraftOutputEncoderToken(EncoderKind kind)
-    {
-        return kind switch
-        {
-            EncoderKind.X264 => "x264",
-            EncoderKind.X265 => "x265",
-            EncoderKind.SvtAv1 => "svtav1",
-            _ => kind.ToString().ToLowerInvariant()
-        };
-    }
-
-    private static string FormatOutputTokenNumber(double value)
-    {
-        return value
-            .ToString("0.0##", CultureInfo.InvariantCulture)
-            .TrimEnd('0')
-            .TrimEnd('.');
+        return EncodingOutputPathPlanner.BuildDefaultOutputPath(sourcePath, outputDirectory, profile);
     }
 
     private string ResolveUniqueOutputPath(string outputPath)
