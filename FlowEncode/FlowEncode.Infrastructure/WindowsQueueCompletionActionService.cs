@@ -29,13 +29,15 @@ public sealed class WindowsQueueCompletionActionService : IQueueCompletionAction
                         : "Failed to enter sleep mode.");
 
                 case QueueCompletionAction.Shutdown:
-                    Process.Start(new ProcessStartInfo("shutdown.exe", "/s /t 0")
+                {
+                    using var shutdownProcess = Process.Start(new ProcessStartInfo("shutdown.exe", "/s /t 0")
                     {
                         CreateNoWindow = true,
                         UseShellExecute = false,
                         WindowStyle = ProcessWindowStyle.Hidden
                     });
                     return Task.FromResult<string?>(null);
+                }
 
                 default:
                     return Task.FromResult<string?>($"Unsupported queue completion action: {action}.");

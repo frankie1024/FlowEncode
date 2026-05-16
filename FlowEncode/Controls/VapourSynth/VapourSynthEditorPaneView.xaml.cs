@@ -253,6 +253,15 @@ public sealed partial class VapourSynthEditorPaneView : UserControl, IDisposable
         PointerPressed -= EditorPane_PointerPressed;
         EditorWebView.GotFocus -= EditorPane_GotFocus;
         EditorWebView.PointerPressed -= EditorPane_PointerPressed;
+        try
+        {
+            EditorWebView.Close();
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"Failed to close VapourSynth editor WebView2. {ex}");
+        }
+
         _initializationLock.Dispose();
     }
 

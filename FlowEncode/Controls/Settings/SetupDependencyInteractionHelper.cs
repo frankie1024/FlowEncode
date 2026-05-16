@@ -186,7 +186,11 @@ internal static class SetupDependencyInteractionHelper
         try
         {
             Directory.CreateDirectory(path);
-            Process.Start(new ProcessStartInfo("explorer.exe", $"\"{path}\"") { UseShellExecute = true });
+            using var process = Process.Start(new ProcessStartInfo("explorer.exe", $"\"{path}\"") { UseShellExecute = true });
+            if (process is null)
+            {
+                TryWriteDiagnostic(nameof(SetupDependencyInteractionHelper), $"Explorer process did not start for path '{path}'.");
+            }
         }
         catch (Exception ex)
         {
@@ -201,7 +205,11 @@ internal static class SetupDependencyInteractionHelper
             return;
         }
 
-        Process.Start(new ProcessStartInfo(url) { UseShellExecute = true });
+        using var process = Process.Start(new ProcessStartInfo(url) { UseShellExecute = true });
+        if (process is null)
+        {
+            TryWriteDiagnostic(nameof(SetupDependencyInteractionHelper), $"URL process did not start for '{url}'.");
+        }
     }
 
     public static void TryWriteDiagnostic(string source, string message)

@@ -595,7 +595,7 @@ public sealed partial class MainWindow : Window, ISettingsViewHost, IShellNaviga
 
             try
             {
-                var process = Process.Start(new ProcessStartInfo(installerPath)
+                using var process = Process.Start(new ProcessStartInfo(installerPath)
                 {
                     UseShellExecute = true,
                     WorkingDirectory = Path.GetDirectoryName(installerPath)
@@ -834,7 +834,7 @@ public sealed partial class MainWindow : Window, ISettingsViewHost, IShellNaviga
         try
         {
             Directory.CreateDirectory(path);
-            var process = Process.Start(new ProcessStartInfo("explorer.exe", $"\"{path}\"") { UseShellExecute = true });
+            using var process = Process.Start(new ProcessStartInfo("explorer.exe", $"\"{path}\"") { UseShellExecute = true });
             if (process is null)
             {
                 TryWriteWindowDiagnostic(
@@ -862,7 +862,7 @@ public sealed partial class MainWindow : Window, ISettingsViewHost, IShellNaviga
 
         try
         {
-            var process = Process.Start(new ProcessStartInfo(url) { UseShellExecute = true });
+            using var process = Process.Start(new ProcessStartInfo(url) { UseShellExecute = true });
             if (process is null)
             {
                 TryWriteWindowDiagnostic(
