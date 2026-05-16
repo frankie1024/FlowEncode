@@ -70,7 +70,7 @@ public sealed class LocalProfileLibraryService : IProfileLibraryService
             Directory.CreateDirectory(targetDirectory);
         }
 
-        var normalizedTemplate = NormalizeTemplate(template);
+        var normalizedTemplate = SavedTemplateNormalizer.Normalize(template, DateTimeOffset.Now);
         await WriteTemplateFileAsync(normalizedTemplate, filePath, cancellationToken);
     }
 
@@ -122,14 +122,15 @@ public sealed class LocalProfileLibraryService : IProfileLibraryService
             .Except(pathsToDelete, StringComparer.OrdinalIgnoreCase)
             .ToHashSet(StringComparer.OrdinalIgnoreCase);
         var targetPath = BuildAvailableTemplateFilePath(normalizedName, occupiedPaths);
-        var template = NormalizeTemplate(
+        var template = SavedTemplateNormalizer.Normalize(
             new SavedTemplate(
                 resolvedTemplateId,
                 normalizedName,
                 normalizedNotes,
                 profile,
                 DateTimeOffset.Now,
-                isPinned));
+                isPinned),
+            DateTimeOffset.Now);
 
         await WriteTemplateFileAsync(template, targetPath, cancellationToken);
 
@@ -193,11 +194,11 @@ public sealed class LocalProfileLibraryService : IProfileLibraryService
             return entry.Template;
         }
 
-        var updatedTemplate = NormalizeTemplate(entry.Template with
+        var updatedTemplate = SavedTemplateNormalizer.Normalize(entry.Template with
         {
             UpdatedAt = DateTimeOffset.Now,
             IsPinned = isPinned
-        });
+        }, DateTimeOffset.Now);
 
         await WriteTemplateFileAsync(updatedTemplate, entry.FilePath, cancellationToken);
         return updatedTemplate;
@@ -259,7 +260,7 @@ public sealed class LocalProfileLibraryService : IProfileLibraryService
 
     private async Task WriteTemplateFileAsync(SavedTemplate template, string filePath, CancellationToken cancellationToken)
     {
-        var normalizedTemplate = NormalizeTemplate(template);
+        var normalizedTemplate = SavedTemplateNormalizer.Normalize(template, DateTimeOffset.Now);
         var document = new TemplateExchangeDocument(
             TemplateExchangeFormat,
             normalizedTemplate.Id,
@@ -322,25 +323,6 @@ public sealed class LocalProfileLibraryService : IProfileLibraryService
             string.Equals(entry.Template.Name, templateName, StringComparison.OrdinalIgnoreCase));
     }
 
-    private SavedTemplate NormalizeTemplate(SavedTemplate template)
-    {
-        var normalizedName = template.Name.Trim();
-        var normalizedNotes = template.Notes?.Trim() ?? string.Empty;
-        var normalizedUpdatedAt = template.UpdatedAt == default ? DateTimeOffset.Now : template.UpdatedAt;
-
-        return template with
-        {
-            Name = normalizedName,
-            Notes = normalizedNotes,
-            UpdatedAt = normalizedUpdatedAt,
-            Profile = template.Profile with
-            {
-                Name = normalizedName,
-                Description = normalizedNotes
-            }
-        };
-    }
-
     private SavedTemplate CreateTemplateFromDocument(TemplateExchangeDocument document, string filePath)
     {
         if (!string.IsNullOrWhiteSpace(document.Format)
@@ -359,14 +341,15 @@ public sealed class LocalProfileLibraryService : IProfileLibraryService
             throw new InvalidDataException("The selected template file does not contain a valid encoding profile.");
         }
 
-        return NormalizeTemplate(
+        return SavedTemplateNormalizer.Normalize(
             new SavedTemplate(
                 string.IsNullOrWhiteSpace(document.Id) ? BuildStableTemplateId(filePath) : document.Id.Trim(),
                 document.Name.Trim(),
                 document.Notes?.Trim() ?? string.Empty,
                 document.Profile,
                 ResolveUpdatedAt(document),
-                document.IsPinned ?? false));
+                document.IsPinned ?? false),
+            DateTimeOffset.Now);
     }
 
     private static DateTimeOffset ResolveUpdatedAt(TemplateExchangeDocument document)
