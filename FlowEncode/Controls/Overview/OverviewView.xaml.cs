@@ -853,36 +853,53 @@ public sealed partial class OverviewView : UserControl
 
     private void JobsList_RightTapped(object sender, RightTappedRoutedEventArgs e)
     {
-        var source = e.OriginalSource as DependencyObject;
-        while (source is not null and not ListViewItem)
+        var flyoutOwner = FindJobContextFlyoutOwner(e.OriginalSource as DependencyObject);
+        if (flyoutOwner?.ContextFlyout is null)
         {
-            if (source is FrameworkElement fe && fe.DataContext is EncodingJobItemViewModel)
+            return;
+        }
+
+        flyoutOwner.ContextFlyout.ShowAt(
+            flyoutOwner,
+            new FlyoutShowOptions { Position = e.GetPosition(flyoutOwner) });
+        e.Handled = true;
+    }
+
+    private static FrameworkElement? FindJobContextFlyoutOwner(DependencyObject? source)
+    {
+        ListViewItem? listViewItem = null;
+        while (source is not null)
+        {
+            if (source is FrameworkElement { DataContext: EncodingJobItemViewModel, ContextFlyout: not null } element)
             {
+                return element;
+            }
+
+            if (source is ListViewItem item)
+            {
+                listViewItem = item;
                 break;
             }
 
             source = VisualTreeHelper.GetParent(source);
         }
 
-        if (source is FrameworkElement element)
-        {
-            var grid = FindChild<Grid>(element);
-            grid?.ContextFlyout?.ShowAt(grid, new FlyoutShowOptions { Position = e.GetPosition(grid) });
-            e.Handled = true;
-        }
+        return listViewItem is null
+            ? null
+            : FindChildJobContextFlyoutOwner(listViewItem);
     }
 
-    private static T? FindChild<T>(DependencyObject parent) where T : DependencyObject
+    private static FrameworkElement? FindChildJobContextFlyoutOwner(DependencyObject parent)
     {
         for (var i = 0; i < VisualTreeHelper.GetChildrenCount(parent); i++)
         {
             var child = VisualTreeHelper.GetChild(parent, i);
-            if (child is T match)
+            if (child is FrameworkElement { DataContext: EncodingJobItemViewModel, ContextFlyout: not null } match)
             {
                 return match;
             }
 
-            var result = FindChild<T>(child);
+            var result = FindChildJobContextFlyoutOwner(child);
             if (result is not null)
             {
                 return result;
