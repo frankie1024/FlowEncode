@@ -157,30 +157,20 @@ internal sealed class ExternalToolLocator
     {
         try
         {
-            using var process = new Process
+            var startInfo = new ProcessStartInfo
             {
-                StartInfo = new ProcessStartInfo
-                {
-                    FileName = executablePath,
-                    Arguments = "--version",
-                    UseShellExecute = false,
-                    RedirectStandardOutput = true,
-                    RedirectStandardError = true,
-                    CreateNoWindow = true
-                }
+                FileName = executablePath,
+                Arguments = "--version",
+                UseShellExecute = false,
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+                CreateNoWindow = true
             };
 
-            VapourSynthRuntimePathResolver.EnrichProcessPath(process.StartInfo);
+            VapourSynthRuntimePathResolver.EnrichProcessPath(startInfo);
             using var _ = ErrorDialogSuppression.Enter();
-            process.Start();
-
-            if (!process.WaitForExit((int)ProbeTimeout.TotalMilliseconds))
-            {
-                process.Kill(true);
-                return false;
-            }
-
-            return process.ExitCode == 0;
+            var result = ProcessProbeRunner.Run(startInfo, ProbeTimeout, "vspipe probe timed out.");
+            return result.ExitCode == 0;
         }
         catch
         {

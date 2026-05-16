@@ -169,43 +169,38 @@ public sealed class ProcessToolProbeService : IToolProbeService
     {
         try
         {
-            using var process = new Process
+            var startInfo = new ProcessStartInfo
             {
-                StartInfo = new ProcessStartInfo
-                {
-                    FileName = candidate.Path,
-                    Arguments = definition.VersionArguments,
-                    UseShellExecute = false,
-                    RedirectStandardOutput = true,
-                    RedirectStandardError = true,
-                    CreateNoWindow = true,
-                    WorkingDirectory = Path.GetDirectoryName(candidate.Path) ?? AppContext.BaseDirectory
-                }
+                FileName = candidate.Path,
+                Arguments = definition.VersionArguments,
+                UseShellExecute = false,
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+                CreateNoWindow = true,
+                WorkingDirectory = Path.GetDirectoryName(candidate.Path) ?? AppContext.BaseDirectory
             };
 
-            VapourSynthRuntimePathResolver.EnrichProcessPath(process.StartInfo);
+            VapourSynthRuntimePathResolver.EnrichProcessPath(startInfo);
 
             using var _ = ErrorDialogSuppression.Enter();
-            process.Start();
-            if (!process.WaitForExit(ProbeTimeoutMilliseconds))
-            {
-                process.Kill(true);
-                return CreateMisconfiguredResult(definition, candidate, "Version probe timed out.");
-            }
+            var result = ProcessProbeRunner.Run(
+                startInfo,
+                TimeSpan.FromMilliseconds(ProbeTimeoutMilliseconds),
+                "Version probe timed out.");
 
             var output = string.Concat(
-                process.StandardOutput.ReadToEnd(),
+                result.StandardOutput,
                 Environment.NewLine,
-                process.StandardError.ReadToEnd()).Trim();
+                result.StandardError).Trim();
 
-            if (process.ExitCode != 0)
+            if (result.ExitCode != 0)
             {
                 var failureReason = FirstMeaningfulLine(output);
                 return CreateMisconfiguredResult(
                     definition,
                     candidate,
                     string.IsNullOrWhiteSpace(failureReason)
-                        ? $"Version probe failed with exit code {process.ExitCode}."
+                        ? $"Version probe failed with exit code {result.ExitCode}."
                         : failureReason);
             }
 
@@ -387,25 +382,20 @@ public sealed class ProcessToolProbeService : IToolProbeService
 
         try
         {
-            using var process = new Process
-            {
-                StartInfo = CreatePythonModuleProcessStartInfo(candidate.Path, ["-c", script])
-            };
+            var startInfo = CreatePythonModuleProcessStartInfo(candidate.Path, ["-c", script]);
 
             using var _ = ErrorDialogSuppression.Enter();
-            process.Start();
-            if (!process.WaitForExit(ProbeTimeoutMilliseconds))
-            {
-                process.Kill(true);
-                return CreateMisconfiguredResult(definition, candidate, "Python module probe timed out.");
-            }
+            var result = ProcessProbeRunner.Run(
+                startInfo,
+                TimeSpan.FromMilliseconds(ProbeTimeoutMilliseconds),
+                "Python module probe timed out.");
 
             var output = string.Concat(
-                process.StandardOutput.ReadToEnd(),
+                result.StandardOutput,
                 Environment.NewLine,
-                process.StandardError.ReadToEnd()).Trim();
+                result.StandardError).Trim();
 
-            return process.ExitCode switch
+            return result.ExitCode switch
             {
                 0 => new ToolProbeResult(
                     definition.Kind,
@@ -422,7 +412,7 @@ public sealed class ProcessToolProbeService : IToolProbeService
                     definition,
                     candidate,
                     string.IsNullOrWhiteSpace(FirstMeaningfulLine(output))
-                        ? $"Python module probe failed with exit code {process.ExitCode}."
+                        ? $"Python module probe failed with exit code {result.ExitCode}."
                         : FirstMeaningfulLine(output))
             };
         }

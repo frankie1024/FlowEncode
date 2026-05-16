@@ -7,14 +7,14 @@ namespace FlowEncode.Infrastructure;
 internal static class EncoderBinaryProbe
 {
     private static readonly TimeSpan ProbeTimeout = TimeSpan.FromSeconds(5);
+    private const string TimeoutMessage = "Version probe timed out.";
 
     public static string ProbeVersion(string executablePath, EncoderKind kind)
     {
         try
         {
-            using var process = new Process
-            {
-                StartInfo = new ProcessStartInfo
+            var result = ProcessProbeRunner.Run(
+                new ProcessStartInfo
                 {
                     FileName = executablePath,
                     Arguments = "--version",
@@ -22,18 +22,14 @@ internal static class EncoderBinaryProbe
                     RedirectStandardOutput = true,
                     RedirectStandardError = true,
                     CreateNoWindow = true
-                }
-            };
+                },
+                ProbeTimeout,
+                TimeoutMessage);
 
-            process.Start();
-
-            if (!process.WaitForExit((int)ProbeTimeout.TotalMilliseconds))
-            {
-                process.Kill(true);
-                return "Present (version probe timed out)";
-            }
-
-            var output = (process.StandardOutput.ReadToEnd() + Environment.NewLine + process.StandardError.ReadToEnd()).Trim();
+            var output = string.Concat(
+                result.StandardOutput,
+                Environment.NewLine,
+                result.StandardError).Trim();
 
             if (string.IsNullOrWhiteSpace(output))
             {
@@ -42,6 +38,10 @@ internal static class EncoderBinaryProbe
 
             var parsed = ParseVersion(output, kind);
             return string.IsNullOrWhiteSpace(parsed) ? FirstMeaningfulLine(output) : parsed;
+        }
+        catch (InvalidOperationException ex) when (string.Equals(ex.Message, TimeoutMessage, StringComparison.Ordinal))
+        {
+            return "Present (version probe timed out)";
         }
         catch
         {

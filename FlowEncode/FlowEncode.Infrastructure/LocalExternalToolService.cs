@@ -556,9 +556,9 @@ public sealed class LocalExternalToolService : IExternalToolService, IDisposable
             }
 
             var arguments = kind == ExternalToolKind.Ffmpeg ? "-version" : "--version";
-            using var process = new Process
-            {
-                StartInfo = new ProcessStartInfo
+            using var _ = ErrorDialogSuppression.Enter();
+            var result = ProcessProbeRunner.Run(
+                new ProcessStartInfo
                 {
                     FileName = executablePath,
                     Arguments = arguments,
@@ -566,18 +566,14 @@ public sealed class LocalExternalToolService : IExternalToolService, IDisposable
                     RedirectStandardOutput = true,
                     RedirectStandardError = true,
                     CreateNoWindow = true
-                }
-            };
+                },
+                TimeSpan.FromSeconds(5),
+                "Version probe timed out.");
 
-            using var _ = ErrorDialogSuppression.Enter();
-            process.Start();
-            if (!process.WaitForExit(5000))
-            {
-                process.Kill(true);
-                return "Present (version probe timed out)";
-            }
-
-            var output = (process.StandardOutput.ReadToEnd() + Environment.NewLine + process.StandardError.ReadToEnd()).Trim();
+            var output = string.Concat(
+                result.StandardOutput,
+                Environment.NewLine,
+                result.StandardError).Trim();
             if (string.IsNullOrWhiteSpace(output))
             {
                 return "Present (version string unavailable)";
@@ -598,6 +594,10 @@ public sealed class LocalExternalToolService : IExternalToolService, IDisposable
                 .Split(['\r', '\n'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
                 .FirstOrDefault(static line => !string.IsNullOrWhiteSpace(line))
                 ?? "Present";
+        }
+        catch (InvalidOperationException ex) when (string.Equals(ex.Message, "Version probe timed out.", StringComparison.Ordinal))
+        {
+            return "Present (version probe timed out)";
         }
         catch (Exception ex)
         {
