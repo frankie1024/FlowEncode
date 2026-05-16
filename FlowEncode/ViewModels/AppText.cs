@@ -1,5 +1,6 @@
 using System;
 using System.IO;
+using FlowEncode.Application;
 using FlowEncode.Domain;
 
 namespace FlowEncode.ViewModels;
@@ -188,6 +189,7 @@ public sealed class AppText
     public string VapourSynthGoToButton => Pick("跳转行", "Go to Line");
     public string VapourSynthUndoButton => Pick("撤销", "Undo");
     public string VapourSynthRedoButton => Pick("重做", "Redo");
+    public string VapourSynthSnippetButton => Pick("片段", "Snippets");
     public string VapourSynthPreviewButton => Pick("预览 F5", "Preview F5");
     public string VapourSynthEncodeButton => Pick("压制 F9", "Encode F9");
     public string VapourSynthPinTabButton => Pick("固定标签", "Pin Tab");
@@ -212,6 +214,24 @@ public sealed class AppText
     public string VapourSynthEditorLoadingStatus => Pick("正在初始化 VapourSynth 编辑器...", "Initializing the VapourSynth editor...");
     public string VapourSynthEditorReadyStatus => Pick("编辑器已就绪。", "Editor ready.");
     public string VapourSynthEditorRetryButton => Pick("重试编辑器", "Retry Editor");
+    public string VapourSynthSnippetLsmasSource => VapourSynthSnippetLabel(VapourSynthSnippetLibrary.LsmasSourceId);
+    public string VapourSynthSnippetCropAndFillMargins => VapourSynthSnippetLabel(VapourSynthSnippetLibrary.CropAndFillMarginsId);
+    public string VapourSynthSnippetResizeFormat => VapourSynthSnippetLabel(VapourSynthSnippetLibrary.ResizeFormatId);
+    public string VapourSynthSnippetCompareOutputs => VapourSynthSnippetLabel(VapourSynthSnippetLibrary.CompareOutputsId);
+    public string VapourSynthSnippetVivtcIvtc => VapourSynthSnippetLabel(VapourSynthSnippetLibrary.VivtcIvtcId);
+    public string VapourSynthSnippetLabel(string snippetId) => snippetId switch
+    {
+        VapourSynthSnippetLibrary.LsmasSourceId => Pick("基础载入 + 输出", "Load Source + Output"),
+        VapourSynthSnippetLibrary.CropAndFillMarginsId => Pick("裁切黑边 / 填边", "Crop / Fill Margins"),
+        VapourSynthSnippetLibrary.ResizeFormatId => Pick("缩放 / 格式转换", "Resize / Format"),
+        VapourSynthSnippetLibrary.CompareOutputsId => Pick("双源对比输出", "Two Source Compare"),
+        VapourSynthSnippetLibrary.VivtcIvtcId => Pick("NTSC IVTC 占位", "NTSC IVTC Placeholder"),
+        _ => Pick("脚本片段", "Snippet")
+    };
+    public string VapourSynthSnippetInsertedStatus(string label) =>
+        IsChinese ? $"已插入脚本片段：{label}" : $"Inserted snippet: {label}";
+    public string VapourSynthSnippetInsertFailedStatus =>
+        Pick("脚本片段插入失败。请确认编辑器已就绪。", "Failed to insert the snippet. Make sure the editor is ready.");
     public string VapourSynthNewDocumentStatus => Pick("已创建新的脚本缓冲区。", "Created a new script buffer.");
     public string VapourSynthOpenedStatus(string filePath) =>
         IsChinese ? $"已打开脚本：{filePath}" : $"Opened script: {filePath}";

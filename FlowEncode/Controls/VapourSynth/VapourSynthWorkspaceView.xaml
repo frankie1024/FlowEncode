@@ -76,6 +76,35 @@
                         <SymbolIcon Symbol="Forward" />
                     </AppBarButton.Icon>
                 </AppBarButton>
+                <AppBarButton Label="{Binding Texts.VapourSynthSnippetButton}">
+                    <AppBarButton.Icon>
+                        <SymbolIcon Symbol="Edit" />
+                    </AppBarButton.Icon>
+                    <AppBarButton.Flyout>
+                        <MenuFlyout>
+                            <MenuFlyoutItem
+                                Click="InsertSnippetMenuItem_Click"
+                                Tag="lsmas-source"
+                                Text="{x:Bind ViewModel.Texts.VapourSynthSnippetLsmasSource, Mode=OneWay}" />
+                            <MenuFlyoutItem
+                                Click="InsertSnippetMenuItem_Click"
+                                Tag="crop-fill-margins"
+                                Text="{x:Bind ViewModel.Texts.VapourSynthSnippetCropAndFillMargins, Mode=OneWay}" />
+                            <MenuFlyoutItem
+                                Click="InsertSnippetMenuItem_Click"
+                                Tag="resize-format"
+                                Text="{x:Bind ViewModel.Texts.VapourSynthSnippetResizeFormat, Mode=OneWay}" />
+                            <MenuFlyoutItem
+                                Click="InsertSnippetMenuItem_Click"
+                                Tag="compare-outputs"
+                                Text="{x:Bind ViewModel.Texts.VapourSynthSnippetCompareOutputs, Mode=OneWay}" />
+                            <MenuFlyoutItem
+                                Click="InsertSnippetMenuItem_Click"
+                                Tag="vivtc-ivtc"
+                                Text="{x:Bind ViewModel.Texts.VapourSynthSnippetVivtcIvtc, Mode=OneWay}" />
+                        </MenuFlyout>
+                    </AppBarButton.Flyout>
+                </AppBarButton>
                 <AppBarSeparator />
                 <AppBarButton x:Name="EncodeButton" Click="EncodeButton_Click" Label="{Binding Texts.VapourSynthEncodeButton}">
                     <AppBarButton.Icon>

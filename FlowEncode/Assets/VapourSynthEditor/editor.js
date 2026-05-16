@@ -571,18 +571,18 @@ function buildInsertionRange(target) {
 
 function insertText(payload) {
     if (!editorInstance || !editorModel || typeof monaco === "undefined") {
-        return;
+        return false;
     }
 
     const text = normalizeText(payload?.text);
     if (!text) {
-        return;
+        return false;
     }
 
     const target = normalizeText(payload?.target);
     const range = buildInsertionRange(target);
     if (!range) {
-        return;
+        return false;
     }
 
     let insertValue = text;
@@ -590,37 +590,68 @@ function insertText(payload) {
         insertValue = "\n" + insertValue;
     }
 
-    editorInstance.executeEdits("vsWorkspaceHost", [{
+    const beforeValue = editorModel.getValue();
+    const applied = editorInstance.executeEdits("vsWorkspaceHost", [{
         range,
         text: insertValue,
         forceMoveMarkers: true
     }]);
 
+    if (!applied || editorModel.getValue() === beforeValue) {
+        return false;
+    }
+
+    queueBufferBroadcast();
+    queueCursorBroadcast();
     focusEditor();
+    return true;
+}
+
+function stripSnippetPlaceholders(snippet) {
+    return snippet
+        .replace(/\$\{[0-9]+:([^}]*)\}/g, "$1")
+        .replace(/\$\{[0-9]+\}/g, "")
+        .replace(/\$[0-9]+/g, "");
 }
 
 function insertSnippet(payload) {
     if (!editorInstance || !editorModel || typeof monaco === "undefined") {
-        return;
+        return false;
     }
 
     const snippet = normalizeText(payload?.snippet);
     if (!snippet) {
-        return;
+        return false;
     }
 
     const target = normalizeText(payload?.target);
     const range = buildInsertionRange(target);
     if (!range) {
-        return;
+        return false;
     }
+
+    const snippetText = target === "newLine" && editorModel.getValueLength() > 0
+        ? "\n" + snippet
+        : snippet;
 
     editorInstance.setSelection(range);
     editorInstance.focus();
-    editorInstance.trigger("vsWorkspaceHost", "editor.action.insertSnippet", {
-        snippet: target === "newLine" && editorModel.getValueLength() > 0
-            ? "\n" + snippet
-            : snippet
+
+    const snippetController = editorInstance.getContribution?.("snippetController2");
+    if (snippetController && typeof snippetController.insert === "function") {
+        const beforeValue = editorModel.getValue();
+        snippetController.insert(snippetText);
+        if (editorModel.getValue() !== beforeValue) {
+            queueBufferBroadcast();
+            queueCursorBroadcast();
+            focusEditor();
+            return true;
+        }
+    }
+
+    return insertText({
+        text: stripSnippetPlaceholders(snippetText),
+        target: "cursor"
     });
 }
 

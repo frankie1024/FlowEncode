@@ -559,6 +559,49 @@ public sealed partial class VapourSynthWorkspaceView : UserControl, IDisposable
         await RunUiActionAsync(() => ExecuteEditorCommandAsync("goto"));
     }
 
+    private async void InsertSnippetMenuItem_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is not MenuFlyoutItem { Tag: string snippetId })
+        {
+            return;
+        }
+
+        await RunUiActionAsync(() => InsertSnippetAsync(snippetId));
+    }
+
+    private async Task InsertSnippetAsync(string snippetId)
+    {
+        var snippet = VapourSynthSnippetLibrary.FindById(snippetId);
+        if (snippet is null)
+        {
+            return;
+        }
+
+        var activePane = GetActiveEditorPane();
+        if (!activePane.IsEditorReady)
+        {
+            ViewModel.SetWorkspaceStatus(static texts => texts.VapourSynthEditorLoadingStatus);
+            return;
+        }
+
+        var beforeSnapshot = await activePane.CaptureStateAsync();
+        var inserted = await activePane.InsertSnippetAsync(snippet.InsertText, snippet.InsertOnNewLine);
+        var afterSnapshot = inserted
+            ? await activePane.CaptureStateAsync()
+            : null;
+
+        if (!inserted || !HasEditorTextChanged(beforeSnapshot, afterSnapshot))
+        {
+            ViewModel.SetWorkspaceStatus(static texts => texts.VapourSynthSnippetInsertFailedStatus);
+            return;
+        }
+
+        ApplyEditorSnapshot(activePane, afterSnapshot!);
+        await activePane.FocusEditorAsync();
+        ViewModel.SetWorkspaceStatus(texts =>
+            texts.VapourSynthSnippetInsertedStatus(texts.VapourSynthSnippetLabel(snippet.Id)));
+    }
+
     private async Task StartNewDocumentAsync()
     {
         await CaptureActiveEditorStateAsync();
@@ -822,13 +865,7 @@ public sealed partial class VapourSynthWorkspaceView : UserControl, IDisposable
             }
 
             var previousPane = ViewModel.ActivePane;
-            ViewModel.ActivatePane(pane.PaneKind);
-            ViewModel.ApplyEditorBuffer(
-                snapshot.Text,
-                snapshot.Line,
-                snapshot.Column,
-                snapshot.LineCount,
-                snapshot.CharCount);
+            ApplyEditorSnapshot(pane, snapshot);
 
             if (preserveActivePane)
             {
@@ -839,6 +876,25 @@ public sealed partial class VapourSynthWorkspaceView : UserControl, IDisposable
         {
             ViewModel.SetWorkspaceStatus(texts => texts.VapourSynthEditorBridgeFailedStatus(ex.Message));
         }
+    }
+
+    private void ApplyEditorSnapshot(VapourSynthEditorPaneView pane, VapourSynthEditorPaneSnapshot snapshot)
+    {
+        ViewModel.ActivatePane(pane.PaneKind);
+        ViewModel.ApplyEditorBuffer(
+            snapshot.Text,
+            snapshot.Line,
+            snapshot.Column,
+            snapshot.LineCount,
+            snapshot.CharCount);
+    }
+
+    private static bool HasEditorTextChanged(
+        VapourSynthEditorPaneSnapshot? beforeSnapshot,
+        VapourSynthEditorPaneSnapshot? afterSnapshot)
+    {
+        return afterSnapshot is not null
+            && !string.Equals(beforeSnapshot?.Text ?? string.Empty, afterSnapshot.Text, StringComparison.Ordinal);
     }
 
     private async Task WarmupPythonLanguageServerAsync()

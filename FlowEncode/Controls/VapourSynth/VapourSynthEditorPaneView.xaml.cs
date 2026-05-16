@@ -177,11 +177,11 @@ public sealed partial class VapourSynthEditorPaneView : UserControl, IDisposable
         await ExecuteEditorCommandAsync("focus");
     }
 
-    public async Task InsertTextAsync(string text, bool onNewLine)
+    public async Task<bool> InsertTextAsync(string text, bool onNewLine)
     {
         if (!IsEditorReady)
         {
-            return;
+            return false;
         }
 
         var payload = JsonSerializer.Serialize(new
@@ -190,14 +190,15 @@ public sealed partial class VapourSynthEditorPaneView : UserControl, IDisposable
             target = onNewLine ? "newLine" : "cursor"
         });
 
-        await EditorWebView.ExecuteScriptAsync($"window.vsWorkspaceHost.insertText({payload});");
+        var resultJson = await EditorWebView.ExecuteScriptAsync($"window.vsWorkspaceHost.insertText({payload});");
+        return JsonSerializer.Deserialize<bool>(resultJson);
     }
 
-    public async Task InsertSnippetAsync(string snippet, bool onNewLine)
+    public async Task<bool> InsertSnippetAsync(string snippet, bool onNewLine)
     {
         if (!IsEditorReady)
         {
-            return;
+            return false;
         }
 
         var payload = JsonSerializer.Serialize(new
@@ -206,7 +207,8 @@ public sealed partial class VapourSynthEditorPaneView : UserControl, IDisposable
             target = onNewLine ? "newLine" : "cursor"
         });
 
-        await EditorWebView.ExecuteScriptAsync($"window.vsWorkspaceHost.insertSnippet({payload});");
+        var resultJson = await EditorWebView.ExecuteScriptAsync($"window.vsWorkspaceHost.insertSnippet({payload});");
+        return JsonSerializer.Deserialize<bool>(resultJson);
     }
 
     public async Task SendLanguageResponseAsync(object payload)
