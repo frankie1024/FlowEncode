@@ -16,7 +16,7 @@ public sealed class LocalEncodingJobRunnerColorMetadataTests
             colorTransfer: "smpte2084",
             colorMatrix: "bt2020nc");
 
-        var arguments = LocalEncodingJobRunner.BuildEncoderColorMetadataArguments(
+        var arguments = EncodingCommandBuilder.BuildEncoderColorMetadataArguments(
             EncoderKind.X265,
             sourceInfo,
             additionalArguments: string.Empty,
@@ -35,7 +35,7 @@ public sealed class LocalEncodingJobRunnerColorMetadataTests
             colorMatrix: "bt2020nc",
             chromaLocation: "left");
 
-        var arguments = LocalEncodingJobRunner.BuildEncoderColorMetadataArguments(
+        var arguments = EncodingCommandBuilder.BuildEncoderColorMetadataArguments(
             EncoderKind.SvtAv1,
             sourceInfo,
             additionalArguments: string.Empty,
@@ -53,7 +53,7 @@ public sealed class LocalEncodingJobRunnerColorMetadataTests
             colorTransfer: "smpte2084",
             colorMatrix: "bt2020nc");
 
-        var arguments = LocalEncodingJobRunner.BuildEncoderColorMetadataArguments(
+        var arguments = EncodingCommandBuilder.BuildEncoderColorMetadataArguments(
             EncoderKind.X265,
             sourceInfo,
             additionalArguments: "--colorprim bt709",
@@ -71,7 +71,7 @@ public sealed class LocalEncodingJobRunnerColorMetadataTests
             colorTransfer: "smpte2084",
             colorMatrix: "bt2020nc");
 
-        var arguments = LocalEncodingJobRunner.BuildEncoderColorMetadataArguments(
+        var arguments = EncodingCommandBuilder.BuildEncoderColorMetadataArguments(
             EncoderKind.X265,
             sourceInfo,
             additionalArguments: string.Empty,
