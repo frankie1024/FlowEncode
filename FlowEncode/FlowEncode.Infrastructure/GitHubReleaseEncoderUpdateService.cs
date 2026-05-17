@@ -145,6 +145,8 @@ public sealed class GitHubReleaseEncoderUpdateService : IEncoderUpdateService, I
                 throw new FileNotFoundException($"安装完成后未找到 {expectedBinaryName}。", expectedBinaryPath);
             }
 
+            BestEffortCleanup.DeleteFile(downloadPath, $"编码器更新包 '{package.AssetName}'", WriteDiagnostic);
+
             return expectedBinaryPath;
         }
         finally

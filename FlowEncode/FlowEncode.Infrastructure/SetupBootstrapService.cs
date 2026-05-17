@@ -56,6 +56,8 @@ public sealed class SetupBootstrapService : ISetupBootstrapService, IDisposable
         _externalToolService = externalToolService;
         _apiHttpClient = httpClientFactory.CreateClient(FlowEncodeHttpClientProfile.Api);
         _downloadHttpClient = httpClientFactory.CreateClient(FlowEncodeHttpClientProfile.Download);
+
+        CleanupStaleDownloads();
     }
 
     public Task<SetupDependencyStatusReport> GetStatusReportAsync(
@@ -1404,12 +1406,11 @@ public sealed class SetupBootstrapService : ISetupBootstrapService, IDisposable
 
     private static ReadinessState ResolveCompositeState(params ToolProbeResult[] results)
     {
-        var requirements = new[]
-        {
-            new CapabilityRequirementReadiness(
-                new CapabilityToolRequirement(results.Select(static result => result.Kind).ToArray()),
-                results)
-        };
+        var requirements = results
+            .Select(result => new CapabilityRequirementReadiness(
+                new CapabilityToolRequirement(result.Kind),
+                [result]))
+            .ToArray();
 
         return ReadinessStateResolver.ResolveFromRequirements(requirements);
     }
@@ -1467,13 +1468,17 @@ public sealed class SetupBootstrapService : ISetupBootstrapService, IDisposable
             return null;
         }
 
-        var normalized = NormalizeVapourSynthVersion(value);
-        var versionMatch = Regex.Match(normalized, "(\\d+\\.\\d+(?:\\.\\d+)*)");
+        // Try semver-style extraction on the original string first (e.g. "4.1.0", "SVT-AV1 Encoder Lib v4.1.0").
+        // This must happen before NormalizeVapourSynthVersion because that function collapses
+        // "4.1.0" to "R4" (first standalone digit), losing minor/patch information.
+        var versionMatch = Regex.Match(value, "(\\d+\\.\\d+(?:\\.\\d+)*)");
         if (versionMatch.Success && Version.TryParse(versionMatch.Value, out var parsedVersion))
         {
             return parsedVersion;
         }
 
+        // Fall back to VapourSynth R-style versioning (e.g. "R70", "VapourSynth R70").
+        var normalized = NormalizeVapourSynthVersion(value);
         var releaseMatch = Regex.Match(normalized, "R(\\d+)", RegexOptions.IgnoreCase);
         if (releaseMatch.Success && int.TryParse(releaseMatch.Groups[1].Value, out var releaseNumber))
         {
@@ -1481,6 +1486,36 @@ public sealed class SetupBootstrapService : ISetupBootstrapService, IDisposable
         }
 
         return null;
+    }
+
+    private void CleanupStaleDownloads()
+    {
+        var downloadsRoot = _paths.DownloadsRootPath;
+        if (string.IsNullOrWhiteSpace(downloadsRoot) || !Directory.Exists(downloadsRoot))
+        {
+            return;
+        }
+
+        Action<string> logFailure = message =>
+            AppDiagnosticsLog.Write(_paths, nameof(SetupBootstrapService), message, AppDiagnosticSeverity.Warning);
+
+        foreach (var file in Directory.EnumerateFiles(downloadsRoot))
+        {
+            if (file.EndsWith(".7z", StringComparison.OrdinalIgnoreCase)
+                || file.EndsWith(".zip", StringComparison.OrdinalIgnoreCase))
+            {
+                BestEffortCleanup.DeleteFile(file, $"过期下载文件 '{Path.GetFileName(file)}'", logFailure);
+            }
+        }
+
+        var appUpdatesDir = Path.Combine(downloadsRoot, "app-updates");
+        if (Directory.Exists(appUpdatesDir))
+        {
+            foreach (var oldFolder in Directory.EnumerateDirectories(appUpdatesDir))
+            {
+                BestEffortCleanup.DeleteDirectoryRecursively(oldFolder, $"旧版更新包 '{Path.GetFileName(oldFolder)}'", logFailure);
+            }
+        }
     }
 
     private static string NormalizeVapourSynthVersion(string value)

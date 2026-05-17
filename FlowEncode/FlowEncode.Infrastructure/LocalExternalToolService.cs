@@ -174,6 +174,7 @@ public sealed class LocalExternalToolService : IExternalToolService, IDisposable
         {
             var targetPath = GetLocalToolPath(package.Kind);
             await CopyFileAsync(downloadPath, targetPath, cancellationToken);
+            BestEffortCleanup.DeleteFile(downloadPath, $"工具更新包 '{package.AssetName}'", WriteDiagnostic);
             return targetPath;
         }
 
@@ -184,12 +185,15 @@ public sealed class LocalExternalToolService : IExternalToolService, IDisposable
         {
             ExtractArchive(downloadPath, extractRoot);
 
-            return package.Kind switch
+            var result = package.Kind switch
             {
                 ExternalToolKind.Av1an => await InstallAv1anFromExtractedAsync(extractRoot, cancellationToken),
                 ExternalToolKind.Ffmpeg => await InstallFfmpegFromExtractedAsync(extractRoot, cancellationToken),
                 _ => throw new ArgumentOutOfRangeException()
             };
+
+            BestEffortCleanup.DeleteFile(downloadPath, $"工具更新包 '{package.AssetName}'", WriteDiagnostic);
+            return result;
         }
         finally
         {

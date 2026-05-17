@@ -182,6 +182,7 @@ public sealed class GitHubAppUpdateService : IAppUpdateService, IDisposable
         {
             await VerifySha256Async(downloadPath, updateResult.InstallerSha256!, cancellationToken);
             progress?.Report(1.0);
+            CleanupOldAppUpdateFolders(downloadDirectory);
             return downloadPath;
         }
         catch (Exception ex)
@@ -212,6 +213,25 @@ public sealed class GitHubAppUpdateService : IAppUpdateService, IDisposable
     private void WriteDiagnostic(string message)
     {
         AppDiagnosticsLog.Write(_paths, nameof(GitHubAppUpdateService), message);
+    }
+
+    private void CleanupOldAppUpdateFolders(string currentDownloadDirectory)
+    {
+        var appUpdatesRoot = Path.GetDirectoryName(currentDownloadDirectory);
+        if (string.IsNullOrWhiteSpace(appUpdatesRoot) || !Directory.Exists(appUpdatesRoot))
+        {
+            return;
+        }
+
+        foreach (var oldFolder in Directory.EnumerateDirectories(appUpdatesRoot))
+        {
+            if (string.Equals(oldFolder, currentDownloadDirectory, StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
+            BestEffortCleanup.DeleteDirectoryRecursively(oldFolder, $"旧版更新包 '{Path.GetFileName(oldFolder)}'", WriteDiagnostic);
+        }
     }
 
     private static string GetCurrentVersionLabel()
