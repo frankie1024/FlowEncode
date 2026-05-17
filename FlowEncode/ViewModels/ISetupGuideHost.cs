@@ -30,4 +30,6 @@ public interface ISetupGuideHost
     void NotifyEnvironmentReadinessChanged();
 
     void NotifyBusyChanged();
+
+    void InvalidateToolProbeCache();
 }

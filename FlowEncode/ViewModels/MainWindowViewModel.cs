@@ -321,6 +321,12 @@ public partial class MainWindowViewModel : CommunityToolkit.Mvvm.ComponentModel.
         OnPropertyChanged(nameof(IsBusy));
     }
 
+    void ISetupGuideHost.InvalidateToolProbeCache()
+    {
+        _toolProbeService.InvalidateCache();
+        _encoderDiscoveryService.InvalidateCache();
+    }
+
     internal bool HasRunningJobs => Jobs.Any(static job => job.State == EncodingJobState.Running);
 
     internal bool HasRunningAppWork => HasRunningJobs

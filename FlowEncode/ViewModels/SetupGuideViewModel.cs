@@ -333,6 +333,7 @@ public sealed class SetupGuideViewModel : ObservableObject, ISetupDependencyModu
         {
             var progress = new Progress<SetupInstallProgress>(item.ReportProgress);
             await _setupBootstrapService.InstallAsync(kind, progress);
+            _host.InvalidateToolProbeCache();
             await _host.RefreshAsync(Texts.Pick("首启依赖操作完成。", "Setup dependency action completed."), includeUpdates: false);
             shouldRefreshSetupGuideStatus = true;
         }
@@ -446,6 +447,7 @@ public sealed class SetupGuideViewModel : ObservableObject, ISetupDependencyModu
         }
 
         var title = GetSetupDependencyTitle(kind);
+        _host.InvalidateToolProbeCache();
         await _host.RefreshAsync(Texts.ManualToolPinnedStatus(title), includeUpdates: false);
         await RefreshSetupGuideAfterDependencyMutationAsync();
         RestoreSetupGuideCardSelection(selectedCardIndex);
@@ -485,6 +487,7 @@ public sealed class SetupGuideViewModel : ObservableObject, ISetupDependencyModu
         }
 
         var title = GetSetupDependencyTitle(kind);
+        _host.InvalidateToolProbeCache();
         await _host.RefreshAsync(Texts.ManualToolPinClearedStatus(title), includeUpdates: false);
         await RefreshSetupGuideAfterDependencyMutationAsync();
         RestoreSetupGuideCardSelection(selectedCardIndex);
@@ -522,6 +525,7 @@ public sealed class SetupGuideViewModel : ObservableObject, ISetupDependencyModu
             await CopySetupDependencyBinaryAsync(kind, sourcePath);
             item.ReportProgress(new SetupInstallProgress(kind, 100, Texts.Pick("本地文件已导入。", "Local file imported."), false));
 
+            _host.InvalidateToolProbeCache();
             await _host.RefreshAsync(Texts.SetupDependencyImportedStatus(item.Title), includeUpdates: false);
             shouldRefreshSetupGuideStatus = true;
         }
@@ -569,6 +573,7 @@ public sealed class SetupGuideViewModel : ObservableObject, ISetupDependencyModu
         {
             var progress = new Progress<SetupInstallProgress>(item.ReportProgress);
             await _setupBootstrapService.UninstallAsync(kind, progress);
+            _host.InvalidateToolProbeCache();
             await _host.RefreshAsync(Texts.SetupDependencyUninstalledStatus(item.Title), includeUpdates: false);
             shouldRefreshSetupGuideStatus = true;
         }
