@@ -117,10 +117,11 @@ public sealed class ProcessToolProbeService : IToolProbeService
             _ => throw new ArgumentOutOfRangeException(nameof(definition), definition.Kind, null)
         };
 
+        var settings = _settingsService.Load();
         var resolved = _encoderDiscoveryService.ResolveEncoder(
             encoderKind,
             EncoderArchitecture.X64,
-            preferSystemEncoders: true);
+            settings.PreferSystemEncoders);
 
         if (resolved is null)
         {
