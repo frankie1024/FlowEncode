@@ -13,6 +13,6 @@ public sealed record ExternalToolUpdatePackage(
 {
     public string ToolLabel => Kind.ToDisplayName();
 
-    public string PublishedLabel => PublishedAt.LocalDateTime.ToString("yyyy-MM-dd HH:mm");
+    public string PublishedLabel => PublishedAt.ToPublishedLabel();
 }
 

@@ -10,7 +10,7 @@ public sealed record DiscoveredEncoderBinary(
 {
     public string KindLabel => Kind.ToDisplayName();
 
-    public string ArchitectureLabel => Architecture == EncoderArchitecture.X64 ? "x64" : "x86";
+    public string ArchitectureLabel => Architecture.ToDisplayName();
 
     public string SourceTypeLabel => Source switch
     {

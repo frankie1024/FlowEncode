@@ -14,7 +14,7 @@ public sealed record EncoderUpdatePackage(
 {
     public string EncoderLabel => Kind.ToDisplayName();
 
-    public string ArchitectureLabel => Architecture == EncoderArchitecture.X64 ? "x64" : "x86";
+    public string ArchitectureLabel => Architecture.ToDisplayName();
 
-    public string PublishedLabel => PublishedAt.LocalDateTime.ToString("yyyy-MM-dd HH:mm");
+    public string PublishedLabel => PublishedAt.ToPublishedLabel();
 }

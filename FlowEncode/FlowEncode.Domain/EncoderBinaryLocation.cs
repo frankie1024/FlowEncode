@@ -10,7 +10,7 @@ public sealed record EncoderBinaryLocation(
     string DetectedVersion,
     string StatusLabel)
 {
-    public string ArchitectureLabel => Architecture == EncoderArchitecture.X64 ? "x64" : "x86";
+    public string ArchitectureLabel => Architecture.ToDisplayName();
 
     public string ImportToken => $"{Kind}|{Architecture}";
 }
