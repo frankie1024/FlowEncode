@@ -1,6 +1,4 @@
-using System.Security.Cryptography;
 using System.Text.Json;
-using System.Text.Json.Serialization;
 using System.Text.RegularExpressions;
 using FlowEncode.Application;
 using FlowEncode.Domain;
@@ -96,7 +94,11 @@ public sealed class GitHubReleaseEncoderUpdateService : IEncoderUpdateService, I
         try
         {
             await DownloadAsync(package.DownloadUrl, downloadPath, cancellationToken);
-            await VerifySha256Async(downloadPath, package.Sha256, cancellationToken);
+            await PackageIntegrityVerifier.VerifySha256Async(
+                downloadPath,
+                package.Sha256,
+                cancellationToken,
+                "编码器更新包");
 
             Directory.CreateDirectory(extractRoot);
             ExtractArchive(downloadPath, extractRoot);
@@ -286,7 +288,7 @@ public sealed class GitHubReleaseEncoderUpdateService : IEncoderUpdateService, I
             return null;
         }
 
-        var assetSelection = release.Assets
+        var assetSelection = (release.Assets ?? [])
             .Where(assetFilter)
             .Select(asset => new
             {
@@ -304,7 +306,7 @@ public sealed class GitHubReleaseEncoderUpdateService : IEncoderUpdateService, I
         }
 
         var asset = assetSelection.Asset;
-        var sha256 = NormalizeSha256(asset.Digest);
+        var sha256 = PackageIntegrityVerifier.NormalizeSha256Digest(asset.Digest);
         var isAutomatic = !string.IsNullOrWhiteSpace(sha256);
         var compatibilityNote = EncoderCpuCompatibilityPolicy.BuildSelectionNote(_cpuProfile, assetSelection.Compatibility);
         var resolvedNotes = isAutomatic
@@ -332,30 +334,6 @@ public sealed class GitHubReleaseEncoderUpdateService : IEncoderUpdateService, I
         response.EnsureSuccessStatusCode();
         await using var stream = await response.Content.ReadAsStreamAsync(cancellationToken);
         await stream.CopyToAsync(target, cancellationToken);
-    }
-
-    private static async Task VerifySha256Async(string filePath, string expectedHash, CancellationToken cancellationToken)
-    {
-        await using var stream = File.OpenRead(filePath);
-        var hash = await SHA256.HashDataAsync(stream, cancellationToken);
-        var actual = Convert.ToHexString(hash).ToLowerInvariant();
-
-        if (!string.Equals(actual, expectedHash, StringComparison.OrdinalIgnoreCase))
-        {
-            throw new InvalidOperationException("下载完成，但 SHA256 校验失败，已停止安装。");
-        }
-    }
-
-    private static string? NormalizeSha256(string? digest)
-    {
-        if (string.IsNullOrWhiteSpace(digest))
-        {
-            return null;
-        }
-
-        return digest.StartsWith("sha256:", StringComparison.OrdinalIgnoreCase)
-            ? digest["sha256:".Length..]
-            : digest;
     }
 
     private static string ResolveGitHubReleaseLabel(GitHubRelease release, string? assetName = null)
@@ -405,15 +383,4 @@ public sealed class GitHubReleaseEncoderUpdateService : IEncoderUpdateService, I
         return null;
     }
 
-    private sealed record GitHubRelease(
-        [property: JsonPropertyName("tag_name")] string TagName,
-        [property: JsonPropertyName("name")] string? Name,
-        [property: JsonPropertyName("html_url")] string HtmlUrl,
-        [property: JsonPropertyName("published_at")] DateTimeOffset PublishedAt,
-        [property: JsonPropertyName("assets")] List<GitHubReleaseAsset> Assets);
-
-    private sealed record GitHubReleaseAsset(
-        [property: JsonPropertyName("name")] string Name,
-        [property: JsonPropertyName("browser_download_url")] string BrowserDownloadUrl,
-        [property: JsonPropertyName("digest")] string? Digest);
 }

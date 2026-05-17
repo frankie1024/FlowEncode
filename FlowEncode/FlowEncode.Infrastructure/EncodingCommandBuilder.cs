@@ -167,35 +167,18 @@ internal sealed class EncodingCommandBuilder
         string profileValue,
         string statsPath)
     {
-        var pass1Command = BuildEncoderCommand(
+        return BuildTwoPassSteps(
             request,
             encoderPath,
+            sourceCommand,
             pipelineKind,
             sourceInfo,
             includeX265UhdParameters,
             preset,
             tune,
             profileValue,
-            "NUL",
-            BuildRateControlArguments(request.Profile.Kind, request.Profile, statsPath, passIndex: 1, passCount: 2));
-
-        var pass2Command = BuildEncoderCommand(
-            request,
-            encoderPath,
-            pipelineKind,
-            sourceInfo,
-            includeX265UhdParameters,
-            preset,
-            tune,
-            profileValue,
-            request.OutputPath,
-            BuildRateControlArguments(request.Profile.Kind, request.Profile, statsPath, passIndex: 2, passCount: 2));
-
-        return
-        [
-            CreateExecutionStep(sourceCommand, pipelineKind, pass1Command, 1, 2),
-            CreateExecutionStep(sourceCommand, pipelineKind, pass2Command, 2, 2)
-        ];
+            statsPath,
+            requireSourceInfo: false);
     }
 
     private static IReadOnlyList<EncodingExecutionStep> BuildSvtTwoPassSteps(
@@ -209,15 +192,43 @@ internal sealed class EncodingCommandBuilder
         string profileValue,
         string statsPath)
     {
-        var resolvedSourceInfo = sourceInfo
-            ?? throw new InvalidOperationException("SVT-AV1 two-pass encoding requires detectable source metadata.");
+        return BuildTwoPassSteps(
+            request,
+            encoderPath,
+            sourceCommand,
+            pipelineKind,
+            sourceInfo,
+            includeX265UhdParameters: false,
+            preset,
+            tune,
+            profileValue,
+            statsPath,
+            requireSourceInfo: true);
+    }
+
+    private static IReadOnlyList<EncodingExecutionStep> BuildTwoPassSteps(
+        EncodingJobRequest request,
+        string encoderPath,
+        ProcessCommand? sourceCommand,
+        InputPipelineKind pipelineKind,
+        SourceVideoInfo? sourceInfo,
+        bool includeX265UhdParameters,
+        string preset,
+        string tune,
+        string profileValue,
+        string statsPath,
+        bool requireSourceInfo)
+    {
+        var resolvedSourceInfo = requireSourceInfo
+            ? sourceInfo ?? throw new InvalidOperationException("SVT-AV1 two-pass encoding requires detectable source metadata.")
+            : sourceInfo;
 
         var pass1Command = BuildEncoderCommand(
             request,
             encoderPath,
             pipelineKind,
             resolvedSourceInfo,
-            includeX265UhdParameters: false,
+            includeX265UhdParameters,
             preset,
             tune,
             profileValue,
@@ -229,7 +240,7 @@ internal sealed class EncodingCommandBuilder
             encoderPath,
             pipelineKind,
             resolvedSourceInfo,
-            includeX265UhdParameters: false,
+            includeX265UhdParameters,
             preset,
             tune,
             profileValue,

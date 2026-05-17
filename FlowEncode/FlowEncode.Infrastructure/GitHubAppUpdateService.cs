@@ -2,9 +2,7 @@ using System.Linq;
 using System.Net;
 using System.Net.Http.Headers;
 using System.Reflection;
-using System.Security.Cryptography;
 using System.Text.Json;
-using System.Text.Json.Serialization;
 using System.Text.RegularExpressions;
 using FlowEncode.Application;
 using FlowEncode.Domain;
@@ -76,7 +74,7 @@ public sealed class GitHubAppUpdateService : IAppUpdateService, IDisposable
             currentVersionNewerThanRelease,
             installerAsset?.Name,
             installerAsset?.BrowserDownloadUrl,
-            NormalizeSha256(installerAsset?.Digest));
+            PackageIntegrityVerifier.NormalizeSha256Digest(installerAsset?.Digest));
     }
 
     private async Task<ComparableRelease?> TryGetLatestReleaseAsync(CancellationToken cancellationToken)
@@ -158,7 +156,11 @@ public sealed class GitHubAppUpdateService : IAppUpdateService, IDisposable
         {
             try
             {
-                await VerifySha256Async(downloadPath, updateResult.InstallerSha256!, cancellationToken);
+                await PackageIntegrityVerifier.VerifySha256Async(
+                    downloadPath,
+                    updateResult.InstallerSha256!,
+                    cancellationToken,
+                    "应用更新安装包");
                 progress?.Report(1.0);
                 CleanupOldAppUpdateFolders(downloadDirectory);
                 return downloadPath;
@@ -174,7 +176,11 @@ public sealed class GitHubAppUpdateService : IAppUpdateService, IDisposable
 
         try
         {
-            await VerifySha256Async(downloadPath, updateResult.InstallerSha256!, cancellationToken);
+            await PackageIntegrityVerifier.VerifySha256Async(
+                downloadPath,
+                updateResult.InstallerSha256!,
+                cancellationToken,
+                "应用更新安装包");
             progress?.Report(1.0);
             CleanupOldAppUpdateFolders(downloadDirectory);
             return downloadPath;
@@ -269,18 +275,6 @@ public sealed class GitHubAppUpdateService : IAppUpdateService, IDisposable
             && assetName.Contains("flowencode", StringComparison.OrdinalIgnoreCase);
     }
 
-    private static string? NormalizeSha256(string? digest)
-    {
-        if (string.IsNullOrWhiteSpace(digest))
-        {
-            return null;
-        }
-
-        return digest.StartsWith("sha256:", StringComparison.OrdinalIgnoreCase)
-            ? digest["sha256:".Length..]
-            : digest;
-    }
-
     private static string SanitizePathSegment(string value)
     {
         if (string.IsNullOrWhiteSpace(value))
@@ -343,18 +337,6 @@ public sealed class GitHubAppUpdateService : IAppUpdateService, IDisposable
 
             lastReportedPercent = percent;
             progress?.Report(percent / 100.0);
-        }
-    }
-
-    private static async Task VerifySha256Async(string filePath, string expectedHash, CancellationToken cancellationToken)
-    {
-        await using var stream = File.OpenRead(filePath);
-        var hash = await SHA256.HashDataAsync(stream, cancellationToken);
-        var actual = Convert.ToHexString(hash).ToLowerInvariant();
-
-        if (!string.Equals(actual, expectedHash, StringComparison.OrdinalIgnoreCase))
-        {
-            throw new InvalidOperationException("下载完成，但 SHA256 校验失败，已停止安装。");
         }
     }
 
@@ -475,17 +457,4 @@ public sealed class GitHubAppUpdateService : IAppUpdateService, IDisposable
         string VersionLabel,
         ParsedVersionLabel? ParsedVersion);
 
-    private sealed record GitHubRelease(
-        [property: JsonPropertyName("tag_name")] string TagName,
-        [property: JsonPropertyName("name")] string? Name,
-        [property: JsonPropertyName("html_url")] string HtmlUrl,
-        [property: JsonPropertyName("published_at")] DateTimeOffset PublishedAt,
-        [property: JsonPropertyName("draft")] bool Draft,
-        [property: JsonPropertyName("prerelease")] bool Prerelease,
-        [property: JsonPropertyName("assets")] List<GitHubReleaseAsset>? Assets);
-
-    private sealed record GitHubReleaseAsset(
-        [property: JsonPropertyName("name")] string Name,
-        [property: JsonPropertyName("browser_download_url")] string BrowserDownloadUrl,
-        [property: JsonPropertyName("digest")] string? Digest);
 }

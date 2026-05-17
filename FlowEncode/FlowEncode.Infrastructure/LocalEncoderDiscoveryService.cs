@@ -50,9 +50,6 @@ public sealed class LocalEncoderDiscoveryService : IEncoderDiscoveryService
                 candidate.ExecutablePath,
                 candidate.Source,
                 candidate.SourceLabel))
-            .OrderBy(static item => item.Kind)
-            .ThenBy(static item => item.Source)
-            .ThenBy(static item => item.ExecutablePath, StringComparer.OrdinalIgnoreCase)
             .ToArray();
 
         lock (_systemDiscoveryCacheGate)
@@ -100,7 +97,7 @@ public sealed class LocalEncoderDiscoveryService : IEncoderDiscoveryService
                     ?? Environment.GetEnvironmentVariable(variableName, EnvironmentVariableTarget.User)
                     ?? Environment.GetEnvironmentVariable(variableName, EnvironmentVariableTarget.Machine);
 
-                var resolvedPath = ResolveFromInput(value, kind);
+                var resolvedPath = ExecutablePathResolver.ResolveFromInput(value, ExecutableNames[kind], EnumerateCurrentPathRoots());
                 if (string.IsNullOrWhiteSpace(resolvedPath) || !seen.Add($"{kind}:{resolvedPath}"))
                 {
                     continue;
@@ -300,57 +297,25 @@ public sealed class LocalEncoderDiscoveryService : IEncoderDiscoveryService
             yield break;
         }
 
-        var resolvedPath = ResolveFromInput(value, kind);
+        var resolvedPath = ExecutablePathResolver.ResolveFromInput(value, ExecutableNames[kind], EnumerateCurrentPathRoots());
         if (!string.IsNullOrWhiteSpace(resolvedPath))
         {
             yield return resolvedPath;
         }
     }
 
-    private static string? ResolveFromInput(string? value, EncoderKind kind)
+    private static IEnumerable<string> EnumerateCurrentPathRoots()
     {
-        if (string.IsNullOrWhiteSpace(value))
+        var pathVariable = Environment.GetEnvironmentVariable("PATH");
+        if (string.IsNullOrWhiteSpace(pathVariable))
         {
-            return null;
+            yield break;
         }
 
-        var normalized = value.Trim().Trim('"');
-        if (File.Exists(normalized))
+        foreach (var root in pathVariable.Split(Path.PathSeparator, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
         {
-            return Path.GetFullPath(normalized);
+            yield return root;
         }
-
-        if (Directory.Exists(normalized))
-        {
-            foreach (var fileName in ExecutableNames[kind])
-            {
-                var candidate = Path.Combine(normalized, fileName);
-                if (File.Exists(candidate))
-                {
-                    return Path.GetFullPath(candidate);
-                }
-            }
-
-            return null;
-        }
-
-        if (!normalized.Contains(Path.DirectorySeparatorChar) && !normalized.Contains(Path.AltDirectorySeparatorChar))
-        {
-            var pathVariable = Environment.GetEnvironmentVariable("PATH");
-            if (!string.IsNullOrWhiteSpace(pathVariable))
-            {
-                foreach (var root in pathVariable.Split(Path.PathSeparator, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
-                {
-                    var candidate = Path.Combine(root, normalized);
-                    if (File.Exists(candidate))
-                    {
-                        return Path.GetFullPath(candidate);
-                    }
-                }
-            }
-        }
-
-        return null;
     }
 
     private sealed record SystemDiscoveryCacheSnapshot(

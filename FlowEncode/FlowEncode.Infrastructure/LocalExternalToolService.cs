@@ -1,8 +1,6 @@
 using System.Diagnostics;
 using System.IO.Compression;
-using System.Security.Cryptography;
 using System.Text.Json;
-using System.Text.Json.Serialization;
 using System.Text.RegularExpressions;
 using FlowEncode.Application;
 using FlowEncode.Domain;
@@ -52,7 +50,7 @@ public sealed class LocalExternalToolService : IExternalToolService, IDisposable
                     ?? Environment.GetEnvironmentVariable(variableName, EnvironmentVariableTarget.User)
                     ?? Environment.GetEnvironmentVariable(variableName, EnvironmentVariableTarget.Machine);
 
-                var resolvedPath = ResolveFromInput(value, kind);
+                var resolvedPath = ExecutablePathResolver.ResolveFromInput(value, ExecutableNames[kind], EnumerateCurrentPathRoots());
                 if (string.IsNullOrWhiteSpace(resolvedPath) || !seen.Add($"{kind}:{resolvedPath}"))
                 {
                     continue;
@@ -172,7 +170,11 @@ public sealed class LocalExternalToolService : IExternalToolService, IDisposable
         try
         {
             await DownloadAsync(package.DownloadUrl, downloadPath, cancellationToken);
-            await VerifySha256Async(downloadPath, package.Sha256, cancellationToken);
+        await PackageIntegrityVerifier.VerifySha256Async(
+            downloadPath,
+            package.Sha256,
+            cancellationToken,
+            "外部工具更新包");
 
             if (downloadPath.EndsWith(".exe", StringComparison.OrdinalIgnoreCase))
             {
@@ -297,7 +299,7 @@ public sealed class LocalExternalToolService : IExternalToolService, IDisposable
 
         var candidates = releases
             .Where(static release => IsStableGitHubRelease(release))
-            .SelectMany(release => release.Assets
+            .SelectMany(release => (release.Assets ?? [])
                 .Where(static asset => asset.Name.Equals("av1an.exe", StringComparison.OrdinalIgnoreCase))
                 .Select(asset => new { Release = release, Asset = asset }))
             .OrderByDescending(static candidate => candidate.Release.PublishedAt)
@@ -309,7 +311,7 @@ public sealed class LocalExternalToolService : IExternalToolService, IDisposable
         }
 
         var selected = candidates[0];
-        var sha256 = NormalizeSha256(selected.Asset.Digest);
+        var sha256 = PackageIntegrityVerifier.NormalizeSha256Digest(selected.Asset.Digest);
         var isAutomatic = !string.IsNullOrWhiteSpace(sha256);
         var notes = "使用 Av1an 官方稳定发布版本。";
         if (!isAutomatic)
@@ -343,7 +345,7 @@ public sealed class LocalExternalToolService : IExternalToolService, IDisposable
             return null;
         }
 
-        var asset = release.Assets
+        var asset = (release.Assets ?? [])
             .Where(static item => item.Name.EndsWith(".zip", StringComparison.OrdinalIgnoreCase)
                 && item.Name.Contains("win64", StringComparison.OrdinalIgnoreCase)
                 && item.Name.Contains("shared", StringComparison.OrdinalIgnoreCase))
@@ -356,7 +358,7 @@ public sealed class LocalExternalToolService : IExternalToolService, IDisposable
             return null;
         }
 
-        var sha256 = NormalizeSha256(asset.Digest);
+        var sha256 = PackageIntegrityVerifier.NormalizeSha256Digest(asset.Digest);
         var isAutomatic = !string.IsNullOrWhiteSpace(sha256);
         var notes = "使用 BtbN 官方 Win64 Shared 构建（包含 ffmpeg / ffprobe）。";
         if (!isAutomatic)
@@ -515,18 +517,6 @@ public sealed class LocalExternalToolService : IExternalToolService, IDisposable
         await stream.CopyToAsync(target, cancellationToken);
     }
 
-    private static async Task VerifySha256Async(string filePath, string expectedHash, CancellationToken cancellationToken)
-    {
-        await using var stream = File.OpenRead(filePath);
-        var hash = await SHA256.HashDataAsync(stream, cancellationToken);
-        var actual = Convert.ToHexString(hash).ToLowerInvariant();
-
-        if (!string.Equals(actual, expectedHash, StringComparison.OrdinalIgnoreCase))
-        {
-            throw new InvalidOperationException("下载完成，但 SHA256 校验失败，已停止安装。");
-        }
-    }
-
     private string GetLocalToolPath(ExternalToolKind kind)
     {
         return Path.Combine(_paths.ToolsRootPath, kind.ToExpectedExecutableName());
@@ -632,62 +622,6 @@ public sealed class LocalExternalToolService : IExternalToolService, IDisposable
         }
     }
 
-    private static string? ResolveFromInput(string? value, ExternalToolKind kind)
-    {
-        if (string.IsNullOrWhiteSpace(value))
-        {
-            return null;
-        }
-
-        var normalized = value.Trim().Trim('"');
-        if (File.Exists(normalized))
-        {
-            return Path.GetFullPath(normalized);
-        }
-
-        if (Directory.Exists(normalized))
-        {
-            foreach (var fileName in ExecutableNames[kind])
-            {
-                var candidate = Path.Combine(normalized, fileName);
-                if (File.Exists(candidate))
-                {
-                    return Path.GetFullPath(candidate);
-                }
-            }
-        }
-
-        if (!normalized.Contains(Path.DirectorySeparatorChar) && !normalized.Contains(Path.AltDirectorySeparatorChar))
-        {
-            var pathVariable = Environment.GetEnvironmentVariable("PATH");
-            if (!string.IsNullOrWhiteSpace(pathVariable))
-            {
-                foreach (var root in pathVariable.Split(Path.PathSeparator, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
-                {
-                    var candidate = Path.Combine(root, normalized);
-                    if (File.Exists(candidate))
-                    {
-                        return Path.GetFullPath(candidate);
-                    }
-                }
-            }
-        }
-
-        return null;
-    }
-
-    private static string? NormalizeSha256(string? digest)
-    {
-        if (string.IsNullOrWhiteSpace(digest))
-        {
-            return null;
-        }
-
-        return digest.StartsWith("sha256:", StringComparison.OrdinalIgnoreCase)
-            ? digest["sha256:".Length..]
-            : digest;
-    }
-
     private static bool IsStableGitHubRelease(GitHubRelease release)
     {
         if (release.Draft || release.Prerelease)
@@ -761,17 +695,17 @@ public sealed class LocalExternalToolService : IExternalToolService, IDisposable
         return trimmed;
     }
 
-    private sealed record GitHubRelease(
-        [property: JsonPropertyName("tag_name")] string TagName,
-        [property: JsonPropertyName("name")] string? Name,
-        [property: JsonPropertyName("html_url")] string HtmlUrl,
-        [property: JsonPropertyName("published_at")] DateTimeOffset PublishedAt,
-        [property: JsonPropertyName("draft")] bool Draft,
-        [property: JsonPropertyName("prerelease")] bool Prerelease,
-        [property: JsonPropertyName("assets")] List<GitHubReleaseAsset> Assets);
+    private static IEnumerable<string> EnumerateCurrentPathRoots()
+    {
+        var pathVariable = Environment.GetEnvironmentVariable("PATH");
+        if (string.IsNullOrWhiteSpace(pathVariable))
+        {
+            yield break;
+        }
 
-    private sealed record GitHubReleaseAsset(
-        [property: JsonPropertyName("name")] string Name,
-        [property: JsonPropertyName("browser_download_url")] string BrowserDownloadUrl,
-        [property: JsonPropertyName("digest")] string? Digest);
+        foreach (var root in pathVariable.Split(Path.PathSeparator, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+        {
+            yield return root;
+        }
+    }
 }

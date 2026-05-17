@@ -15,7 +15,7 @@ public sealed class ProcessToolProbeService : IToolProbeService
     private readonly LocalAppPaths _paths;
     private readonly IEncoderDiscoveryService _encoderDiscoveryService;
     private readonly IAppSettingsService _settingsService;
-    private readonly ConcurrentDictionary<ToolProbeCacheKey, Lazy<ToolProbeResult>> _probeCache = new();
+    private readonly ConcurrentDictionary<ToolProbeCacheKey, ToolProbeResult> _probeCache = new();
 
     public ProcessToolProbeService(
         IToolRegistryService toolRegistryService,
@@ -65,49 +65,45 @@ public sealed class ProcessToolProbeService : IToolProbeService
     {
         cancellationToken.ThrowIfCancellationRequested();
 
-        var key = new ToolProbeCacheKey(definition.Kind, BuildProbeSignature(definition));
-        var lazy = _probeCache.GetOrAdd(
-            key,
-            _ => new Lazy<ToolProbeResult>(
-                () => Probe(definition, CancellationToken.None, vsrepoInstalledCache),
-                LazyThreadSafetyMode.ExecutionAndPublication));
+        var settings = _settingsService.Load();
+        var manualToolPaths = settings.EffectiveManualToolPaths;
+        var key = new ToolProbeCacheKey(definition.Kind, BuildProbeSignature(definition, manualToolPaths));
+        if (_probeCache.TryGetValue(key, out var cached))
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            return cached;
+        }
 
-        ToolProbeResult result;
-        try
-        {
-            result = lazy.Value;
-        }
-        catch
-        {
-            _probeCache.TryRemove(key, out _);
-            throw;
-        }
+        var result = Probe(definition, settings, cancellationToken, vsrepoInstalledCache, manualToolPaths);
 
         cancellationToken.ThrowIfCancellationRequested();
+        _probeCache.TryAdd(key, result);
         return result;
     }
 
     private ToolProbeResult Probe(
         ToolDefinition definition,
+        AppSettings settings,
         CancellationToken cancellationToken,
-        IDictionary<string, VsrepoInstalledProbeResult> vsrepoInstalledCache)
+        IDictionary<string, VsrepoInstalledProbeResult> vsrepoInstalledCache,
+        IReadOnlyDictionary<string, string> manualToolPaths)
     {
         cancellationToken.ThrowIfCancellationRequested();
 
         return definition.ProbeMode switch
         {
-            ToolProbeMode.EncoderBinary => ProbeEncoder(definition),
-            ToolProbeMode.ProcessVersion => ProbeCandidateTools(definition, ProbeWithProcessVersion),
-            ToolProbeMode.FileVersionInfo => ProbeCandidateTools(definition, ProbeWithFileVersion),
-            ToolProbeMode.ExistenceOnly => ProbeCandidateTools(definition, ProbeWithExistenceOnly),
-            ToolProbeMode.VsrepoInstalledPackage => ProbeCandidateTools(definition, (tool, candidate) =>
+            ToolProbeMode.EncoderBinary => ProbeEncoder(definition, settings),
+            ToolProbeMode.ProcessVersion => ProbeCandidateTools(definition, cancellationToken, manualToolPaths, ProbeWithProcessVersion),
+            ToolProbeMode.FileVersionInfo => ProbeCandidateTools(definition, cancellationToken, manualToolPaths, ProbeWithFileVersion),
+            ToolProbeMode.ExistenceOnly => ProbeCandidateTools(definition, cancellationToken, manualToolPaths, ProbeWithExistenceOnly),
+            ToolProbeMode.VsrepoInstalledPackage => ProbeCandidateTools(definition, cancellationToken, manualToolPaths, (tool, candidate) =>
                 ProbeWithVsrepoInstalledPackage(tool, candidate, vsrepoInstalledCache)),
-            ToolProbeMode.PythonModuleImport => ProbeCandidateTools(definition, ProbeWithPythonModuleImport),
+            ToolProbeMode.PythonModuleImport => ProbeCandidateTools(definition, cancellationToken, manualToolPaths, ProbeWithPythonModuleImport),
             _ => CreateUnknownResult(definition, "Unsupported probe mode.")
         };
     }
 
-    private ToolProbeResult ProbeEncoder(ToolDefinition definition)
+    private ToolProbeResult ProbeEncoder(ToolDefinition definition, AppSettings settings)
     {
         var encoderKind = definition.Kind switch
         {
@@ -117,7 +113,6 @@ public sealed class ProcessToolProbeService : IToolProbeService
             _ => throw new ArgumentOutOfRangeException(nameof(definition), definition.Kind, null)
         };
 
-        var settings = _settingsService.Load();
         var resolved = _encoderDiscoveryService.ResolveEncoder(
             encoderKind,
             EncoderArchitecture.X64,
@@ -148,13 +143,17 @@ public sealed class ProcessToolProbeService : IToolProbeService
 
     private ToolProbeResult ProbeCandidateTools(
         ToolDefinition definition,
+        CancellationToken cancellationToken,
+        IReadOnlyDictionary<string, string> manualToolPaths,
         Func<ToolDefinition, ToolCandidate, ToolProbeResult> probeAction)
     {
         ToolProbeResult? fallbackFailure = null;
 
-        foreach (var candidate in EnumerateCandidates(definition))
+        foreach (var candidate in EnumerateCandidates(definition, manualToolPaths))
         {
+            cancellationToken.ThrowIfCancellationRequested();
             var result = probeAction(definition, candidate);
+            cancellationToken.ThrowIfCancellationRequested();
             if (result.State == ReadinessState.Ready)
             {
                 return result;
@@ -163,6 +162,7 @@ public sealed class ProcessToolProbeService : IToolProbeService
             fallbackFailure ??= result;
         }
 
+        cancellationToken.ThrowIfCancellationRequested();
         return fallbackFailure ?? CreateMissingResult(definition);
     }
 
@@ -500,7 +500,7 @@ public sealed class ProcessToolProbeService : IToolProbeService
             definition.ManagedExternalToolKind);
     }
 
-    private string BuildProbeSignature(ToolDefinition definition)
+    private string BuildProbeSignature(ToolDefinition definition, IReadOnlyDictionary<string, string> manualToolPaths)
     {
         var builder = new System.Text.StringBuilder();
         builder.Append(definition.Kind)
@@ -512,7 +512,7 @@ public sealed class ProcessToolProbeService : IToolProbeService
             .Append(definition.ProbeValue)
             .AppendLine();
 
-        AppendManualToolPath(builder, ManualToolPathKeys.ForRegisteredTool(definition.Kind));
+        AppendManualToolPath(builder, ManualToolPathKeys.ForRegisteredTool(definition.Kind), manualToolPaths);
 
         foreach (var variableName in definition.EnvironmentVariableNames)
         {
@@ -530,10 +530,10 @@ public sealed class ProcessToolProbeService : IToolProbeService
 
         if (TryGetEncoderKind(definition.Kind) is { } encoderKind)
         {
-            AppendEncoderProbeInputs(builder, encoderKind);
+            AppendEncoderProbeInputs(builder, encoderKind, manualToolPaths);
         }
 
-        foreach (var candidate in EnumerateCandidates(definition).OrderBy(static item => item.Path, StringComparer.OrdinalIgnoreCase))
+        foreach (var candidate in EnumerateCandidates(definition, manualToolPaths).OrderBy(static item => item.Path, StringComparer.OrdinalIgnoreCase))
         {
             AppendCandidateFingerprint(builder, candidate.Path, candidate.Source, candidate.SourceLabel);
         }
@@ -541,10 +541,12 @@ public sealed class ProcessToolProbeService : IToolProbeService
         return builder.ToString();
     }
 
-    private void AppendManualToolPath(System.Text.StringBuilder builder, string key)
+    private static void AppendManualToolPath(
+        System.Text.StringBuilder builder,
+        string key,
+        IReadOnlyDictionary<string, string> manualToolPaths)
     {
-        var settings = _settingsService.Load();
-        settings.EffectiveManualToolPaths.TryGetValue(key, out var value);
+        manualToolPaths.TryGetValue(key, out var value);
         builder.Append("manual:")
             .Append(key)
             .Append('=')
@@ -552,16 +554,20 @@ public sealed class ProcessToolProbeService : IToolProbeService
             .AppendLine();
     }
 
-    private void AppendEncoderProbeInputs(System.Text.StringBuilder builder, EncoderKind encoderKind)
+    private void AppendEncoderProbeInputs(
+        System.Text.StringBuilder builder,
+        EncoderKind encoderKind,
+        IReadOnlyDictionary<string, string> manualToolPaths)
     {
         var executableNames = GetEncoderExecutableNames(encoderKind);
         var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-        AppendManualToolPath(builder, ManualToolPathKeys.ForEncoder(encoderKind));
+        AppendManualToolPath(builder, ManualToolPathKeys.ForEncoder(encoderKind), manualToolPaths);
         AppendResolvedManualToolFingerprint(
             builder,
             ManualToolPathKeys.ForEncoder(encoderKind),
             executableNames,
-            seen);
+            seen,
+            manualToolPaths);
 
         foreach (var variableName in GetEncoderEnvironmentVariableNames(encoderKind))
         {
@@ -617,15 +623,15 @@ public sealed class ProcessToolProbeService : IToolProbeService
         System.Text.StringBuilder builder,
         string key,
         IReadOnlyList<string> executableNames,
-        ISet<string> seen)
+        ISet<string> seen,
+        IReadOnlyDictionary<string, string> manualToolPaths)
     {
-        var settings = _settingsService.Load();
-        if (!settings.EffectiveManualToolPaths.TryGetValue(key, out var value))
+        if (!manualToolPaths.TryGetValue(key, out var value))
         {
             return;
         }
 
-        var resolved = ResolveFromInput(value, executableNames);
+        var resolved = ExecutablePathResolver.ResolveFromInput(value, executableNames, EnumeratePathRoots());
         if (!string.IsNullOrWhiteSpace(resolved))
         {
             AppendCandidateFingerprintIfNew(
@@ -653,7 +659,7 @@ public sealed class ProcessToolProbeService : IToolProbeService
             .Append(value)
             .AppendLine();
 
-        var resolved = ResolveFromInput(value, executableNames);
+        var resolved = ExecutablePathResolver.ResolveFromInput(value, executableNames, EnumeratePathRoots());
         if (!string.IsNullOrWhiteSpace(resolved))
         {
             AppendCandidateFingerprintIfNew(
@@ -749,11 +755,13 @@ public sealed class ProcessToolProbeService : IToolProbeService
         };
     }
 
-    private IEnumerable<ToolCandidate> EnumerateCandidates(ToolDefinition definition)
+    private IEnumerable<ToolCandidate> EnumerateCandidates(
+        ToolDefinition definition,
+        IReadOnlyDictionary<string, string> manualToolPaths)
     {
         var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
-        foreach (var candidate in EnumerateManualCandidates(definition))
+        foreach (var candidate in EnumerateManualCandidates(definition, manualToolPaths))
         {
             if (seen.Add(candidate.Path))
             {
@@ -820,15 +828,16 @@ public sealed class ProcessToolProbeService : IToolProbeService
         }
     }
 
-    private IEnumerable<ToolCandidate> EnumerateManualCandidates(ToolDefinition definition)
+    private static IEnumerable<ToolCandidate> EnumerateManualCandidates(
+        ToolDefinition definition,
+        IReadOnlyDictionary<string, string> manualToolPaths)
     {
-        var settings = _settingsService.Load();
-        if (!settings.EffectiveManualToolPaths.TryGetValue(ManualToolPathKeys.ForRegisteredTool(definition.Kind), out var value))
+        if (!manualToolPaths.TryGetValue(ManualToolPathKeys.ForRegisteredTool(definition.Kind), out var value))
         {
             yield break;
         }
 
-        var resolved = ResolveFromInput(value, definition.ExecutableNames);
+        var resolved = ExecutablePathResolver.ResolveFromInput(value, definition.ExecutableNames, EnumeratePathRoots());
         if (!string.IsNullOrWhiteSpace(resolved))
         {
             yield return new ToolCandidate(resolved, ToolDetectionSource.ManualSelection, "manual");
@@ -848,7 +857,7 @@ public sealed class ProcessToolProbeService : IToolProbeService
                 ?? Environment.GetEnvironmentVariable(variableName, EnvironmentVariableTarget.User)
                 ?? Environment.GetEnvironmentVariable(variableName, EnvironmentVariableTarget.Machine);
 
-            var resolved = ResolveFromInput(value, definition.ExecutableNames);
+            var resolved = ExecutablePathResolver.ResolveFromInput(value, definition.ExecutableNames, EnumeratePathRoots());
             if (!string.IsNullOrWhiteSpace(resolved))
             {
                 yield return new ToolCandidate(resolved, ToolDetectionSource.EnvironmentVariable, variableName);
@@ -883,49 +892,6 @@ public sealed class ProcessToolProbeService : IToolProbeService
                 }
             }
         }
-    }
-
-    private static string? ResolveFromInput(string? value, IReadOnlyList<string> executableNames)
-    {
-        if (string.IsNullOrWhiteSpace(value))
-        {
-            return null;
-        }
-
-        var normalized = value.Trim().Trim('"');
-        if (File.Exists(normalized))
-        {
-            return Path.GetFullPath(normalized);
-        }
-
-        if (Directory.Exists(normalized))
-        {
-            foreach (var fileName in executableNames)
-            {
-                var candidate = Path.Combine(normalized, fileName);
-                if (File.Exists(candidate))
-                {
-                    return Path.GetFullPath(candidate);
-                }
-            }
-
-            return null;
-        }
-
-        if (!normalized.Contains(Path.DirectorySeparatorChar)
-            && !normalized.Contains(Path.AltDirectorySeparatorChar))
-        {
-            foreach (var root in EnumeratePathRoots())
-            {
-                var candidate = Path.Combine(root, normalized);
-                if (File.Exists(candidate))
-                {
-                    return Path.GetFullPath(candidate);
-                }
-            }
-        }
-
-        return null;
     }
 
     private static IEnumerable<string> EnumerateProgramFilesVapourSynthRoots()

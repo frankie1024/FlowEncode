@@ -26,7 +26,8 @@ internal static class PackageIntegrityVerifier
             throw new FileNotFoundException($"{packageLabel} 下载文件不存在。", filePath);
         }
 
-        var normalizedExpectedHash = NormalizeSha256(expectedHash);
+        var normalizedExpectedHash = NormalizeSha256Digest(expectedHash)
+            ?? throw new InvalidOperationException($"{packageLabel} 缺少可用的 SHA256 摘要，已停止安装。");
         await using var stream = File.OpenRead(filePath);
         var hash = await SHA256.HashDataAsync(stream, cancellationToken);
         var actualHash = Convert.ToHexString(hash).ToLowerInvariant();
@@ -75,8 +76,13 @@ internal static class PackageIntegrityVerifier
         }
     }
 
-    private static string NormalizeSha256(string hash)
+    internal static string? NormalizeSha256Digest(string? hash)
     {
+        if (string.IsNullOrWhiteSpace(hash))
+        {
+            return null;
+        }
+
         var normalized = hash.Trim();
         if (normalized.StartsWith("sha256:", StringComparison.OrdinalIgnoreCase))
         {

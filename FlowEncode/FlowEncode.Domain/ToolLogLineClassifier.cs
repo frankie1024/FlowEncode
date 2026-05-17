@@ -112,13 +112,13 @@ public static class ToolLogLineClassifier
                 && normalized.IndexOf(']') >= 0);
     }
 
-    public static bool LooksLikeOpusCliProgressLine(string? line)
+    private static bool LooksLikeOpusCliProgressLine(string? line)
     {
         var normalized = ConsoleOutputLineNormalizer.Normalize(line);
         return !string.IsNullOrWhiteSpace(normalized) && OpusEncDisplayProgressRegex.IsMatch(normalized);
     }
 
-    public static bool LooksLikeDgDemuxProgressLine(string? line)
+    private static bool LooksLikeDgDemuxProgressLine(string? line)
     {
         var normalized = ConsoleOutputLineNormalizer.Normalize(line);
         if (string.IsNullOrWhiteSpace(normalized))
