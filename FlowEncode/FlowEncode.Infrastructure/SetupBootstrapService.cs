@@ -56,8 +56,6 @@ public sealed class SetupBootstrapService : ISetupBootstrapService, IDisposable
         _externalToolService = externalToolService;
         _apiHttpClient = httpClientFactory.CreateClient(FlowEncodeHttpClientProfile.Api);
         _downloadHttpClient = httpClientFactory.CreateClient(FlowEncodeHttpClientProfile.Download);
-
-        CleanupStaleDownloads();
     }
 
     public Task<SetupDependencyStatusReport> GetStatusReportAsync(
@@ -1486,36 +1484,6 @@ public sealed class SetupBootstrapService : ISetupBootstrapService, IDisposable
         }
 
         return null;
-    }
-
-    private void CleanupStaleDownloads()
-    {
-        var downloadsRoot = _paths.DownloadsRootPath;
-        if (string.IsNullOrWhiteSpace(downloadsRoot) || !Directory.Exists(downloadsRoot))
-        {
-            return;
-        }
-
-        Action<string> logFailure = message =>
-            AppDiagnosticsLog.Write(_paths, nameof(SetupBootstrapService), message, AppDiagnosticSeverity.Warning);
-
-        foreach (var file in Directory.EnumerateFiles(downloadsRoot))
-        {
-            if (file.EndsWith(".7z", StringComparison.OrdinalIgnoreCase)
-                || file.EndsWith(".zip", StringComparison.OrdinalIgnoreCase))
-            {
-                BestEffortCleanup.DeleteFile(file, $"过期下载文件 '{Path.GetFileName(file)}'", logFailure);
-            }
-        }
-
-        var appUpdatesDir = Path.Combine(downloadsRoot, "app-updates");
-        if (Directory.Exists(appUpdatesDir))
-        {
-            foreach (var oldFolder in Directory.EnumerateDirectories(appUpdatesDir))
-            {
-                BestEffortCleanup.DeleteDirectoryRecursively(oldFolder, $"旧版更新包 '{Path.GetFileName(oldFolder)}'", logFailure);
-            }
-        }
     }
 
     private static string NormalizeVapourSynthVersion(string value)
