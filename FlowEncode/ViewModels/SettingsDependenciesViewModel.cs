@@ -1,4 +1,5 @@
 using System.Collections.ObjectModel;
+using System.ComponentModel;
 using System.Threading.Tasks;
 using FlowEncode.Domain;
 using Microsoft.UI.Xaml;
@@ -10,80 +11,88 @@ public sealed class SettingsDependenciesViewModel : ModuleViewModelBase, ISetupD
     public SettingsDependenciesViewModel(MainWindowViewModel owner)
         : base(owner)
     {
+        owner.SetupGuideModule.PropertyChanged += SetupGuide_PropertyChanged;
     }
+
+    private SetupGuideViewModel SetupGuide => Owner.SetupGuideModule;
 
     public AppText Texts => Owner.Texts;
 
-    public string EnvironmentCheckedAtText => Owner.EnvironmentCheckedAtText;
+    public string EnvironmentCheckedAtText => SetupGuide.EnvironmentCheckedAtText;
 
-    public string SetupGuideRemoteCheckedAtText => Owner.SetupGuideRemoteCheckedAtText;
+    public string SetupGuideRemoteCheckedAtText => SetupGuide.SetupGuideRemoteCheckedAtText;
 
-    public Visibility SetupGuideActionProgressVisibility => Owner.SetupGuideActionProgressVisibility;
+    public Visibility SetupGuideActionProgressVisibility => SetupGuide.SetupGuideActionProgressVisibility;
 
-    public string SetupGuideRefreshActionText => Owner.SetupGuideRefreshActionText;
+    public string SetupGuideRefreshActionText => SetupGuide.SetupGuideRefreshActionText;
 
-    public bool CanExecuteSetupGuideRefreshAction => Owner.CanExecuteSetupGuideRefreshAction;
+    public bool CanExecuteSetupGuideRefreshAction => SetupGuide.CanExecuteSetupGuideRefreshAction;
 
-    public string SetupGuideUpdateCheckActionText => Owner.SetupGuideUpdateCheckActionText;
+    public string SetupGuideUpdateCheckActionText => SetupGuide.SetupGuideUpdateCheckActionText;
 
-    public bool CanExecuteSetupGuideUpdateCheckAction => Owner.CanExecuteSetupGuideUpdateCheckAction;
+    public bool CanExecuteSetupGuideUpdateCheckAction => SetupGuide.CanExecuteSetupGuideUpdateCheckAction;
 
-    public ObservableCollection<SetupGuideCardViewModel> SetupGuideCards => Owner.SetupGuideCards;
+    public ObservableCollection<SetupGuideCardViewModel> SetupGuideCards => SetupGuide.SetupGuideCards;
 
-    public bool IsSetupGuideOpen => Owner.IsSetupGuideOpen;
+    public bool IsSetupGuideOpen => SetupGuide.IsSetupGuideOpen;
 
     public Task RefreshSetupGuideAsync()
     {
-        return Owner.RefreshSetupGuideAsync();
+        return SetupGuide.RefreshSetupGuideAsync();
     }
 
     public Task CheckSetupDependencyUpdatesAsync(bool openWhenFinished = false)
     {
-        return Owner.CheckSetupDependencyUpdatesAsync(openWhenFinished);
+        return SetupGuide.CheckSetupDependencyUpdatesAsync(openWhenFinished);
     }
 
     public bool RequiresSetupDependencyManualImport(SetupDependencyKind kind)
     {
-        return Owner.RequiresSetupDependencyManualImport(kind);
+        return SetupGuide.RequiresSetupDependencyManualImport(kind);
     }
 
     public bool HasManualPinnedSetupDependency(SetupDependencyKind kind)
     {
-        return Owner.HasManualPinnedSetupDependency(kind);
+        return SetupGuide.HasManualPinnedSetupDependency(kind);
     }
 
     public string GetSetupDependencyDisplayName(SetupDependencyKind kind)
     {
-        return Owner.GetSetupDependencyDisplayName(kind);
+        return SetupGuide.GetSetupDependencyDisplayName(kind);
     }
 
     public string GetSetupDependencyCurrentPath(SetupDependencyKind kind)
     {
-        return Owner.GetSetupDependencyCurrentPath(kind);
+        return SetupGuide.GetSetupDependencyCurrentPath(kind);
     }
 
     public Task<string?> InstallSetupDependencyAsync(SetupDependencyKind kind)
     {
-        return Owner.InstallSetupDependencyAsync(kind);
+        return SetupGuide.InstallSetupDependencyAsync(kind);
     }
 
     public Task<string?> ImportSetupDependencyBinaryAsync(SetupDependencyKind kind, string sourcePath)
     {
-        return Owner.ImportSetupDependencyBinaryAsync(kind, sourcePath);
+        return SetupGuide.ImportSetupDependencyBinaryAsync(kind, sourcePath);
     }
 
     public Task<string?> PinSetupDependencyBinaryAsync(SetupDependencyKind kind, string sourcePath)
     {
-        return Owner.PinSetupDependencyBinaryAsync(kind, sourcePath);
+        return SetupGuide.PinSetupDependencyBinaryAsync(kind, sourcePath);
     }
 
     public Task<string?> ClearManualPinnedSetupDependencyAsync(SetupDependencyKind kind, bool refreshAfterClear = true)
     {
-        return Owner.ClearManualPinnedSetupDependencyAsync(kind, refreshAfterClear);
+        return SetupGuide.ClearManualPinnedSetupDependencyAsync(kind, refreshAfterClear);
     }
 
     public Task<string?> UninstallSetupDependencyAsync(SetupDependencyKind kind)
     {
-        return Owner.UninstallSetupDependencyAsync(kind);
+        return SetupGuide.UninstallSetupDependencyAsync(kind);
+    }
+
+    private void SetupGuide_PropertyChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        OnPropertyChanged(e.PropertyName);
     }
 }

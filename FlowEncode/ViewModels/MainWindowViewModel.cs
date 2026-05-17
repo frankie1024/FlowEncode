@@ -20,7 +20,7 @@ using Microsoft.UI.Xaml.Media;
 
 namespace FlowEncode.ViewModels;
 
-public partial class MainWindowViewModel : CommunityToolkit.Mvvm.ComponentModel.ObservableObject, IDisposable
+public partial class MainWindowViewModel : CommunityToolkit.Mvvm.ComponentModel.ObservableObject, IDisposable, ISetupGuideHost
 {
     private const string AppReleasePageUrl = "https://github.com/frankie1024/FlowEncode/releases";
     private const int MinConcurrentEncodingJobs = 1;
@@ -47,6 +47,8 @@ public partial class MainWindowViewModel : CommunityToolkit.Mvvm.ComponentModel.
     private readonly ISetupBootstrapService _setupBootstrapService;
     private readonly IAppUpdateService _appUpdateService;
 
+    private readonly LocalAppPaths _appPaths;
+
     private EncodingProfile? _activeProfile;
     private EnvironmentReadinessReport? _environmentReadinessReport;
     private bool _isShuttingDown;
@@ -54,11 +56,6 @@ public partial class MainWindowViewModel : CommunityToolkit.Mvvm.ComponentModel.
     private bool _isCheckingUpdates;
     private bool _isDownloadingAppUpdateInstaller;
     private int? _appUpdateDownloadProgressPercent;
-    private bool _isSetupGuideInstallRunning;
-    private bool _isRefreshingSetupGuide;
-    private bool _isCheckingSetupDependencyUpdates;
-    private DateTimeOffset? _setupGuideLocalCheckedAt;
-    private DateTimeOffset? _setupGuideRemoteCheckedAt;
     private string _statusText = "环境已准备完成，等待首次刷新。";
     private string _previewTitle = "选择一个预设以生成命令预览";
     private string _previewCommandLine = string.Empty;
@@ -222,9 +219,9 @@ public partial class MainWindowViewModel : CommunityToolkit.Mvvm.ComponentModel.
     internal bool IsBusy => _isRefreshingCatalog
         || _isCheckingUpdates
         || _isDownloadingAppUpdateInstaller
-        || _isSetupGuideInstallRunning
-        || _isRefreshingSetupGuide
-        || _isCheckingSetupDependencyUpdates;
+        || SetupGuideModule.IsSetupGuideInstallRunning
+        || SetupGuideModule.IsRefreshingSetupGuide
+        || SetupGuideModule.IsCheckingSetupDependencyUpdates;
 
     internal bool IsCheckingAppUpdates => _isCheckingUpdates;
 
@@ -282,37 +279,25 @@ public partial class MainWindowViewModel : CommunityToolkit.Mvvm.ComponentModel.
 
     internal string AppUpdateStatusText => GetAppUpdateStatusText();
 
-    internal string EnvironmentCheckedAtText => GetSetupGuideLocalCheckedAtText();
+    internal string EnvironmentCheckedAtText => SetupGuideModule.EnvironmentCheckedAtText;
 
-    internal string SetupGuideRemoteCheckedAtText => GetSetupGuideRemoteCheckedAtText();
+    internal string SetupGuideRemoteCheckedAtText => SetupGuideModule.SetupGuideRemoteCheckedAtText;
 
-    internal Visibility SetupGuideRemoteCheckedAtVisibility => string.IsNullOrWhiteSpace(SetupGuideRemoteCheckedAtText)
-        ? Visibility.Collapsed
-        : Visibility.Visible;
+    internal Visibility SetupGuideRemoteCheckedAtVisibility => SetupGuideModule.SetupGuideRemoteCheckedAtVisibility;
 
-    internal bool IsRefreshingSetupGuide => _isRefreshingSetupGuide;
+    internal bool IsRefreshingSetupGuide => SetupGuideModule.IsRefreshingSetupGuide;
 
-    internal bool IsCheckingSetupDependencyUpdates => _isCheckingSetupDependencyUpdates;
+    internal bool IsCheckingSetupDependencyUpdates => SetupGuideModule.IsCheckingSetupDependencyUpdates;
 
-    internal Visibility SetupGuideActionProgressVisibility => _isRefreshingSetupGuide || _isCheckingSetupDependencyUpdates
-        ? Visibility.Visible
-        : Visibility.Collapsed;
+    internal Visibility SetupGuideActionProgressVisibility => SetupGuideModule.SetupGuideActionProgressVisibility;
 
-    internal string SetupGuideRefreshActionText => _isRefreshingSetupGuide
-        ? Texts.SetupGuideRefreshingButton
-        : Texts.SetupGuideRefreshButton;
+    internal string SetupGuideRefreshActionText => SetupGuideModule.SetupGuideRefreshActionText;
 
-    internal string SetupGuideUpdateCheckActionText => _isCheckingSetupDependencyUpdates
-        ? Texts.CheckingUpdatesButton
-        : Texts.SetupGuideCheckUpdatesButton;
+    internal string SetupGuideUpdateCheckActionText => SetupGuideModule.SetupGuideUpdateCheckActionText;
 
-    internal bool CanExecuteSetupGuideRefreshAction => !_isSetupGuideInstallRunning
-        && !_isRefreshingSetupGuide
-        && !_isCheckingSetupDependencyUpdates;
+    internal bool CanExecuteSetupGuideRefreshAction => SetupGuideModule.CanExecuteSetupGuideRefreshAction;
 
-    internal bool CanExecuteSetupGuideUpdateCheckAction => !_isSetupGuideInstallRunning
-        && !_isRefreshingSetupGuide
-        && !_isCheckingSetupDependencyUpdates;
+    internal bool CanExecuteSetupGuideUpdateCheckAction => SetupGuideModule.CanExecuteSetupGuideUpdateCheckAction;
 
     internal AppText Texts
     {
@@ -323,7 +308,32 @@ public partial class MainWindowViewModel : CommunityToolkit.Mvvm.ComponentModel.
     internal string StatusText
     {
         get => _statusText;
-        private set => SetProperty(ref _statusText, value);
+        set => SetProperty(ref _statusText, value);
+    }
+
+    EnvironmentReadinessReport? ISetupGuideHost.EnvironmentReadinessReport => _environmentReadinessReport;
+
+    IReadOnlyDictionary<string, string> ISetupGuideHost.ManualToolPaths
+    {
+        get => _manualToolPaths;
+        set => _manualToolPaths = value;
+    }
+
+    bool ISetupGuideHost.HasCompletedSetupGuide
+    {
+        get => _hasCompletedSetupGuide;
+        set => _hasCompletedSetupGuide = value;
+    }
+
+    void ISetupGuideHost.NotifyEnvironmentReadinessChanged()
+    {
+        HandleAudioEnvironmentReadinessApplied();
+        HandleBluRayEnvironmentReadinessApplied();
+    }
+
+    void ISetupGuideHost.NotifyBusyChanged()
+    {
+        OnPropertyChanged(nameof(IsBusy));
     }
 
     internal bool HasRunningJobs => Jobs.Any(static job => job.State == EncodingJobState.Running);
@@ -953,7 +963,7 @@ public partial class MainWindowViewModel : CommunityToolkit.Mvvm.ComponentModel.
     public async Task InitializeAsync()
     {
         LoadSettings();
-        var restoredSetupGuideSnapshot = TryRestoreSetupGuideSnapshot();
+        var restoredSetupGuideSnapshot = SetupGuideModule.TryRestoreCachedSnapshot();
         await RefreshAsync(
             Texts.InitializationStatus,
             includeUpdates: AutoCheckUpdatesOnStartup,
@@ -963,13 +973,8 @@ public partial class MainWindowViewModel : CommunityToolkit.Mvvm.ComponentModel.
 
         if (!_hasCompletedSetupGuide)
         {
-            await RefreshSetupGuideStatusAsync(
-                includeRemoteMetadata: false,
-                statusOverride: null,
-                openWhenFinished: false,
-                forceEnvironmentScan: false,
-                preferCachedSnapshot: false);
-            OpenSetupGuide();
+            await SetupGuideModule.RefreshSetupGuideAsync(openWhenFinished: false);
+            SetupGuideModule.OpenSetupGuide();
         }
     }
 
@@ -2833,8 +2838,7 @@ public partial class MainWindowViewModel : CommunityToolkit.Mvvm.ComponentModel.
     private void ApplyEnvironmentReadiness(EnvironmentReadinessReport report)
     {
         _environmentReadinessReport = report;
-        _setupGuideLocalCheckedAt = report.CheckedAt;
-        RaiseSetupGuidePropertyChanges();
+        SetupGuideModule.ApplyEnvironmentReadiness(report);
         HandleAudioEnvironmentReadinessApplied();
         HandleBluRayEnvironmentReadinessApplied();
     }
@@ -3206,9 +3210,9 @@ public partial class MainWindowViewModel : CommunityToolkit.Mvvm.ComponentModel.
             || IsBluRayDemuxRunning
             || _isCheckingUpdates
             || _isDownloadingAppUpdateInstaller
-            || _isSetupGuideInstallRunning
-            || _isRefreshingSetupGuide
-            || _isCheckingSetupDependencyUpdates)
+            || SetupGuideModule.IsSetupGuideInstallRunning
+            || SetupGuideModule.IsRefreshingSetupGuide
+            || SetupGuideModule.IsCheckingSetupDependencyUpdates)
         {
             return Texts.WorkspaceDirectoryChangeBlockedMessage;
         }

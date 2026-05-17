@@ -1048,7 +1048,7 @@ public partial class MainWindowViewModel
 
     private ToolProbeResult? BuildCachedBluRayToolProbeResult(RegisteredToolKind kind)
     {
-        if (_setupGuideStatusReport is null)
+        if (!SetupGuideModule.HasSetupGuideStatusReport)
         {
             return null;
         }
@@ -1074,7 +1074,7 @@ public partial class MainWindowViewModel
             _ => throw new InvalidOperationException($"Unsupported cached Blu-ray tool mapping: {kind}.")
         };
 
-        return ResolveSetupStatus(dependencyKind);
+        return SetupGuideModule.ResolveSetupStatus(dependencyKind);
     }
 
     private void ApplyBluRayDemuxProgress(BluRayDemuxProgress update)

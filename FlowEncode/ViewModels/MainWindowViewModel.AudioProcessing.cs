@@ -817,7 +817,7 @@ public partial class MainWindowViewModel
 
     private CapabilityReadiness? BuildCachedAudioCapabilityReadiness(EnvironmentCapabilityKind capabilityKind)
     {
-        if (_setupGuideStatusReport is null)
+        if (!SetupGuideModule.HasSetupGuideStatusReport)
         {
             return null;
         }
@@ -886,7 +886,7 @@ public partial class MainWindowViewModel
             _ => throw new InvalidOperationException($"Unsupported cached audio tool mapping: {kind}.")
         };
 
-        return ResolveSetupStatus(dependencyKind);
+        return SetupGuideModule.ResolveSetupStatus(dependencyKind);
     }
 
     private static CapabilityReadiness? OverrideOpusCapabilityForFfmpegMappingFamily(CapabilityReadiness? capability)

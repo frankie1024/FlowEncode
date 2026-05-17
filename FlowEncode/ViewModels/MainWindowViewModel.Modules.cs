@@ -23,7 +23,7 @@ public partial class MainWindowViewModel
         DashboardModule = new DashboardViewModel(this);
         OverviewModule = new OverviewViewModel(this);
         SettingsModule = new SettingsViewModel(this);
-        SetupGuideModule = new SetupGuideViewModel(this);
+        SetupGuideModule = new SetupGuideViewModel(this, _setupBootstrapService, _setupGuideCacheService, _toolRegistryService, _appPaths);
         TemplatesModule = new TemplatesViewModel(this);
         AutoCompressionModule = new AutoCompressionViewModel(this);
         AudioProcessingModule = new AudioProcessingViewModel(this);
