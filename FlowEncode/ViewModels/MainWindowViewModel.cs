@@ -735,8 +735,6 @@ public partial class MainWindowViewModel : CommunityToolkit.Mvvm.ComponentModel.
         }
     }
 
-    internal string ToolsetRootPath => _toolchainService.GetToolsetRootPath();
-
     internal string SuggestedOutputExtension => _activeProfile?.OutputContainer ?? "264";
 
     internal string QualityInputLabel => SelectedRateControl?.Value switch

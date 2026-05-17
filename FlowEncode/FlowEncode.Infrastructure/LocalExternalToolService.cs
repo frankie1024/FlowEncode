@@ -699,7 +699,7 @@ public sealed class LocalExternalToolService : IExternalToolService, IDisposable
             && !ContainsUnstableReleaseMarker(release.Name);
     }
 
-    private static bool ContainsUnstableReleaseMarker(string? value)
+    internal static bool ContainsUnstableReleaseMarker(string? value)
     {
         if (string.IsNullOrWhiteSpace(value))
         {
@@ -713,9 +713,16 @@ public sealed class LocalExternalToolService : IExternalToolService, IDisposable
             || normalized.Contains("beta", StringComparison.OrdinalIgnoreCase)
             || normalized.Contains("alpha", StringComparison.OrdinalIgnoreCase)
             || normalized.Contains("preview", StringComparison.OrdinalIgnoreCase)
-            || normalized.Contains("rc", StringComparison.OrdinalIgnoreCase)
+            || IsReleaseCandidateMarker(normalized)
             || normalized.Contains("unstable", StringComparison.OrdinalIgnoreCase)
             || string.Equals(normalized, "latest", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static bool IsReleaseCandidateMarker(string value)
+    {
+        // Match "rc" only as a release-candidate marker:
+        // preceded by start/separator (-._ ) and optionally followed by digits.
+        return Regex.IsMatch(value, @"(?:^|[-._\s])rc\d*(?:[-._\s]|$)", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
     }
 
     private static string ResolveGitHubReleaseLabel(GitHubRelease release)

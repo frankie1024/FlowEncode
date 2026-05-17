@@ -145,11 +145,11 @@ public sealed class SetupGuideViewModel : ObservableObject, ISetupDependencyModu
         ? Texts.CheckingUpdatesButton
         : Texts.SetupGuideCheckUpdatesButton;
 
-    public bool CanExecuteSetupGuideRefreshAction => !_isSetupGuideInstallRunning
-        && !_isRefreshingSetupGuide
-        && !_isCheckingSetupDependencyUpdates;
+    public bool CanExecuteSetupGuideRefreshAction => CanExecuteSetupGuideAction;
 
-    public bool CanExecuteSetupGuideUpdateCheckAction => !_isSetupGuideInstallRunning
+    public bool CanExecuteSetupGuideUpdateCheckAction => CanExecuteSetupGuideAction;
+
+    private bool CanExecuteSetupGuideAction => !_isSetupGuideInstallRunning
         && !_isRefreshingSetupGuide
         && !_isCheckingSetupDependencyUpdates;
 
