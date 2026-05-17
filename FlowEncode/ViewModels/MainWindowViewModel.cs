@@ -63,12 +63,6 @@ public partial class MainWindowViewModel : CommunityToolkit.Mvvm.ComponentModel.
     private string _selectedProfileCaption = "尚未选择预设";
     private string _draftTemplateName = string.Empty;
     private string _draftTemplateNotes = string.Empty;
-    private string _templateSearchText = string.Empty;
-    private string? _editingTemplateId;
-    private string? _currentTemplateSelectionKey;
-    private string _templateBaselineName = string.Empty;
-    private string _templateBaselineNotes = string.Empty;
-    private EncodingProfile? _templateBaselineProfile;
     private string _sourcePath = string.Empty;
     private string _outputPath = string.Empty;
     private AppText _texts = new(AppLanguage.Chinese);
@@ -187,10 +181,6 @@ public partial class MainWindowViewModel : CommunityToolkit.Mvvm.ComponentModel.
     }
 
     internal ObservableCollection<EncoderCatalogItem> Encoders { get; } = [];
-
-    internal ObservableCollection<SavedTemplate> UserTemplates { get; } = [];
-
-    internal ObservableCollection<TemplateLibraryItemViewModel> TemplateLibraryItems { get; } = [];
 
     internal ObservableCollection<EncodingJobItemViewModel> Jobs { get; } = [];
 
@@ -405,7 +395,7 @@ public partial class MainWindowViewModel : CommunityToolkit.Mvvm.ComponentModel.
         {
             if (SetProperty(ref _draftTemplateName, value))
             {
-                OnPropertyChanged(nameof(HasUnsavedTemplateChanges));
+                TemplatesModule?.Library.NotifyDraftChanged();
             }
         }
     }
@@ -417,19 +407,7 @@ public partial class MainWindowViewModel : CommunityToolkit.Mvvm.ComponentModel.
         {
             if (SetProperty(ref _draftTemplateNotes, value))
             {
-                OnPropertyChanged(nameof(HasUnsavedTemplateChanges));
-            }
-        }
-    }
-
-    internal string TemplateSearchText
-    {
-        get => _templateSearchText;
-        set
-        {
-            if (SetProperty(ref _templateSearchText, value))
-            {
-                RefreshTemplateLibraryItems();
+                TemplatesModule?.Library.NotifyDraftChanged();
             }
         }
     }
@@ -925,20 +903,6 @@ public partial class MainWindowViewModel : CommunityToolkit.Mvvm.ComponentModel.
                 ? Texts.NoSelectedJobLogText
                 : SelectedJob.Log;
 
-    internal Visibility TemplateLibraryEmptyVisibility => TemplateLibraryItems.Count == 0
-        ? Visibility.Visible
-        : Visibility.Collapsed;
-
-    internal string? EditingUserTemplateId => _editingTemplateId;
-
-    internal string? CurrentTemplateSelectionKey => _currentTemplateSelectionKey;
-
-    private bool IsEditingPinnedTemplate => GetEditingUserTemplate()?.IsPinned == true;
-
-    internal bool CanEditTemplateDraft => !IsEditingPinnedTemplate;
-
-    internal bool HasUnsavedTemplateChanges => !MatchesTemplateEditingBaseline();
-
     internal string SelectedJobSummary => IsQueueBatchSelectionActive
         ? Texts.QueueBatchSelectionSummary(
             SelectedQueueJobCount,
@@ -1036,8 +1000,7 @@ public partial class MainWindowViewModel : CommunityToolkit.Mvvm.ComponentModel.
             var userTemplates = await userTemplatesTask;
 
             ReplaceItems(Encoders, encoderCatalog);
-            ReplaceItems(UserTemplates, userTemplates);
-            RefreshTemplateLibraryItems();
+            TemplatesModule.Library.ApplyLoadedTemplates(userTemplates);
             RefreshEncoderOptions();
 
             if (environmentReadinessTask is not null)
@@ -1260,213 +1223,6 @@ public partial class MainWindowViewModel : CommunityToolkit.Mvvm.ComponentModel.
         RaiseQueueSelectionPropertyChanges();
     }
 
-    internal async Task SelectUserTemplateAsync(SavedTemplate? template)
-    {
-        if (template is null)
-        {
-            return;
-        }
-
-        ApplyProfileToDraft(
-            template.Profile,
-            Texts.UserCaption(template.Name),
-            template.Name,
-            template.Notes);
-
-        if (_activeProfile is not null)
-        {
-            await RefreshPreviewNowAsync(_activeProfile);
-        }
-
-        CaptureTemplateEditingBaseline(
-            template.Id,
-            $"user:{template.Id}",
-            template.Name,
-            template.Notes,
-            _activeProfile);
-    }
-
-    internal async Task ApplyUserTemplateToEncodingDraftAsync(SavedTemplate? template)
-    {
-        if (template is null)
-        {
-            return;
-        }
-
-        ApplyProfileToDraft(
-            template.Profile,
-            Texts.UserCaption(template.Name),
-            template.Name,
-            template.Notes);
-
-        if (_activeProfile is not null)
-        {
-            await RefreshPreviewNowAsync(_activeProfile);
-        }
-
-        CaptureTemplateEditingBaseline(
-            null,
-            null,
-            template.Name,
-            template.Notes,
-            _activeProfile);
-    }
-
-    internal Task<SavedTemplate> ReadTemplateAsync(string filePath)
-    {
-        return _profileLibraryService.ReadTemplateAsync(filePath);
-    }
-
-    internal async Task<SavedTemplate?> SaveCurrentTemplateAsync()
-    {
-        if (_activeProfile is null || string.IsNullOrWhiteSpace(DraftTemplateName))
-        {
-            return null;
-        }
-
-        var normalizedTemplateName = DraftTemplateName?.Trim() ?? string.Empty;
-        var normalizedTemplateNotes = DraftTemplateNotes?.Trim() ?? string.Empty;
-        var editingTemplate = GetEditingUserTemplate();
-        if (editingTemplate?.IsPinned == true
-            && string.Equals(editingTemplate.Name, normalizedTemplateName, StringComparison.OrdinalIgnoreCase))
-        {
-            throw new InvalidOperationException(Texts.PinnedTemplateLockedMessage);
-        }
-
-        var profileToSave = _activeProfile with
-        {
-            Name = normalizedTemplateName,
-            Description = normalizedTemplateNotes
-        };
-
-        return await PersistUserTemplateAsync(
-            normalizedTemplateName,
-            normalizedTemplateNotes,
-            profileToSave,
-            editingTemplate?.IsPinned == true ? null : _editingTemplateId,
-            isPinned: false,
-            Texts.TemplateSavedStatus(normalizedTemplateName));
-    }
-
-    internal async Task<SavedTemplate> ImportTemplateAsync(SavedTemplate template, string? overwriteTemplateId = null)
-    {
-        ArgumentNullException.ThrowIfNull(template);
-
-        var normalizedTemplateName = template.Name?.Trim() ?? string.Empty;
-        var normalizedTemplateNotes = template.Notes?.Trim() ?? string.Empty;
-        if (string.IsNullOrWhiteSpace(normalizedTemplateName))
-        {
-            throw new InvalidOperationException(Texts.EmptyTemplateNameMessage);
-        }
-
-        var profileToSave = template.Profile with
-        {
-            Name = normalizedTemplateName,
-            Description = normalizedTemplateNotes
-        };
-
-        return await PersistUserTemplateAsync(
-            normalizedTemplateName,
-            normalizedTemplateNotes,
-            profileToSave,
-            overwriteTemplateId,
-            template.IsPinned,
-            Texts.TemplateImportedStatus(normalizedTemplateName));
-    }
-
-    internal async Task ExportCurrentTemplateAsync(string filePath)
-    {
-        var exportTemplate = BuildDraftTemplateForExchange();
-        if (exportTemplate is null)
-        {
-            throw new InvalidOperationException(Texts.TemplateExportUnavailableMessage);
-        }
-
-        await _profileLibraryService.ExportTemplateAsync(exportTemplate, filePath);
-        StatusText = Texts.TemplateExportedStatus(filePath);
-    }
-
-    internal SavedTemplate? FindUserTemplateByName(string? templateName)
-    {
-        if (string.IsNullOrWhiteSpace(templateName))
-        {
-            return null;
-        }
-
-        var normalizedTemplateName = templateName.Trim();
-        return UserTemplates.FirstOrDefault(template =>
-            string.Equals(template.Name, normalizedTemplateName, StringComparison.OrdinalIgnoreCase));
-    }
-
-    internal SavedTemplate? FindUserTemplateById(string? templateId)
-    {
-        if (string.IsNullOrWhiteSpace(templateId))
-        {
-            return null;
-        }
-
-        return UserTemplates.FirstOrDefault(template =>
-            string.Equals(template.Id, templateId, StringComparison.OrdinalIgnoreCase));
-    }
-
-    internal async Task DeleteTemplateAsync(string templateId)
-    {
-        if (string.IsNullOrWhiteSpace(templateId))
-        {
-            return;
-        }
-
-        var currentTemplate = FindUserTemplateById(templateId);
-        if (currentTemplate?.IsPinned == true)
-        {
-            throw new InvalidOperationException(Texts.PinnedTemplateLockedMessage);
-        }
-
-        await _profileLibraryService.DeleteTemplateAsync(templateId);
-        ReplaceItems(UserTemplates, await _profileLibraryService.GetUserTemplatesAsync());
-        RefreshTemplateLibraryItems();
-
-        if (string.Equals(_editingTemplateId, templateId, StringComparison.OrdinalIgnoreCase))
-        {
-            BeginNewTemplateDraft();
-        }
-
-        RaiseSummaryPropertyChanges();
-        StatusText = Texts.UserTemplateDeletedStatus;
-    }
-
-    internal async Task<SavedTemplate> SetTemplatePinnedAsync(string templateId, bool isPinned)
-    {
-        var template = FindUserTemplateById(templateId);
-        if (template is null)
-        {
-            ReplaceItems(UserTemplates, await _profileLibraryService.GetUserTemplatesAsync());
-            RefreshTemplateLibraryItems();
-            template = FindUserTemplateById(templateId);
-        }
-
-        if (template is null)
-        {
-            throw new InvalidOperationException(Texts.TemplateMissingMessage);
-        }
-
-        var updatedTemplate = await _profileLibraryService.SetTemplatePinnedAsync(template.Id, isPinned);
-        ReplaceItems(UserTemplates, await _profileLibraryService.GetUserTemplatesAsync());
-        RefreshTemplateLibraryItems();
-        RaiseTemplateLockPropertyChanges();
-        RaiseSummaryPropertyChanges();
-        StatusText = isPinned
-            ? Texts.TemplatePinnedStatus(updatedTemplate.Name)
-            : Texts.TemplateUnpinnedStatus(updatedTemplate.Name);
-        return updatedTemplate;
-    }
-
-    internal void RefreshTemplateLibraryView()
-    {
-        RefreshTemplateLibraryItems();
-        OnPropertyChanged(nameof(TemplateLibraryItems));
-    }
-
     public void BeginNewTemplateDraft()
     {
         var targetKind = SelectedEncoder?.Value ?? _activeProfile?.Kind ?? EncoderKind.X264;
@@ -1488,7 +1244,7 @@ public partial class MainWindowViewModel : CommunityToolkit.Mvvm.ComponentModel.
 
         FinalizeDraftChange(syncOutputPath: false, markAsCustomized: false);
         SelectedProfileCaption = Texts.NewTemplateCaption;
-        CaptureTemplateEditingBaseline(
+        TemplatesModule.Library.CaptureTemplateEditingBaseline(
             null,
             null,
             DraftTemplateName,
@@ -2676,143 +2432,6 @@ public partial class MainWindowViewModel : CommunityToolkit.Mvvm.ComponentModel.
         }
     }
 
-    private void RefreshTemplateLibraryItems()
-    {
-        IEnumerable<TemplateLibraryItemViewModel> items =
-            UserTemplates.Select(BuildUserTemplateLibraryItem);
-
-        var search = TemplateSearchText?.Trim();
-        if (!string.IsNullOrWhiteSpace(search))
-        {
-            items = items.Where(item => item.Name.Contains(search, StringComparison.OrdinalIgnoreCase));
-        }
-
-        ReplaceItems(TemplateLibraryItems, items);
-        OnPropertyChanged(nameof(TemplateLibraryEmptyVisibility));
-    }
-
-    private void CaptureTemplateEditingBaseline(
-        string? editingTemplateId,
-        string? selectionKey,
-        string templateName,
-        string templateNotes,
-        EncodingProfile? profile)
-    {
-        _editingTemplateId = editingTemplateId;
-        _currentTemplateSelectionKey = selectionKey;
-        _templateBaselineName = templateName?.Trim() ?? string.Empty;
-        _templateBaselineNotes = templateNotes?.Trim() ?? string.Empty;
-        _templateBaselineProfile = profile;
-
-        OnPropertyChanged(nameof(EditingUserTemplateId));
-        OnPropertyChanged(nameof(CurrentTemplateSelectionKey));
-        OnPropertyChanged(nameof(HasUnsavedTemplateChanges));
-        RaiseTemplateLockPropertyChanges();
-    }
-
-    private SavedTemplate? BuildDraftTemplateForExchange()
-    {
-        if (_activeProfile is null)
-        {
-            return null;
-        }
-
-        var normalizedTemplateName = DraftTemplateName?.Trim() ?? string.Empty;
-        if (string.IsNullOrWhiteSpace(normalizedTemplateName))
-        {
-            return null;
-        }
-
-        var normalizedTemplateNotes = DraftTemplateNotes?.Trim() ?? string.Empty;
-        return new SavedTemplate(
-            _editingTemplateId ?? Guid.NewGuid().ToString("N"),
-            normalizedTemplateName,
-            normalizedTemplateNotes,
-            _activeProfile with
-            {
-                Name = normalizedTemplateName,
-                Description = normalizedTemplateNotes
-            },
-            DateTimeOffset.Now);
-    }
-
-    private async Task<SavedTemplate> PersistUserTemplateAsync(
-        string templateName,
-        string templateNotes,
-        EncodingProfile profile,
-        string? templateId,
-        bool isPinned,
-        string statusText)
-    {
-        var savedTemplate = await _profileLibraryService.SaveTemplateAsync(
-            templateName,
-            templateNotes,
-            profile,
-            templateId,
-            isPinned);
-
-        _isSynchronizingDraft = true;
-
-        try
-        {
-            _draftProfileName = savedTemplate.Profile.Name;
-            _draftProfileDescription = savedTemplate.Profile.Description;
-            _activeProfile = savedTemplate.Profile;
-            DraftTemplateName = savedTemplate.Name;
-            DraftTemplateNotes = savedTemplate.Notes;
-        }
-        finally
-        {
-            _isSynchronizingDraft = false;
-        }
-
-        ReplaceItems(UserTemplates, await _profileLibraryService.GetUserTemplatesAsync());
-        RefreshTemplateLibraryItems();
-        CaptureTemplateEditingBaseline(
-            savedTemplate.Id,
-            $"user:{savedTemplate.Id}",
-            savedTemplate.Name,
-            savedTemplate.Notes,
-            savedTemplate.Profile);
-        SelectedProfileCaption = Texts.UserCaption(savedTemplate.Name);
-        RaiseSummaryPropertyChanges();
-        StatusText = statusText;
-        return savedTemplate;
-    }
-
-    private bool MatchesTemplateEditingBaseline()
-    {
-        var currentName = DraftTemplateName?.Trim() ?? string.Empty;
-        var currentNotes = DraftTemplateNotes?.Trim() ?? string.Empty;
-
-        return string.Equals(currentName, _templateBaselineName, StringComparison.Ordinal)
-            && string.Equals(currentNotes, _templateBaselineNotes, StringComparison.Ordinal)
-            && EqualityComparer<EncodingProfile?>.Default.Equals(_activeProfile, _templateBaselineProfile);
-    }
-
-    private TemplateLibraryItemViewModel BuildUserTemplateLibraryItem(SavedTemplate template)
-    {
-        return new TemplateLibraryItemViewModel(
-            $"user:{template.Id}",
-            template.Name,
-            template.IsPinned ? Texts.TemplateSourcePinned : Texts.TemplateSourceUser,
-            $"{template.Profile.EncoderLabel} · {template.Profile.QualitySummary}",
-            template.UpdatedLabel,
-            template.Id,
-            template.IsPinned,
-            template.IsPinned ? Texts.UnpinTemplateButton : Texts.PinTemplateButton,
-            template,
-            ResolveBrush("TemplateUserCardBrush"),
-            ResolveBrush("TemplateUserBorderBrush"),
-            ResolveBrush("TemplateUserBadgeBrush"),
-            ResolveBrush("TemplateUserBadgeForegroundBrush"));
-    }
-
-    private SavedTemplate? GetEditingUserTemplate()
-    {
-        return FindUserTemplateById(_editingTemplateId);
-    }
-
     private static Brush ResolveBrush(string key)
     {
         return Microsoft.UI.Xaml.Application.Current.Resources.TryGetValue(key, out var resource) && resource is Brush brush
@@ -3572,7 +3191,7 @@ public partial class MainWindowViewModel : CommunityToolkit.Mvvm.ComponentModel.
 
     private void RaiseComposerPropertyChanges()
     {
-        OnPropertyChanged(nameof(HasUnsavedTemplateChanges));
+        TemplatesModule.Library.NotifyDraftChanged();
         OnPropertyChanged(nameof(SuggestedOutputExtension));
         OnPropertyChanged(nameof(SuggestedOutputFileName));
         OnPropertyChanged(nameof(DraftOutputPreviewText));
@@ -3587,12 +3206,6 @@ public partial class MainWindowViewModel : CommunityToolkit.Mvvm.ComponentModel.
         OnPropertyChanged(nameof(DraftQualityVisibility));
         OnPropertyChanged(nameof(DraftBitrateVisibility));
         OnPropertyChanged(nameof(CanQueueJob));
-    }
-
-    private void RaiseTemplateLockPropertyChanges()
-    {
-        OnPropertyChanged(nameof(IsEditingPinnedTemplate));
-        OnPropertyChanged(nameof(CanEditTemplateDraft));
     }
 
     private void RaiseDraftPathPropertyChanges()
@@ -3752,7 +3365,7 @@ public partial class MainWindowViewModel : CommunityToolkit.Mvvm.ComponentModel.
             job.SetLanguage(language);
         }
 
-        RefreshTemplateLibraryItems();
+        TemplatesModule.Library.RefreshLibraryView();
         RaiseSetupGuidePropertyChanges();
         RefreshSelectedProfileCaption();
         RaiseSummaryPropertyChanges();
@@ -3894,15 +3507,20 @@ public partial class MainWindowViewModel : CommunityToolkit.Mvvm.ComponentModel.
 
     private void RefreshSelectedProfileCaption()
     {
-        if (_currentTemplateSelectionKey is not null && HasUnsavedTemplateChanges)
+        var library = TemplatesModule?.Library;
+        var selectionKey = library?.CurrentTemplateSelectionKey;
+        var editingId = library?.EditingUserTemplateId;
+        var hasUnsaved = library?.HasUnsavedTemplateChanges == true;
+
+        if (selectionKey is not null && hasUnsaved)
         {
             SelectedProfileCaption = Texts.ManualDraftCaption;
             return;
         }
 
-        if (_currentTemplateSelectionKey is not null)
+        if (selectionKey is not null)
         {
-            if (_currentTemplateSelectionKey.StartsWith("user:", StringComparison.Ordinal))
+            if (selectionKey.StartsWith("user:", StringComparison.Ordinal))
             {
                 var name = string.IsNullOrWhiteSpace(DraftTemplateName) ? _activeProfile?.Name ?? string.Empty : DraftTemplateName;
                 SelectedProfileCaption = Texts.UserCaption(name);
@@ -3910,7 +3528,7 @@ public partial class MainWindowViewModel : CommunityToolkit.Mvvm.ComponentModel.
             }
         }
 
-        if (_editingTemplateId is not null)
+        if (editingId is not null)
         {
             var name = string.IsNullOrWhiteSpace(DraftTemplateName) ? _activeProfile?.Name ?? string.Empty : DraftTemplateName;
             SelectedProfileCaption = Texts.UserCaption(name);
@@ -3919,7 +3537,7 @@ public partial class MainWindowViewModel : CommunityToolkit.Mvvm.ComponentModel.
 
         if (string.IsNullOrWhiteSpace(DraftTemplateName)
             && string.IsNullOrWhiteSpace(DraftTemplateNotes)
-            && _currentTemplateSelectionKey is null)
+            && selectionKey is null)
         {
             SelectedProfileCaption = Texts.NewTemplateCaption;
             return;

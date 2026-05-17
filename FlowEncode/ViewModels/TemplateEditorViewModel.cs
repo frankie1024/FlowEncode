@@ -118,11 +118,11 @@ public sealed class TemplateEditorViewModel : ModuleViewModelBase
 
     public Visibility DraftConstraintWarningVisibility => Owner.DraftConstraintWarningVisibility;
 
-    public string? EditingUserTemplateId => Owner.EditingUserTemplateId;
+    public string? EditingUserTemplateId => Owner.TemplatesModule.Library.EditingUserTemplateId;
 
-    public bool CanEditTemplateDraft => Owner.CanEditTemplateDraft;
+    public bool CanEditTemplateDraft => Owner.TemplatesModule.Library.CanEditTemplateDraft;
 
-    public bool HasUnsavedTemplateChanges => Owner.HasUnsavedTemplateChanges;
+    public bool HasUnsavedTemplateChanges => Owner.TemplatesModule.Library.HasUnsavedTemplateChanges;
 
     public void BeginNewTemplateDraft()
     {
@@ -131,11 +131,11 @@ public sealed class TemplateEditorViewModel : ModuleViewModelBase
 
     public Task<SavedTemplate?> SaveCurrentTemplateAsync()
     {
-        return Owner.SaveCurrentTemplateAsync();
+        return Owner.TemplatesModule.Library.SaveCurrentTemplateAsync();
     }
 
     public Task ExportCurrentTemplateAsync(string filePath)
     {
-        return Owner.ExportCurrentTemplateAsync(filePath);
+        return Owner.TemplatesModule.Library.ExportCurrentTemplateAsync(filePath);
     }
 }

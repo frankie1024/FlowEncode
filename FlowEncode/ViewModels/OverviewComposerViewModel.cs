@@ -98,7 +98,7 @@ public sealed class OverviewComposerViewModel : ModuleViewModelBase
         set => Owner.DraftBitrate = value;
     }
 
-    public ObservableCollection<TemplateLibraryItemViewModel> TemplateLibraryItems => Owner.TemplateLibraryItems;
+    public ObservableCollection<TemplateLibraryItemViewModel> TemplateLibraryItems => Owner.TemplatesModule.Library.TemplateLibraryItems;
 
     public string DraftTemplateName
     {
@@ -130,11 +130,11 @@ public sealed class OverviewComposerViewModel : ModuleViewModelBase
 
     public Visibility X265UhdVisibility => Owner.X265UhdVisibility;
 
-    public ObservableCollection<SavedTemplate> UserTemplates => Owner.UserTemplates;
+    public ObservableCollection<SavedTemplate> UserTemplates => Owner.TemplatesModule.Library.UserTemplates;
 
     public Task SelectUserTemplateAsync(SavedTemplate? template)
     {
-        return Owner.SelectUserTemplateAsync(template);
+        return Owner.TemplatesModule.Library.SelectUserTemplateAsync(template);
     }
 
     public Task ApplyUserTemplateToEncodingDraftAsync(SavedTemplate? template)

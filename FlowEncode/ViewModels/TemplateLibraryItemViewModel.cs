@@ -1,7 +1,6 @@
 using FlowEncode.Domain;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
-using Microsoft.UI.Xaml.Media;
 
 namespace FlowEncode.ViewModels;
 
@@ -14,11 +13,7 @@ public sealed record TemplateLibraryItemViewModel(
     string TemplateId,
     bool IsPinned,
     string PinActionLabel,
-    SavedTemplate? UserTemplate,
-    Brush BackgroundBrush,
-    Brush BorderBrush,
-    Brush BadgeBackgroundBrush,
-    Brush BadgeForegroundBrush)
+    SavedTemplate? UserTemplate)
 {
     public bool CanDelete => UserTemplate is not null && !IsPinned;
 

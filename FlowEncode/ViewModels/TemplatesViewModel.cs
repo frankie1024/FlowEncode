@@ -5,7 +5,7 @@ public sealed class TemplatesViewModel : ModuleViewModelBase
     public TemplatesViewModel(MainWindowViewModel owner)
         : base(owner)
     {
-        Library = TrackDisposable(new TemplateLibraryViewModel(owner));
+        Library = TrackDisposable(new TemplateLibraryViewModel(owner.ProfileLibraryService, owner, owner.AppPaths));
         Editor = TrackDisposable(new TemplateEditorViewModel(owner));
     }
 
