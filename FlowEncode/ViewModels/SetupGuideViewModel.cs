@@ -483,6 +483,9 @@ public sealed class SetupGuideViewModel : ObservableObject, ISetupDependencyModu
 
         if (!refreshAfterClear)
         {
+            _host.InvalidateToolProbeCache();
+            await RefreshSetupGuideAfterDependencyMutationAsync();
+            RestoreSetupGuideCardSelection(selectedCardIndex);
             return null;
         }
 

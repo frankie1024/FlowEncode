@@ -160,19 +160,13 @@ public sealed class GitHubAppUpdateService : IAppUpdateService, IDisposable
             {
                 await VerifySha256Async(downloadPath, updateResult.InstallerSha256!, cancellationToken);
                 progress?.Report(1.0);
+                CleanupOldAppUpdateFolders(downloadDirectory);
                 return downloadPath;
             }
             catch (Exception ex)
             {
                 WriteDiagnostic($"Cached installer verification failed for '{downloadPath}'. {ex.GetType().Name}: {ex.Message}");
-                try
-                {
-                    File.Delete(downloadPath);
-                }
-                catch (Exception cleanupException)
-                {
-                    WriteDiagnostic($"Failed to delete stale cached installer '{downloadPath}'. {cleanupException.GetType().Name}: {cleanupException.Message}");
-                }
+                BestEffortCleanup.DeleteFile(downloadPath, $"失效安装包 '{Path.GetFileName(downloadPath)}'", WriteDiagnostic);
             }
         }
 
@@ -188,17 +182,7 @@ public sealed class GitHubAppUpdateService : IAppUpdateService, IDisposable
         catch (Exception ex)
         {
             WriteDiagnostic($"Downloaded installer verification failed for '{downloadPath}'. {ex.GetType().Name}: {ex.Message}");
-            try
-            {
-                if (File.Exists(downloadPath))
-                {
-                    File.Delete(downloadPath);
-                }
-            }
-            catch (Exception cleanupException)
-            {
-                WriteDiagnostic($"Failed to delete invalid installer '{downloadPath}' after verification failure. {cleanupException.GetType().Name}: {cleanupException.Message}");
-            }
+            BestEffortCleanup.DeleteFile(downloadPath, $"无效安装包 '{Path.GetFileName(downloadPath)}'", WriteDiagnostic);
 
             throw;
         }

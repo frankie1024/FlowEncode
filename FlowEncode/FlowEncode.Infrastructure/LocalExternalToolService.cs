@@ -167,22 +167,21 @@ public sealed class LocalExternalToolService : IExternalToolService, IDisposable
         }
 
         var downloadPath = Path.Combine(_paths.DownloadsRootPath, package.AssetName);
-        await DownloadAsync(package.DownloadUrl, downloadPath, cancellationToken);
-        await VerifySha256Async(downloadPath, package.Sha256, cancellationToken);
-
-        if (downloadPath.EndsWith(".exe", StringComparison.OrdinalIgnoreCase))
-        {
-            var targetPath = GetLocalToolPath(package.Kind);
-            await CopyFileAsync(downloadPath, targetPath, cancellationToken);
-            BestEffortCleanup.DeleteFile(downloadPath, $"工具更新包 '{package.AssetName}'", WriteDiagnostic);
-            return targetPath;
-        }
-
         var extractRoot = Path.Combine(_paths.DownloadsRootPath, Guid.NewGuid().ToString("N"));
-        Directory.CreateDirectory(extractRoot);
 
         try
         {
+            await DownloadAsync(package.DownloadUrl, downloadPath, cancellationToken);
+            await VerifySha256Async(downloadPath, package.Sha256, cancellationToken);
+
+            if (downloadPath.EndsWith(".exe", StringComparison.OrdinalIgnoreCase))
+            {
+                var targetPath = GetLocalToolPath(package.Kind);
+                await CopyFileAsync(downloadPath, targetPath, cancellationToken);
+                return targetPath;
+            }
+
+            Directory.CreateDirectory(extractRoot);
             ExtractArchive(downloadPath, extractRoot);
 
             var result = package.Kind switch
@@ -192,11 +191,12 @@ public sealed class LocalExternalToolService : IExternalToolService, IDisposable
                 _ => throw new ArgumentOutOfRangeException()
             };
 
-            BestEffortCleanup.DeleteFile(downloadPath, $"工具更新包 '{package.AssetName}'", WriteDiagnostic);
             return result;
         }
         finally
         {
+            BestEffortCleanup.DeleteFile(downloadPath, $"工具更新包 '{package.AssetName}'", WriteDiagnostic);
+
             try
             {
                 if (Directory.Exists(extractRoot))

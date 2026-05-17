@@ -91,15 +91,14 @@ public sealed class GitHubReleaseEncoderUpdateService : IEncoderUpdateService, I
         }
 
         var downloadPath = Path.Combine(_paths.DownloadsRootPath, package.AssetName);
-        await DownloadAsync(package.DownloadUrl, downloadPath, cancellationToken);
-
-        await VerifySha256Async(downloadPath, package.Sha256, cancellationToken);
-
         var extractRoot = Path.Combine(_paths.DownloadsRootPath, Guid.NewGuid().ToString("N"));
-        Directory.CreateDirectory(extractRoot);
 
         try
         {
+            await DownloadAsync(package.DownloadUrl, downloadPath, cancellationToken);
+            await VerifySha256Async(downloadPath, package.Sha256, cancellationToken);
+
+            Directory.CreateDirectory(extractRoot);
             ExtractArchive(downloadPath, extractRoot);
 
             var executableName = package.Kind switch
@@ -145,12 +144,12 @@ public sealed class GitHubReleaseEncoderUpdateService : IEncoderUpdateService, I
                 throw new FileNotFoundException($"安装完成后未找到 {expectedBinaryName}。", expectedBinaryPath);
             }
 
-            BestEffortCleanup.DeleteFile(downloadPath, $"编码器更新包 '{package.AssetName}'", WriteDiagnostic);
-
             return expectedBinaryPath;
         }
         finally
         {
+            BestEffortCleanup.DeleteFile(downloadPath, $"编码器更新包 '{package.AssetName}'", WriteDiagnostic);
+
             try
             {
                 if (Directory.Exists(extractRoot))
