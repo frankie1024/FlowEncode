@@ -70,6 +70,7 @@ public sealed class GitHubReleaseEncoderUpdateService : IEncoderUpdateService, I
                 && asset.Name.EndsWith(".7z", StringComparison.OrdinalIgnoreCase)
                 && !asset.Name.Contains("Essential", StringComparison.OrdinalIgnoreCase)
                 && !asset.Name.Contains("HDR", StringComparison.OrdinalIgnoreCase)
+                && !asset.Name.Contains("Tritium", StringComparison.OrdinalIgnoreCase)
                 && !asset.Name.Contains("PSYEX", StringComparison.OrdinalIgnoreCase),
             static asset => ScoreSvtAsset(asset.Name),
             "统一回退到 Patman86 的标准 SVT-AV1 EncApp x64 构建（msvc > gcc > clang）。",
@@ -255,6 +256,7 @@ public sealed class GitHubReleaseEncoderUpdateService : IEncoderUpdateService, I
         score += ScoreContains(assetName, "clang", 60);
         score += ScoreContains(assetName, "essential", -500);
         score += ScoreContains(assetName, "hdr", -500);
+        score += ScoreContains(assetName, "tritium", -500);
         score += ScoreContains(assetName, "psyex", -500);
         return score;
     }
@@ -311,7 +313,7 @@ public sealed class GitHubReleaseEncoderUpdateService : IEncoderUpdateService, I
         return new EncoderUpdatePackage(
             kind,
             architecture,
-            ResolveGitHubReleaseLabel(release),
+            ResolveGitHubReleaseLabel(release, asset.Name),
             asset.Name,
             release.HtmlUrl,
             asset.BrowserDownloadUrl,
@@ -355,10 +357,11 @@ public sealed class GitHubReleaseEncoderUpdateService : IEncoderUpdateService, I
             : digest;
     }
 
-    private static string ResolveGitHubReleaseLabel(GitHubRelease release)
+    private static string ResolveGitHubReleaseLabel(GitHubRelease release, string? assetName = null)
     {
         return NormalizeGitHubReleaseLabel(release.TagName)
             ?? NormalizeGitHubReleaseLabel(release.Name)
+            ?? NormalizeGitHubReleaseLabel(assetName)
             ?? release.TagName;
     }
 
@@ -385,10 +388,20 @@ public sealed class GitHubReleaseEncoderUpdateService : IEncoderUpdateService, I
             && (trimmed[0] == 'v' || trimmed[0] == 'V')
             && char.IsDigit(trimmed[1]))
         {
-            return trimmed[1..];
+            var stripped = trimmed[1..];
+            if (Regex.IsMatch(stripped, "^\\d+(?:\\.\\d+)*$"))
+            {
+                return stripped;
+            }
+
+            var numericPrefix = Regex.Match(stripped, "^(\\d+(?:\\.\\d+)*)");
+            if (numericPrefix.Success)
+            {
+                return numericPrefix.Groups[1].Value;
+            }
         }
 
-        return trimmed;
+        return null;
     }
 
     private sealed record GitHubRelease(
