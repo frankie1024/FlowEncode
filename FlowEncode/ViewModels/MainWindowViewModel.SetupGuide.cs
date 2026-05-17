@@ -1,6 +1,7 @@
 using System;
 using System.Collections.ObjectModel;
 using System.Linq;
+using System.Threading.Tasks;
 using FlowEncode.Domain;
 using FlowEncode.Infrastructure;
 using Microsoft.UI.Xaml;
@@ -113,11 +114,7 @@ public partial class MainWindowViewModel
 
     private void RaiseSetupGuidePropertyChanges()
     {
-        SetupGuideModule.ApplyEnvironmentReadiness(
-            _environmentReadinessReport ?? new EnvironmentReadinessReport(
-                System.DateTimeOffset.Now,
-                System.Array.Empty<ToolProbeResult>(),
-                System.Array.Empty<CapabilityReadiness>()));
+        SetupGuideModule.RefreshLocalizedState();
     }
 
     public ToolProbeResult GetToolResult(RegisteredToolKind kind)

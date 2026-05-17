@@ -279,26 +279,6 @@ public partial class MainWindowViewModel : CommunityToolkit.Mvvm.ComponentModel.
 
     internal string AppUpdateStatusText => GetAppUpdateStatusText();
 
-    internal string EnvironmentCheckedAtText => SetupGuideModule.EnvironmentCheckedAtText;
-
-    internal string SetupGuideRemoteCheckedAtText => SetupGuideModule.SetupGuideRemoteCheckedAtText;
-
-    internal Visibility SetupGuideRemoteCheckedAtVisibility => SetupGuideModule.SetupGuideRemoteCheckedAtVisibility;
-
-    internal bool IsRefreshingSetupGuide => SetupGuideModule.IsRefreshingSetupGuide;
-
-    internal bool IsCheckingSetupDependencyUpdates => SetupGuideModule.IsCheckingSetupDependencyUpdates;
-
-    internal Visibility SetupGuideActionProgressVisibility => SetupGuideModule.SetupGuideActionProgressVisibility;
-
-    internal string SetupGuideRefreshActionText => SetupGuideModule.SetupGuideRefreshActionText;
-
-    internal string SetupGuideUpdateCheckActionText => SetupGuideModule.SetupGuideUpdateCheckActionText;
-
-    internal bool CanExecuteSetupGuideRefreshAction => SetupGuideModule.CanExecuteSetupGuideRefreshAction;
-
-    internal bool CanExecuteSetupGuideUpdateCheckAction => SetupGuideModule.CanExecuteSetupGuideUpdateCheckAction;
-
     internal AppText Texts
     {
         get => _texts;
@@ -310,6 +290,16 @@ public partial class MainWindowViewModel : CommunityToolkit.Mvvm.ComponentModel.
         get => _statusText;
         set => SetProperty(ref _statusText, value);
     }
+
+    AppText ISetupGuideHost.Texts => Texts;
+
+    string ISetupGuideHost.StatusText
+    {
+        get => StatusText;
+        set => StatusText = value;
+    }
+
+    bool ISetupGuideHost.IsBusy => IsBusy;
 
     EnvironmentReadinessReport? ISetupGuideHost.EnvironmentReadinessReport => _environmentReadinessReport;
 
@@ -323,6 +313,11 @@ public partial class MainWindowViewModel : CommunityToolkit.Mvvm.ComponentModel.
     {
         get => _hasCompletedSetupGuide;
         set => _hasCompletedSetupGuide = value;
+    }
+
+    string? ISetupGuideHost.SaveSettings(bool updateStatusText)
+    {
+        return SaveSettings(updateStatusText);
     }
 
     void ISetupGuideHost.NotifyEnvironmentReadinessChanged()
