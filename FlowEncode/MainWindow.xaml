@@ -38,14 +38,14 @@
             OpenPaneLength="240"
             SelectionChanged="ShellNavigationView_SelectionChanged">
             <NavigationView.MenuItems>
-                <NavigationViewItem Content="{x:Bind ViewModel.Texts.NavDashboard, Mode=OneWay}" Icon="Home" IsSelected="True" Tag="dashboard" />
-                <NavigationViewItem Content="{x:Bind ViewModel.Texts.NavBluRayDemux, Mode=OneWay}" Icon="Library" Tag="bluray-demux" />
-                <NavigationViewItem Content="{x:Bind ViewModel.Texts.NavVapourSynthWorkspace, Mode=OneWay}" Icon="Edit" Tag="vapoursynth-workspace" />
-                <NavigationViewItem Content="{x:Bind ViewModel.Texts.NavOverview, Mode=OneWay}" Icon="Video" Tag="overview" />
-                <NavigationViewItem Content="{x:Bind ViewModel.Texts.NavTemplates, Mode=OneWay}" Icon="AllApps" Tag="templates" />
-                <NavigationViewItem Content="{x:Bind ViewModel.Texts.NavAudioProcessing, Mode=OneWay}" Icon="Audio" Tag="audio-process" />
-                <NavigationViewItem Content="{x:Bind ViewModel.Texts.NavAutoCompression, Mode=OneWay}" Icon="Play" Tag="auto-compress" />
-                <NavigationViewItem Content="{x:Bind ViewModel.Texts.NavSettings, Mode=OneWay}" Icon="Setting" Tag="settings" />
+                <NavigationViewItem AutomationProperties.Name="{x:Bind ViewModel.Texts.NavDashboard, Mode=OneWay}" Content="{x:Bind ViewModel.Texts.NavDashboard, Mode=OneWay}" Icon="Home" IsSelected="True" Tag="dashboard" />
+                <NavigationViewItem AutomationProperties.Name="{x:Bind ViewModel.Texts.NavBluRayDemux, Mode=OneWay}" Content="{x:Bind ViewModel.Texts.NavBluRayDemux, Mode=OneWay}" Icon="Library" Tag="bluray-demux" />
+                <NavigationViewItem AutomationProperties.Name="{x:Bind ViewModel.Texts.NavVapourSynthWorkspace, Mode=OneWay}" Content="{x:Bind ViewModel.Texts.NavVapourSynthWorkspace, Mode=OneWay}" Icon="Edit" Tag="vapoursynth-workspace" />
+                <NavigationViewItem AutomationProperties.Name="{x:Bind ViewModel.Texts.NavOverview, Mode=OneWay}" Content="{x:Bind ViewModel.Texts.NavOverview, Mode=OneWay}" Icon="Video" Tag="overview" />
+                <NavigationViewItem AutomationProperties.Name="{x:Bind ViewModel.Texts.NavTemplates, Mode=OneWay}" Content="{x:Bind ViewModel.Texts.NavTemplates, Mode=OneWay}" Icon="AllApps" Tag="templates" />
+                <NavigationViewItem AutomationProperties.Name="{x:Bind ViewModel.Texts.NavAudioProcessing, Mode=OneWay}" Content="{x:Bind ViewModel.Texts.NavAudioProcessing, Mode=OneWay}" Icon="Audio" Tag="audio-process" />
+                <NavigationViewItem AutomationProperties.Name="{x:Bind ViewModel.Texts.NavAutoCompression, Mode=OneWay}" Content="{x:Bind ViewModel.Texts.NavAutoCompression, Mode=OneWay}" Icon="Play" Tag="auto-compress" />
+                <NavigationViewItem AutomationProperties.Name="{x:Bind ViewModel.Texts.NavSettings, Mode=OneWay}" Content="{x:Bind ViewModel.Texts.NavSettings, Mode=OneWay}" Icon="Setting" Tag="settings" />
             </NavigationView.MenuItems>
 
             <Grid x:Name="ShellContentHost" />
@@ -96,7 +96,7 @@
             DataContext="{x:Bind ViewModel.SetupGuideModule, Mode=OneWay}"
             Grid.Row="1"
             Canvas.ZIndex="20"
-            Visibility="{Binding SetupGuideVisibility}" />
+            Visibility="{x:Bind ViewModel.SetupGuideModule.SetupGuideVisibility, Mode=OneWay}" />
     </Grid>
 </Window>
 

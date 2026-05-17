@@ -21,7 +21,7 @@
                 FontFamily="{StaticResource AppDisplayFont}"
                 FontSize="18"
                 FontWeight="SemiBold"
-                Text="{Binding Header, ElementName=Root}"
+                Text="{x:Bind Header, Mode=OneWay}"
                 TextTrimming="CharacterEllipsis" />
 
             <Button
@@ -37,13 +37,13 @@
 
         <TextBox
             Grid.Row="1"
-            Height="{Binding PreviewHeight, ElementName=Root}"
-            MinHeight="{Binding PreviewMinHeight, ElementName=Root}"
+            Height="{x:Bind PreviewHeight, Mode=OneWay}"
+            MinHeight="{x:Bind PreviewMinHeight, Mode=OneWay}"
             FontFamily="{StaticResource AppMonoFont}"
             IsReadOnly="True"
-            PlaceholderText="{Binding PlaceholderText, ElementName=Root}"
+            PlaceholderText="{x:Bind PlaceholderText, Mode=OneWay}"
             ScrollViewer.VerticalScrollBarVisibility="Auto"
-            Text="{Binding Text, ElementName=Root, Mode=OneWay}"
+            Text="{x:Bind Text, Mode=OneWay}"
             TextWrapping="Wrap" />
 
         <TextBlock
