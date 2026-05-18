@@ -853,60 +853,70 @@ public sealed partial class OverviewView : UserControl
 
     private void JobsList_RightTapped(object sender, RightTappedRoutedEventArgs e)
     {
-        var flyoutOwner = FindJobContextFlyoutOwner(e.OriginalSource as DependencyObject);
-        if (flyoutOwner?.ContextFlyout is null)
+        var job = FindJobFromSource(e.OriginalSource as DependencyObject);
+        if (job is null || ViewModel?.Texts is not { } texts)
         {
             return;
         }
 
-        flyoutOwner.ContextFlyout.ShowAt(
-            flyoutOwner,
-            new FlyoutShowOptions { Position = e.GetPosition(flyoutOwner) });
+        var flyout = BuildJobContextMenu(job, texts);
+        var anchor = e.OriginalSource as FrameworkElement;
+        flyout.ShowAt(anchor, new FlyoutShowOptions { Position = e.GetPosition(anchor) });
         e.Handled = true;
     }
 
-    private static FrameworkElement? FindJobContextFlyoutOwner(DependencyObject? source)
+    private EncodingJobItemViewModel? FindJobFromSource(DependencyObject? source)
     {
-        ListViewItem? listViewItem = null;
         while (source is not null)
         {
-            if (source is FrameworkElement { DataContext: EncodingJobItemViewModel, ContextFlyout: not null } element)
+            if (source is FrameworkElement { DataContext: EncodingJobItemViewModel job })
             {
-                return element;
+                return job;
             }
 
-            if (source is ListViewItem item)
+            if (source is ListViewItem)
             {
-                listViewItem = item;
                 break;
             }
 
             source = VisualTreeHelper.GetParent(source);
         }
 
-        return listViewItem is null
-            ? null
-            : FindChildJobContextFlyoutOwner(listViewItem);
+        return null;
     }
 
-    private static FrameworkElement? FindChildJobContextFlyoutOwner(DependencyObject parent)
+    private MenuFlyout BuildJobContextMenu(EncodingJobItemViewModel job, AppText texts)
     {
-        for (var i = 0; i < VisualTreeHelper.GetChildrenCount(parent); i++)
+        var flyout = new MenuFlyout();
+
+        flyout.Items.Add(CreateMenuItem(texts.QueueEnterSelectionModeButton, Symbol.Edit, EnterQueueSelectionModeMenuItem_Click, job));
+        flyout.Items.Add(new MenuFlyoutSeparator());
+        flyout.Items.Add(CreateMenuItem(texts.JobMenuStart, Symbol.Play, StartQueuedJobMenuItem_Click, job, job.CanStart));
+        flyout.Items.Add(CreateMenuItem(texts.JobMenuPrioritize, Symbol.Play, StartJobMenuItem_Click, job, job.CanStart));
+        flyout.Items.Add(CreateMenuItem(texts.JobMenuMoveTop, Symbol.Upload, MoveJobToTopMenuItem_Click, job, job.CanMoveToTop));
+        flyout.Items.Add(CreateMenuItem(texts.JobMenuMoveUp, Symbol.Up, MoveJobUpMenuItem_Click, job, job.CanMoveUp));
+        flyout.Items.Add(CreateMenuItem(texts.JobMenuMoveDown, Symbol.Download, MoveJobDownMenuItem_Click, job, job.CanMoveDown));
+        flyout.Items.Add(CreateMenuItem(texts.JobMenuMoveBottom, Symbol.Download, MoveJobToBottomMenuItem_Click, job, job.CanMoveToBottom));
+        flyout.Items.Add(new MenuFlyoutSeparator());
+        flyout.Items.Add(CreateMenuItem(texts.JobMenuCancel, Symbol.Cancel, AbortJobMenuItem_Click, job, job.CanCancel));
+        flyout.Items.Add(new MenuFlyoutSeparator());
+        flyout.Items.Add(CreateMenuItem(texts.JobMenuRestart, Symbol.Refresh, RestartJobMenuItem_Click, job, job.CanRestart));
+        flyout.Items.Add(CreateMenuItem(texts.JobMenuDelete, Symbol.Delete, DeleteJobMenuItem_Click, job, job.CanRemove));
+
+        return flyout;
+    }
+
+    private static MenuFlyoutItem CreateMenuItem(string text, Symbol icon, RoutedEventHandler click, EncodingJobItemViewModel job, bool isEnabled = true)
+    {
+        var item = new MenuFlyoutItem
         {
-            var child = VisualTreeHelper.GetChild(parent, i);
-            if (child is FrameworkElement { DataContext: EncodingJobItemViewModel, ContextFlyout: not null } match)
-            {
-                return match;
-            }
-
-            var result = FindChildJobContextFlyoutOwner(child);
-            if (result is not null)
-            {
-                return result;
-            }
-        }
-
-        return null;
+            Text = text,
+            Icon = new SymbolIcon(icon),
+            CommandParameter = job,
+            IsEnabled = isEnabled
+        };
+        item.Click += click;
+        return item;
     }
 
     private void JobsList_SelectionChanged(object sender, SelectionChangedEventArgs e)
