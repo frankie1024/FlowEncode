@@ -72,7 +72,7 @@
 
                     <TextBlock
                         FontFamily="{StaticResource AppDisplayFont}"
-                        FontSize="18"
+                        FontSize="{StaticResource AppBodyLargeFontSize}"
                         FontWeight="SemiBold"
                         Text="{Binding Texts.VapourSynthPreviewFramePropsPaneTitle}" />
 

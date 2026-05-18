@@ -8,9 +8,9 @@
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
     mc:Ignorable="d">
     <ScrollViewer VerticalScrollBarVisibility="Auto">
-        <StackPanel x:Name="ContentStack" Padding="28,16,28,28" Spacing="20">
-            <Border Padding="20" Background="{ThemeResource CardBrush}" BorderBrush="{ThemeResource CardBorderBrush}" BorderThickness="{StaticResource AppCardBorderThickness}" CornerRadius="{StaticResource AppLargeCornerRadius}" DataContext="{Binding General}">
-                <Grid x:Name="SettingsOverviewGrid" ColumnSpacing="24" RowSpacing="16">
+        <StackPanel x:Name="ContentStack" Padding="{StaticResource AppPagePadding}" Spacing="{StaticResource AppSpacingL}">
+            <Border Padding="{StaticResource AppCardPadding}" Background="{ThemeResource CardBrush}" BorderBrush="{ThemeResource CardBorderBrush}" BorderThickness="{StaticResource AppCardBorderThickness}" CornerRadius="{StaticResource AppLargeCornerRadius}" Shadow="{StaticResource CardShadow}" DataContext="{Binding General}">
+                <Grid x:Name="SettingsOverviewGrid" ColumnSpacing="{StaticResource AppSpacingXXL}" RowSpacing="{StaticResource AppSpacingL}">
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto" />
                         <RowDefinition Height="Auto" />
@@ -21,35 +21,35 @@
                         <ColumnDefinition x:Name="SettingsOverviewSecondaryColumn" Width="0.9*" />
                     </Grid.ColumnDefinitions>
 
-                    <StackPanel Spacing="4">
-                        <TextBlock FontFamily="{StaticResource AppDisplayFont}" FontSize="24" FontWeight="SemiBold" Text="{Binding Texts.SettingsTitle}" />
+                    <StackPanel Spacing="{StaticResource AppSpacingXS}">
+                        <TextBlock FontFamily="{StaticResource AppDisplayFont}" FontSize="{StaticResource AppSectionTitleFontSize}" FontWeight="SemiBold" Text="{Binding Texts.SettingsTitle}" />
                         <TextBlock Foreground="{ThemeResource SubtleTextBrush}" Text="{Binding AppCurrentVersionText}" TextWrapping="WrapWholeWords" />
                         <TextBlock Foreground="{ThemeResource SubtleTextBrush}" Text="{Binding AppLatestVersionText}" TextWrapping="WrapWholeWords" Visibility="{Binding AppLatestVersionVisibility}" />
                     </StackPanel>
 
-                    <StackPanel x:Name="SettingsActionPanel" Grid.Column="1" Orientation="Horizontal" Spacing="8" HorizontalAlignment="Right" VerticalAlignment="Top">
+                    <StackPanel x:Name="SettingsActionPanel" Grid.Column="1" Orientation="Horizontal" Spacing="{StaticResource AppSpacingS}" HorizontalAlignment="Right" VerticalAlignment="Top">
                         <ProgressRing Width="26" Height="26" IsActive="{Binding IsAppUpdateActionInProgress}" Visibility="{Binding AppUpdateProgressVisibility}" />
                         <Button MinHeight="40" Padding="16,0" AutomationProperties.Name="{Binding AppUpdateActionText}" Click="CheckUpdatesButton_Click" IsEnabled="{Binding CanExecuteAppUpdateAction}" Style="{StaticResource AccentButtonStyle}" ToolTipService.ToolTip="{Binding AppUpdateActionText}">
-                            <StackPanel Orientation="Horizontal" Spacing="6">
+                            <StackPanel Orientation="Horizontal" Spacing="{StaticResource AppCommandIconTextSpacing}">
                                 <SymbolIcon Symbol="{Binding AppUpdateActionIcon}" />
                                 <TextBlock Text="{Binding AppUpdateActionText}" />
                             </StackPanel>
                         </Button>
                         <Button MinHeight="40" Padding="16,0" AutomationProperties.Name="{Binding Texts.SetupGuideButton}" Click="OpenSetupGuideButton_Click" ToolTipService.ToolTip="{Binding Texts.SetupGuideButton}">
-                            <StackPanel Orientation="Horizontal" Spacing="6">
+                            <StackPanel Orientation="Horizontal" Spacing="{StaticResource AppCommandIconTextSpacing}">
                                 <SymbolIcon Symbol="Help" />
                                 <TextBlock Text="{Binding Texts.SetupGuideButton}" />
                             </StackPanel>
                         </Button>
                         <Button MinHeight="40" Padding="16,0" AutomationProperties.Name="{Binding Texts.ToolDirectoryButton}" Click="OpenToolsetFolderButton_Click" ToolTipService.ToolTip="{Binding Texts.ToolDirectoryButton}">
-                            <StackPanel Orientation="Horizontal" Spacing="6">
+                            <StackPanel Orientation="Horizontal" Spacing="{StaticResource AppCommandIconTextSpacing}">
                                 <SymbolIcon Symbol="OpenLocal" />
                                 <TextBlock Text="{Binding Texts.ToolDirectoryButton}" />
                             </StackPanel>
                         </Button>
                     </StackPanel>
 
-                    <Grid x:Name="SettingsControlsGrid" Grid.Row="1" Grid.ColumnSpan="2" ColumnSpacing="18" RowSpacing="14">
+                    <Grid x:Name="SettingsControlsGrid" Grid.Row="1" Grid.ColumnSpan="2" ColumnSpacing="{StaticResource AppSpacingL}" RowSpacing="{StaticResource AppSpacingM}">
                         <Grid.RowDefinitions>
                             <RowDefinition Height="Auto" />
                             <RowDefinition Height="Auto" />
@@ -60,22 +60,22 @@
                             <ColumnDefinition x:Name="SettingsControlsSecondaryColumn" Width="*" />
                         </Grid.ColumnDefinitions>
 
-                        <Border x:Name="SettingsSelectorsPanel" Padding="16" Background="{ThemeResource CardAltBrush}" BorderBrush="{ThemeResource CardBorderBrush}" BorderThickness="{StaticResource AppCardBorderThickness}" CornerRadius="{StaticResource AppCardCornerRadius}">
-                            <StackPanel Spacing="14">
+                        <Border x:Name="SettingsSelectorsPanel" Padding="{StaticResource AppInsetPanelPadding}" Background="{ThemeResource CardAltBrush}" CornerRadius="{StaticResource AppCardCornerRadius}">
+                            <StackPanel Spacing="{StaticResource AppSpacingM}">
                                 <ComboBox x:Name="ThemeSelectorComboBox" Header="{Binding Texts.ThemeHeader}" DisplayMemberPath="Label" ItemsSource="{Binding ThemeOptions}" SelectedItem="{Binding SelectedTheme, Mode=TwoWay}" SelectionChanged="ThemeSelectorComboBox_SelectionChanged" />
                                 <ComboBox x:Name="LanguageSelectorComboBox" Header="{Binding Texts.LanguageHeader}" DisplayMemberPath="Label" ItemsSource="{Binding LanguageOptions}" SelectedItem="{Binding SelectedLanguage, Mode=TwoWay}" SelectionChanged="LanguageSelectorComboBox_SelectionChanged" />
                             </StackPanel>
                         </Border>
 
-                        <Border x:Name="SettingsTogglePanel" Grid.Column="1" Padding="16" Background="{ThemeResource CardAltBrush}" BorderBrush="{ThemeResource CardBorderBrush}" BorderThickness="{StaticResource AppCardBorderThickness}" CornerRadius="{StaticResource AppCardCornerRadius}">
-                            <StackPanel Spacing="14">
+                        <Border x:Name="SettingsTogglePanel" Grid.Column="1" Padding="{StaticResource AppInsetPanelPadding}" Background="{ThemeResource CardAltBrush}" CornerRadius="{StaticResource AppCardCornerRadius}">
+                            <StackPanel Spacing="{StaticResource AppSpacingM}">
                                 <ToggleSwitch x:Name="PreferSystemEncodersToggle" Header="{Binding Texts.PreferSystemEncodersHeader}" IsOn="{Binding PreferSystemEncoders, Mode=TwoWay}" OffContent="{Binding Texts.ToggleOffLabel}" OnContent="{Binding Texts.ToggleOnLabel}" ToolTipService.ToolTip="{Binding Texts.PreferSystemEncodersTooltip}" Toggled="SettingsToggle_Toggled" />
                                 <ToggleSwitch x:Name="AutoCheckUpdatesToggle" Header="{Binding Texts.AutoCheckUpdatesHeader}" IsOn="{Binding AutoCheckUpdatesOnStartup, Mode=TwoWay}" OffContent="{Binding Texts.ToggleOffLabel}" OnContent="{Binding Texts.ToggleOnLabel}" ToolTipService.ToolTip="{Binding Texts.AutoCheckUpdatesTooltip}" Toggled="SettingsToggle_Toggled" />
                             </StackPanel>
                         </Border>
 
-                        <Border Grid.Row="2" Grid.ColumnSpan="2" Padding="16" Background="{ThemeResource CardAltBrush}" BorderBrush="{ThemeResource CardBorderBrush}" BorderThickness="{StaticResource AppCardBorderThickness}" CornerRadius="{StaticResource AppCardCornerRadius}">
-                            <Grid ColumnSpacing="12" RowSpacing="10">
+                        <Border Grid.Row="2" Grid.ColumnSpan="2" Padding="{StaticResource AppInsetPanelPadding}" Background="{ThemeResource CardAltBrush}" CornerRadius="{StaticResource AppCardCornerRadius}">
+                            <Grid ColumnSpacing="{StaticResource AppSpacingM}" RowSpacing="{StaticResource AppSpacingM}">
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition Width="*" />
                                     <ColumnDefinition Width="Auto" />
@@ -84,13 +84,13 @@
 
                                 <TextBox x:Name="WorkspaceRootPathTextBox" Header="{Binding Texts.WorkspaceDirectoryHeader}" IsReadOnly="True" Text="{Binding WorkspaceRootPath, Mode=TwoWay}" TextWrapping="Wrap" />
                                 <Button Grid.Column="1" MinHeight="40" VerticalAlignment="Bottom" AutomationProperties.Name="{Binding Texts.ChooseFolderButton}" Click="BrowseWorkspaceFolderButton_Click" ToolTipService.ToolTip="{Binding Texts.ChooseFolderButton}">
-                                    <StackPanel Orientation="Horizontal" Spacing="6">
+                                    <StackPanel Orientation="Horizontal" Spacing="{StaticResource AppCommandIconTextSpacing}">
                                         <SymbolIcon Symbol="Folder" />
                                         <TextBlock Text="{Binding Texts.ChooseFolderButton}" />
                                     </StackPanel>
                                 </Button>
                                 <Button Grid.Column="2" MinHeight="40" VerticalAlignment="Bottom" AutomationProperties.Name="{Binding Texts.AppFolderButton}" Tag="{Binding WorkspaceRootPath}" Click="OpenTaggedFolderButton_Click" ToolTipService.ToolTip="{Binding Texts.AppFolderButton}">
-                                    <StackPanel Orientation="Horizontal" Spacing="6">
+                                    <StackPanel Orientation="Horizontal" Spacing="{StaticResource AppCommandIconTextSpacing}">
                                         <SymbolIcon Symbol="OpenLocal" />
                                         <TextBlock Text="{Binding Texts.AppFolderButton}" />
                                     </StackPanel>
@@ -101,30 +101,30 @@
                 </Grid>
             </Border>
 
-            <Border Padding="22" Background="{ThemeResource CardBrush}" BorderBrush="{ThemeResource CardBorderBrush}" BorderThickness="{StaticResource AppCardBorderThickness}" CornerRadius="{StaticResource AppLargeCornerRadius}" DataContext="{Binding Dependencies}">
-                <StackPanel Spacing="14">
-                    <Grid ColumnSpacing="16">
+            <Border Padding="{StaticResource AppCardPadding}" Background="{ThemeResource CardBrush}" BorderBrush="{ThemeResource CardBorderBrush}" BorderThickness="{StaticResource AppCardBorderThickness}" CornerRadius="{StaticResource AppLargeCornerRadius}" Shadow="{StaticResource CardShadow}" DataContext="{Binding Dependencies}">
+                <StackPanel Spacing="{StaticResource AppSpacingM}">
+                    <Grid ColumnSpacing="{StaticResource AppSpacingL}">
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="*" />
                             <ColumnDefinition Width="Auto" />
                         </Grid.ColumnDefinitions>
 
-                        <StackPanel Spacing="4">
-                            <TextBlock FontFamily="{StaticResource AppDisplayFont}" FontSize="22" FontWeight="SemiBold" Text="{Binding Texts.EnvironmentAndDependenciesTitle}" />
+                        <StackPanel Spacing="{StaticResource AppSpacingXS}">
+                            <TextBlock FontFamily="{StaticResource AppDisplayFont}" FontSize="{StaticResource AppSubsectionTitleFontSize}" FontWeight="SemiBold" Text="{Binding Texts.EnvironmentAndDependenciesTitle}" />
                             <TextBlock Foreground="{ThemeResource SubtleTextBrush}" Text="{Binding EnvironmentCheckedAtText}" TextWrapping="WrapWholeWords" />
                             <TextBlock Foreground="{ThemeResource SubtleTextBrush}" Text="{Binding SetupGuideRemoteCheckedAtText}" TextWrapping="WrapWholeWords" />
                         </StackPanel>
 
-                        <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8" HorizontalAlignment="Right" VerticalAlignment="Top">
+                        <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="{StaticResource AppSpacingS}" HorizontalAlignment="Right" VerticalAlignment="Top">
                             <ProgressRing Width="24" Height="24" IsActive="True" Visibility="{Binding SetupGuideActionProgressVisibility}" />
                             <Button MinHeight="40" Padding="16,0" AutomationProperties.Name="{Binding SetupGuideRefreshActionText}" Click="RefreshSetupGuideButton_Click" IsEnabled="{Binding CanExecuteSetupGuideRefreshAction}" ToolTipService.ToolTip="{Binding SetupGuideRefreshActionText}">
-                                <StackPanel Orientation="Horizontal" Spacing="6">
+                                <StackPanel Orientation="Horizontal" Spacing="{StaticResource AppCommandIconTextSpacing}">
                                     <SymbolIcon Symbol="Refresh" />
                                     <TextBlock Text="{Binding SetupGuideRefreshActionText}" />
                                 </StackPanel>
                             </Button>
                             <Button MinHeight="40" Padding="16,0" AutomationProperties.Name="{Binding SetupGuideUpdateCheckActionText}" Click="CheckSetupDependencyUpdatesButton_Click" IsEnabled="{Binding CanExecuteSetupGuideUpdateCheckAction}" ToolTipService.ToolTip="{Binding SetupGuideUpdateCheckActionText}">
-                                <StackPanel Orientation="Horizontal" Spacing="6">
+                                <StackPanel Orientation="Horizontal" Spacing="{StaticResource AppCommandIconTextSpacing}">
                                     <SymbolIcon Symbol="Find" />
                                     <TextBlock Text="{Binding SetupGuideUpdateCheckActionText}" />
                                 </StackPanel>
@@ -134,23 +134,23 @@
                     <ItemsControl ItemsSource="{Binding SetupGuideCards}">
                         <ItemsControl.ItemTemplate>
                             <DataTemplate>
-                                <Expander Margin="0,0,0,14" HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch">
+                                <Expander Margin="{StaticResource AppBottomSpacingM}" HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch">
                                     <Expander.Header>
-                                        <Grid ColumnSpacing="12">
+                                        <Grid ColumnSpacing="{StaticResource AppSpacingM}">
                                             <Grid.ColumnDefinitions>
                                                 <ColumnDefinition Width="*" />
                                                 <ColumnDefinition Width="Auto" />
                                             </Grid.ColumnDefinitions>
-                                            <TextBlock FontFamily="{StaticResource AppDisplayFont}" FontSize="20" FontWeight="SemiBold" Text="{Binding Title}" VerticalAlignment="Center" />
+                                            <TextBlock FontFamily="{StaticResource AppDisplayFont}" FontSize="{StaticResource AppCardTitleFontSize}" FontWeight="SemiBold" Text="{Binding Title}" VerticalAlignment="Center" />
                                             <TextBlock Grid.Column="1" Foreground="{ThemeResource SubtleTextBrush}" Text="{Binding ReadySummary}" VerticalAlignment="Center" />
                                         </Grid>
                                     </Expander.Header>
-                                    <Border Padding="18" Background="{ThemeResource CardAltBrush}" BorderBrush="{ThemeResource CardBorderBrush}" BorderThickness="{StaticResource AppCardBorderThickness}" CornerRadius="{StaticResource AppLargeCornerRadius}">
+                                    <Border Padding="{StaticResource AppInsetPanelPadding}" Background="{ThemeResource CardAltBrush}" CornerRadius="{StaticResource AppLargeCornerRadius}">
                                     <ItemsControl ItemsSource="{Binding Items}">
                                             <ItemsControl.ItemTemplate>
                                                 <DataTemplate>
-                                                    <Border Margin="0,0,0,12" Padding="18" Background="{ThemeResource CardBrush}" BorderBrush="{ThemeResource CardBorderBrush}" BorderThickness="{StaticResource AppCardBorderThickness}" CornerRadius="{StaticResource AppCardCornerRadius}">
-                                                        <Grid RowSpacing="10">
+                                                    <Border Margin="{StaticResource AppBottomSpacingM}" Padding="{StaticResource AppInsetPanelPadding}" Background="{ThemeResource CardBrush}" BorderBrush="{ThemeResource CardBorderBrush}" BorderThickness="{StaticResource AppCardBorderThickness}" CornerRadius="{StaticResource AppCardCornerRadius}">
+                                                        <Grid RowSpacing="{StaticResource AppSpacingM}">
                                                             <Grid.RowDefinitions>
                                                                 <RowDefinition Height="Auto" />
                                                                 <RowDefinition Height="Auto" />
@@ -161,43 +161,43 @@
                                                                 <RowDefinition Height="Auto" />
                                                             </Grid.RowDefinitions>
 
-                                                            <Grid ColumnSpacing="16">
+                                                            <Grid ColumnSpacing="{StaticResource AppSpacingL}">
                                                                 <Grid.ColumnDefinitions>
                                                                     <ColumnDefinition Width="*" />
                                                                     <ColumnDefinition Width="Auto" />
                                                                 </Grid.ColumnDefinitions>
 
-                                                                <StackPanel Spacing="2">
-                                                                    <TextBlock FontFamily="{StaticResource AppDisplayFont}" FontSize="21" FontWeight="SemiBold" Text="{Binding Title}" />
+                                                                <StackPanel Spacing="{StaticResource AppSpacingXS}">
+                                                                    <TextBlock FontFamily="{StaticResource AppDisplayFont}" FontSize="{StaticResource AppSubsectionTitleFontSize}" FontWeight="SemiBold" Text="{Binding Title}" />
                                                                 </StackPanel>
 
-                                                                <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8" HorizontalAlignment="Right" VerticalAlignment="Top">
+                                                                <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="{StaticResource AppSpacingS}" HorizontalAlignment="Right" VerticalAlignment="Top">
                                                                     <Button AutomationProperties.Name="{Binding DataContext.Texts.ManualSelectButton, ElementName=RootView}" Tag="{Binding Kind}" Click="ManualSelectSetupDependencyButton_Click" IsEnabled="{Binding ManualSelectEnabled}" Visibility="{Binding ManualSelectVisibility}" ToolTipService.ToolTip="{Binding DataContext.Texts.ManualSelectTooltip, ElementName=RootView}">
-                                                                        <StackPanel Orientation="Horizontal" Spacing="6">
+                                                                        <StackPanel Orientation="Horizontal" Spacing="{StaticResource AppCommandIconTextSpacing}">
                                                                             <SymbolIcon Symbol="OpenFile" />
                                                                             <TextBlock Text="{Binding DataContext.Texts.ManualSelectButton, ElementName=RootView}" />
                                                                         </StackPanel>
                                                                     </Button>
                                                                     <Button AutomationProperties.Name="{Binding DataContext.Texts.ClearManualPinButton, ElementName=RootView}" Tag="{Binding Kind}" Click="ClearManualPinnedSetupDependencyButton_Click" IsEnabled="{Binding ClearManualPinEnabled}" Visibility="{Binding ClearManualPinVisibility}" ToolTipService.ToolTip="{Binding DataContext.Texts.ClearManualPinTooltip, ElementName=RootView}">
-                                                                        <StackPanel Orientation="Horizontal" Spacing="6">
+                                                                        <StackPanel Orientation="Horizontal" Spacing="{StaticResource AppCommandIconTextSpacing}">
                                                                             <SymbolIcon Symbol="UnPin" />
                                                                             <TextBlock Text="{Binding DataContext.Texts.ClearManualPinButton, ElementName=RootView}" />
                                                                         </StackPanel>
                                                                     </Button>
                                                                     <Button AutomationProperties.Name="{Binding PrimaryActionText}" Tag="{Binding Kind}" Click="InstallSetupDependencyButton_Click" IsEnabled="{Binding PrimaryActionEnabled}" Visibility="{Binding PrimaryActionVisibility}" Style="{StaticResource AccentButtonStyle}" ToolTipService.ToolTip="{Binding PrimaryActionText}">
-                                                                        <StackPanel Orientation="Horizontal" Spacing="6">
+                                                                        <StackPanel Orientation="Horizontal" Spacing="{StaticResource AppCommandIconTextSpacing}">
                                                                             <SymbolIcon Symbol="Download" />
                                                                             <TextBlock Text="{Binding PrimaryActionText}" />
                                                                         </StackPanel>
                                                                     </Button>
                                                                     <Button AutomationProperties.Name="{Binding DataContext.Texts.UninstallButton, ElementName=RootView}" Tag="{Binding Kind}" Click="UninstallSetupDependencyButton_Click" IsEnabled="{Binding UninstallActionEnabled}" Visibility="{Binding UninstallVisibility}" ToolTipService.ToolTip="{Binding DataContext.Texts.UninstallTooltip, ElementName=RootView}">
-                                                                        <StackPanel Orientation="Horizontal" Spacing="6">
+                                                                        <StackPanel Orientation="Horizontal" Spacing="{StaticResource AppCommandIconTextSpacing}">
                                                                             <SymbolIcon Symbol="Delete" />
                                                                             <TextBlock Text="{Binding DataContext.Texts.UninstallButton, ElementName=RootView}" />
                                                                         </StackPanel>
                                                                     </Button>
                                                                     <HyperlinkButton AutomationProperties.Name="{Binding DataContext.Texts.ReleasePageButton, ElementName=RootView}" Tag="{Binding ReleaseUrl}" Click="OpenUrlButton_Click" Visibility="{Binding ReleaseVisibility}" ToolTipService.ToolTip="{Binding DataContext.Texts.ReleasePageTooltip, ElementName=RootView}">
-                                                                        <StackPanel Orientation="Horizontal" Spacing="6">
+                                                                        <StackPanel Orientation="Horizontal" Spacing="{StaticResource AppCommandIconTextSpacing}">
                                                                             <SymbolIcon Symbol="Link" />
                                                                             <TextBlock Text="{Binding DataContext.Texts.ReleasePageButton, ElementName=RootView}" />
                                                                         </StackPanel>
@@ -205,22 +205,22 @@
                                                                 </StackPanel>
                                                             </Grid>
 
-                                                            <StackPanel Grid.Row="1" Orientation="Horizontal" Spacing="8" Visibility="{Binding ReadyBadgeVisibility}">
+                                                            <StackPanel Grid.Row="1" Orientation="Horizontal" Spacing="{StaticResource AppSpacingS}" Visibility="{Binding ReadyBadgeVisibility}">
                                                                 <SymbolIcon Symbol="Accept" Foreground="{ThemeResource AppSuccessBrush}" />
                                                                 <TextBlock FontWeight="SemiBold" Foreground="{ThemeResource AppSuccessBrush}" Text="{Binding StatusTitle}" />
                                                             </StackPanel>
 
-                                                            <StackPanel Grid.Row="1" Orientation="Horizontal" Spacing="8" Visibility="{Binding WarningBadgeVisibility}">
+                                                            <StackPanel Grid.Row="1" Orientation="Horizontal" Spacing="{StaticResource AppSpacingS}" Visibility="{Binding WarningBadgeVisibility}">
                                                                 <SymbolIcon Symbol="Sync" Foreground="{ThemeResource AppWarningBrush}" />
                                                                 <TextBlock FontWeight="SemiBold" Foreground="{ThemeResource AppWarningBrush}" Text="{Binding StatusTitle}" />
                                                             </StackPanel>
 
-                                                            <StackPanel Grid.Row="1" Orientation="Horizontal" Spacing="8" Visibility="{Binding BlockedBadgeVisibility}">
+                                                            <StackPanel Grid.Row="1" Orientation="Horizontal" Spacing="{StaticResource AppSpacingS}" Visibility="{Binding BlockedBadgeVisibility}">
                                                                 <SymbolIcon Symbol="Important" Foreground="{ThemeResource AppErrorBrush}" />
                                                                 <TextBlock FontWeight="SemiBold" Foreground="{ThemeResource AppErrorBrush}" Text="{Binding StatusTitle}" />
                                                             </StackPanel>
 
-                                                            <StackPanel Grid.Row="2" Spacing="4">
+                                                            <StackPanel Grid.Row="2" Spacing="{StaticResource AppSpacingXS}">
                                                                 <TextBlock Text="{Binding StatusText}" TextWrapping="WrapWholeWords" />
                                                                 <TextBlock Foreground="{ThemeResource SubtleTextBrush}" Text="{Binding InstalledVersionText}" TextWrapping="WrapWholeWords" Visibility="{Binding InstalledVersionVisibility}" />
                                                                 <TextBlock Foreground="{ThemeResource SubtleTextBrush}" Text="{Binding LatestVersionText}" TextWrapping="WrapWholeWords" Visibility="{Binding LatestVersionVisibility}" />
@@ -228,7 +228,7 @@
 
                                                             <TextBlock Grid.Row="3" Foreground="{ThemeResource AppWarningBrush}" Text="{Binding WarningText}" TextWrapping="WrapWholeWords" Visibility="{Binding WarningVisibility}" />
 
-                                                            <Grid Grid.Row="4" RowSpacing="6" Visibility="{Binding ProgressVisibility}">
+                                                            <Grid Grid.Row="4" RowSpacing="{StaticResource AppSpacingS}" Visibility="{Binding ProgressVisibility}">
                                                                 <Grid.RowDefinitions>
                                                                     <RowDefinition Height="Auto" />
                                                                     <RowDefinition Height="Auto" />

@@ -7,51 +7,51 @@
     xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
     mc:Ignorable="d">
-    <Grid Background="{ThemeResource AppModalSmokeBrush}">
-        <Grid Padding="20">
+        <Grid Background="{ThemeResource AppModalSmokeBrush}">
+        <Grid Padding="{StaticResource AppCardPadding}">
             <Border
                 x:Name="SetupGuideDialogCard"
                 MaxWidth="1160"
-                Padding="24"
+                Padding="{StaticResource AppDialogPadding}"
                 HorizontalAlignment="Center"
                 VerticalAlignment="Center"
                 Background="{ThemeResource CardBrush}"
                 BorderBrush="{ThemeResource CardBorderBrush}"
                 BorderThickness="{StaticResource AppCardBorderThickness}"
                 CornerRadius="{StaticResource AppLargeCornerRadius}">
-                <Grid RowSpacing="18">
+                <Grid RowSpacing="{StaticResource AppSpacingL}">
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto" />
                         <RowDefinition Height="*" />
                         <RowDefinition Height="Auto" />
                     </Grid.RowDefinitions>
 
-                    <Grid x:Name="SetupGuideHeaderPanel" ColumnSpacing="16">
+                    <Grid x:Name="SetupGuideHeaderPanel" ColumnSpacing="{StaticResource AppSpacingL}">
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="*" />
                             <ColumnDefinition Width="Auto" />
                         </Grid.ColumnDefinitions>
 
-                        <StackPanel Spacing="6">
-                            <TextBlock FontFamily="{StaticResource AppDisplayFont}" FontSize="28" FontWeight="SemiBold" Text="{Binding Texts.SetupGuideTitle}" />
+                        <StackPanel Spacing="{StaticResource AppSpacingS}">
+                            <TextBlock FontFamily="{StaticResource AppDisplayFont}" FontSize="{StaticResource AppTitleFontSize}" FontWeight="SemiBold" Text="{Binding Texts.SetupGuideTitle}" />
                         </StackPanel>
 
-                        <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8" VerticalAlignment="Top">
+                        <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="{StaticResource AppSpacingS}" VerticalAlignment="Top">
                             <ProgressRing Width="24" Height="24" IsActive="True" Visibility="{Binding SetupGuideActionProgressVisibility}" />
                             <Button AutomationProperties.Name="{Binding SetupGuideRefreshActionText}" Click="RefreshSetupGuideButton_Click" IsEnabled="{Binding CanExecuteSetupGuideRefreshAction}" ToolTipService.ToolTip="{Binding SetupGuideRefreshActionText}">
-                                <StackPanel Orientation="Horizontal" Spacing="6">
+                                <StackPanel Orientation="Horizontal" Spacing="{StaticResource AppCommandIconTextSpacing}">
                                     <SymbolIcon Symbol="Refresh" />
                                     <TextBlock Text="{Binding SetupGuideRefreshActionText}" />
                                 </StackPanel>
                             </Button>
                             <Button AutomationProperties.Name="{Binding SetupGuideUpdateCheckActionText}" Click="CheckSetupDependencyUpdatesButton_Click" IsEnabled="{Binding CanExecuteSetupGuideUpdateCheckAction}" ToolTipService.ToolTip="{Binding SetupGuideUpdateCheckActionText}">
-                                <StackPanel Orientation="Horizontal" Spacing="6">
+                                <StackPanel Orientation="Horizontal" Spacing="{StaticResource AppCommandIconTextSpacing}">
                                     <SymbolIcon Symbol="Find" />
                                     <TextBlock Text="{Binding SetupGuideUpdateCheckActionText}" />
                                 </StackPanel>
                             </Button>
                             <Button AutomationProperties.Name="{Binding Texts.SetupGuideCloseButton}" Click="CloseSetupGuideButton_Click" Style="{StaticResource AccentButtonStyle}" ToolTipService.ToolTip="{Binding Texts.SetupGuideCloseButton}">
-                                <StackPanel Orientation="Horizontal" Spacing="6">
+                                <StackPanel Orientation="Horizontal" Spacing="{StaticResource AppCommandIconTextSpacing}">
                                     <SymbolIcon Symbol="Forward" />
                                     <TextBlock Text="{Binding Texts.SetupGuideCloseButton}" />
                                 </StackPanel>
@@ -71,23 +71,23 @@
                         SelectionChanged="SetupGuideFlipView_SelectionChanged">
                         <FlipView.ItemTemplate>
                             <DataTemplate>
-                                <Border Margin="4,0,16,0" Padding="22" VerticalAlignment="Stretch" Background="{ThemeResource CardAltBrush}" BorderBrush="{ThemeResource CardBorderBrush}" BorderThickness="{StaticResource AppCardBorderThickness}" CornerRadius="{StaticResource AppLargeCornerRadius}">
-                                    <Grid RowSpacing="16">
+                                <Border Margin="{StaticResource AppSetupGuideCarouselCardMargin}" Padding="{StaticResource AppCardPadding}" VerticalAlignment="Stretch" Background="{ThemeResource CardAltBrush}" BorderBrush="{ThemeResource CardBorderBrush}" BorderThickness="{StaticResource AppCardBorderThickness}" CornerRadius="{StaticResource AppLargeCornerRadius}">
+                                    <Grid RowSpacing="{StaticResource AppSpacingL}">
                                         <Grid.RowDefinitions>
                                             <RowDefinition Height="Auto" />
                                             <RowDefinition Height="*" />
                                         </Grid.RowDefinitions>
 
-                                        <StackPanel Spacing="6">
-                                            <TextBlock FontFamily="{StaticResource AppDisplayFont}" FontSize="26" FontWeight="SemiBold" Text="{Binding Title}" />
+                                        <StackPanel Spacing="{StaticResource AppSpacingS}">
+                                            <TextBlock FontFamily="{StaticResource AppDisplayFont}" FontSize="{StaticResource AppHeadlineFontSize}" FontWeight="SemiBold" Text="{Binding Title}" />
                                         </StackPanel>
 
                                         <ScrollViewer Grid.Row="1" MinHeight="0" VerticalAlignment="Stretch" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
                                             <ItemsControl ItemsSource="{Binding Items}">
                                                 <ItemsControl.ItemTemplate>
                                                     <DataTemplate>
-                                                        <Border Margin="0,0,0,12" Padding="18" Background="{ThemeResource CardBrush}" BorderBrush="{ThemeResource CardBorderBrush}" BorderThickness="{StaticResource AppCardBorderThickness}" CornerRadius="{StaticResource AppCardCornerRadius}">
-                                                            <Grid RowSpacing="10">
+                                                        <Border Margin="{StaticResource AppBottomSpacingM}" Padding="{StaticResource AppInsetPanelPadding}" Background="{ThemeResource CardBrush}" BorderBrush="{ThemeResource CardBorderBrush}" BorderThickness="{StaticResource AppCardBorderThickness}" CornerRadius="{StaticResource AppCardCornerRadius}">
+                                                            <Grid RowSpacing="{StaticResource AppSpacingM}">
                                                                 <Grid.RowDefinitions>
                                                                     <RowDefinition Height="Auto" />
                                                                     <RowDefinition Height="Auto" />
@@ -98,43 +98,43 @@
                                                                     <RowDefinition Height="Auto" />
                                                                 </Grid.RowDefinitions>
 
-                                                                <Grid ColumnSpacing="16">
+                                                                <Grid ColumnSpacing="{StaticResource AppSpacingL}">
                                                                     <Grid.ColumnDefinitions>
                                                                         <ColumnDefinition Width="*" />
                                                                         <ColumnDefinition Width="Auto" />
                                                                     </Grid.ColumnDefinitions>
 
-                                                                    <StackPanel Spacing="2">
-                                                                        <TextBlock FontFamily="{StaticResource AppDisplayFont}" FontSize="21" FontWeight="SemiBold" Text="{Binding Title}" />
+                                                                    <StackPanel Spacing="{StaticResource AppSpacingXS}">
+                                                                        <TextBlock FontFamily="{StaticResource AppDisplayFont}" FontSize="{StaticResource AppSubsectionTitleFontSize}" FontWeight="SemiBold" Text="{Binding Title}" />
                                                                     </StackPanel>
 
-                                                                    <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8" HorizontalAlignment="Right" VerticalAlignment="Top">
+                                                                    <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="{StaticResource AppSpacingS}" HorizontalAlignment="Right" VerticalAlignment="Top">
                                                                         <Button AutomationProperties.Name="{Binding DataContext.Texts.ManualSelectButton, ElementName=RootView}" Tag="{Binding Kind}" Click="ManualSelectSetupDependencyButton_Click" IsEnabled="{Binding ManualSelectEnabled}" Visibility="{Binding ManualSelectVisibility}" ToolTipService.ToolTip="{Binding DataContext.Texts.ManualSelectButton, ElementName=RootView}">
-                                                                            <StackPanel Orientation="Horizontal" Spacing="6">
+                                                                            <StackPanel Orientation="Horizontal" Spacing="{StaticResource AppCommandIconTextSpacing}">
                                                                                 <SymbolIcon Symbol="OpenFile" />
                                                                                 <TextBlock Text="{Binding DataContext.Texts.ManualSelectButton, ElementName=RootView}" />
                                                                             </StackPanel>
                                                                         </Button>
                                                                         <Button AutomationProperties.Name="{Binding DataContext.Texts.ClearManualPinButton, ElementName=RootView}" Tag="{Binding Kind}" Click="ClearManualPinnedSetupDependencyButton_Click" IsEnabled="{Binding ClearManualPinEnabled}" Visibility="{Binding ClearManualPinVisibility}" ToolTipService.ToolTip="{Binding DataContext.Texts.ClearManualPinButton, ElementName=RootView}">
-                                                                            <StackPanel Orientation="Horizontal" Spacing="6">
+                                                                            <StackPanel Orientation="Horizontal" Spacing="{StaticResource AppCommandIconTextSpacing}">
                                                                                 <SymbolIcon Symbol="UnPin" />
                                                                                 <TextBlock Text="{Binding DataContext.Texts.ClearManualPinButton, ElementName=RootView}" />
                                                                             </StackPanel>
                                                                         </Button>
                                                                         <Button AutomationProperties.Name="{Binding PrimaryActionText}" Tag="{Binding Kind}" Click="InstallSetupDependencyButton_Click" IsEnabled="{Binding PrimaryActionEnabled}" Visibility="{Binding PrimaryActionVisibility}" Style="{StaticResource AccentButtonStyle}" ToolTipService.ToolTip="{Binding PrimaryActionText}">
-                                                                            <StackPanel Orientation="Horizontal" Spacing="6">
+                                                                            <StackPanel Orientation="Horizontal" Spacing="{StaticResource AppCommandIconTextSpacing}">
                                                                                 <SymbolIcon Symbol="Download" />
                                                                                 <TextBlock Text="{Binding PrimaryActionText}" />
                                                                             </StackPanel>
                                                                         </Button>
                                                                         <Button AutomationProperties.Name="{Binding DataContext.Texts.UninstallButton, ElementName=RootView}" Tag="{Binding Kind}" Click="UninstallSetupDependencyButton_Click" IsEnabled="{Binding UninstallActionEnabled}" Visibility="{Binding UninstallVisibility}" ToolTipService.ToolTip="{Binding DataContext.Texts.UninstallButton, ElementName=RootView}">
-                                                                            <StackPanel Orientation="Horizontal" Spacing="6">
+                                                                            <StackPanel Orientation="Horizontal" Spacing="{StaticResource AppCommandIconTextSpacing}">
                                                                                 <SymbolIcon Symbol="Delete" />
                                                                                 <TextBlock Text="{Binding DataContext.Texts.UninstallButton, ElementName=RootView}" />
                                                                             </StackPanel>
                                                                         </Button>
                                                                         <HyperlinkButton AutomationProperties.Name="{Binding DataContext.Texts.ReleasePageButton, ElementName=RootView}" Tag="{Binding ReleaseUrl}" Click="OpenUrlButton_Click" Visibility="{Binding ReleaseVisibility}" ToolTipService.ToolTip="{Binding DataContext.Texts.ReleasePageButton, ElementName=RootView}">
-                                                                            <StackPanel Orientation="Horizontal" Spacing="6">
+                                                                            <StackPanel Orientation="Horizontal" Spacing="{StaticResource AppCommandIconTextSpacing}">
                                                                                 <SymbolIcon Symbol="Link" />
                                                                                 <TextBlock Text="{Binding DataContext.Texts.ReleasePageButton, ElementName=RootView}" />
                                                                             </StackPanel>
@@ -142,22 +142,22 @@
                                                                     </StackPanel>
                                                                 </Grid>
 
-                                                                <StackPanel Grid.Row="1" Orientation="Horizontal" Spacing="8" Visibility="{Binding ReadyBadgeVisibility}">
+                                                                <StackPanel Grid.Row="1" Orientation="Horizontal" Spacing="{StaticResource AppSpacingS}" Visibility="{Binding ReadyBadgeVisibility}">
                                                                     <SymbolIcon Symbol="Accept" Foreground="{ThemeResource AppSuccessBrush}" />
                                                                     <TextBlock FontWeight="SemiBold" Foreground="{ThemeResource AppSuccessBrush}" Text="{Binding StatusTitle}" />
                                                                 </StackPanel>
 
-                                                                <StackPanel Grid.Row="1" Orientation="Horizontal" Spacing="8" Visibility="{Binding WarningBadgeVisibility}">
+                                                                <StackPanel Grid.Row="1" Orientation="Horizontal" Spacing="{StaticResource AppSpacingS}" Visibility="{Binding WarningBadgeVisibility}">
                                                                     <SymbolIcon Symbol="Sync" Foreground="{ThemeResource AppWarningBrush}" />
                                                                     <TextBlock FontWeight="SemiBold" Foreground="{ThemeResource AppWarningBrush}" Text="{Binding StatusTitle}" />
                                                                 </StackPanel>
 
-                                                                <StackPanel Grid.Row="1" Orientation="Horizontal" Spacing="8" Visibility="{Binding BlockedBadgeVisibility}">
+                                                                <StackPanel Grid.Row="1" Orientation="Horizontal" Spacing="{StaticResource AppSpacingS}" Visibility="{Binding BlockedBadgeVisibility}">
                                                                     <SymbolIcon Symbol="Important" Foreground="{ThemeResource AppErrorBrush}" />
                                                                     <TextBlock FontWeight="SemiBold" Foreground="{ThemeResource AppErrorBrush}" Text="{Binding StatusTitle}" />
                                                                 </StackPanel>
 
-                                                                <StackPanel Grid.Row="2" Spacing="4">
+                                                                <StackPanel Grid.Row="2" Spacing="{StaticResource AppSpacingXS}">
                                                                     <TextBlock Text="{Binding StatusText}" TextWrapping="WrapWholeWords" />
                                                                     <TextBlock Foreground="{ThemeResource SubtleTextBrush}" Text="{Binding InstalledVersionText}" TextWrapping="WrapWholeWords" Visibility="{Binding InstalledVersionVisibility}" />
                                                                     <TextBlock Foreground="{ThemeResource SubtleTextBrush}" Text="{Binding LatestVersionText}" TextWrapping="WrapWholeWords" Visibility="{Binding LatestVersionVisibility}" />
@@ -165,7 +165,7 @@
 
                                                                 <TextBlock Grid.Row="3" Foreground="{ThemeResource AppWarningBrush}" Text="{Binding WarningText}" TextWrapping="WrapWholeWords" Visibility="{Binding WarningVisibility}" />
 
-                                                                <Grid Grid.Row="4" RowSpacing="6" Visibility="{Binding ProgressVisibility}">
+                                                                <Grid Grid.Row="4" RowSpacing="{StaticResource AppSpacingS}" Visibility="{Binding ProgressVisibility}">
                                                                     <Grid.RowDefinitions>
                                                                         <RowDefinition Height="Auto" />
                                                                         <RowDefinition Height="Auto" />
@@ -195,7 +195,7 @@
                         </FlipView.ItemTemplate>
                     </FlipView>
 
-                    <Grid x:Name="SetupGuideFooterPanel" Grid.Row="2" HorizontalAlignment="Center" ColumnSpacing="20">
+                    <Grid x:Name="SetupGuideFooterPanel" Grid.Row="2" HorizontalAlignment="Center" ColumnSpacing="{StaticResource AppSpacingL}">
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="Auto" />
                             <ColumnDefinition Width="Auto" />
@@ -220,7 +220,7 @@
 
                         <TextBlock
                             Grid.Column="1"
-                            Margin="10,0"
+                            Margin="{StaticResource AppInlineGapM}"
                             VerticalAlignment="Center"
                             FontFamily="{StaticResource AppMonoFont}"
                             FontSize="{StaticResource AppSectionTitleFontSize}"

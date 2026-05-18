@@ -9,8 +9,8 @@
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
     mc:Ignorable="d">
     <ScrollViewer x:Name="OverviewScrollViewer" VerticalScrollBarVisibility="Auto">
-        <StackPanel x:Name="OverviewContentStack" Padding="28,16,28,28" Spacing="0">
-            <Grid x:Name="OverviewWorkspaceGrid" ColumnSpacing="20" RowSpacing="20">
+        <StackPanel x:Name="OverviewContentStack" Padding="{StaticResource AppPagePadding}" Spacing="0">
+            <Grid x:Name="OverviewWorkspaceGrid" ColumnSpacing="{StaticResource AppSpacingL}" RowSpacing="{StaticResource AppSpacingL}">
                 <Grid.RowDefinitions>
                     <RowDefinition x:Name="OverviewWorkspacePrimaryRow" Height="Auto" />
                     <RowDefinition x:Name="OverviewWorkspaceSecondaryRow" Height="Auto" />
@@ -20,8 +20,8 @@
                     <ColumnDefinition x:Name="OverviewSecondaryColumn" Width="1.15*" />
                 </Grid.ColumnDefinitions>
 
-                <Border x:Name="OverviewComposerPanel" Grid.Row="0" Grid.Column="0" Padding="20" Background="{ThemeResource CardBrush}" BorderBrush="{ThemeResource CardBorderBrush}" BorderThickness="{StaticResource AppCardBorderThickness}" CornerRadius="{StaticResource AppLargeCornerRadius}" VerticalAlignment="Stretch" DataContext="{Binding Composer}">
-                    <Grid RowSpacing="14">
+                <Border x:Name="OverviewComposerPanel" Grid.Row="0" Grid.Column="0" Padding="{StaticResource AppCardPadding}" Background="{ThemeResource CardBrush}" BorderBrush="{ThemeResource CardBorderBrush}" BorderThickness="{StaticResource AppCardBorderThickness}" CornerRadius="{StaticResource AppLargeCornerRadius}" Shadow="{StaticResource CardShadow}" VerticalAlignment="Stretch" DataContext="{Binding Composer}">
+                    <Grid RowSpacing="{StaticResource AppSpacingM}">
                         <Grid.RowDefinitions>
                             <RowDefinition Height="Auto" />
                             <RowDefinition Height="Auto" />
@@ -34,9 +34,9 @@
                             <RowDefinition Height="Auto" />
                         </Grid.RowDefinitions>
 
-                        <TextBlock FontFamily="{StaticResource AppDisplayFont}" FontSize="24" FontWeight="SemiBold" Text="{Binding Texts.ComposerTitle}" />
+                        <TextBlock FontFamily="{StaticResource AppDisplayFont}" FontSize="{StaticResource AppSectionTitleFontSize}" FontWeight="SemiBold" Text="{Binding Texts.ComposerTitle}" />
 
-                        <Grid x:Name="SourcePathGrid" Grid.Row="1" ColumnSpacing="12" RowSpacing="12">
+                        <Grid x:Name="SourcePathGrid" Grid.Row="1" ColumnSpacing="{StaticResource AppSpacingM}" RowSpacing="{StaticResource AppSpacingM}">
                             <Grid.RowDefinitions>
                                 <RowDefinition Height="Auto" />
                                 <RowDefinition Height="Auto" />
@@ -54,14 +54,14 @@
                                 HorizontalAlignment="Right"
                                 ToolTipService.ToolTip="{Binding Texts.BrowseButton}"
                                 VerticalAlignment="Bottom">
-                                <StackPanel Orientation="Horizontal" Spacing="6">
+                                <StackPanel Orientation="Horizontal" Spacing="{StaticResource AppCommandIconTextSpacing}">
                                     <SymbolIcon Symbol="OpenFile" />
                                     <TextBlock Text="{Binding Texts.BrowseButton}" />
                                 </StackPanel>
                             </Button>
                         </Grid>
 
-                        <Grid x:Name="OutputPathGrid" Grid.Row="2" ColumnSpacing="12" RowSpacing="12">
+                        <Grid x:Name="OutputPathGrid" Grid.Row="2" ColumnSpacing="{StaticResource AppSpacingM}" RowSpacing="{StaticResource AppSpacingM}">
                             <Grid.RowDefinitions>
                                 <RowDefinition Height="Auto" />
                                 <RowDefinition Height="Auto" />
@@ -79,7 +79,7 @@
                                 HorizontalAlignment="Right"
                                 ToolTipService.ToolTip="{Binding Texts.ChooseFolderButton}"
                                 VerticalAlignment="Bottom">
-                                <StackPanel Orientation="Horizontal" Spacing="6">
+                                <StackPanel Orientation="Horizontal" Spacing="{StaticResource AppCommandIconTextSpacing}">
                                     <SymbolIcon Symbol="Folder" />
                                     <TextBlock Text="{Binding Texts.ChooseFolderButton}" />
                                 </StackPanel>
@@ -87,7 +87,7 @@
                             <TextBlock Grid.Row="1" Grid.ColumnSpan="2" FontFamily="{StaticResource AppMonoFont}" Foreground="{ThemeResource SubtleTextBrush}" Text="{Binding DraftOutputPreviewText}" TextWrapping="Wrap" />
                         </Grid>
 
-                        <Grid x:Name="QueueActionGrid" Grid.Row="3" ColumnSpacing="12" RowSpacing="12">
+                        <Grid x:Name="QueueActionGrid" Grid.Row="3" ColumnSpacing="{StaticResource AppSpacingM}" RowSpacing="{StaticResource AppSpacingM}">
                             <Grid.RowDefinitions>
                                 <RowDefinition Height="Auto" />
                                 <RowDefinition Height="Auto" />
@@ -97,20 +97,20 @@
                                 <ColumnDefinition x:Name="QueueActionSecondaryColumn" Width="*" />
                             </Grid.ColumnDefinitions>
                             <Button x:Name="QueueOnlyButton" MinHeight="44" FontWeight="SemiBold" HorizontalAlignment="Stretch" AutomationProperties.Name="{Binding Texts.QueueButton}" Click="QueueOnlyButton_Click" IsEnabled="{Binding CanQueueJob}" ToolTipService.ToolTip="{Binding Texts.QueueButton}">
-                                <StackPanel Orientation="Horizontal" Spacing="6">
+                                <StackPanel Orientation="Horizontal" Spacing="{StaticResource AppCommandIconTextSpacing}">
                                     <SymbolIcon Symbol="Add" />
                                     <TextBlock Text="{Binding Texts.QueueButton}" />
                                 </StackPanel>
                             </Button>
                             <Button x:Name="QueueAndStartButton" Grid.Column="1" MinHeight="44" FontWeight="SemiBold" HorizontalAlignment="Stretch" AutomationProperties.Name="{Binding Texts.QueueAndStartButton}" Click="QueueJobButton_Click" IsEnabled="{Binding CanQueueJob}" Style="{StaticResource AccentButtonStyle}" ToolTipService.ToolTip="{Binding Texts.QueueAndStartButton}">
-                                <StackPanel Orientation="Horizontal" Spacing="6">
+                                <StackPanel Orientation="Horizontal" Spacing="{StaticResource AppCommandIconTextSpacing}">
                                     <SymbolIcon Symbol="Play" />
                                     <TextBlock Text="{Binding Texts.QueueAndStartButton}" />
                                 </StackPanel>
                             </Button>
                         </Grid>
 
-                        <Grid x:Name="DraftEncoderRatePresetGrid" Grid.Row="4" ColumnSpacing="12" RowSpacing="12">
+                        <Grid x:Name="DraftEncoderRatePresetGrid" Grid.Row="4" ColumnSpacing="{StaticResource AppSpacingM}" RowSpacing="{StaticResource AppSpacingM}">
                             <Grid.RowDefinitions>
                                 <RowDefinition Height="Auto" />
                                 <RowDefinition Height="Auto" />
@@ -126,7 +126,7 @@
                             <ComboBox x:Name="DraftPresetComboBox" Grid.Column="2" Header="Preset" DisplayMemberPath="Label" ItemsSource="{Binding AvailablePresets}" SelectedItem="{Binding SelectedPreset, Mode=TwoWay}" />
                         </Grid>
 
-                        <Grid x:Name="DraftTuneProfileFormatValueGrid" Grid.Row="5" ColumnSpacing="12" RowSpacing="12">
+                        <Grid x:Name="DraftTuneProfileFormatValueGrid" Grid.Row="5" ColumnSpacing="{StaticResource AppSpacingM}" RowSpacing="{StaticResource AppSpacingM}">
                             <Grid.RowDefinitions>
                                 <RowDefinition Height="Auto" />
                                 <RowDefinition Height="Auto" />
@@ -142,8 +142,8 @@
                             <ComboBox x:Name="DraftOutputFormatComboBox" Grid.Column="2" Header="{Binding Texts.OutputFormatHeader}" DisplayMemberPath="Label" ItemsSource="{Binding AvailableOutputFormats}" SelectedItem="{Binding SelectedOutputFormat, Mode=TwoWay}" />
                         </Grid>
 
-                        <Border x:Name="DraftRateValuePanel" Grid.Row="6" Padding="16" Background="{ThemeResource CardAltBrush}" BorderBrush="{ThemeResource CardBorderBrush}" BorderThickness="{StaticResource AppCardBorderThickness}" CornerRadius="{StaticResource AppCardCornerRadius}">
-                            <Grid x:Name="DraftRateValueGrid" ColumnSpacing="16" RowSpacing="12" VerticalAlignment="Center">
+                        <Border x:Name="DraftRateValuePanel" Grid.Row="6" Padding="{StaticResource AppInsetPanelPadding}" Background="{ThemeResource CardAltBrush}" CornerRadius="{StaticResource AppCardCornerRadius}">
+                            <Grid x:Name="DraftRateValueGrid" ColumnSpacing="{StaticResource AppSpacingL}" RowSpacing="{StaticResource AppSpacingM}" VerticalAlignment="Center">
                                 <Grid.RowDefinitions>
                                     <RowDefinition Height="Auto" />
                                     <RowDefinition Height="Auto" />
@@ -153,9 +153,9 @@
                                     <ColumnDefinition x:Name="DraftRateValueInputColumn" Width="240" />
                                 </Grid.ColumnDefinitions>
 
-                                <StackPanel Spacing="2" VerticalAlignment="Center">
-                                    <TextBlock FontSize="20" FontWeight="SemiBold" Text="{Binding QualityInputLabel}" Visibility="{Binding DraftQualityVisibility}" />
-                                    <TextBlock FontSize="20" FontWeight="SemiBold" Text="{Binding BitrateInputLabel}" Visibility="{Binding DraftBitrateVisibility}" />
+                                <StackPanel Spacing="{StaticResource AppSpacingXS}" VerticalAlignment="Center">
+                                    <TextBlock FontSize="{StaticResource AppCardTitleFontSize}" FontWeight="SemiBold" Text="{Binding QualityInputLabel}" Visibility="{Binding DraftQualityVisibility}" />
+                                    <TextBlock FontSize="{StaticResource AppCardTitleFontSize}" FontWeight="SemiBold" Text="{Binding BitrateInputLabel}" Visibility="{Binding DraftBitrateVisibility}" />
                                 </StackPanel>
 
                                 <Grid x:Name="DraftRateValueEditorHost" Grid.Column="1" HorizontalAlignment="Stretch">
@@ -169,7 +169,7 @@
                             </Grid>
                         </Border>
 
-                        <Grid x:Name="OverviewAdvancedSectionGrid" Grid.Row="7" ColumnSpacing="16" RowSpacing="10" VerticalAlignment="Stretch">
+                        <Grid x:Name="OverviewAdvancedSectionGrid" Grid.Row="7" ColumnSpacing="{StaticResource AppSpacingL}" RowSpacing="{StaticResource AppSpacingM}" VerticalAlignment="Stretch">
                             <Grid.RowDefinitions>
                                 <RowDefinition Height="Auto" />
                                 <RowDefinition Height="*" />
@@ -180,7 +180,7 @@
                                 <ColumnDefinition x:Name="OverviewAdvancedSecondaryColumn" Width="Auto" />
                             </Grid.ColumnDefinitions>
 
-                            <Grid x:Name="OverviewTemplateActionGrid" Grid.ColumnSpan="2" ColumnSpacing="8" RowSpacing="8" HorizontalAlignment="Stretch" VerticalAlignment="Center">
+                            <Grid x:Name="OverviewTemplateActionGrid" Grid.ColumnSpan="2" ColumnSpacing="{StaticResource AppSpacingS}" RowSpacing="{StaticResource AppSpacingS}" HorizontalAlignment="Stretch" VerticalAlignment="Center">
                                 <Grid.RowDefinitions>
                                     <RowDefinition Height="Auto" />
                                     <RowDefinition Height="Auto" />
@@ -198,7 +198,7 @@
                                     PlaceholderText="{Binding Texts.LoadTemplateButton}"
                                     SelectionChanged="OverviewTemplatePicker_SelectionChanged" />
                                 <Button x:Name="SaveCurrentConfigurationButton" Grid.Column="1" MinHeight="40" Padding="16,0" FontWeight="SemiBold" HorizontalAlignment="Right" AutomationProperties.Name="{Binding Texts.SaveCurrentConfigurationButton}" Click="SaveCurrentConfigurationButton_Click" Style="{StaticResource AccentButtonStyle}" ToolTipService.ToolTip="{Binding Texts.SaveCurrentConfigurationButton}">
-                                    <StackPanel Orientation="Horizontal" Spacing="6">
+                                    <StackPanel Orientation="Horizontal" Spacing="{StaticResource AppCommandIconTextSpacing}">
                                         <SymbolIcon Symbol="Save" />
                                         <TextBlock Text="{Binding Texts.SaveCurrentConfigurationButton}" />
                                     </StackPanel>
@@ -216,16 +216,16 @@
                                 Text="{Binding DraftAdditionalArguments, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                                 TextWrapping="Wrap" />
 
-                            <StackPanel x:Name="OverviewAdvancedOptionsPanel" Grid.Row="2" Grid.ColumnSpan="2" Spacing="12">
+                            <StackPanel x:Name="OverviewAdvancedOptionsPanel" Grid.Row="2" Grid.ColumnSpan="2" Spacing="{StaticResource AppSpacingM}">
                                 <InfoBar HorizontalAlignment="Stretch" IsClosable="False" IsOpen="True" Message="{Binding DraftConstraintWarningText}" Severity="Warning" Visibility="{Binding DraftConstraintWarningVisibility}" />
 
-                                <StackPanel Spacing="8" Visibility="{Binding X265UhdVisibility}">
-                                    <Grid ColumnSpacing="12">
+                                <StackPanel Spacing="{StaticResource AppSpacingS}" Visibility="{Binding X265UhdVisibility}">
+                                    <Grid ColumnSpacing="{StaticResource AppSpacingM}">
                                         <Grid.ColumnDefinitions>
                                             <ColumnDefinition Width="*" />
                                             <ColumnDefinition Width="Auto" />
                                         </Grid.ColumnDefinitions>
-                                        <TextBlock VerticalAlignment="Center" FontSize="14" FontWeight="SemiBold" Text="{Binding Texts.UhdArgumentsHeader}" />
+                                        <TextBlock VerticalAlignment="Center" FontSize="{StaticResource AppBodyFontSize}" FontWeight="SemiBold" Text="{Binding Texts.UhdArgumentsHeader}" />
                                         <Button
                                             Grid.Column="1"
                                             MinHeight="32"
@@ -250,32 +250,32 @@
                     </Grid>
                 </Border>
 
-                <Border x:Name="OverviewQueuePanel" Grid.Row="0" Grid.Column="1" Padding="20" Background="{ThemeResource CardBrush}" BorderBrush="{ThemeResource CardBorderBrush}" BorderThickness="{StaticResource AppCardBorderThickness}" CornerRadius="{StaticResource AppLargeCornerRadius}" VerticalAlignment="Stretch" DataContext="{Binding Queue}">
-                    <Grid RowSpacing="14">
+                <Border x:Name="OverviewQueuePanel" Grid.Row="0" Grid.Column="1" Padding="{StaticResource AppCardPadding}" Background="{ThemeResource CardBrush}" BorderBrush="{ThemeResource CardBorderBrush}" BorderThickness="{StaticResource AppCardBorderThickness}" CornerRadius="{StaticResource AppLargeCornerRadius}" Shadow="{StaticResource CardShadow}" VerticalAlignment="Stretch" DataContext="{Binding Queue}">
+                    <Grid RowSpacing="{StaticResource AppSpacingM}">
                         <Grid.RowDefinitions>
                             <RowDefinition Height="Auto" />
                             <RowDefinition Height="*" />
                             <RowDefinition Height="Auto" />
                         </Grid.RowDefinitions>
 
-                        <Grid ColumnSpacing="16">
+                        <Grid ColumnSpacing="{StaticResource AppSpacingL}">
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="*" />
                                 <ColumnDefinition Width="Auto" />
                             </Grid.ColumnDefinitions>
 
-                            <StackPanel Spacing="6">
-                                <TextBlock FontFamily="{StaticResource AppDisplayFont}" FontSize="24" FontWeight="SemiBold" Text="{Binding Texts.QueueTitle}" />
+                            <StackPanel Spacing="{StaticResource AppSpacingS}">
+                                <TextBlock FontFamily="{StaticResource AppDisplayFont}" FontSize="{StaticResource AppSectionTitleFontSize}" FontWeight="SemiBold" Text="{Binding Texts.QueueTitle}" />
                                 <TextBlock Foreground="{ThemeResource SubtleTextBrush}" Text="{Binding QueueSummary}" TextWrapping="WrapWholeWords" />
                             </StackPanel>
 
-                            <Grid Grid.Column="1" ColumnSpacing="14" HorizontalAlignment="Right" VerticalAlignment="Top">
+                            <Grid Grid.Column="1" ColumnSpacing="{StaticResource AppSpacingM}" HorizontalAlignment="Right" VerticalAlignment="Top">
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition Width="Auto" />
                                     <ColumnDefinition Width="Auto" />
                                 </Grid.ColumnDefinitions>
 
-                                <StackPanel Width="132" HorizontalAlignment="Right" Spacing="6">
+                                <StackPanel Width="132" HorizontalAlignment="Right" Spacing="{StaticResource AppSpacingS}">
                                     <TextBlock HorizontalAlignment="Right" Foreground="{ThemeResource SubtleTextBrush}" Text="{Binding Texts.MaxConcurrentEncodingJobsHeader}" TextAlignment="Right" TextWrapping="WrapWholeWords" />
                                     <ComboBox
                                         x:Name="QueueConcurrentEncodingJobsComboBox"
@@ -287,7 +287,7 @@
                                         SelectionChanged="QueueHeaderComboBox_SelectionChanged" />
                                 </StackPanel>
 
-                                <StackPanel Grid.Column="1" Width="156" HorizontalAlignment="Right" Spacing="6">
+                                <StackPanel Grid.Column="1" Width="156" HorizontalAlignment="Right" Spacing="{StaticResource AppSpacingS}">
                                     <TextBlock HorizontalAlignment="Right" Foreground="{ThemeResource SubtleTextBrush}" Text="{Binding Texts.QueueCompletionActionHeader}" TextAlignment="Right" TextWrapping="WrapWholeWords" />
                                     <ComboBox
                                         x:Name="QueueCompletionActionComboBox"
@@ -301,7 +301,7 @@
                             </Grid>
                         </Grid>
 
-                        <Border Grid.Row="1" Padding="0" Background="{ThemeResource CardAltBrush}" BorderBrush="{ThemeResource CardBorderBrush}" BorderThickness="{StaticResource AppCardBorderThickness}" CornerRadius="{StaticResource AppCardCornerRadius}">
+                        <Border Grid.Row="1" Padding="0" Background="{ThemeResource CardAltBrush}" CornerRadius="{StaticResource AppCardCornerRadius}">
                             <Grid>
                                 <Grid.RowDefinitions>
                                     <RowDefinition Height="Auto" />
@@ -309,7 +309,7 @@
                                     <RowDefinition Height="*" />
                                 </Grid.RowDefinitions>
 
-                                <Grid Padding="14,10" Background="{ThemeResource HeroSecondaryBrush}">
+                                <Grid Padding="12,8" Background="{ThemeResource HeroSecondaryBrush}">
                                     <Grid.ColumnDefinitions>
                                         <ColumnDefinition Width="*" />
                                         <ColumnDefinition Width="112" />
@@ -340,20 +340,20 @@
                                     <ListView x:Name="JobsList" ItemsSource="{Binding Jobs}" MinHeight="320" SelectionMode="Single" ContextRequested="JobsList_ContextRequested" SelectionChanged="JobsList_SelectionChanged">
                                         <ListView.ItemTemplate>
                                             <DataTemplate>
-                                                <Grid Padding="14,12">
+                                                <Grid Padding="12,12">
                                                     <Grid.ColumnDefinitions>
                                                         <ColumnDefinition Width="*" />
                                                         <ColumnDefinition Width="112" />
                                                         <ColumnDefinition Width="120" />
                                                         <ColumnDefinition Width="96" />
                                                     </Grid.ColumnDefinitions>
-                                                    <StackPanel Spacing="4">
-                                                        <TextBlock FontFamily="{StaticResource AppDisplayFont}" FontSize="16" FontWeight="SemiBold" Text="{Binding Title}" />
+                                                    <StackPanel Spacing="{StaticResource AppSpacingXS}">
+                                                        <TextBlock FontFamily="{StaticResource AppDisplayFont}" FontSize="{StaticResource AppBodyLargeFontSize}" FontWeight="SemiBold" Text="{Binding Title}" />
                                                         <TextBlock Style="{ThemeResource SelectableSecondaryTextBlockStyle}" Text="{Binding EncoderLabel}" />
                                                     </StackPanel>
                                                     <TextBlock Grid.Column="1" HorizontalAlignment="Center" VerticalAlignment="Center" Text="{Binding CodecAndCrfLabel}" TextAlignment="Center" TextWrapping="WrapWholeWords" />
                                                     <TextBlock Grid.Column="2" HorizontalAlignment="Center" VerticalAlignment="Center" Text="{Binding StateLabel}" />
-                                                    <StackPanel Grid.Column="3" HorizontalAlignment="Center" VerticalAlignment="Center" Spacing="4">
+                                                    <StackPanel Grid.Column="3" HorizontalAlignment="Center" VerticalAlignment="Center" Spacing="{StaticResource AppSpacingXS}">
                                                         <TextBlock HorizontalAlignment="Center" Text="{Binding ProgressPercentLabel}" />
                                                         <ProgressBar Width="76" Height="6" Maximum="1" Foreground="{ThemeResource QueueAccentBrush}" IsIndeterminate="{Binding IsProgressIndeterminate}" Value="{Binding ProgressValue}" />
                                                     </StackPanel>
@@ -362,13 +362,13 @@
                                         </ListView.ItemTemplate>
                                     </ListView>
 
-                                    <TextBlock HorizontalAlignment="Center" VerticalAlignment="Center" FontSize="22" FontWeight="SemiBold" Foreground="{ThemeResource SubtleTextBrush}" Text="{Binding Texts.EmptyQueue}" TextAlignment="Center" TextWrapping="Wrap" Visibility="{Binding EmptyQueueVisibility}" />
+                                    <TextBlock HorizontalAlignment="Center" VerticalAlignment="Center" FontSize="{StaticResource AppSubsectionTitleFontSize}" FontWeight="SemiBold" Foreground="{ThemeResource SubtleTextBrush}" Text="{Binding Texts.EmptyQueue}" TextAlignment="Center" TextWrapping="Wrap" Visibility="{Binding EmptyQueueVisibility}" />
                                 </Grid>
                             </Grid>
                         </Border>
 
-                        <Border Grid.Row="2" Padding="16" Background="{ThemeResource CardAltBrush}" BorderBrush="{ThemeResource CardBorderBrush}" BorderThickness="{StaticResource AppCardBorderThickness}" CornerRadius="{StaticResource AppCardCornerRadius}">
-                            <Grid RowSpacing="12">
+                        <Border Grid.Row="2" Padding="{StaticResource AppInsetPanelPadding}" Background="{ThemeResource CardAltBrush}" CornerRadius="{StaticResource AppCardCornerRadius}">
+                            <Grid RowSpacing="{StaticResource AppSpacingM}">
                                 <Grid.RowDefinitions>
                                     <RowDefinition Height="Auto" />
                                     <RowDefinition Height="Auto" />
@@ -376,8 +376,8 @@
                                     <RowDefinition Height="Auto" />
                                 </Grid.RowDefinitions>
 
-                                <StackPanel Spacing="4">
-                                    <TextBlock FontFamily="{StaticResource AppDisplayFont}" FontSize="20" FontWeight="SemiBold" Text="{Binding Texts.JobDetailsTitle}" />
+                                <StackPanel Spacing="{StaticResource AppSpacingXS}">
+                                    <TextBlock FontFamily="{StaticResource AppDisplayFont}" FontSize="{StaticResource AppCardTitleFontSize}" FontWeight="SemiBold" Text="{Binding Texts.JobDetailsTitle}" />
                                     <TextBlock Text="{Binding SelectedJobSummary}" />
                                     <TextBlock Foreground="{ThemeResource SubtleTextBrush}" Text="{Binding SelectedJobSourcePreparationText}" TextWrapping="Wrap" Visibility="{Binding SelectedJobSourcePreparationVisibility}" />
                                 </StackPanel>
@@ -390,26 +390,26 @@
                                             </Rectangle.RenderTransform>
                                         </Rectangle>
                                         <Border Margin="1" Background="{ThemeResource AppProgressOverlayBrush}" CornerRadius="{StaticResource AppCardCornerRadius}" />
-                                        <StackPanel Margin="16,8" HorizontalAlignment="Stretch" VerticalAlignment="Center" Spacing="6">
-                                            <Grid ColumnSpacing="10">
+                                        <StackPanel Margin="16,8" HorizontalAlignment="Stretch" VerticalAlignment="Center" Spacing="{StaticResource AppSpacingS}">
+                                            <Grid ColumnSpacing="{StaticResource AppSpacingM}">
                                                 <Grid.ColumnDefinitions>
                                                     <ColumnDefinition Width="0.72*" />
                                                     <ColumnDefinition Width="1.38*" />
                                                     <ColumnDefinition Width="0.9*" />
                                                     <ColumnDefinition Width="1*" />
                                                 </Grid.ColumnDefinitions>
-                                                <TextBlock FontFamily="{StaticResource AppMonoFont}" FontSize="14" FontWeight="SemiBold" HorizontalAlignment="Center" Foreground="{ThemeResource TextFillColorPrimaryBrush}" Text="{Binding SelectedJobProgressPercentText}" TextAlignment="Center" TextTrimming="CharacterEllipsis" />
-                                                <TextBlock Grid.Column="1" FontFamily="{StaticResource AppMonoFont}" FontSize="14" FontWeight="SemiBold" HorizontalAlignment="Center" Foreground="{ThemeResource TextFillColorPrimaryBrush}" Text="{Binding SelectedJobFramesText}" TextAlignment="Center" TextTrimming="CharacterEllipsis" />
-                                                <TextBlock Grid.Column="2" FontFamily="{StaticResource AppMonoFont}" FontSize="14" FontWeight="SemiBold" HorizontalAlignment="Center" Foreground="{ThemeResource TextFillColorPrimaryBrush}" Text="{Binding SelectedJobFpsText}" TextAlignment="Center" TextTrimming="CharacterEllipsis" />
-                                                <TextBlock Grid.Column="3" FontFamily="{StaticResource AppMonoFont}" FontSize="14" FontWeight="SemiBold" HorizontalAlignment="Center" Foreground="{ThemeResource TextFillColorPrimaryBrush}" Text="{Binding SelectedJobBitrateText}" TextAlignment="Center" TextTrimming="CharacterEllipsis" />
+                                                <TextBlock FontFamily="{StaticResource AppMonoFont}" FontSize="{StaticResource AppBodyFontSize}" FontWeight="SemiBold" HorizontalAlignment="Center" Foreground="{ThemeResource TextFillColorPrimaryBrush}" Text="{Binding SelectedJobProgressPercentText}" TextAlignment="Center" TextTrimming="CharacterEllipsis" />
+                                                <TextBlock Grid.Column="1" FontFamily="{StaticResource AppMonoFont}" FontSize="{StaticResource AppBodyFontSize}" FontWeight="SemiBold" HorizontalAlignment="Center" Foreground="{ThemeResource TextFillColorPrimaryBrush}" Text="{Binding SelectedJobFramesText}" TextAlignment="Center" TextTrimming="CharacterEllipsis" />
+                                                <TextBlock Grid.Column="2" FontFamily="{StaticResource AppMonoFont}" FontSize="{StaticResource AppBodyFontSize}" FontWeight="SemiBold" HorizontalAlignment="Center" Foreground="{ThemeResource TextFillColorPrimaryBrush}" Text="{Binding SelectedJobFpsText}" TextAlignment="Center" TextTrimming="CharacterEllipsis" />
+                                                <TextBlock Grid.Column="3" FontFamily="{StaticResource AppMonoFont}" FontSize="{StaticResource AppBodyFontSize}" FontWeight="SemiBold" HorizontalAlignment="Center" Foreground="{ThemeResource TextFillColorPrimaryBrush}" Text="{Binding SelectedJobBitrateText}" TextAlignment="Center" TextTrimming="CharacterEllipsis" />
                                             </Grid>
-                                            <Grid ColumnSpacing="18">
+                                            <Grid ColumnSpacing="{StaticResource AppSpacingL}">
                                                 <Grid.ColumnDefinitions>
                                                     <ColumnDefinition Width="*" />
                                                     <ColumnDefinition Width="*" />
                                                 </Grid.ColumnDefinitions>
-                                                <TextBlock FontFamily="{StaticResource AppMonoFont}" FontSize="13" FontWeight="SemiBold" HorizontalAlignment="Center" Foreground="{ThemeResource TextFillColorPrimaryBrush}" Text="{Binding SelectedJobEtaText}" TextAlignment="Center" TextTrimming="CharacterEllipsis" />
-                                                <TextBlock Grid.Column="1" FontFamily="{StaticResource AppMonoFont}" FontSize="13" FontWeight="SemiBold" HorizontalAlignment="Center" Foreground="{ThemeResource TextFillColorPrimaryBrush}" Text="{Binding SelectedJobEstimatedSizeText}" TextAlignment="Center" TextTrimming="CharacterEllipsis" />
+                                                <TextBlock FontFamily="{StaticResource AppMonoFont}" FontSize="{StaticResource AppSmallFontSize}" FontWeight="SemiBold" HorizontalAlignment="Center" Foreground="{ThemeResource TextFillColorPrimaryBrush}" Text="{Binding SelectedJobEtaText}" TextAlignment="Center" TextTrimming="CharacterEllipsis" />
+                                                <TextBlock Grid.Column="1" FontFamily="{StaticResource AppMonoFont}" FontSize="{StaticResource AppSmallFontSize}" FontWeight="SemiBold" HorizontalAlignment="Center" Foreground="{ThemeResource TextFillColorPrimaryBrush}" Text="{Binding SelectedJobEstimatedSizeText}" TextAlignment="Center" TextTrimming="CharacterEllipsis" />
                                             </Grid>
                                         </StackPanel>
                                     </Grid>

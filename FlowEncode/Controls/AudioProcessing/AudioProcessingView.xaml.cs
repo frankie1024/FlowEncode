@@ -25,8 +25,8 @@ public sealed partial class AudioProcessingView : UserControl
     public void ApplyLayout(bool stackedWorkspace, bool compactForms, Thickness contentPadding)
     {
         ContentStack.Padding = contentPadding;
-        WorkspaceGrid.ColumnSpacing = stackedWorkspace ? 0 : 20;
-        WorkspaceGrid.RowSpacing = stackedWorkspace ? 20 : 0;
+        WorkspaceGrid.ColumnSpacing = stackedWorkspace ? 0 : UiTokens.SpacingL;
+        WorkspaceGrid.RowSpacing = stackedWorkspace ? UiTokens.SpacingL : 0;
         PrimaryColumn.Width = new GridLength(stackedWorkspace ? 1 : 0.95, GridUnitType.Star);
         SecondaryColumn.Width = stackedWorkspace
             ? new GridLength(0)
@@ -208,7 +208,7 @@ public sealed partial class AudioProcessingView : UserControl
         bool stacked,
         GridLength expandedSecondColumnWidth)
     {
-        grid.ColumnSpacing = stacked ? 0 : 12;
+        grid.ColumnSpacing = stacked ? 0 : UiTokens.SpacingM;
         secondColumn.Width = stacked ? new GridLength(0) : expandedSecondColumnWidth;
         Grid.SetRow(secondItem, stacked ? 1 : 0);
         Grid.SetColumn(secondItem, stacked ? 0 : 1);
@@ -222,7 +222,7 @@ public sealed partial class AudioProcessingView : UserControl
         FrameworkElement thirdItem,
         bool stacked)
     {
-        grid.ColumnSpacing = stacked ? 0 : 12;
+        grid.ColumnSpacing = stacked ? 0 : UiTokens.SpacingM;
         secondColumn.Width = stacked ? new GridLength(0) : new GridLength(1, GridUnitType.Star);
         thirdColumn.Width = stacked ? new GridLength(0) : new GridLength(1, GridUnitType.Star);
         Grid.SetRow(secondItem, stacked ? 1 : 0);

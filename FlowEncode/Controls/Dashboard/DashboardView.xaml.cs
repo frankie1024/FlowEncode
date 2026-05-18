@@ -1,4 +1,5 @@
 using System;
+using FlowEncode.Controls.Shared;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 
@@ -27,13 +28,13 @@ public sealed partial class DashboardView : UserControl
 
         _lastWidth = width;
         DashboardContentStack.Padding = contentPadding;
-        DashboardContentStack.Spacing = width < 1100 ? 18 : 24;
-        DashboardHeroCard.Padding = width < 1100 ? new Thickness(20) : new Thickness(24);
+        DashboardContentStack.Spacing = width < 1100 ? UiTokens.SpacingXL : UiTokens.SpacingXXL;
+        DashboardHeroCard.Padding = UiTokens.CardPadding;
         DashboardHeroCard.MinHeight = width < 1100 ? 132 : 148;
-        DashboardHeaderTitle.FontSize = width < 1100 ? 34 : 38;
+        DashboardHeaderTitle.FontSize = width < 1100 ? UiTokens.DisplayFontSizeCompact : UiTokens.DisplayFontSize;
         DashboardHeaderPanel.MaxWidth = width < 1100 ? 720 : 960;
         DashboardHeaderPanel.Margin = new Thickness(GetDashboardHeroTextOffset(width), 0, 0, 0);
-        DashboardHeroGrid.ColumnSpacing = width < 1100 ? 16 : 20;
+        DashboardHeroGrid.ColumnSpacing = width < 1100 ? UiTokens.SpacingL : UiTokens.SpacingXL;
 
         var dashboardHeroIconSize = width < 1100 ? 108 : 136;
         DashboardHeroIconFrame.Width = dashboardHeroIconSize;
@@ -79,7 +80,7 @@ public sealed partial class DashboardView : UserControl
                 ? 2
                 : 1;
         var rowCount = (int)Math.Ceiling((double)DashboardCardCount / columnCount);
-        var rowSpacing = width < 1100 ? 16 : 20;
+        var rowSpacing = width < 1100 ? UiTokens.SpacingL : UiTokens.SpacingXL;
 
         DashboardCardGrid.ColumnSpacing = columnCount == 1 ? 0 : rowSpacing;
         DashboardCardGrid.RowSpacing = rowSpacing;

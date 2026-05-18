@@ -9,8 +9,8 @@
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
     mc:Ignorable="d">
     <ScrollViewer VerticalScrollBarVisibility="Auto">
-        <StackPanel x:Name="ContentStack" Padding="28,16,28,28" Spacing="20">
-            <Grid x:Name="WorkspaceGrid" ColumnSpacing="20" RowSpacing="20">
+        <StackPanel x:Name="ContentStack" Padding="{StaticResource AppPagePadding}" Spacing="{StaticResource AppSpacingL}">
+            <Grid x:Name="WorkspaceGrid" ColumnSpacing="{StaticResource AppSpacingL}" RowSpacing="{StaticResource AppSpacingL}">
                 <Grid.RowDefinitions>
                     <RowDefinition x:Name="WorkspacePrimaryRow" Height="Auto" />
                     <RowDefinition x:Name="WorkspaceSecondaryRow" Height="0" />
@@ -20,11 +20,11 @@
                     <ColumnDefinition x:Name="SecondaryColumn" Width="1.05*" />
                 </Grid.ColumnDefinitions>
 
-                <Border x:Name="PrimaryPanel" Padding="22" Background="{ThemeResource CardBrush}" BorderBrush="{ThemeResource CardBorderBrush}" BorderThickness="{StaticResource AppCardBorderThickness}" CornerRadius="{StaticResource AppLargeCornerRadius}" DataContext="{Binding Form}">
-                    <StackPanel Spacing="12">
-                        <TextBlock FontFamily="{StaticResource AppDisplayFont}" FontSize="24" FontWeight="SemiBold" Text="{Binding Texts.AudioProcessingTitle}" />
+                <Border x:Name="PrimaryPanel" Padding="{StaticResource AppCardPadding}" Background="{ThemeResource CardBrush}" BorderBrush="{ThemeResource CardBorderBrush}" BorderThickness="{StaticResource AppCardBorderThickness}" CornerRadius="{StaticResource AppLargeCornerRadius}" Shadow="{StaticResource CardShadow}" DataContext="{Binding Form}">
+                    <StackPanel Spacing="{StaticResource AppSpacingM}">
+                        <TextBlock FontFamily="{StaticResource AppDisplayFont}" FontSize="{StaticResource AppSectionTitleFontSize}" FontWeight="SemiBold" Text="{Binding Texts.AudioProcessingTitle}" />
 
-                        <Grid x:Name="AudioSourcePathGrid" ColumnSpacing="12" RowSpacing="12">
+                        <Grid x:Name="AudioSourcePathGrid" ColumnSpacing="{StaticResource AppSpacingM}" RowSpacing="{StaticResource AppSpacingM}">
                             <Grid.RowDefinitions>
                                 <RowDefinition Height="Auto" />
                                 <RowDefinition Height="Auto" />
@@ -35,7 +35,7 @@
                             </Grid.ColumnDefinitions>
                             <TextBox x:Name="AudioSourcePathTextBox" Header="{Binding Texts.SourceHeader}" Text="{Binding AudioProcessingSourcePath, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
                             <Button x:Name="AudioSourceBrowseButton" Grid.Column="1" HorizontalAlignment="Right" VerticalAlignment="Bottom" AutomationProperties.Name="{Binding Texts.BrowseButton}" Click="BrowseAudioSourceButton_Click" ToolTipService.ToolTip="{Binding Texts.BrowseButton}">
-                                <StackPanel Orientation="Horizontal" Spacing="6">
+                                <StackPanel Orientation="Horizontal" Spacing="{StaticResource AppCommandIconTextSpacing}">
                                     <SymbolIcon Symbol="OpenFile" />
                                     <TextBlock Text="{Binding Texts.BrowseButton}" />
                                 </StackPanel>
@@ -44,7 +44,7 @@
 
                         <TextBlock Foreground="{ThemeResource SubtleTextBrush}" Text="{Binding AudioSourceInfoText}" TextWrapping="WrapWholeWords" />
 
-                        <Grid x:Name="AudioOutputPathGrid" ColumnSpacing="12" RowSpacing="12">
+                        <Grid x:Name="AudioOutputPathGrid" ColumnSpacing="{StaticResource AppSpacingM}" RowSpacing="{StaticResource AppSpacingM}">
                             <Grid.RowDefinitions>
                                 <RowDefinition Height="Auto" />
                                 <RowDefinition Height="Auto" />
@@ -55,7 +55,7 @@
                             </Grid.ColumnDefinitions>
                             <TextBox x:Name="AudioOutputPathTextBox" Header="{Binding AudioProcessingOutputHeader}" Text="{Binding AudioProcessingOutputPath, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
                             <Button x:Name="AudioOutputBrowseButton" Grid.Column="1" HorizontalAlignment="Right" VerticalAlignment="Bottom" AutomationProperties.Name="{Binding AudioProcessingOutputBrowseButtonText}" Click="BrowseAudioOutputButton_Click" ToolTipService.ToolTip="{Binding AudioProcessingOutputBrowseButtonText}">
-                                <StackPanel Orientation="Horizontal" Spacing="6">
+                                <StackPanel Orientation="Horizontal" Spacing="{StaticResource AppCommandIconTextSpacing}">
                                     <SymbolIcon Symbol="Folder" />
                                     <TextBlock Text="{Binding AudioProcessingOutputBrowseButtonText}" />
                                 </StackPanel>
@@ -63,7 +63,7 @@
                             <TextBlock Grid.Row="1" Grid.ColumnSpan="2" FontFamily="{StaticResource AppMonoFont}" Foreground="{ThemeResource SubtleTextBrush}" Text="{Binding AudioProcessingOutputPreviewText}" TextWrapping="Wrap" />
                         </Grid>
 
-                        <Grid x:Name="AudioProcessingOptionsGrid" RowSpacing="12">
+                        <Grid x:Name="AudioProcessingOptionsGrid" RowSpacing="{StaticResource AppSpacingM}">
                             <Grid.RowDefinitions>
                                 <RowDefinition Height="Auto" />
                                 <RowDefinition Height="Auto" />
@@ -78,14 +78,14 @@
                             <ToggleSwitch x:Name="AudioOpusMappingFamilyToggle" Grid.Row="4" Header="{Binding Texts.AudioOpusMappingFamilyHeader}" IsOn="{Binding AudioOpusUseMappingFamily1, Mode=TwoWay}" OnContent="{Binding Texts.ToggleOnLabel}" OffContent="{Binding Texts.ToggleOffLabel}" ToolTipService.ToolTip="{Binding Texts.AudioOpusMappingFamilyTooltip}" Visibility="{Binding AudioOpusOptionsVisibility}" />
                         </Grid>
 
-                        <Border Padding="16" Background="{ThemeResource CardAltBrush}" BorderBrush="{Binding AudioProcessingStatusPanelBorderBrush}" BorderThickness="{StaticResource AppCardBorderThickness}" CornerRadius="{StaticResource AppCardCornerRadius}">
-                            <StackPanel Spacing="8">
+                        <Border Padding="{StaticResource AppInsetPanelPadding}" Background="{ThemeResource CardAltBrush}" CornerRadius="{StaticResource AppCardCornerRadius}">
+                            <StackPanel Spacing="{StaticResource AppSpacingS}">
                                 <TextBlock FontWeight="SemiBold" Text="{Binding Texts.EnvironmentSectionTitle}" />
                                 <TextBlock FontFamily="{StaticResource AppMonoFont}" Text="{Binding AudioCapabilitySummary}" TextWrapping="WrapWholeWords" />
                             </StackPanel>
                         </Border>
 
-                        <Grid x:Name="AudioProcessingActionGrid" ColumnSpacing="12" RowSpacing="12">
+                        <Grid x:Name="AudioProcessingActionGrid" ColumnSpacing="{StaticResource AppSpacingM}" RowSpacing="{StaticResource AppSpacingM}">
                             <Grid.RowDefinitions>
                                 <RowDefinition Height="Auto" />
                                 <RowDefinition Height="Auto" />
@@ -97,19 +97,19 @@
                                 <ColumnDefinition x:Name="AudioProcessingDeleteColumn" Width="*" />
                             </Grid.ColumnDefinitions>
                             <Button x:Name="StartAudioProcessingButton" MinHeight="44" FontWeight="SemiBold" HorizontalAlignment="Stretch" AutomationProperties.Name="{Binding Texts.AudioProcessingStartButton}" Click="StartAudioProcessingButton_Click" IsEnabled="{Binding CanStartAudioProcessing}" Style="{StaticResource AccentButtonStyle}" ToolTipService.ToolTip="{Binding Texts.AudioProcessingStartButton}">
-                                <StackPanel Orientation="Horizontal" Spacing="6">
+                                <StackPanel Orientation="Horizontal" Spacing="{StaticResource AppCommandIconTextSpacing}">
                                     <SymbolIcon Symbol="Play" />
                                     <TextBlock Text="{Binding Texts.AudioProcessingStartButton}" />
                                 </StackPanel>
                             </Button>
                             <Button x:Name="CancelAudioProcessingButton" Grid.Column="1" MinHeight="44" FontWeight="SemiBold" HorizontalAlignment="Stretch" AutomationProperties.Name="{Binding Texts.AudioProcessingCancelButton}" Click="CancelAudioProcessingButton_Click" IsEnabled="{Binding CanCancelAudioProcessing}" ToolTipService.ToolTip="{Binding Texts.AudioProcessingCancelButton}">
-                                <StackPanel Orientation="Horizontal" Spacing="6">
+                                <StackPanel Orientation="Horizontal" Spacing="{StaticResource AppCommandIconTextSpacing}">
                                     <SymbolIcon Symbol="Cancel" />
                                     <TextBlock Text="{Binding Texts.AudioProcessingCancelButton}" />
                                 </StackPanel>
                             </Button>
                             <Button x:Name="DeleteAudioProcessingButton" Grid.Column="2" MinHeight="44" FontWeight="SemiBold" HorizontalAlignment="Stretch" AutomationProperties.Name="{Binding Texts.AudioProcessingDeleteButton}" Click="DeleteAudioProcessingButton_Click" IsEnabled="{Binding CanClearAudioProcessingTask}" ToolTipService.ToolTip="{Binding Texts.AudioProcessingDeleteButton}">
-                                <StackPanel Orientation="Horizontal" Spacing="6">
+                                <StackPanel Orientation="Horizontal" Spacing="{StaticResource AppCommandIconTextSpacing}">
                                     <SymbolIcon Symbol="Delete" />
                                     <TextBlock Text="{Binding Texts.AudioProcessingDeleteButton}" />
                                 </StackPanel>
@@ -118,10 +118,10 @@
                     </StackPanel>
                 </Border>
 
-                <Border x:Name="SecondaryPanel" Grid.Column="1" Padding="22" Background="{ThemeResource CardBrush}" BorderBrush="{ThemeResource CardBorderBrush}" BorderThickness="{StaticResource AppCardBorderThickness}" CornerRadius="{StaticResource AppLargeCornerRadius}" DataContext="{Binding Status}">
-                    <StackPanel Spacing="12">
-                        <Border Padding="16" Background="{ThemeResource CardAltBrush}" BorderBrush="{ThemeResource CardBorderBrush}" BorderThickness="{StaticResource AppCardBorderThickness}" CornerRadius="{StaticResource AppCardCornerRadius}">
-                            <StackPanel Spacing="8">
+                <Border x:Name="SecondaryPanel" Grid.Column="1" Padding="{StaticResource AppCardPadding}" Background="{ThemeResource CardBrush}" BorderBrush="{ThemeResource CardBorderBrush}" BorderThickness="{StaticResource AppCardBorderThickness}" CornerRadius="{StaticResource AppLargeCornerRadius}" Shadow="{StaticResource CardShadow}" DataContext="{Binding Status}">
+                    <StackPanel Spacing="{StaticResource AppSpacingM}">
+                        <Border Padding="{StaticResource AppInsetPanelPadding}" Background="{ThemeResource CardAltBrush}" CornerRadius="{StaticResource AppCardCornerRadius}">
+                            <StackPanel Spacing="{StaticResource AppSpacingS}">
                                 <TextBlock FontWeight="SemiBold" Text="{Binding Texts.AudioProcessingStatusTitle}" />
                                 <TextBlock FontFamily="{StaticResource AppMonoFont}" Text="{Binding AudioProcessingStatusText}" TextWrapping="WrapWholeWords" />
                                 <Border Padding="0" Background="{Binding AudioProcessingProgressTrackBrush}" BorderBrush="{Binding AudioProcessingProgressBorderBrush}" BorderThickness="{StaticResource AppCardBorderThickness}" CornerRadius="{StaticResource AppCardCornerRadius}">
@@ -132,7 +132,7 @@
                                             </Rectangle.RenderTransform>
                                         </Rectangle>
                                         <Border Margin="1" Background="{ThemeResource AppProgressOverlayBrush}" CornerRadius="{StaticResource AppCardCornerRadius}" />
-                                        <TextBlock FontFamily="{StaticResource AppMonoFont}" FontSize="22" FontWeight="SemiBold" HorizontalAlignment="Center" VerticalAlignment="Center" Foreground="{ThemeResource TextFillColorPrimaryBrush}" Text="{Binding AudioProcessingProgressPercentText}" TextAlignment="Center" />
+                                        <TextBlock FontFamily="{StaticResource AppMonoFont}" FontSize="{StaticResource AppSubsectionTitleFontSize}" FontWeight="SemiBold" HorizontalAlignment="Center" VerticalAlignment="Center" Foreground="{ThemeResource TextFillColorPrimaryBrush}" Text="{Binding AudioProcessingProgressPercentText}" TextAlignment="Center" />
                                     </Grid>
                                 </Border>
                                 <TextBlock FontFamily="{StaticResource AppMonoFont}" Foreground="{ThemeResource SubtleTextBrush}" Text="{Binding AudioProcessingProgressSecondaryText}" TextWrapping="WrapWholeWords" Visibility="{Binding AudioProcessingProgressSecondaryVisibility}" />
@@ -145,7 +145,7 @@
                             Text="{Binding AudioProcessingCommandLine}"
                             Texts="{Binding Texts}" />
 
-                        <TextBlock FontFamily="{StaticResource AppDisplayFont}" FontSize="18" FontWeight="SemiBold" Text="{Binding Texts.AudioProcessingLogTitle}" />
+                        <TextBlock FontFamily="{StaticResource AppDisplayFont}" FontSize="{StaticResource AppBodyLargeFontSize}" FontWeight="SemiBold" Text="{Binding Texts.AudioProcessingLogTitle}" />
                         <TextBox Height="420" FontFamily="{StaticResource AppMonoFont}" IsReadOnly="True" PlaceholderText="{Binding Texts.AudioProcessingLogPlaceholder}" ScrollViewer.VerticalScrollBarVisibility="Auto" Text="{Binding AudioProcessingLog}" TextWrapping="Wrap" />
                     </StackPanel>
                 </Border>

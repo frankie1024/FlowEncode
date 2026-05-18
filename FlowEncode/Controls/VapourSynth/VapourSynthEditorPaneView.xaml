@@ -5,10 +5,10 @@
     <Grid Background="{ThemeResource CardBrush}">
         <Border
             x:Name="EditorOverlay"
-            Padding="28"
+            Padding="24"
             Background="{ThemeResource CardAltBrush}"
             Visibility="Visible">
-            <StackPanel MaxWidth="520" Spacing="14" VerticalAlignment="Center">
+            <StackPanel MaxWidth="520" Spacing="12" VerticalAlignment="Center">
                 <ProgressRing
                     x:Name="EditorLoadingProgressRing"
                     Width="32"
@@ -16,7 +16,7 @@
                     IsActive="True" />
                 <TextBlock
                     FontFamily="{StaticResource AppDisplayFont}"
-                    FontSize="28"
+                    FontSize="{StaticResource AppTitleFontSize}"
                     FontWeight="SemiBold"
                     Text="{Binding Texts.VapourSynthWorkspaceTitle}" />
                 <TextBlock

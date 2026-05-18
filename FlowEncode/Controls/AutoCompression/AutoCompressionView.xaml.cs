@@ -200,7 +200,7 @@ public sealed partial class AutoCompressionView : UserControl
         bool stacked,
         GridLength expandedSecondColumnWidth)
     {
-        grid.ColumnSpacing = stacked ? 0 : 12;
+        grid.ColumnSpacing = stacked ? 0 : UiTokens.SpacingM;
         secondColumn.Width = stacked ? new GridLength(0) : expandedSecondColumnWidth;
         Grid.SetRow(secondItem, stacked ? 1 : 0);
         Grid.SetColumn(secondItem, stacked ? 0 : 1);
@@ -216,7 +216,7 @@ public sealed partial class AutoCompressionView : UserControl
         FrameworkElement fourthItem,
         int columnCount)
     {
-        grid.ColumnSpacing = columnCount == 1 ? 0 : 12;
+        grid.ColumnSpacing = columnCount == 1 ? 0 : UiTokens.SpacingM;
         secondColumn.Width = columnCount >= 2 ? new GridLength(1, GridUnitType.Star) : new GridLength(0);
         thirdColumn.Width = columnCount >= 4 ? new GridLength(1, GridUnitType.Star) : new GridLength(0);
         fourthColumn.Width = columnCount >= 4 ? new GridLength(1, GridUnitType.Star) : new GridLength(0);

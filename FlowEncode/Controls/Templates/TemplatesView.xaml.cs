@@ -32,7 +32,7 @@ public sealed partial class TemplatesView : UserControl
     public void ApplyLayout(bool stackedWorkspace, bool compactForms, Thickness contentPadding)
     {
         ContentStack.Padding = contentPadding;
-        TemplatesWorkspaceGrid.ColumnSpacing = stackedWorkspace ? 0 : 20;
+        TemplatesWorkspaceGrid.ColumnSpacing = stackedWorkspace ? 0 : UiTokens.SpacingL;
         TemplatesPrimaryColumn.Width = new GridLength(stackedWorkspace ? 1 : 0.94, GridUnitType.Star);
         TemplatesSecondaryColumn.Width = stackedWorkspace
             ? new GridLength(0)
@@ -627,7 +627,7 @@ public sealed partial class TemplatesView : UserControl
         bool stacked,
         GridLength expandedSecondColumnWidth)
     {
-        grid.ColumnSpacing = stacked ? 0 : 12;
+        grid.ColumnSpacing = stacked ? 0 : UiTokens.SpacingM;
         secondColumn.Width = stacked ? new GridLength(0) : expandedSecondColumnWidth;
         Grid.SetRow(secondItem, stacked ? 1 : 0);
         Grid.SetColumn(secondItem, stacked ? 0 : 1);
@@ -641,7 +641,7 @@ public sealed partial class TemplatesView : UserControl
         FrameworkElement thirdItem,
         bool stacked)
     {
-        grid.ColumnSpacing = stacked ? 0 : 12;
+        grid.ColumnSpacing = stacked ? 0 : UiTokens.SpacingM;
         secondColumn.Width = stacked ? new GridLength(0) : new GridLength(1, GridUnitType.Star);
         thirdColumn.Width = stacked ? new GridLength(0) : new GridLength(1, GridUnitType.Star);
         Grid.SetRow(secondItem, stacked ? 1 : 0);

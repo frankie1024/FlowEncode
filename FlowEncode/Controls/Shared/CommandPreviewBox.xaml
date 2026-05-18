@@ -4,14 +4,14 @@
     x:Name="Root"
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
-    <Grid RowSpacing="6">
+    <Grid RowSpacing="{StaticResource AppSpacingS}">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />
         </Grid.RowDefinitions>
 
-        <Grid ColumnSpacing="12">
+        <Grid ColumnSpacing="{StaticResource AppSpacingM}">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="*" />
                 <ColumnDefinition Width="Auto" />
@@ -19,7 +19,7 @@
 
             <TextBlock
                 FontFamily="{StaticResource AppDisplayFont}"
-                FontSize="18"
+                FontSize="{StaticResource AppBodyLargeFontSize}"
                 FontWeight="SemiBold"
                 Text="{x:Bind Header, Mode=OneWay}"
                 TextTrimming="CharacterEllipsis" />
@@ -28,7 +28,7 @@
                 x:Name="CopyCommandButton"
                 Grid.Column="1"
                 Click="CopyCommandButton_Click">
-                <StackPanel Orientation="Horizontal" Spacing="6">
+                <StackPanel Orientation="Horizontal" Spacing="{StaticResource AppCommandIconTextSpacing}">
                     <SymbolIcon Symbol="Copy" />
                     <TextBlock x:Name="CopyCommandButtonLabelTextBlock" />
                 </StackPanel>
@@ -50,7 +50,7 @@
             x:Name="StatusTextBlock"
             Grid.Row="2"
             AutomationProperties.LiveSetting="Polite"
-            FontSize="12"
+            FontSize="{StaticResource AppSmallFontSize}"
             Foreground="{ThemeResource SubtleTextBrush}"
             TextWrapping="WrapWholeWords"
             Visibility="Collapsed" />

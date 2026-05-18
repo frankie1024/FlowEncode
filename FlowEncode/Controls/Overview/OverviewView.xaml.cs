@@ -52,8 +52,8 @@ public sealed partial class OverviewView : UserControl
         var compactForms = width < 700;
 
         OverviewContentStack.Padding = contentPadding;
-        OverviewWorkspaceGrid.ColumnSpacing = stackedWorkspace ? 0 : 20;
-        OverviewWorkspaceGrid.RowSpacing = stackedWorkspace ? 20 : 0;
+        OverviewWorkspaceGrid.ColumnSpacing = stackedWorkspace ? 0 : UiTokens.SpacingL;
+        OverviewWorkspaceGrid.RowSpacing = stackedWorkspace ? UiTokens.SpacingL : 0;
         OverviewPrimaryColumn.Width = new GridLength(stackedWorkspace ? 1 : 0.85, GridUnitType.Star);
         OverviewSecondaryColumn.Width = stackedWorkspace
             ? new GridLength(0)
@@ -265,7 +265,7 @@ public sealed partial class OverviewView : UserControl
                     Title = composerViewModel.Texts.SaveCurrentConfigurationButton,
                     Content = new StackPanel
                     {
-                        Spacing = 12,
+                        Spacing = UiTokens.SpacingM,
                         Children =
                         {
                             nameTextBox,
@@ -1338,7 +1338,7 @@ public sealed partial class OverviewView : UserControl
         bool stacked,
         GridLength expandedSecondColumnWidth)
     {
-        grid.ColumnSpacing = stacked ? 0 : 12;
+        grid.ColumnSpacing = stacked ? 0 : UiTokens.SpacingM;
         secondColumn.Width = stacked ? new GridLength(0) : expandedSecondColumnWidth;
         Grid.SetRow(secondItem, stacked ? 1 : 0);
         Grid.SetColumn(secondItem, stacked ? 0 : 1);
@@ -1352,7 +1352,7 @@ public sealed partial class OverviewView : UserControl
         FrameworkElement thirdItem,
         bool stacked)
     {
-        grid.ColumnSpacing = stacked ? 0 : 12;
+        grid.ColumnSpacing = stacked ? 0 : UiTokens.SpacingM;
         secondColumn.Width = stacked ? new GridLength(0) : new GridLength(1, GridUnitType.Star);
         thirdColumn.Width = stacked ? new GridLength(0) : new GridLength(1, GridUnitType.Star);
         Grid.SetRow(secondItem, stacked ? 1 : 0);

@@ -67,7 +67,7 @@
                 BorderBrush="{ThemeResource CardBorderBrush}"
                 BorderThickness="{StaticResource AppCardBorderThickness}"
                 CornerRadius="{StaticResource AppLargeCornerRadius}">
-                <StackPanel HorizontalAlignment="Center" Spacing="12">
+                <StackPanel HorizontalAlignment="Center" Spacing="{StaticResource AppSpacingM}">
                     <Viewbox
                         Width="34"
                         Height="34"
@@ -78,7 +78,7 @@
                     <TextBlock
                         x:Name="DragDropOverlayTitle"
                         FontFamily="{StaticResource AppDisplayFont}"
-                        FontSize="22"
+                        FontSize="{StaticResource AppSubsectionTitleFontSize}"
                         FontWeight="SemiBold"
                         TextAlignment="Center"
                         TextWrapping="Wrap" />

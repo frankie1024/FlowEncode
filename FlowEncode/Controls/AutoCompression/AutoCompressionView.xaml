@@ -9,14 +9,14 @@
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
     mc:Ignorable="d">
     <ScrollViewer VerticalScrollBarVisibility="Auto">
-        <StackPanel x:Name="ContentStack" Padding="28,16,28,28" Spacing="20">
-            <Border Padding="22" Background="{ThemeResource CardBrush}" BorderBrush="{ThemeResource CardBorderBrush}" BorderThickness="{StaticResource AppCardBorderThickness}" CornerRadius="{StaticResource AppLargeCornerRadius}">
-                <StackPanel Spacing="12">
-                    <StackPanel Spacing="12" DataContext="{Binding Form}">
-                        <TextBlock FontFamily="{StaticResource AppDisplayFont}" FontSize="24" FontWeight="SemiBold" Text="{Binding Texts.AutoCompressionTitle}" />
+        <StackPanel x:Name="ContentStack" Padding="{StaticResource AppPagePadding}" Spacing="{StaticResource AppSpacingL}">
+            <Border Padding="{StaticResource AppCardPadding}" Background="{ThemeResource CardBrush}" BorderBrush="{ThemeResource CardBorderBrush}" BorderThickness="{StaticResource AppCardBorderThickness}" CornerRadius="{StaticResource AppLargeCornerRadius}" Shadow="{StaticResource CardShadow}">
+                <StackPanel Spacing="{StaticResource AppSpacingM}">
+                    <StackPanel Spacing="{StaticResource AppSpacingM}" DataContext="{Binding Form}">
+                        <TextBlock FontFamily="{StaticResource AppDisplayFont}" FontSize="{StaticResource AppSectionTitleFontSize}" FontWeight="SemiBold" Text="{Binding Texts.AutoCompressionTitle}" />
                         <TextBlock Foreground="{ThemeResource SubtleTextBrush}" Text="{Binding Texts.AutoCompressionDescription}" TextWrapping="WrapWholeWords" />
 
-                        <Grid x:Name="AutoSourcePathGrid" ColumnSpacing="12" RowSpacing="12">
+                        <Grid x:Name="AutoSourcePathGrid" ColumnSpacing="{StaticResource AppSpacingM}" RowSpacing="{StaticResource AppSpacingM}">
                             <Grid.RowDefinitions>
                                 <RowDefinition Height="Auto" />
                                 <RowDefinition Height="Auto" />
@@ -27,14 +27,14 @@
                             </Grid.ColumnDefinitions>
                             <TextBox x:Name="AutoSourcePathTextBox" Header="{Binding Texts.SourceHeader}" PlaceholderText="{Binding Texts.SourcePlaceholder}" Text="{Binding AutoCompressionSourcePath, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
                             <Button x:Name="AutoSourceBrowseButton" Grid.Column="1" HorizontalAlignment="Right" VerticalAlignment="Bottom" AutomationProperties.Name="{Binding Texts.BrowseButton}" Click="BrowseAutoSourceButton_Click" ToolTipService.ToolTip="{Binding Texts.BrowseButton}">
-                                <StackPanel Orientation="Horizontal" Spacing="6">
+                                <StackPanel Orientation="Horizontal" Spacing="{StaticResource AppCommandIconTextSpacing}">
                                     <SymbolIcon Symbol="OpenFile" />
                                     <TextBlock Text="{Binding Texts.BrowseButton}" />
                                 </StackPanel>
                             </Button>
                         </Grid>
 
-                        <Grid x:Name="AutoOutputPathGrid" ColumnSpacing="12" RowSpacing="12">
+                        <Grid x:Name="AutoOutputPathGrid" ColumnSpacing="{StaticResource AppSpacingM}" RowSpacing="{StaticResource AppSpacingM}">
                             <Grid.RowDefinitions>
                                 <RowDefinition Height="Auto" />
                                 <RowDefinition Height="Auto" />
@@ -45,7 +45,7 @@
                             </Grid.ColumnDefinitions>
                             <TextBox x:Name="AutoOutputPathTextBox" Header="{Binding Texts.OutputDirectoryHeader}" Text="{Binding AutoCompressionOutputPath, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
                             <Button x:Name="AutoOutputBrowseButton" Grid.Column="1" HorizontalAlignment="Right" VerticalAlignment="Bottom" AutomationProperties.Name="{Binding Texts.ChooseFolderButton}" Click="BrowseAutoOutputButton_Click" ToolTipService.ToolTip="{Binding Texts.ChooseFolderButton}">
-                                <StackPanel Orientation="Horizontal" Spacing="6">
+                                <StackPanel Orientation="Horizontal" Spacing="{StaticResource AppCommandIconTextSpacing}">
                                     <SymbolIcon Symbol="Folder" />
                                     <TextBlock Text="{Binding Texts.ChooseFolderButton}" />
                                 </StackPanel>
@@ -53,7 +53,7 @@
                             <TextBlock Grid.Row="1" Grid.ColumnSpan="2" FontFamily="{StaticResource AppMonoFont}" Foreground="{ThemeResource SubtleTextBrush}" Text="{Binding AutoCompressionOutputPreviewText}" TextWrapping="Wrap" />
                         </Grid>
 
-                        <Grid x:Name="AutoCompressionOptionsGrid" ColumnSpacing="12" RowSpacing="12">
+                        <Grid x:Name="AutoCompressionOptionsGrid" ColumnSpacing="{StaticResource AppSpacingM}" RowSpacing="{StaticResource AppSpacingM}">
                             <Grid.RowDefinitions>
                                 <RowDefinition Height="Auto" />
                                 <RowDefinition Height="Auto" />
@@ -78,7 +78,7 @@
                             PlaceholderText="--preset 6 --film-grain 8"
                             Text="{Binding AutoCompressionVideoParameters, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
 
-                        <Grid x:Name="AutoCompressionActionGrid" ColumnSpacing="12" RowSpacing="12">
+                        <Grid x:Name="AutoCompressionActionGrid" ColumnSpacing="{StaticResource AppSpacingM}" RowSpacing="{StaticResource AppSpacingM}">
                             <Grid.RowDefinitions>
                                 <RowDefinition Height="Auto" />
                                 <RowDefinition Height="Auto" />
@@ -88,13 +88,13 @@
                                 <ColumnDefinition x:Name="AutoCompressionCancelColumn" Width="*" />
                             </Grid.ColumnDefinitions>
                             <Button x:Name="StartAutoCompressionButton" MinHeight="44" FontWeight="SemiBold" HorizontalAlignment="Stretch" AutomationProperties.Name="{Binding Texts.AutoCompressionStartButton}" Click="StartAutoCompressionButton_Click" IsEnabled="{Binding CanStartAutoCompression}" Style="{StaticResource AccentButtonStyle}" ToolTipService.ToolTip="{Binding Texts.AutoCompressionStartButton}">
-                                <StackPanel Orientation="Horizontal" Spacing="6">
+                                <StackPanel Orientation="Horizontal" Spacing="{StaticResource AppCommandIconTextSpacing}">
                                     <SymbolIcon Symbol="Play" />
                                     <TextBlock Text="{Binding Texts.AutoCompressionStartButton}" />
                                 </StackPanel>
                             </Button>
                             <Button x:Name="CancelAutoCompressionButton" Grid.Column="1" MinHeight="44" FontWeight="SemiBold" HorizontalAlignment="Stretch" AutomationProperties.Name="{Binding Texts.AutoCompressionCancelButton}" Click="CancelAutoCompressionButton_Click" IsEnabled="{Binding CanCancelAutoCompression}" ToolTipService.ToolTip="{Binding Texts.AutoCompressionCancelButton}">
-                                <StackPanel Orientation="Horizontal" Spacing="6">
+                                <StackPanel Orientation="Horizontal" Spacing="{StaticResource AppCommandIconTextSpacing}">
                                     <SymbolIcon Symbol="Cancel" />
                                     <TextBlock Text="{Binding Texts.AutoCompressionCancelButton}" />
                                 </StackPanel>
@@ -102,12 +102,12 @@
                         </Grid>
                     </StackPanel>
 
-                    <StackPanel Spacing="12" DataContext="{Binding Status}">
-                        <Border Padding="16" Background="{ThemeResource CardAltBrush}" BorderBrush="{Binding AutoCompressionStatusPanelBorderBrush}" BorderThickness="{StaticResource AppCardBorderThickness}" CornerRadius="{StaticResource AppCardCornerRadius}">
-                            <StackPanel Spacing="8">
+                    <StackPanel Spacing="{StaticResource AppSpacingM}" DataContext="{Binding Status}">
+                        <Border Padding="{StaticResource AppInsetPanelPadding}" Background="{ThemeResource CardAltBrush}" CornerRadius="{StaticResource AppCardCornerRadius}">
+                            <StackPanel Spacing="{StaticResource AppSpacingS}">
                                 <TextBlock FontWeight="SemiBold" Text="{Binding Texts.AutoCompressionStatusTitle}" />
                                 <TextBlock FontFamily="{StaticResource AppMonoFont}" Text="{Binding AutoCompressionStatusText}" TextWrapping="WrapWholeWords" />
-                                <Grid ColumnSpacing="10">
+                                <Grid ColumnSpacing="{StaticResource AppSpacingM}">
                                     <Grid.ColumnDefinitions>
                                     <ColumnDefinition Width="*" />
                                     <ColumnDefinition Width="Auto" />
@@ -133,7 +133,7 @@
                             Text="{Binding AutoCompressionCommandLine}"
                             Texts="{Binding Texts}" />
 
-                        <TextBlock FontFamily="{StaticResource AppDisplayFont}" FontSize="18" FontWeight="SemiBold" Text="{Binding Texts.AutoCompressionLogTitle}" />
+                        <TextBlock FontFamily="{StaticResource AppDisplayFont}" FontSize="{StaticResource AppBodyLargeFontSize}" FontWeight="SemiBold" Text="{Binding Texts.AutoCompressionLogTitle}" />
                         <TextBox MinHeight="320" FontFamily="{StaticResource AppMonoFont}" IsReadOnly="True" PlaceholderText="{Binding Texts.AutoCompressionLogPlaceholder}" ScrollViewer.VerticalScrollBarVisibility="Auto" Text="{Binding AutoCompressionLog}" TextWrapping="Wrap" />
                     </StackPanel>
                 </StackPanel>

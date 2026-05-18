@@ -24,9 +24,9 @@ public sealed partial class SettingsView : UserControl
     public void ApplyLayout(bool compactLayout, Thickness contentPadding)
     {
         ContentStack.Padding = contentPadding;
-        SettingsOverviewGrid.ColumnSpacing = compactLayout ? 0 : 24;
-        SettingsControlsGrid.ColumnSpacing = compactLayout ? 0 : 18;
-        SettingsControlsGrid.RowSpacing = 14;
+        SettingsOverviewGrid.ColumnSpacing = compactLayout ? 0 : UiTokens.SpacingXXL;
+        SettingsControlsGrid.ColumnSpacing = compactLayout ? 0 : UiTokens.SpacingL;
+        SettingsControlsGrid.RowSpacing = UiTokens.SpacingM;
 
         SettingsOverviewSecondaryColumn.Width = compactLayout
             ? new GridLength(0)

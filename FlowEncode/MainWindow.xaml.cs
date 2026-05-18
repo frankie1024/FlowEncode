@@ -12,6 +12,7 @@ using FlowEncode.Controls.AudioProcessing;
 using FlowEncode.Controls.BluRayDemux;
 using FlowEncode.Controls.Dashboard;
 using FlowEncode.Controls.Overview;
+using FlowEncode.Controls.Shared;
 using FlowEncode.Controls.Settings;
 using FlowEncode.Controls.Templates;
 using FlowEncode.Controls.VapourSynth;
@@ -320,6 +321,12 @@ public sealed partial class MainWindow : Window, ISettingsViewHost, IShellNaviga
         _shellSections.Show(_activeShellSectionTag);
     }
 
+    private void ShowShellSection(string tag, MainWindowShellSectionTransitionKind transitionKind)
+    {
+        _activeShellSectionTag = MainShellSections.Normalize(tag);
+        _shellSections.Show(_activeShellSectionTag, transitionKind);
+    }
+
     private void ApplyVapourSynthWorkspacePresentationIfLoaded()
     {
         if (VapourSynthWorkspacePanel is null)
@@ -533,16 +540,55 @@ public sealed partial class MainWindow : Window, ISettingsViewHost, IShellNaviga
 
     private static Thickness CreateShellContentPadding(double width)
     {
-        if (width <= 0)
+        return UiTokens.PagePadding;
+    }
+
+    private MainWindowShellSectionTransitionKind ResolveShellSectionTransition(string previousTag, string nextTag)
+    {
+        if (!AreShellTransitionsEnabled()
+            || string.Equals(previousTag, nextTag, StringComparison.Ordinal))
         {
-            return new Thickness(28, 16, 28, 28);
+            return MainWindowShellSectionTransitionKind.None;
         }
 
-        return width < 1100
-            ? new Thickness(18, 12, 18, 20)
-            : width < 1400
-                ? new Thickness(22, 14, 22, 24)
-                : new Thickness(28, 16, 28, 28);
+        if (string.Equals(previousTag, MainShellSections.Dashboard, StringComparison.Ordinal)
+            && !string.Equals(nextTag, MainShellSections.Dashboard, StringComparison.Ordinal))
+        {
+            return MainWindowShellSectionTransitionKind.DashboardForward;
+        }
+
+        if (!string.Equals(previousTag, MainShellSections.Dashboard, StringComparison.Ordinal)
+            && string.Equals(nextTag, MainShellSections.Dashboard, StringComparison.Ordinal))
+        {
+            return MainWindowShellSectionTransitionKind.DashboardBackward;
+        }
+
+        return MainWindowShellSectionTransitionKind.Entrance;
+    }
+
+    private bool AreShellTransitionsEnabled()
+    {
+        try
+        {
+            if (new AccessibilitySettings().HighContrast)
+            {
+                return false;
+            }
+        }
+        catch (Exception ex)
+        {
+            TryWriteWindowException("Inspect HighContrast state for shell transitions", ex, AppDiagnosticSeverity.Warning);
+        }
+
+        try
+        {
+            return _uiSettings.AnimationsEnabled;
+        }
+        catch (Exception ex)
+        {
+            TryWriteWindowException("Inspect animation state for shell transitions", ex, AppDiagnosticSeverity.Warning);
+            return true;
+        }
     }
 
     private void ApplyAdaptiveLayoutToSection(
@@ -682,9 +728,10 @@ public sealed partial class MainWindow : Window, ISettingsViewHost, IShellNaviga
         var normalizedTag = MainShellSections.Normalize(tag);
         var previousTag = _activeShellSectionTag;
         var wasMaterialized = _shellSections.IsMaterialized(normalizedTag);
+        var transitionKind = ResolveShellSectionTransition(previousTag, normalizedTag);
         ReleaseRecreatableSectionsExcept(normalizedTag);
         EnsureShellSectionControl(normalizedTag);
-        ShowShellSection(normalizedTag);
+        ShowShellSection(normalizedTag, transitionKind);
 
         if (_shellSectionDefinitions.TryGetValue(normalizedTag, out var definition) && definition.OnActivated is not null)
         {

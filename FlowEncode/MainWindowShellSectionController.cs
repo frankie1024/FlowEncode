@@ -4,11 +4,24 @@ using System.Linq;
 using System.Threading.Tasks;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
+using Microsoft.UI.Xaml.Media.Animation;
 
 namespace FlowEncode;
 
+internal enum MainWindowShellSectionTransitionKind
+{
+    None,
+    Entrance,
+    DashboardForward,
+    DashboardBackward
+}
+
 internal sealed class MainWindowShellSectionController
 {
+    private const double EntranceOffsetX = 24d;
+    private const double DashboardForwardOffsetY = 32d;
+    private const double DashboardBackwardOffsetY = -24d;
+
     private readonly Panel _host;
     private readonly Func<string, UserControl> _controlFactory;
     private readonly Action<string>? _sectionLoadedCallback;
@@ -59,7 +72,6 @@ internal sealed class MainWindowShellSectionController
         control.Loaded += loadedHandler;
         _controls[normalizedTag] = control;
         GetLoadedCompletionSource(normalizedTag);
-        _host.Children.Add(control);
         return control;
     }
 
@@ -80,16 +92,37 @@ internal sealed class MainWindowShellSectionController
         return await GetLoadedCompletionSource(normalizedTag).Task;
     }
 
-    public void Show(string tag)
+    public void Show(string tag, MainWindowShellSectionTransitionKind transitionKind = MainWindowShellSectionTransitionKind.None)
     {
         var normalizedTag = MainShellSections.Normalize(tag);
-        EnsureControl(normalizedTag);
+        var activeControl = EnsureControl(normalizedTag);
+        var previousControl = _host.Children.OfType<UserControl>().FirstOrDefault();
+        var previousTag = _controls
+            .FirstOrDefault(entry => ReferenceEquals(entry.Value, previousControl))
+            .Key;
 
         foreach (var sectionEntry in _controls)
         {
             sectionEntry.Value.Visibility = string.Equals(sectionEntry.Key, normalizedTag, StringComparison.Ordinal)
                 ? Visibility.Visible
                 : Visibility.Collapsed;
+        }
+
+        if (ReferenceEquals(previousControl, activeControl))
+        {
+            activeControl.Transitions = null;
+            return;
+        }
+
+        if (previousControl is not null)
+        {
+            _host.Children.Remove(previousControl);
+        }
+
+        activeControl.Transitions = BuildTransitions(previousTag, normalizedTag, transitionKind);
+        if (!_host.Children.Contains(activeControl))
+        {
+            _host.Children.Add(activeControl);
         }
     }
 
@@ -114,7 +147,10 @@ internal sealed class MainWindowShellSectionController
             completionSource.TrySetResult(false);
         }
 
-        _host.Children.Remove(control);
+        if (_host.Children.Contains(control))
+        {
+            _host.Children.Remove(control);
+        }
 
         if (control is IDisposable disposableControl)
         {
@@ -154,5 +190,40 @@ internal sealed class MainWindowShellSectionController
         _materializedSections.Add(normalizedTag);
         GetLoadedCompletionSource(normalizedTag).TrySetResult(true);
         _sectionLoadedCallback?.Invoke(normalizedTag);
+    }
+
+    private static TransitionCollection? BuildTransitions(
+        string? previousTag,
+        string normalizedTag,
+        MainWindowShellSectionTransitionKind transitionKind)
+    {
+        if (string.Equals(previousTag, normalizedTag, StringComparison.Ordinal))
+        {
+            return null;
+        }
+
+        var transitions = new TransitionCollection();
+        var entranceTransition = new EntranceThemeTransition
+        {
+            IsStaggeringEnabled = false
+        };
+
+        switch (transitionKind)
+        {
+            case MainWindowShellSectionTransitionKind.Entrance:
+                entranceTransition.FromHorizontalOffset = EntranceOffsetX;
+                break;
+            case MainWindowShellSectionTransitionKind.DashboardForward:
+                entranceTransition.FromVerticalOffset = DashboardForwardOffsetY;
+                break;
+            case MainWindowShellSectionTransitionKind.DashboardBackward:
+                entranceTransition.FromVerticalOffset = DashboardBackwardOffsetY;
+                break;
+            default:
+                return null;
+        }
+
+        transitions.Add(entranceTransition);
+        return transitions;
     }
 }

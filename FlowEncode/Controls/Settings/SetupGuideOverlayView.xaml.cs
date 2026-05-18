@@ -1,5 +1,6 @@
 using System;
 using System.Threading.Tasks;
+using FlowEncode.Controls.Shared;
 using FlowEncode.Domain;
 using FlowEncode.ViewModels;
 using Microsoft.UI.Xaml;
@@ -52,9 +53,11 @@ public sealed partial class SetupGuideOverlayView : UserControl
             return;
         }
 
-        var overlayPadding = ActualWidth < 960 ? 16.0 : 20.0;
+        var overlayPadding = ActualWidth < 960 ? UiTokens.SpacingL : UiTokens.SpacingXL;
         SetupGuideDialogCard.MaxHeight = Math.Max(360.0, ActualHeight - (overlayPadding * 2));
-        SetupGuideDialogCard.Padding = ActualWidth < 960 ? new Thickness(18) : new Thickness(24);
+        SetupGuideDialogCard.Padding = ActualWidth < 960
+            ? UiTokens.CardPadding
+            : UiTokens.UniformThickness(UiTokens.SpacingXXL);
 
         var headerHeight = SetupGuideHeaderPanel.ActualHeight;
         var footerHeight = SetupGuideFooterPanel.ActualHeight;

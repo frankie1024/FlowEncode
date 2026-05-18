@@ -9,8 +9,8 @@
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
     mc:Ignorable="d">
     <ScrollViewer VerticalScrollBarVisibility="Auto">
-        <StackPanel x:Name="ContentStack" Padding="28,16,28,28" Spacing="20">
-            <Grid x:Name="TemplatesWorkspaceGrid" ColumnSpacing="20" RowSpacing="20">
+        <StackPanel x:Name="ContentStack" Padding="{StaticResource AppPagePadding}" Spacing="{StaticResource AppSpacingL}">
+            <Grid x:Name="TemplatesWorkspaceGrid" ColumnSpacing="{StaticResource AppSpacingL}" RowSpacing="{StaticResource AppSpacingL}">
                 <Grid.RowDefinitions>
                     <RowDefinition Height="Auto" />
                     <RowDefinition Height="Auto" />
@@ -20,35 +20,35 @@
                     <ColumnDefinition x:Name="TemplatesSecondaryColumn" Width="1.06*" />
                 </Grid.ColumnDefinitions>
 
-                <Border x:Name="TemplateLibraryPanel" Grid.Row="0" Grid.Column="0" Padding="22" Background="{ThemeResource CardBrush}" BorderBrush="{ThemeResource CardBorderBrush}" BorderThickness="{StaticResource AppCardBorderThickness}" CornerRadius="{StaticResource AppLargeCornerRadius}" DataContext="{Binding Library}">
-                    <StackPanel Spacing="12">
-                        <TextBlock FontFamily="{StaticResource AppDisplayFont}" FontSize="22" FontWeight="SemiBold" Text="{Binding Texts.TemplateLibraryTitle}" />
+                <Border x:Name="TemplateLibraryPanel" Grid.Row="0" Grid.Column="0" Padding="{StaticResource AppCardPadding}" Background="{ThemeResource CardBrush}" BorderBrush="{ThemeResource CardBorderBrush}" BorderThickness="{StaticResource AppCardBorderThickness}" CornerRadius="{StaticResource AppLargeCornerRadius}" Shadow="{StaticResource CardShadow}" DataContext="{Binding Library}">
+                    <StackPanel Spacing="{StaticResource AppSpacingM}">
+                        <TextBlock FontFamily="{StaticResource AppDisplayFont}" FontSize="{StaticResource AppSubsectionTitleFontSize}" FontWeight="SemiBold" Text="{Binding Texts.TemplateLibraryTitle}" />
                         <TextBox PlaceholderText="{Binding Texts.TemplateSearchPlaceholder}" Text="{Binding TemplateSearchText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
                         <Grid>
                             <ListView x:Name="TemplateLibraryList" ItemsSource="{Binding TemplateLibraryItems}" SelectionChanged="TemplateLibraryList_SelectionChanged" SelectionMode="Single">
                                 <ListView.ItemTemplate>
                                     <DataTemplate>
-                                        <Border Margin="0,0,0,10" Padding="16" Background="{ThemeResource TemplateUserCardBrush}" BorderBrush="{ThemeResource TemplateUserBorderBrush}" BorderThickness="{StaticResource AppCardBorderThickness}" CornerRadius="{StaticResource AppCardCornerRadius}">
-                                            <Grid ColumnSpacing="12">
+                                        <Border Margin="{StaticResource AppBottomSpacingM}" Padding="{StaticResource AppInsetPanelPadding}" Background="{ThemeResource TemplateUserCardBrush}" BorderBrush="{ThemeResource TemplateUserBorderBrush}" BorderThickness="{StaticResource AppCardBorderThickness}" CornerRadius="{StaticResource AppCardCornerRadius}">
+                                            <Grid ColumnSpacing="{StaticResource AppSpacingM}">
                                                 <Grid.ColumnDefinitions>
                                                     <ColumnDefinition Width="*" />
                                                     <ColumnDefinition Width="Auto" />
                                                 </Grid.ColumnDefinitions>
-                                                <StackPanel Spacing="6">
-                                                    <Grid ColumnSpacing="10">
+                                                <StackPanel Spacing="{StaticResource AppSpacingS}">
+                                                    <Grid ColumnSpacing="{StaticResource AppSpacingM}">
                                                         <Grid.ColumnDefinitions>
                                                             <ColumnDefinition Width="*" />
                                                             <ColumnDefinition Width="Auto" />
                                                         </Grid.ColumnDefinitions>
-                                                        <TextBlock FontFamily="{StaticResource AppDisplayFont}" FontSize="18" FontWeight="SemiBold" Text="{Binding Name}" TextWrapping="WrapWholeWords" />
+                                                        <TextBlock FontFamily="{StaticResource AppDisplayFont}" FontSize="{StaticResource AppBodyLargeFontSize}" FontWeight="SemiBold" Text="{Binding Name}" TextWrapping="WrapWholeWords" />
                                                         <Border Grid.Column="1" Padding="10,4" Background="{ThemeResource TemplateUserBadgeBrush}" CornerRadius="{StaticResource AppControlCornerRadius}">
-                                                            <TextBlock FontSize="12" FontWeight="SemiBold" Foreground="{ThemeResource TemplateUserBadgeForegroundBrush}" Text="{Binding SourceLabel}" />
+                                                            <TextBlock FontSize="{StaticResource AppSmallFontSize}" FontWeight="SemiBold" Foreground="{ThemeResource TemplateUserBadgeForegroundBrush}" Text="{Binding SourceLabel}" />
                                                         </Border>
                                                     </Grid>
                                                     <TextBlock Text="{Binding EncoderAndQualityText}" TextWrapping="WrapWholeWords" />
                                                     <TextBlock Style="{ThemeResource SelectableSecondaryTextBlockStyle}" Text="{Binding MetaText}" TextWrapping="WrapWholeWords" Visibility="{Binding MetaVisibility}" />
                                                 </StackPanel>
-                                                <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="6" VerticalAlignment="Top">
+                                                <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="{StaticResource AppSpacingS}" VerticalAlignment="Top">
                                                     <Button MinWidth="40" Padding="10" VerticalAlignment="Top" AutomationProperties.Name="{Binding PinActionLabel}" CommandParameter="{Binding}" Tag="{Binding TemplateId}" Click="PinTemplateButton_Click" Visibility="{Binding PinVisibility}" ToolTipService.ToolTip="{Binding PinActionLabel}">
                                                         <SymbolIcon Symbol="{Binding PinSymbol}" />
                                                     </Button>
@@ -62,14 +62,14 @@
                                 </ListView.ItemTemplate>
                             </ListView>
 
-                            <TextBlock HorizontalAlignment="Center" VerticalAlignment="Center" FontSize="20" FontWeight="SemiBold" Foreground="{ThemeResource SubtleTextBrush}" Text="{Binding Texts.TemplateNoMatch}" Visibility="{Binding TemplateLibraryEmptyVisibility}" />
+                            <TextBlock HorizontalAlignment="Center" VerticalAlignment="Center" FontSize="{StaticResource AppCardTitleFontSize}" FontWeight="SemiBold" Foreground="{ThemeResource SubtleTextBrush}" Text="{Binding Texts.TemplateNoMatch}" Visibility="{Binding TemplateLibraryEmptyVisibility}" />
                         </Grid>
                     </StackPanel>
                 </Border>
 
-                <Border x:Name="TemplateEditorPanel" Grid.Row="0" Grid.Column="1" Padding="22" Background="{ThemeResource CardBrush}" BorderBrush="{ThemeResource CardBorderBrush}" BorderThickness="{StaticResource AppCardBorderThickness}" CornerRadius="{StaticResource AppLargeCornerRadius}" DataContext="{Binding Editor}">
-                    <StackPanel Spacing="12">
-                        <Grid x:Name="TemplateEditorHeaderGrid" ColumnSpacing="12" RowSpacing="12">
+                <Border x:Name="TemplateEditorPanel" Grid.Row="0" Grid.Column="1" Padding="{StaticResource AppCardPadding}" Background="{ThemeResource CardBrush}" BorderBrush="{ThemeResource CardBorderBrush}" BorderThickness="{StaticResource AppCardBorderThickness}" CornerRadius="{StaticResource AppLargeCornerRadius}" Shadow="{StaticResource CardShadow}" DataContext="{Binding Editor}">
+                    <StackPanel Spacing="{StaticResource AppSpacingM}">
+                        <Grid x:Name="TemplateEditorHeaderGrid" ColumnSpacing="{StaticResource AppSpacingM}" RowSpacing="{StaticResource AppSpacingM}">
                             <Grid.RowDefinitions>
                                 <RowDefinition Height="Auto" />
                                 <RowDefinition Height="Auto" />
@@ -78,7 +78,7 @@
                                 <ColumnDefinition x:Name="TemplateEditorTitleColumn" Width="*" />
                                 <ColumnDefinition x:Name="TemplateEditorActionsColumn" Width="Auto" />
                             </Grid.ColumnDefinitions>
-                            <TextBlock FontFamily="{StaticResource AppDisplayFont}" FontSize="22" FontWeight="SemiBold" Text="{Binding Texts.TemplateEditorTitle}" />
+                            <TextBlock FontFamily="{StaticResource AppDisplayFont}" FontSize="{StaticResource AppSubsectionTitleFontSize}" FontWeight="SemiBold" Text="{Binding Texts.TemplateEditorTitle}" />
                             <CommandBar x:Name="TemplateEditorCommandBar" Grid.Column="1" Background="Transparent" DefaultLabelPosition="Right" IsDynamicOverflowEnabled="True" OverflowButtonVisibility="Auto">
                                 <AppBarButton Icon="Add" Label="{Binding Texts.NewButton}" Click="NewTemplateButton_Click" />
                                 <AppBarButton Icon="Save" Label="{Binding Texts.SaveButton}" Click="SaveTemplateButton_Click" IsEnabled="{Binding CanEditTemplateDraft}" />
@@ -91,7 +91,7 @@
                         <TextBox Header="{Binding Texts.TemplateNameHeader}" IsEnabled="{Binding CanEditTemplateDraft}" Text="{Binding DraftTemplateName, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
                         <TextBox Header="{Binding Texts.NotesHeader}" AcceptsReturn="True" IsEnabled="{Binding CanEditTemplateDraft}" MinHeight="96" Text="{Binding DraftTemplateNotes, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" TextWrapping="Wrap" />
 
-                        <Grid x:Name="TemplateEncoderFormatGrid" ColumnSpacing="12" RowSpacing="12">
+                        <Grid x:Name="TemplateEncoderFormatGrid" ColumnSpacing="{StaticResource AppSpacingM}" RowSpacing="{StaticResource AppSpacingM}">
                             <Grid.RowDefinitions>
                                 <RowDefinition Height="Auto" />
                                 <RowDefinition Height="Auto" />
@@ -104,7 +104,7 @@
                             <ComboBox x:Name="TemplateOutputComboBox" Grid.Column="1" Header="{Binding Texts.OutputFormatHeader}" DisplayMemberPath="Label" IsEnabled="{Binding CanEditTemplateDraft}" ItemsSource="{Binding AvailableOutputFormats}" SelectedItem="{Binding SelectedOutputFormat, Mode=TwoWay}" />
                         </Grid>
 
-                        <Grid x:Name="TemplateRatePresetTuneGrid" ColumnSpacing="12" RowSpacing="12">
+                        <Grid x:Name="TemplateRatePresetTuneGrid" ColumnSpacing="{StaticResource AppSpacingM}" RowSpacing="{StaticResource AppSpacingM}">
                             <Grid.RowDefinitions>
                                 <RowDefinition Height="Auto" />
                                 <RowDefinition Height="Auto" />
@@ -120,7 +120,7 @@
                             <ComboBox x:Name="TemplateTuneComboBox" Grid.Column="2" Header="Tune" DisplayMemberPath="Label" IsEnabled="{Binding CanEditTemplateDraft}" ItemsSource="{Binding AvailableTunes}" SelectedItem="{Binding SelectedTune, Mode=TwoWay}" />
                         </Grid>
 
-                        <Grid x:Name="TemplateProfileQualityGrid" ColumnSpacing="12" RowSpacing="12">
+                        <Grid x:Name="TemplateProfileQualityGrid" ColumnSpacing="{StaticResource AppSpacingM}" RowSpacing="{StaticResource AppSpacingM}">
                             <Grid.RowDefinitions>
                                 <RowDefinition Height="Auto" />
                                 <RowDefinition Height="Auto" />
@@ -130,7 +130,7 @@
                                 <ColumnDefinition x:Name="TemplateQualityGroupColumn" Width="*" />
                             </Grid.ColumnDefinitions>
                             <ComboBox x:Name="TemplateProfileComboBox" Header="Profile" DisplayMemberPath="Label" IsEnabled="{Binding CanEditTemplateDraft}" ItemsSource="{Binding AvailableProfiles}" SelectedItem="{Binding SelectedProfileOption, Mode=TwoWay}" />
-                            <Grid x:Name="TemplateQualityBitrateGrid" Grid.Column="1" ColumnSpacing="12" RowSpacing="12">
+                            <Grid x:Name="TemplateQualityBitrateGrid" Grid.Column="1" ColumnSpacing="{StaticResource AppSpacingM}" RowSpacing="{StaticResource AppSpacingM}">
                                 <Grid.RowDefinitions>
                                     <RowDefinition Height="Auto" />
                                     <RowDefinition Height="Auto" />
