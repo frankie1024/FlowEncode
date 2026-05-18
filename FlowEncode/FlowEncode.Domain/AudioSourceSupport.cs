@@ -1,3 +1,4 @@
+using System;
 using System.Linq;
 
 namespace FlowEncode.Domain;
@@ -52,7 +53,14 @@ public static class AudioSourceSupport
         ".mpa"
     ];
 
+    private static readonly IReadOnlyList<string> AllSupportedExtensions = FfmpegBackedPreferredPickerExtensions
+        .Concat(Eac3ToPreferredPickerExtensions)
+        .Distinct(StringComparer.OrdinalIgnoreCase)
+        .ToArray();
+
     public static IReadOnlyList<string> PreferredPickerExtensions => FfmpegBackedPreferredPickerExtensions;
+
+    public static IReadOnlyList<string> SupportedDropExtensions => AllSupportedExtensions;
 
     public static IReadOnlyList<string> GetPreferredPickerExtensions(AudioProcessingMode? mode)
     {
@@ -64,6 +72,12 @@ public static class AudioSourceSupport
     public static string PreferredPickerPattern => BuildDialogPattern(PreferredPickerExtensions);
 
     public static string GetPreferredPickerPattern(AudioProcessingMode? mode) => BuildDialogPattern(GetPreferredPickerExtensions(mode));
+
+    public static bool IsSupportedExtension(string filePath)
+    {
+        var extension = Path.GetExtension(filePath);
+        return SupportedDropExtensions.Any(candidate => string.Equals(candidate, extension, StringComparison.OrdinalIgnoreCase));
+    }
 
     private static string BuildDialogPattern(IReadOnlyList<string> extensions) => string.Join(";", extensions.Select(static extension => $"*{extension}"));
 }

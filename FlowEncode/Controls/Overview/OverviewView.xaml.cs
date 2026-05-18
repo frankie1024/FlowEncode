@@ -851,18 +851,26 @@ public sealed partial class OverviewView : UserControl
             or NumberBox;
     }
 
-    private void JobsList_RightTapped(object sender, RightTappedRoutedEventArgs e)
+    private void JobsList_ContextRequested(UIElement sender, ContextRequestedEventArgs args)
     {
-        var job = FindJobFromSource(e.OriginalSource as DependencyObject);
+        var job = FindJobFromSource(args.OriginalSource as DependencyObject) ?? GetCurrentQueueJobSelection();
         if (job is null || ViewModel?.Texts is not { } texts)
         {
             return;
         }
 
         var flyout = BuildJobContextMenu(job, texts);
-        var anchor = e.OriginalSource as FrameworkElement;
-        flyout.ShowAt(anchor, new FlyoutShowOptions { Position = e.GetPosition(anchor) });
-        e.Handled = true;
+        var anchor = ResolveJobContextMenuAnchor(args.OriginalSource as DependencyObject, job);
+        if (args.TryGetPosition(anchor, out var position))
+        {
+            flyout.ShowAt(anchor, new FlyoutShowOptions { Position = position });
+        }
+        else
+        {
+            flyout.ShowAt(anchor);
+        }
+
+        args.Handled = true;
     }
 
     private EncodingJobItemViewModel? FindJobFromSource(DependencyObject? source)
@@ -883,6 +891,26 @@ public sealed partial class OverviewView : UserControl
         }
 
         return null;
+    }
+
+    private FrameworkElement ResolveJobContextMenuAnchor(DependencyObject? source, EncodingJobItemViewModel job)
+    {
+        while (source is not null)
+        {
+            if (source is FrameworkElement { DataContext: EncodingJobItemViewModel } element)
+            {
+                return element;
+            }
+
+            if (source is ListViewItem item)
+            {
+                return item;
+            }
+
+            source = VisualTreeHelper.GetParent(source);
+        }
+
+        return JobsList.ContainerFromItem(job) as FrameworkElement ?? JobsList;
     }
 
     private MenuFlyout BuildJobContextMenu(EncodingJobItemViewModel job, AppText texts)

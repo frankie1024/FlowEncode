@@ -337,7 +337,7 @@
                                 </CommandBar>
 
                                 <Grid Grid.Row="2">
-                                    <ListView x:Name="JobsList" ItemsSource="{Binding Jobs}" MinHeight="320" SelectionMode="Single" SelectionChanged="JobsList_SelectionChanged" RightTapped="JobsList_RightTapped">
+                                    <ListView x:Name="JobsList" ItemsSource="{Binding Jobs}" MinHeight="320" SelectionMode="Single" ContextRequested="JobsList_ContextRequested" SelectionChanged="JobsList_SelectionChanged">
                                         <ListView.ItemTemplate>
                                             <DataTemplate>
                                                 <Grid Padding="14,12">

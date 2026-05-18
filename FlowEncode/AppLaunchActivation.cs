@@ -64,9 +64,7 @@ public sealed class AppLaunchActivation
 
     public static bool IsSupportedAudioExtension(string filePath)
     {
-        var extension = Path.GetExtension(filePath);
-        return AudioSourceSupport.PreferredPickerExtensions
-            .Any(e => string.Equals(e, extension, StringComparison.OrdinalIgnoreCase));
+        return AudioSourceSupport.IsSupportedExtension(filePath);
     }
 
     public static bool IsBluRayFolder(string folderPath)
