@@ -69,8 +69,8 @@
 
                         <Border x:Name="SettingsTogglePanel" Grid.Column="1" Padding="16" Background="{ThemeResource CardAltBrush}" BorderBrush="{ThemeResource CardBorderBrush}" BorderThickness="{StaticResource AppCardBorderThickness}" CornerRadius="{StaticResource AppCardCornerRadius}">
                             <StackPanel Spacing="14">
-                                <ToggleSwitch x:Name="PreferSystemEncodersToggle" Header="{Binding Texts.PreferSystemEncodersHeader}" IsOn="{Binding PreferSystemEncoders, Mode=TwoWay}" OffContent="{Binding Texts.ToggleOffLabel}" OnContent="{Binding Texts.ToggleOnLabel}" Toggled="SettingsToggle_Toggled" />
-                                <ToggleSwitch x:Name="AutoCheckUpdatesToggle" Header="{Binding Texts.AutoCheckUpdatesHeader}" IsOn="{Binding AutoCheckUpdatesOnStartup, Mode=TwoWay}" OffContent="{Binding Texts.ToggleOffLabel}" OnContent="{Binding Texts.ToggleOnLabel}" Toggled="SettingsToggle_Toggled" />
+                                <ToggleSwitch x:Name="PreferSystemEncodersToggle" Header="{Binding Texts.PreferSystemEncodersHeader}" IsOn="{Binding PreferSystemEncoders, Mode=TwoWay}" OffContent="{Binding Texts.ToggleOffLabel}" OnContent="{Binding Texts.ToggleOnLabel}" ToolTipService.ToolTip="{Binding Texts.PreferSystemEncodersTooltip}" Toggled="SettingsToggle_Toggled" />
+                                <ToggleSwitch x:Name="AutoCheckUpdatesToggle" Header="{Binding Texts.AutoCheckUpdatesHeader}" IsOn="{Binding AutoCheckUpdatesOnStartup, Mode=TwoWay}" OffContent="{Binding Texts.ToggleOffLabel}" OnContent="{Binding Texts.ToggleOnLabel}" ToolTipService.ToolTip="{Binding Texts.AutoCheckUpdatesTooltip}" Toggled="SettingsToggle_Toggled" />
                             </StackPanel>
                         </Border>
 
@@ -171,13 +171,13 @@
                                                                 </StackPanel>
 
                                                                 <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8" HorizontalAlignment="Right" VerticalAlignment="Top">
-                                                                    <Button AutomationProperties.Name="{Binding DataContext.Texts.ManualSelectButton, ElementName=RootView}" Tag="{Binding Kind}" Click="ManualSelectSetupDependencyButton_Click" IsEnabled="{Binding ManualSelectEnabled}" Visibility="{Binding ManualSelectVisibility}" ToolTipService.ToolTip="{Binding DataContext.Texts.ManualSelectButton, ElementName=RootView}">
+                                                                    <Button AutomationProperties.Name="{Binding DataContext.Texts.ManualSelectButton, ElementName=RootView}" Tag="{Binding Kind}" Click="ManualSelectSetupDependencyButton_Click" IsEnabled="{Binding ManualSelectEnabled}" Visibility="{Binding ManualSelectVisibility}" ToolTipService.ToolTip="{Binding DataContext.Texts.ManualSelectTooltip, ElementName=RootView}">
                                                                         <StackPanel Orientation="Horizontal" Spacing="6">
                                                                             <SymbolIcon Symbol="OpenFile" />
                                                                             <TextBlock Text="{Binding DataContext.Texts.ManualSelectButton, ElementName=RootView}" />
                                                                         </StackPanel>
                                                                     </Button>
-                                                                    <Button AutomationProperties.Name="{Binding DataContext.Texts.ClearManualPinButton, ElementName=RootView}" Tag="{Binding Kind}" Click="ClearManualPinnedSetupDependencyButton_Click" IsEnabled="{Binding ClearManualPinEnabled}" Visibility="{Binding ClearManualPinVisibility}" ToolTipService.ToolTip="{Binding DataContext.Texts.ClearManualPinButton, ElementName=RootView}">
+                                                                    <Button AutomationProperties.Name="{Binding DataContext.Texts.ClearManualPinButton, ElementName=RootView}" Tag="{Binding Kind}" Click="ClearManualPinnedSetupDependencyButton_Click" IsEnabled="{Binding ClearManualPinEnabled}" Visibility="{Binding ClearManualPinVisibility}" ToolTipService.ToolTip="{Binding DataContext.Texts.ClearManualPinTooltip, ElementName=RootView}">
                                                                         <StackPanel Orientation="Horizontal" Spacing="6">
                                                                             <SymbolIcon Symbol="UnPin" />
                                                                             <TextBlock Text="{Binding DataContext.Texts.ClearManualPinButton, ElementName=RootView}" />
@@ -189,13 +189,13 @@
                                                                             <TextBlock Text="{Binding PrimaryActionText}" />
                                                                         </StackPanel>
                                                                     </Button>
-                                                                    <Button AutomationProperties.Name="{Binding DataContext.Texts.UninstallButton, ElementName=RootView}" Tag="{Binding Kind}" Click="UninstallSetupDependencyButton_Click" IsEnabled="{Binding UninstallActionEnabled}" Visibility="{Binding UninstallVisibility}" ToolTipService.ToolTip="{Binding DataContext.Texts.UninstallButton, ElementName=RootView}">
+                                                                    <Button AutomationProperties.Name="{Binding DataContext.Texts.UninstallButton, ElementName=RootView}" Tag="{Binding Kind}" Click="UninstallSetupDependencyButton_Click" IsEnabled="{Binding UninstallActionEnabled}" Visibility="{Binding UninstallVisibility}" ToolTipService.ToolTip="{Binding DataContext.Texts.UninstallTooltip, ElementName=RootView}">
                                                                         <StackPanel Orientation="Horizontal" Spacing="6">
                                                                             <SymbolIcon Symbol="Delete" />
                                                                             <TextBlock Text="{Binding DataContext.Texts.UninstallButton, ElementName=RootView}" />
                                                                         </StackPanel>
                                                                     </Button>
-                                                                    <HyperlinkButton AutomationProperties.Name="{Binding DataContext.Texts.ReleasePageButton, ElementName=RootView}" Tag="{Binding ReleaseUrl}" Click="OpenUrlButton_Click" Visibility="{Binding ReleaseVisibility}" ToolTipService.ToolTip="{Binding DataContext.Texts.ReleasePageButton, ElementName=RootView}">
+                                                                    <HyperlinkButton AutomationProperties.Name="{Binding DataContext.Texts.ReleasePageButton, ElementName=RootView}" Tag="{Binding ReleaseUrl}" Click="OpenUrlButton_Click" Visibility="{Binding ReleaseVisibility}" ToolTipService.ToolTip="{Binding DataContext.Texts.ReleasePageTooltip, ElementName=RootView}">
                                                                         <StackPanel Orientation="Horizontal" Spacing="6">
                                                                             <SymbolIcon Symbol="Link" />
                                                                             <TextBlock Text="{Binding DataContext.Texts.ReleasePageButton, ElementName=RootView}" />

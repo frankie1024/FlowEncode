@@ -148,9 +148,9 @@ public sealed class AppText
     public string AudioEac3ToAdditionalArgumentsPlaceholder => Pick("可选：-down16 -mono", "Optional: -down16 -mono");
     public string AudioOpusBitrateHeader => Pick("Opus 码率", "Opus Bitrate");
     public string AudioOpusMappingFamilyHeader => Pick("环绕映射", "Surround Mapping");
-    public string AudioOpusMappingFamilyDescription => Pick(
-        "兼容的3-8声道使用 Opus family 1；其他布局自动回退默认管线。",
-        "Uses Opus family 1 for compatible 3-8 channel layouts; other layouts fall back to the default pipeline.");
+    public string AudioOpusMappingFamilyTooltip => Pick(
+        "环绕声（5.1/7.1）建议开启，可获得正确的声道映射。立体声无需开启。不兼容的布局会自动回退。",
+        "Recommended for surround (5.1/7.1) content for correct channel mapping. Not needed for stereo. Incompatible layouts fall back automatically.");
     public string AudioChannelProfileHeader => Pick("声道布局", "Channel Layout");
     public string AudioProcessingStartButton => Pick("开始音频处理", "Start Audio");
     public string AudioProcessingCancelButton => Pick("取消音频处理", "Cancel Audio");
@@ -440,7 +440,13 @@ public sealed class AppText
     public string ToggleOnLabel => Pick("开", "On");
     public string ToggleOffLabel => Pick("关", "Off");
     public string PreferSystemEncodersHeader => Pick("本地缺失时回退系统编码器", "Fallback to system encoders when local is missing");
+    public string PreferSystemEncodersTooltip => Pick(
+        "当工作目录中未找到某个编码器时，自动从系统 PATH 中搜索同名可执行文件。关闭后仅使用工作目录内的本地编码器。",
+        "When an encoder is not found in the workspace folder, automatically search for a matching executable in the system PATH. When off, only locally managed encoders are used.");
     public string AutoCheckUpdatesHeader => Pick("启动时自动检查程序更新", "Check app updates on startup");
+    public string AutoCheckUpdatesTooltip => Pick(
+        "每次启动 FlowEncode 时自动连接 GitHub 检查是否有新版本。关闭后仍可手动在设置页检查更新。",
+        "Automatically checks GitHub for new FlowEncode versions on each startup. When off, you can still check manually from the Settings page.");
     public string MaxConcurrentEncodingJobsHeader => Pick("并发任务数", "Concurrent Jobs");
     public string QueueCompletionActionHeader => Pick("全部任务完成后", "After Queue Finishes");
     public string AppUpdateSectionTitle => Pick("程序更新", "App Updates");
@@ -499,7 +505,13 @@ public sealed class AppText
     public string EncoderSectionTitle => Pick("编码器", "Encoders");
     public string ToolSectionTitle => Pick("核心工具", "Core Tools");
     public string ManualSelectButton => Pick("手动选择", "Choose");
+    public string ManualSelectTooltip => Pick(
+        "浏览本地文件系统，手动指定已安装的可执行文件路径。指定后将优先使用该路径，不再自动探测。",
+        "Browse your local filesystem to manually select an installed executable. Once set, this path takes priority over automatic detection.");
     public string ClearManualPinButton => Pick("取消固定", "Clear Pin");
+    public string ClearManualPinTooltip => Pick(
+        "清除手动指定的路径，恢复为自动探测模式。自动探测会按工作目录、环境变量、系统 PATH 的顺序搜索。",
+        "Clear the manually pinned path and restore automatic detection. Auto-detection searches the workspace folder, environment variables, and system PATH in order.");
     public string ManualPinnedLabel => Pick("手动固定", "Manual Pin");
     public string ManualToolPinnedStatus(string dependencyLabel) =>
         IsChinese
@@ -521,7 +533,13 @@ public sealed class AppText
     public string InstallButton => Pick("安装", "Install");
     public string UpdateButton => Pick("更新", "Update");
     public string UninstallButton => Pick("卸载", "Uninstall");
+    public string UninstallTooltip => Pick(
+        "从工作目录中移除 FlowEncode 托管的副本。不会影响系统 PATH 或工作目录外部的安装。",
+        "Remove the app-managed copy from the workspace folder. Does not affect installations in the system PATH or outside the workspace.");
     public string ReleasePageButton => Pick("发布页", "Release Page");
+    public string ReleasePageTooltip => Pick(
+        "在浏览器中打开该工具的 GitHub 发布页，可查看版本详情或手动下载。",
+        "Opens the tool's GitHub release page in your browser to view version details or download manually.");
     public string EnvironmentAndDependenciesTitle => Pick("环境与依赖", "Environment & Dependencies");
     public string TemplateSourceUser => Pick("用户", "User");
     public string TemplateSourcePinned => Pick("置顶", "Pinned");
