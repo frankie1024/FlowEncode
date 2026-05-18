@@ -57,8 +57,14 @@ public sealed class AppText
     public string SupportedAudioFileTypeDescription(string pattern) => Pick($"音频文件 ({pattern})", $"Audio files ({pattern})");
     public string AllFilesTypeDescription => Pick("所有文件 (*.*)", "All files (*.*)");
     public string BrowseButton => Pick("浏览", "Browse");
-    public string DragDropOverlayTitle => Pick("拖放脚本以打开", "Drop a script to open it");
-    public string DragDropOverlayHint => Pick("支持 .vpy 和 .py 文件", "Supports .vpy and .py files");
+    public string DragDropScriptOverlayTitle => Pick("拖放脚本以打开", "Drop a script to open it");
+    public string DragDropScriptOverlayHint => Pick("支持 .vpy 和 .py 文件", "Supports .vpy and .py files");
+    public string DragDropVideoOverlayTitle => Pick("拖放视频以压制", "Drop a video to encode");
+    public string DragDropVideoOverlayHint => Pick("支持 .mkv / .mp4 / .avi / .flv / .y4m / .yuv / .avs", "Supports .mkv / .mp4 / .avi / .flv / .y4m / .yuv / .avs");
+    public string DragDropAudioOverlayTitle => Pick("拖放音频以处理", "Drop an audio file to process");
+    public string DragDropAudioOverlayHint => Pick("支持 .flac / .wav / .thd / .truehd / .dts / .mka 等", "Supports .flac / .wav / .thd / .truehd / .dts / .mka, etc.");
+    public string DragDropBluRayOverlayTitle => Pick("拖放蓝光目录以分离", "Drop a Blu-ray folder to demux");
+    public string DragDropBluRayOverlayHint => Pick("支持包含 BDMV 的蓝光目录", "Supports Blu-ray folders containing BDMV");
     public string OutputHeader => Pick("输出路径", "Output");
     public string OutputDirectoryHeader => Pick("输出目录", "Output Directory");
     public string SaveAsButton => Pick("另存为", "Save as");

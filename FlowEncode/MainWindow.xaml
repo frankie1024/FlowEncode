@@ -76,15 +76,15 @@
                         <SymbolIcon Foreground="{ThemeResource ThemeAccentBrush}" Symbol="OpenFile" />
                     </Viewbox>
                     <TextBlock
+                        x:Name="DragDropOverlayTitle"
                         FontFamily="{StaticResource AppDisplayFont}"
                         FontSize="22"
                         FontWeight="SemiBold"
-                        Text="{x:Bind ViewModel.Texts.DragDropOverlayTitle, Mode=OneWay}"
                         TextAlignment="Center"
                         TextWrapping="Wrap" />
                     <TextBlock
+                        x:Name="DragDropOverlayHint"
                         Foreground="{ThemeResource SubtleTextBrush}"
-                        Text="{x:Bind ViewModel.Texts.DragDropOverlayHint, Mode=OneWay}"
                         TextAlignment="Center"
                         TextWrapping="Wrap" />
                 </StackPanel>

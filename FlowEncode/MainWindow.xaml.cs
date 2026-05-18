@@ -46,7 +46,7 @@ public sealed partial class MainWindow : Window, ISettingsViewHost, IShellNaviga
     private readonly MainWindowShellSectionController _shellSections;
     private readonly UISettings _uiSettings = new();
     private DataPackageView? _activeDragDataView;
-    private bool? _activeDragContainsSupportedScript;
+    private DragDropPayloadType? _activeDragPayloadType;
     private string _activeShellSectionTag = MainShellSections.Dashboard;
     private bool _isWindowReady;
     private bool _hasCompletedInitialization;
@@ -369,11 +369,12 @@ public sealed partial class MainWindow : Window, ISettingsViewHost, IShellNaviga
         var deferral = e.GetDeferral();
         try
         {
-            var containsSupportedScript = await ContainsSupportedScriptFileAsync(e.DataView);
-            e.AcceptedOperation = containsSupportedScript
+            var payloadType = await ClassifyDragPayloadAsync(e.DataView);
+            var accepted = payloadType != DragDropPayloadType.Unsupported;
+            e.AcceptedOperation = accepted
                 ? DataPackageOperation.Copy
                 : DataPackageOperation.None;
-            SetDragDropOverlayVisible(containsSupportedScript);
+            UpdateDragDropOverlay(payloadType);
         }
         catch (Exception ex)
         {
@@ -403,21 +404,37 @@ public sealed partial class MainWindow : Window, ISettingsViewHost, IShellNaviga
             }
 
             var storageItems = await e.DataView.GetStorageItemsAsync();
-            var file = storageItems
-                .OfType<StorageFile>()
-                .FirstOrDefault(static item => AppLaunchActivation.IsSupportedScriptExtension(item.Path));
 
-            if (file is null)
+            var firstFile = storageItems.OfType<StorageFile>().FirstOrDefault();
+            if (firstFile is not null)
             {
+                e.AcceptedOperation = DataPackageOperation.Copy;
+                var payloadType = AppLaunchActivation.ClassifyFilePath(firstFile.Path);
+                switch (payloadType)
+                {
+                    case DragDropPayloadType.Script:
+                        await HandleExternalVapourSynthOpenAsync(firstFile.Path);
+                        break;
+                    case DragDropPayloadType.Video:
+                        NavigateToEncodingPage(firstFile.Path);
+                        break;
+                    case DragDropPayloadType.Audio:
+                        NavigateToAudioProcessingPage(firstFile.Path);
+                        break;
+                }
                 return;
             }
 
-            e.AcceptedOperation = DataPackageOperation.Copy;
-            await HandleExternalVapourSynthOpenAsync(file.Path);
+            var firstFolder = storageItems.OfType<StorageFolder>().FirstOrDefault();
+            if (firstFolder is not null && AppLaunchActivation.IsBluRayFolder(firstFolder.Path))
+            {
+                e.AcceptedOperation = DataPackageOperation.Copy;
+                NavigateToBluRayDemuxPage(firstFolder.Path);
+            }
         }
         catch (Exception ex)
         {
-            await ReportNonFatalWindowExceptionAsync("Failed to handle dropped VapourSynth script", ViewModel.Texts.ErrorSelectionFailedTitle, ex);
+            await ReportNonFatalWindowExceptionAsync("Failed to handle dropped items", ViewModel.Texts.ErrorSelectionFailedTitle, ex);
         }
     }
 
@@ -1022,45 +1039,64 @@ public sealed partial class MainWindow : Window, ISettingsViewHost, IShellNaviga
         ApplyTitleBarColors(RootLayout.ActualTheme);
     }
 
-    private async Task<bool> ContainsSupportedScriptFileAsync(DataPackageView dataView)
+    private async Task<DragDropPayloadType> ClassifyDragPayloadAsync(DataPackageView dataView)
     {
         if (!dataView.Contains(StandardDataFormats.StorageItems))
         {
-            return false;
+            return DragDropPayloadType.Unsupported;
         }
 
-        if (ReferenceEquals(_activeDragDataView, dataView) && _activeDragContainsSupportedScript.HasValue)
+        if (ReferenceEquals(_activeDragDataView, dataView) && _activeDragPayloadType.HasValue)
         {
-            return _activeDragContainsSupportedScript.Value;
+            return _activeDragPayloadType.Value;
         }
 
         try
         {
             var storageItems = await dataView.GetStorageItemsAsync().AsTask();
-            var containsSupportedScript = storageItems
+
+            var firstFile = storageItems
                 .OfType<StorageFile>()
-                .Any(static item => AppLaunchActivation.IsSupportedScriptExtension(item.Path));
+                .FirstOrDefault();
+            if (firstFile is not null)
+            {
+                var fileType = AppLaunchActivation.ClassifyFilePath(firstFile.Path);
+                _activeDragDataView = dataView;
+                _activeDragPayloadType = fileType;
+                return fileType;
+            }
+
+            var firstFolder = storageItems
+                .OfType<StorageFolder>()
+                .FirstOrDefault();
+            if (firstFolder is not null && AppLaunchActivation.IsBluRayFolder(firstFolder.Path))
+            {
+                _activeDragDataView = dataView;
+                _activeDragPayloadType = DragDropPayloadType.BluRayFolder;
+                return DragDropPayloadType.BluRayFolder;
+            }
+
             _activeDragDataView = dataView;
-            _activeDragContainsSupportedScript = containsSupportedScript;
-            return containsSupportedScript;
+            _activeDragPayloadType = DragDropPayloadType.Unsupported;
+            return DragDropPayloadType.Unsupported;
         }
         catch (Exception ex)
         {
             _activeDragDataView = dataView;
-            _activeDragContainsSupportedScript = false;
+            _activeDragPayloadType = DragDropPayloadType.Unsupported;
             _diagnostics.WriteException(
                 nameof(MainWindow),
                 "Inspect drag-and-drop storage items",
                 ex,
                 AppDiagnosticSeverity.Warning);
-            return false;
+            return DragDropPayloadType.Unsupported;
         }
     }
 
     private void ResetActiveDragState()
     {
         _activeDragDataView = null;
-        _activeDragContainsSupportedScript = null;
+        _activeDragPayloadType = null;
         SetDragDropOverlayVisible(false);
     }
 
@@ -1071,6 +1107,40 @@ public sealed partial class MainWindow : Window, ISettingsViewHost, IShellNaviga
         {
             DragDropOverlay.Visibility = targetVisibility;
         }
+    }
+
+    private void UpdateDragDropOverlay(DragDropPayloadType payloadType)
+    {
+        if (payloadType == DragDropPayloadType.Unsupported)
+        {
+            SetDragDropOverlayVisible(false);
+            return;
+        }
+
+        var texts = ViewModel.Texts;
+        (DragDropOverlayTitle.Text, DragDropOverlayHint.Text) = payloadType switch
+        {
+            DragDropPayloadType.Script => (texts.DragDropScriptOverlayTitle, texts.DragDropScriptOverlayHint),
+            DragDropPayloadType.Video => (texts.DragDropVideoOverlayTitle, texts.DragDropVideoOverlayHint),
+            DragDropPayloadType.Audio => (texts.DragDropAudioOverlayTitle, texts.DragDropAudioOverlayHint),
+            DragDropPayloadType.BluRayFolder => (texts.DragDropBluRayOverlayTitle, texts.DragDropBluRayOverlayHint),
+            _ => (texts.DragDropScriptOverlayTitle, texts.DragDropScriptOverlayHint)
+        };
+        SetDragDropOverlayVisible(true);
+    }
+
+    private void NavigateToAudioProcessingPage(string sourcePath)
+    {
+        ViewModel.AudioProcessingSourcePath = sourcePath;
+        SelectNavigationItem(MainShellSections.AudioProcessing);
+        ActivateAndBringToFront();
+    }
+
+    private void NavigateToBluRayDemuxPage(string sourcePath)
+    {
+        ViewModel.BluRayDemuxSourcePath = sourcePath;
+        SelectNavigationItem(MainShellSections.BluRayDemux);
+        ActivateAndBringToFront();
     }
 
     private async Task<bool> PersistSettingsAsync(bool refreshTemplateLibrary)
