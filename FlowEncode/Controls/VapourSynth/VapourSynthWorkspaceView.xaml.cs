@@ -11,7 +11,9 @@ using FlowEncode.Infrastructure;
 using FlowEncode.ViewModels;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
+using Microsoft.UI.Xaml.Controls.Primitives;
 using Microsoft.UI.Xaml.Input;
+using Microsoft.UI.Xaml.Media;
 using Windows.System;
 using WinRT.Interop;
 
@@ -364,6 +366,28 @@ public sealed partial class VapourSynthWorkspaceView : UserControl, IDisposable
         await RunUiActionAsync(() => CloseTabAsync(tab));
     }
 
+    private void WorkspaceTabViewItem_ContextRequested(UIElement sender, ContextRequestedEventArgs args)
+    {
+        var tab = ResolveTabFromContextRequest(sender, args.OriginalSource as DependencyObject);
+        if (tab is null)
+        {
+            return;
+        }
+
+        var anchor = ResolveTabContextMenuAnchor(sender, args.OriginalSource as DependencyObject, tab);
+        var flyout = BuildTabContextMenu(tab);
+        if (args.TryGetPosition(anchor, out var position))
+        {
+            flyout.ShowAt(anchor, new FlyoutShowOptions { Position = position });
+        }
+        else
+        {
+            flyout.ShowAt(anchor);
+        }
+
+        args.Handled = true;
+    }
+
     private async Task CloseTabAsync(VapourSynthWorkspaceTabViewModel tab)
     {
         if (!await ConfirmTabCloseAsync(tab))
@@ -387,6 +411,74 @@ public sealed partial class VapourSynthWorkspaceView : UserControl, IDisposable
 
             await RefreshWorkspaceTabsAsync();
         });
+    }
+
+    private VapourSynthWorkspaceTabViewModel? ResolveTabFromContextRequest(UIElement sender, DependencyObject? source)
+    {
+        if (sender is FrameworkElement { DataContext: VapourSynthWorkspaceTabViewModel senderTab })
+        {
+            return senderTab;
+        }
+
+        while (source is not null)
+        {
+            if (source is FrameworkElement { DataContext: VapourSynthWorkspaceTabViewModel tab })
+            {
+                return tab;
+            }
+
+            source = VisualTreeHelper.GetParent(source);
+        }
+
+        return WorkspaceTabView.SelectedItem as VapourSynthWorkspaceTabViewModel ?? ViewModel.ActiveTab;
+    }
+
+    private FrameworkElement ResolveTabContextMenuAnchor(UIElement sender, DependencyObject? source, VapourSynthWorkspaceTabViewModel tab)
+    {
+        if (sender is FrameworkElement senderElement)
+        {
+            return senderElement;
+        }
+
+        while (source is not null)
+        {
+            if (source is TabViewItem tabViewItem)
+            {
+                return tabViewItem;
+            }
+
+            if (source is FrameworkElement { DataContext: VapourSynthWorkspaceTabViewModel } element)
+            {
+                return element;
+            }
+
+            source = VisualTreeHelper.GetParent(source);
+        }
+
+        return WorkspaceTabView.ContainerFromItem(tab) as FrameworkElement ?? WorkspaceTabView;
+    }
+
+    private MenuFlyout BuildTabContextMenu(VapourSynthWorkspaceTabViewModel tab)
+    {
+        var flyout = new MenuFlyout();
+        flyout.Items.Add(CreateTabMenuItem(tab.ShowSideBySideMenuText, ShowTabSideBySideMenuItem_Click, tab));
+        flyout.Items.Add(CreateTabMenuItem(tab.ExitSideBySideMenuText, ExitSideBySideMenuItem_Click, tab));
+        flyout.Items.Add(new MenuFlyoutSeparator());
+        flyout.Items.Add(CreateTabMenuItem(tab.PinMenuText, PinTabMenuItem_Click, tab));
+        flyout.Items.Add(new MenuFlyoutSeparator());
+        flyout.Items.Add(CreateTabMenuItem(tab.CloseOtherTabsMenuText, CloseOtherTabsMenuItem_Click, tab));
+        return flyout;
+    }
+
+    private static MenuFlyoutItem CreateTabMenuItem(string text, RoutedEventHandler click, VapourSynthWorkspaceTabViewModel tab)
+    {
+        var item = new MenuFlyoutItem
+        {
+            Text = text,
+            CommandParameter = tab
+        };
+        item.Click += click;
+        return item;
     }
 
     private async void ShowTabSideBySideMenuItem_Click(object sender, RoutedEventArgs e)

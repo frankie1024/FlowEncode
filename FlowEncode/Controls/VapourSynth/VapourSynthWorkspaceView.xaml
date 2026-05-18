@@ -136,7 +136,7 @@
                 TabItemsSource="{Binding Tabs}">
                 <TabView.TabItemTemplate>
                     <DataTemplate>
-                        <TabViewItem IsClosable="True" DoubleTapped="WorkspaceTabViewItem_DoubleTapped">
+                        <TabViewItem ContextRequested="WorkspaceTabViewItem_ContextRequested" IsClosable="True" DoubleTapped="WorkspaceTabViewItem_DoubleTapped">
                             <TabViewItem.Header>
                                 <StackPanel Orientation="Horizontal" Spacing="6">
                                     <SymbolIcon
@@ -145,28 +145,6 @@
                                     <TextBlock Text="{Binding TabTitle}" />
                                 </StackPanel>
                             </TabViewItem.Header>
-                            <TabViewItem.ContextFlyout>
-                                <MenuFlyout>
-                                    <MenuFlyoutItem
-                                        CommandParameter="{Binding}"
-                                        Click="ShowTabSideBySideMenuItem_Click"
-                                        Text="{Binding ShowSideBySideMenuText}" />
-                                    <MenuFlyoutItem
-                                        CommandParameter="{Binding}"
-                                        Click="ExitSideBySideMenuItem_Click"
-                                        Text="{Binding ExitSideBySideMenuText}" />
-                                    <MenuFlyoutSeparator />
-                                    <MenuFlyoutItem
-                                        CommandParameter="{Binding}"
-                                        Click="PinTabMenuItem_Click"
-                                        Text="{Binding PinMenuText}" />
-                                    <MenuFlyoutSeparator />
-                                    <MenuFlyoutItem
-                                        CommandParameter="{Binding}"
-                                        Click="CloseOtherTabsMenuItem_Click"
-                                        Text="{Binding CloseOtherTabsMenuText}" />
-                                </MenuFlyout>
-                            </TabViewItem.ContextFlyout>
                         </TabViewItem>
                     </DataTemplate>
                 </TabView.TabItemTemplate>

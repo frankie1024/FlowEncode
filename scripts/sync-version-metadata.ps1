@@ -75,7 +75,7 @@ $readmePaths = @(
 $changedFiles = New-Object System.Collections.Generic.List[string]
 $mismatches = New-Object System.Collections.Generic.List[string]
 
-$packageManifestContent = Get-Content -Path $packageManifestPath -Raw
+$packageManifestContent = Get-Content -Path $packageManifestPath -Raw -Encoding utf8
 $updatedPackageManifestContent = Get-UpdatedXmlAttributeContent `
     -Content $packageManifestContent `
     -Pattern '(<Identity\b[^>]*\bVersion=")[^"]+(")' `
@@ -86,7 +86,7 @@ Sync-TrackedFile `
     -MismatchMessage "Version metadata is out of sync: $packageManifestPath" `
     -CheckOnly:$Check | Out-Null
 
-$applicationManifestContent = Get-Content -Path $applicationManifestPath -Raw
+$applicationManifestContent = Get-Content -Path $applicationManifestPath -Raw -Encoding utf8
 $updatedApplicationManifestContent = Get-UpdatedXmlAttributeContent `
     -Content $applicationManifestContent `
     -Pattern '(<assemblyIdentity\b[^>]*\bversion=")[^"]+(")' `
@@ -98,7 +98,7 @@ Sync-TrackedFile `
     -CheckOnly:$Check | Out-Null
 
 foreach ($readmePath in $readmePaths) {
-    $readmeContent = Get-Content -Path $readmePath -Raw
+    $readmeContent = Get-Content -Path $readmePath -Raw -Encoding utf8
     $updatedReadmeContent = Get-UpdatedReadmeBadgeContent -Content $readmeContent -Version $versionInfo.Version
     Sync-TrackedFile `
         -Path $readmePath `
