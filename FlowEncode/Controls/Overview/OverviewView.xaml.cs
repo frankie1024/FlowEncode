@@ -371,28 +371,6 @@ public sealed partial class OverviewView : UserControl
             });
     }
 
-    private async void StartJobMenuItem_Click(object sender, RoutedEventArgs e)
-    {
-        await RunGuardedAsync(
-            nameof(StartJobMenuItem_Click),
-            async () =>
-            {
-                var queueViewModel = QueueViewModel;
-                if (!TryGetJobFromMenu(sender, out var job) || queueViewModel is null)
-                {
-                    return;
-                }
-
-                SelectQueueJobForSingleAction(job);
-                var error = queueViewModel.PrioritizeJob(job);
-                if (!string.IsNullOrWhiteSpace(error))
-                {
-                    await ShowMessageAsync(queueViewModel.Texts.ErrorCannotReorderTitle, error);
-                }
-            },
-            QueueViewModel?.Texts.ErrorCannotReorderTitle);
-    }
-
     private async void StartQueuedJobMenuItem_Click(object sender, RoutedEventArgs e)
     {
         await RunGuardedAsync(
@@ -590,6 +568,11 @@ public sealed partial class OverviewView : UserControl
         }
 
         SetQueueSelectionModeActive(true);
+    }
+
+    private void ExitQueueSelectionModeMenuItem_Click(object sender, RoutedEventArgs e)
+    {
+        SetQueueSelectionModeActive(false);
     }
 
     private void ExitQueueSelectionModeButton_Click(object sender, RoutedEventArgs e)
@@ -917,10 +900,11 @@ public sealed partial class OverviewView : UserControl
     {
         var flyout = new MenuFlyout();
 
-        flyout.Items.Add(CreateMenuItem(texts.QueueEnterSelectionModeButton, Symbol.Edit, EnterQueueSelectionModeMenuItem_Click, job));
+        flyout.Items.Add(_isQueueSelectionModeActive
+            ? CreateMenuItem(texts.QueueExitSelectionModeButton, Symbol.Accept, ExitQueueSelectionModeMenuItem_Click, job)
+            : CreateMenuItem(texts.QueueEnterSelectionModeButton, Symbol.Edit, EnterQueueSelectionModeMenuItem_Click, job));
         flyout.Items.Add(new MenuFlyoutSeparator());
         flyout.Items.Add(CreateMenuItem(texts.JobMenuStart, Symbol.Play, StartQueuedJobMenuItem_Click, job, job.CanStart));
-        flyout.Items.Add(CreateMenuItem(texts.JobMenuPrioritize, Symbol.Play, StartJobMenuItem_Click, job, job.CanStart));
         flyout.Items.Add(CreateMenuItem(texts.JobMenuMoveTop, Symbol.Upload, MoveJobToTopMenuItem_Click, job, job.CanMoveToTop));
         flyout.Items.Add(CreateMenuItem(texts.JobMenuMoveUp, Symbol.Up, MoveJobUpMenuItem_Click, job, job.CanMoveUp));
         flyout.Items.Add(CreateMenuItem(texts.JobMenuMoveDown, Symbol.Download, MoveJobDownMenuItem_Click, job, job.CanMoveDown));

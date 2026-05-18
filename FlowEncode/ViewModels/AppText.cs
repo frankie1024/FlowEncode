@@ -553,7 +553,6 @@ public sealed class AppText
     public string UnpinTemplateButton => Pick("取消置顶", "Unpin Template");
     public string DeleteTemplateButton => Pick("删除模板", "Delete Template");
     public string JobMenuStart => Pick("开始", "Start");
-    public string JobMenuPrioritize => Pick("优先执行", "Start Next");
     public string JobMenuMoveTop => Pick("移到顶部", "Move to Top");
     public string JobMenuMoveUp => Pick("上移一位", "Move Up");
     public string JobMenuMoveDown => Pick("下移一位", "Move Down");

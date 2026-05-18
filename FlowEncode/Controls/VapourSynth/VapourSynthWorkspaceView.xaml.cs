@@ -461,8 +461,9 @@ public sealed partial class VapourSynthWorkspaceView : UserControl, IDisposable
     private MenuFlyout BuildTabContextMenu(VapourSynthWorkspaceTabViewModel tab)
     {
         var flyout = new MenuFlyout();
-        flyout.Items.Add(CreateTabMenuItem(tab.ShowSideBySideMenuText, ShowTabSideBySideMenuItem_Click, tab));
-        flyout.Items.Add(CreateTabMenuItem(tab.ExitSideBySideMenuText, ExitSideBySideMenuItem_Click, tab));
+        flyout.Items.Add(ViewModel.IsCompareMode
+            ? CreateTabMenuItem(tab.ExitSideBySideMenuText, ExitSideBySideMenuItem_Click, tab)
+            : CreateTabMenuItem(tab.ShowSideBySideMenuText, ShowTabSideBySideMenuItem_Click, tab));
         flyout.Items.Add(new MenuFlyoutSeparator());
         flyout.Items.Add(CreateTabMenuItem(tab.PinMenuText, PinTabMenuItem_Click, tab));
         flyout.Items.Add(new MenuFlyoutSeparator());
