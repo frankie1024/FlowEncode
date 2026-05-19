@@ -225,8 +225,14 @@
                             Text="{Binding BluRayDemuxCommandLine}"
                             Texts="{Binding Texts}" />
 
-                        <TextBlock FontFamily="{StaticResource AppDisplayFont}" FontSize="{StaticResource AppBodyLargeFontSize}" FontWeight="SemiBold" Text="{Binding Texts.BluRayDemuxLogTitle}" />
-                        <TextBox Height="360" FontFamily="{StaticResource AppMonoFont}" IsReadOnly="True" PlaceholderText="{Binding Texts.BluRayDemuxLogPlaceholder}" ScrollViewer.VerticalScrollBarVisibility="Auto" Text="{Binding BluRayDemuxLog}" TextWrapping="Wrap" />
+                        <Expander HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch">
+                            <Expander.Header>
+                                <TextBlock FontFamily="{StaticResource AppDisplayFont}" FontSize="{StaticResource AppBodyLargeFontSize}" FontWeight="SemiBold" Text="{Binding Texts.BluRayDemuxLogTitle}" />
+                            </Expander.Header>
+                            <Border Padding="{StaticResource AppInsetPanelPadding}" Background="{ThemeResource CardAltBrush}" CornerRadius="{StaticResource AppCardCornerRadius}">
+                                <TextBox Height="360" FontFamily="{StaticResource AppMonoFont}" IsReadOnly="True" PlaceholderText="{Binding Texts.BluRayDemuxLogPlaceholder}" ScrollViewer.VerticalScrollBarVisibility="Auto" Text="{Binding BluRayDemuxLog}" TextWrapping="Wrap" BorderThickness="0" />
+                            </Border>
+                        </Expander>
                     </StackPanel>
                 </Border>
             </Grid>

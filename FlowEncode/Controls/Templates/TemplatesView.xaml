@@ -34,25 +34,25 @@
                                                     <ColumnDefinition Width="*" />
                                                     <ColumnDefinition Width="Auto" />
                                                 </Grid.ColumnDefinitions>
-                                                <StackPanel Spacing="{StaticResource AppSpacingS}">
-                                                    <Grid ColumnSpacing="{StaticResource AppSpacingM}">
+                                                <StackPanel Spacing="6">
+                                                    <Grid ColumnSpacing="10">
                                                         <Grid.ColumnDefinitions>
                                                             <ColumnDefinition Width="*" />
                                                             <ColumnDefinition Width="Auto" />
                                                         </Grid.ColumnDefinitions>
-                                                        <TextBlock FontFamily="{StaticResource AppDisplayFont}" FontSize="{StaticResource AppBodyLargeFontSize}" FontWeight="SemiBold" Text="{Binding Name}" TextWrapping="WrapWholeWords" />
+                                                        <TextBlock FontFamily="{StaticResource AppDisplayFont}" FontSize="18" FontWeight="SemiBold" Text="{Binding Name}" TextWrapping="WrapWholeWords" />
                                                         <Border Grid.Column="1" Padding="10,4" Background="{ThemeResource TemplateUserBadgeBrush}" CornerRadius="{StaticResource AppControlCornerRadius}">
-                                                            <TextBlock FontSize="{StaticResource AppSmallFontSize}" FontWeight="SemiBold" Foreground="{ThemeResource TemplateUserBadgeForegroundBrush}" Text="{Binding SourceLabel}" />
+                                                            <TextBlock FontSize="12" FontWeight="SemiBold" Foreground="{ThemeResource TemplateUserBadgeForegroundBrush}" Text="{Binding SourceLabel}" />
                                                         </Border>
                                                     </Grid>
                                                     <TextBlock Text="{Binding EncoderAndQualityText}" TextWrapping="WrapWholeWords" />
                                                     <TextBlock Style="{ThemeResource SelectableSecondaryTextBlockStyle}" Text="{Binding MetaText}" TextWrapping="WrapWholeWords" Visibility="{Binding MetaVisibility}" />
                                                 </StackPanel>
-                                                <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="{StaticResource AppSpacingS}" VerticalAlignment="Top">
-                                                    <Button Style="{StaticResource IconButtonStyle}" VerticalAlignment="Top" AutomationProperties.Name="{Binding PinActionLabel}" CommandParameter="{Binding}" Tag="{Binding TemplateId}" Click="PinTemplateButton_Click" Visibility="{Binding PinVisibility}" ToolTipService.ToolTip="{Binding PinActionLabel}">
+                                                <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="6" VerticalAlignment="Top">
+                                                    <Button MinWidth="40" Padding="10" VerticalAlignment="Top" AutomationProperties.Name="{Binding PinActionLabel}" CommandParameter="{Binding}" Tag="{Binding TemplateId}" Click="PinTemplateButton_Click" Visibility="{Binding PinVisibility}" ToolTipService.ToolTip="{Binding PinActionLabel}">
                                                         <SymbolIcon Symbol="{Binding PinSymbol}" />
                                                     </Button>
-                                                    <Button Style="{StaticResource IconButtonStyle}" VerticalAlignment="Top" AutomationProperties.Name="{Binding DataContext.Texts.DeleteTemplateButton, ElementName=RootView}" CommandParameter="{Binding}" Tag="{Binding TemplateId}" Click="DeleteTemplateButton_Click" Visibility="{Binding DeleteVisibility}" ToolTipService.ToolTip="{Binding DataContext.Texts.DeleteTemplateButton, ElementName=RootView}">
+                                                    <Button MinWidth="40" Padding="10" VerticalAlignment="Top" AutomationProperties.Name="{Binding DataContext.Texts.DeleteTemplateButton, ElementName=RootView}" CommandParameter="{Binding}" Tag="{Binding TemplateId}" Click="DeleteTemplateButton_Click" Visibility="{Binding DeleteVisibility}" ToolTipService.ToolTip="{Binding DataContext.Texts.DeleteTemplateButton, ElementName=RootView}">
                                                         <SymbolIcon Symbol="Delete" />
                                                     </Button>
                                                 </StackPanel>

@@ -145,8 +145,14 @@
                             Text="{Binding AudioProcessingCommandLine}"
                             Texts="{Binding Texts}" />
 
-                        <TextBlock FontFamily="{StaticResource AppDisplayFont}" FontSize="{StaticResource AppBodyLargeFontSize}" FontWeight="SemiBold" Text="{Binding Texts.AudioProcessingLogTitle}" />
-                        <TextBox Height="420" FontFamily="{StaticResource AppMonoFont}" IsReadOnly="True" PlaceholderText="{Binding Texts.AudioProcessingLogPlaceholder}" ScrollViewer.VerticalScrollBarVisibility="Auto" Text="{Binding AudioProcessingLog}" TextWrapping="Wrap" />
+                        <Expander HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch">
+                            <Expander.Header>
+                                <TextBlock FontFamily="{StaticResource AppDisplayFont}" FontSize="{StaticResource AppBodyLargeFontSize}" FontWeight="SemiBold" Text="{Binding Texts.AudioProcessingLogTitle}" />
+                            </Expander.Header>
+                            <Border Padding="{StaticResource AppInsetPanelPadding}" Background="{ThemeResource CardAltBrush}" CornerRadius="{StaticResource AppCardCornerRadius}">
+                                <TextBox Height="420" FontFamily="{StaticResource AppMonoFont}" IsReadOnly="True" PlaceholderText="{Binding Texts.AudioProcessingLogPlaceholder}" ScrollViewer.VerticalScrollBarVisibility="Auto" Text="{Binding AudioProcessingLog}" TextWrapping="Wrap" BorderThickness="0" />
+                            </Border>
+                        </Expander>
                     </StackPanel>
                 </Border>
             </Grid>

@@ -136,8 +136,14 @@
                             Text="{Binding AutoCompressionCommandLine}"
                             Texts="{Binding Texts}" />
 
-                        <TextBlock FontFamily="{StaticResource AppDisplayFont}" FontSize="{StaticResource AppBodyLargeFontSize}" FontWeight="SemiBold" Text="{Binding Texts.AutoCompressionLogTitle}" />
-                        <TextBox MinHeight="320" FontFamily="{StaticResource AppMonoFont}" IsReadOnly="True" PlaceholderText="{Binding Texts.AutoCompressionLogPlaceholder}" ScrollViewer.VerticalScrollBarVisibility="Auto" Text="{Binding AutoCompressionLog}" TextWrapping="Wrap" />
+                        <Expander HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch">
+                            <Expander.Header>
+                                <TextBlock FontFamily="{StaticResource AppDisplayFont}" FontSize="{StaticResource AppBodyLargeFontSize}" FontWeight="SemiBold" Text="{Binding Texts.AutoCompressionLogTitle}" />
+                            </Expander.Header>
+                            <Border Padding="{StaticResource AppInsetPanelPadding}" Background="{ThemeResource CardAltBrush}" CornerRadius="{StaticResource AppCardCornerRadius}">
+                                <TextBox MinHeight="320" FontFamily="{StaticResource AppMonoFont}" IsReadOnly="True" PlaceholderText="{Binding Texts.AutoCompressionLogPlaceholder}" ScrollViewer.VerticalScrollBarVisibility="Auto" Text="{Binding AutoCompressionLog}" TextWrapping="Wrap" BorderThickness="0" />
+                            </Border>
+                        </Expander>
                     </StackPanel>
                 </StackPanel>
             </Border>
