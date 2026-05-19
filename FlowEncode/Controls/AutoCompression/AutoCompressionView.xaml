@@ -87,13 +87,13 @@
                                 <ColumnDefinition x:Name="AutoCompressionStartColumn" Width="*" />
                                 <ColumnDefinition x:Name="AutoCompressionCancelColumn" Width="*" />
                             </Grid.ColumnDefinitions>
-                            <Button x:Name="StartAutoCompressionButton" MinHeight="44" FontWeight="SemiBold" HorizontalAlignment="Stretch" AutomationProperties.Name="{Binding Texts.AutoCompressionStartButton}" Click="StartAutoCompressionButton_Click" IsEnabled="{Binding CanStartAutoCompression}" Style="{StaticResource AccentButtonStyle}" ToolTipService.ToolTip="{Binding Texts.AutoCompressionStartButton}">
+                            <Button x:Name="StartAutoCompressionButton" FontWeight="SemiBold" HorizontalAlignment="Stretch" AutomationProperties.Name="{Binding Texts.AutoCompressionStartButton}" Click="StartAutoCompressionButton_Click" IsEnabled="{Binding CanStartAutoCompression}" Style="{StaticResource AccentActionButtonStyle}" ToolTipService.ToolTip="{Binding Texts.AutoCompressionStartButton}">
                                 <StackPanel Orientation="Horizontal" Spacing="{StaticResource AppCommandIconTextSpacing}">
                                     <SymbolIcon Symbol="Play" />
                                     <TextBlock Text="{Binding Texts.AutoCompressionStartButton}" />
                                 </StackPanel>
                             </Button>
-                            <Button x:Name="CancelAutoCompressionButton" Grid.Column="1" MinHeight="44" FontWeight="SemiBold" HorizontalAlignment="Stretch" AutomationProperties.Name="{Binding Texts.AutoCompressionCancelButton}" Click="CancelAutoCompressionButton_Click" IsEnabled="{Binding CanCancelAutoCompression}" ToolTipService.ToolTip="{Binding Texts.AutoCompressionCancelButton}">
+                            <Button x:Name="CancelAutoCompressionButton" Grid.Column="1" Style="{StaticResource StandardButtonStyle}" FontWeight="SemiBold" HorizontalAlignment="Stretch" AutomationProperties.Name="{Binding Texts.AutoCompressionCancelButton}" Click="CancelAutoCompressionButton_Click" IsEnabled="{Binding CanCancelAutoCompression}" ToolTipService.ToolTip="{Binding Texts.AutoCompressionCancelButton}">
                                 <StackPanel Orientation="Horizontal" Spacing="{StaticResource AppCommandIconTextSpacing}">
                                     <SymbolIcon Symbol="Cancel" />
                                     <TextBlock Text="{Binding Texts.AutoCompressionCancelButton}" />
@@ -113,6 +113,9 @@
                                     <ColumnDefinition Width="Auto" />
                                 </Grid.ColumnDefinitions>
                                 <ProgressBar
+                                    Height="6"
+                                    Foreground="{ThemeResource QueueProgressFillBrush}"
+                                    Background="{ThemeResource QueueProgressSoftBrush}"
                                     Minimum="0"
                                     Maximum="100"
                                     IsIndeterminate="{Binding AutoCompressionProgressIsIndeterminate}"

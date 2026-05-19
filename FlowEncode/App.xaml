@@ -22,6 +22,13 @@
             <x:Double x:Key="AppLargeCommandMinWidth">180</x:Double>
             <x:Double x:Key="AppLargeCommandMinHeight">64</x:Double>
             <x:Double x:Key="AppLargeCommandFontSize">22</x:Double>
+            <x:Double x:Key="AppButtonMinHeight">36</x:Double>
+            <Thickness x:Key="AppButtonPadding">12,0</Thickness>
+            <Thickness x:Key="AppAccentButtonPadding">16,0</Thickness>
+            <x:Double x:Key="AppAccentButtonMinHeight">40</x:Double>
+            <x:Double x:Key="AppIconButtonMinWidth">40</x:Double>
+            <x:Double x:Key="AppIconButtonMinHeight">40</x:Double>
+            <Thickness x:Key="AppIconButtonPadding">8</Thickness>
             <x:Double x:Key="AppCaptionFontSize">13</x:Double>
             <x:Double x:Key="AppSectionTitleFontSize">24</x:Double>
             <x:Double x:Key="AppSubsectionTitleFontSize">22</x:Double>
@@ -57,6 +64,22 @@
 
             <!-- Shadow (Fluent Design elevation) -->
             <ThemeShadow x:Key="CardShadow" />
+
+            <Style x:Key="StandardButtonStyle" TargetType="Button">
+                <Setter Property="MinHeight" Value="{StaticResource AppButtonMinHeight}" />
+                <Setter Property="Padding" Value="{StaticResource AppButtonPadding}" />
+            </Style>
+
+            <Style x:Key="IconButtonStyle" TargetType="Button" BasedOn="{StaticResource StandardButtonStyle}">
+                <Setter Property="MinWidth" Value="{StaticResource AppIconButtonMinWidth}" />
+                <Setter Property="MinHeight" Value="{StaticResource AppIconButtonMinHeight}" />
+                <Setter Property="Padding" Value="{StaticResource AppIconButtonPadding}" />
+            </Style>
+
+            <Style x:Key="AccentActionButtonStyle" TargetType="Button" BasedOn="{StaticResource AccentButtonStyle}">
+                <Setter Property="MinHeight" Value="{StaticResource AppAccentButtonMinHeight}" />
+                <Setter Property="Padding" Value="{StaticResource AppAccentButtonPadding}" />
+            </Style>
         </ResourceDictionary>
     </Application.Resources>
 </Application>

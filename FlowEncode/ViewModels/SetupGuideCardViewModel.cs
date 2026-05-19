@@ -8,11 +8,13 @@ namespace FlowEncode.ViewModels;
 public sealed class SetupGuideCardViewModel
 {
     public SetupGuideCardViewModel(
+        AppText texts,
         string title,
         string description,
         string summary,
         IEnumerable<SetupGuideDependencyItemViewModel> items)
     {
+        Texts = texts;
         Title = title;
         Description = description;
         Summary = summary;
@@ -23,6 +25,8 @@ public sealed class SetupGuideCardViewModel
         TotalCount = itemList.Count;
         HasWarning = itemList.Any(i => i.State != ReadinessState.Ready);
     }
+
+    public AppText Texts { get; }
 
     public string Title { get; }
 

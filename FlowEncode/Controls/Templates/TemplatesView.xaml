@@ -49,10 +49,10 @@
                                                     <TextBlock Style="{ThemeResource SelectableSecondaryTextBlockStyle}" Text="{Binding MetaText}" TextWrapping="WrapWholeWords" Visibility="{Binding MetaVisibility}" />
                                                 </StackPanel>
                                                 <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="{StaticResource AppSpacingS}" VerticalAlignment="Top">
-                                                    <Button MinWidth="40" Padding="10" VerticalAlignment="Top" AutomationProperties.Name="{Binding PinActionLabel}" CommandParameter="{Binding}" Tag="{Binding TemplateId}" Click="PinTemplateButton_Click" Visibility="{Binding PinVisibility}" ToolTipService.ToolTip="{Binding PinActionLabel}">
+                                                    <Button Style="{StaticResource IconButtonStyle}" VerticalAlignment="Top" AutomationProperties.Name="{Binding PinActionLabel}" CommandParameter="{Binding}" Tag="{Binding TemplateId}" Click="PinTemplateButton_Click" Visibility="{Binding PinVisibility}" ToolTipService.ToolTip="{Binding PinActionLabel}">
                                                         <SymbolIcon Symbol="{Binding PinSymbol}" />
                                                     </Button>
-                                                    <Button MinWidth="40" Padding="10" VerticalAlignment="Top" AutomationProperties.Name="{Binding DataContext.Texts.DeleteTemplateButton, ElementName=RootView}" CommandParameter="{Binding}" Tag="{Binding TemplateId}" Click="DeleteTemplateButton_Click" Visibility="{Binding DeleteVisibility}" ToolTipService.ToolTip="{Binding DataContext.Texts.DeleteTemplateButton, ElementName=RootView}">
+                                                    <Button Style="{StaticResource IconButtonStyle}" VerticalAlignment="Top" AutomationProperties.Name="{Binding DataContext.Texts.DeleteTemplateButton, ElementName=RootView}" CommandParameter="{Binding}" Tag="{Binding TemplateId}" Click="DeleteTemplateButton_Click" Visibility="{Binding DeleteVisibility}" ToolTipService.ToolTip="{Binding DataContext.Texts.DeleteTemplateButton, ElementName=RootView}">
                                                         <SymbolIcon Symbol="Delete" />
                                                     </Button>
                                                 </StackPanel>

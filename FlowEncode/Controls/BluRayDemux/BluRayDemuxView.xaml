@@ -77,7 +77,7 @@
                                     <ColumnDefinition x:Name="BluRayBackendActionColumn" Width="Auto" />
                                 </Grid.ColumnDefinitions>
                                 <ComboBox Header="{Binding Texts.BluRayDemuxBackendHeader}" DisplayMemberPath="Label" ItemsSource="{Binding BluRayDemuxBackendOptions}" SelectedItem="{Binding SelectedBluRayDemuxBackend, Mode=TwoWay}" />
-                                <Button x:Name="ScanBluRayButton" Grid.Column="1" MinHeight="40" VerticalAlignment="Bottom" AutomationProperties.Name="{Binding Texts.BluRayDemuxScanButton}" Click="ScanBluRayButton_Click" IsEnabled="{Binding CanScanBluRayDisc}" Style="{StaticResource AccentButtonStyle}" ToolTipService.ToolTip="{Binding Texts.BluRayDemuxScanButton}">
+                                <Button x:Name="ScanBluRayButton" Grid.Column="1" Style="{StaticResource StandardButtonStyle}" VerticalAlignment="Bottom" AutomationProperties.Name="{Binding Texts.BluRayDemuxScanButton}" Click="ScanBluRayButton_Click" IsEnabled="{Binding CanScanBluRayDisc}" ToolTipService.ToolTip="{Binding Texts.BluRayDemuxScanButton}">
                                     <StackPanel Orientation="Horizontal" Spacing="{StaticResource AppCommandIconTextSpacing}">
                                         <SymbolIcon Symbol="Find" />
                                         <TextBlock Text="{Binding Texts.BluRayDemuxScanButton}" />
@@ -181,19 +181,19 @@
                                 <ColumnDefinition x:Name="BluRayDemuxActionCancelColumn" Width="*" />
                                 <ColumnDefinition x:Name="BluRayDemuxActionClearColumn" Width="*" />
                             </Grid.ColumnDefinitions>
-                            <Button x:Name="StartBluRayDemuxButton" MinHeight="44" FontWeight="SemiBold" HorizontalAlignment="Stretch" AutomationProperties.Name="{Binding Texts.BluRayDemuxStartButton}" Click="StartBluRayDemuxButton_Click" IsEnabled="{Binding CanStartBluRayDemux}" Style="{StaticResource AccentButtonStyle}" ToolTipService.ToolTip="{Binding Texts.BluRayDemuxStartButton}">
+                            <Button x:Name="StartBluRayDemuxButton" FontWeight="SemiBold" HorizontalAlignment="Stretch" AutomationProperties.Name="{Binding Texts.BluRayDemuxStartButton}" Click="StartBluRayDemuxButton_Click" IsEnabled="{Binding CanStartBluRayDemux}" Style="{StaticResource AccentActionButtonStyle}" ToolTipService.ToolTip="{Binding Texts.BluRayDemuxStartButton}">
                                 <StackPanel Orientation="Horizontal" Spacing="{StaticResource AppCommandIconTextSpacing}">
                                     <SymbolIcon Symbol="Play" />
                                     <TextBlock Text="{Binding Texts.BluRayDemuxStartButton}" />
                                 </StackPanel>
                             </Button>
-                            <Button x:Name="CancelBluRayDemuxButton" Grid.Column="1" MinHeight="44" FontWeight="SemiBold" HorizontalAlignment="Stretch" AutomationProperties.Name="{Binding Texts.BluRayDemuxCancelButton}" Click="CancelBluRayDemuxButton_Click" IsEnabled="{Binding CanCancelBluRayDemux}" ToolTipService.ToolTip="{Binding Texts.BluRayDemuxCancelButton}">
+                            <Button x:Name="CancelBluRayDemuxButton" Grid.Column="1" Style="{StaticResource StandardButtonStyle}" FontWeight="SemiBold" HorizontalAlignment="Stretch" AutomationProperties.Name="{Binding Texts.BluRayDemuxCancelButton}" Click="CancelBluRayDemuxButton_Click" IsEnabled="{Binding CanCancelBluRayDemux}" ToolTipService.ToolTip="{Binding Texts.BluRayDemuxCancelButton}">
                                 <StackPanel Orientation="Horizontal" Spacing="{StaticResource AppCommandIconTextSpacing}">
                                     <SymbolIcon Symbol="Cancel" />
                                     <TextBlock Text="{Binding Texts.BluRayDemuxCancelButton}" />
                                 </StackPanel>
                             </Button>
-                            <Button x:Name="ClearBluRayDemuxButton" Grid.Column="2" MinHeight="44" FontWeight="SemiBold" HorizontalAlignment="Stretch" AutomationProperties.Name="{Binding Texts.BluRayDemuxClearButton}" Click="ClearBluRayDemuxButton_Click" IsEnabled="{Binding CanClearBluRayDemuxTask}" ToolTipService.ToolTip="{Binding Texts.BluRayDemuxClearButton}">
+                            <Button x:Name="ClearBluRayDemuxButton" Grid.Column="2" Style="{StaticResource StandardButtonStyle}" FontWeight="SemiBold" HorizontalAlignment="Stretch" AutomationProperties.Name="{Binding Texts.BluRayDemuxClearButton}" Click="ClearBluRayDemuxButton_Click" IsEnabled="{Binding CanClearBluRayDemuxTask}" ToolTipService.ToolTip="{Binding Texts.BluRayDemuxClearButton}">
                                 <StackPanel Orientation="Horizontal" Spacing="{StaticResource AppCommandIconTextSpacing}">
                                     <SymbolIcon Symbol="Delete" />
                                     <TextBlock Text="{Binding Texts.BluRayDemuxClearButton}" />

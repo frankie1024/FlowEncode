@@ -96,13 +96,13 @@
                                 <ColumnDefinition x:Name="QueueActionPrimaryColumn" Width="*" />
                                 <ColumnDefinition x:Name="QueueActionSecondaryColumn" Width="*" />
                             </Grid.ColumnDefinitions>
-                            <Button x:Name="QueueOnlyButton" MinHeight="44" FontWeight="SemiBold" HorizontalAlignment="Stretch" AutomationProperties.Name="{Binding Texts.QueueButton}" Click="QueueOnlyButton_Click" IsEnabled="{Binding CanQueueJob}" ToolTipService.ToolTip="{Binding Texts.QueueButton}">
+                            <Button x:Name="QueueOnlyButton" Style="{StaticResource StandardButtonStyle}" FontWeight="SemiBold" HorizontalAlignment="Stretch" AutomationProperties.Name="{Binding Texts.QueueButton}" Click="QueueOnlyButton_Click" IsEnabled="{Binding CanQueueJob}" ToolTipService.ToolTip="{Binding Texts.QueueButton}">
                                 <StackPanel Orientation="Horizontal" Spacing="{StaticResource AppCommandIconTextSpacing}">
                                     <SymbolIcon Symbol="Add" />
                                     <TextBlock Text="{Binding Texts.QueueButton}" />
                                 </StackPanel>
                             </Button>
-                            <Button x:Name="QueueAndStartButton" Grid.Column="1" MinHeight="44" FontWeight="SemiBold" HorizontalAlignment="Stretch" AutomationProperties.Name="{Binding Texts.QueueAndStartButton}" Click="QueueJobButton_Click" IsEnabled="{Binding CanQueueJob}" Style="{StaticResource AccentButtonStyle}" ToolTipService.ToolTip="{Binding Texts.QueueAndStartButton}">
+                            <Button x:Name="QueueAndStartButton" Grid.Column="1" FontWeight="SemiBold" HorizontalAlignment="Stretch" AutomationProperties.Name="{Binding Texts.QueueAndStartButton}" Click="QueueJobButton_Click" IsEnabled="{Binding CanQueueJob}" Style="{StaticResource AccentActionButtonStyle}" ToolTipService.ToolTip="{Binding Texts.QueueAndStartButton}">
                                 <StackPanel Orientation="Horizontal" Spacing="{StaticResource AppCommandIconTextSpacing}">
                                     <SymbolIcon Symbol="Play" />
                                     <TextBlock Text="{Binding Texts.QueueAndStartButton}" />
@@ -197,7 +197,7 @@
                                     ItemsSource="{Binding TemplateLibraryItems}"
                                     PlaceholderText="{Binding Texts.LoadTemplateButton}"
                                     SelectionChanged="OverviewTemplatePicker_SelectionChanged" />
-                                <Button x:Name="SaveCurrentConfigurationButton" Grid.Column="1" MinHeight="40" Padding="16,0" FontWeight="SemiBold" HorizontalAlignment="Right" AutomationProperties.Name="{Binding Texts.SaveCurrentConfigurationButton}" Click="SaveCurrentConfigurationButton_Click" Style="{StaticResource AccentButtonStyle}" ToolTipService.ToolTip="{Binding Texts.SaveCurrentConfigurationButton}">
+                                <Button x:Name="SaveCurrentConfigurationButton" Grid.Column="1" Style="{StaticResource StandardButtonStyle}" FontWeight="SemiBold" HorizontalAlignment="Right" AutomationProperties.Name="{Binding Texts.SaveCurrentConfigurationButton}" Click="SaveCurrentConfigurationButton_Click" ToolTipService.ToolTip="{Binding Texts.SaveCurrentConfigurationButton}">
                                     <StackPanel Orientation="Horizontal" Spacing="{StaticResource AppCommandIconTextSpacing}">
                                         <SymbolIcon Symbol="Save" />
                                         <TextBlock Text="{Binding Texts.SaveCurrentConfigurationButton}" />
@@ -228,8 +228,7 @@
                                         <TextBlock VerticalAlignment="Center" FontSize="{StaticResource AppBodyFontSize}" FontWeight="SemiBold" Text="{Binding Texts.UhdArgumentsHeader}" />
                                         <Button
                                             Grid.Column="1"
-                                            MinHeight="32"
-                                            Padding="12,0"
+                                            Style="{StaticResource StandardButtonStyle}"
                                             Click="ImportHdrButton_Click"
                                             ToolTipService.ToolTip="{Binding Texts.ImportHdrToolTip}">
                                             <TextBlock Text="{Binding Texts.ImportHdrButton}" />
@@ -362,7 +361,7 @@
                                         </ListView.ItemTemplate>
                                     </ListView>
 
-                                    <TextBlock HorizontalAlignment="Center" VerticalAlignment="Center" FontSize="{StaticResource AppSubsectionTitleFontSize}" FontWeight="SemiBold" Foreground="{ThemeResource SubtleTextBrush}" Text="{Binding Texts.EmptyQueue}" TextAlignment="Center" TextWrapping="Wrap" Visibility="{Binding EmptyQueueVisibility}" />
+                                    <TextBlock HorizontalAlignment="Center" VerticalAlignment="Center" FontSize="{StaticResource AppCardTitleFontSize}" FontWeight="SemiBold" Foreground="{ThemeResource SubtleTextBrush}" Text="{Binding Texts.EmptyQueue}" TextAlignment="Center" TextWrapping="Wrap" Visibility="{Binding EmptyQueueVisibility}" />
                                 </Grid>
                             </Grid>
                         </Border>

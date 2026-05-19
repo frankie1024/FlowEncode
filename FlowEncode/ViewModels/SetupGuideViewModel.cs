@@ -755,11 +755,13 @@ public sealed class SetupGuideViewModel : ObservableObject, ISetupDependencyModu
         var cards = new[]
         {
             new SetupGuideCardViewModel(
+                Texts,
                 Texts.Pick("Python", "Python"),
                 Texts.Pick("首个必须项。后续所有 Python 侧安装动作都依赖这里。", "The first required step. All Python-side installs depend on this card."),
                 Texts.Pick("默认目标固定为官方 Windows x64 的 Python 3.12.10。只要存在任意 3.12.x，就视为已安装。", "The default target is the official Windows x64 Python 3.12.10. Any 3.12.x install counts as ready."),
                 [BuildSetupDependencyItem(SetupDependencyKind.Python312)]),
             new SetupGuideCardViewModel(
+                Texts,
                 Texts.Pick("VapourSynth", "VapourSynth"),
                 Texts.Pick("Python 准备好之后，这一张卡片负责 VS 运行时和脚本依赖。", "After Python is ready, this card covers the VS runtime and script-side dependencies."),
                 Texts.Pick("Python 3.12 是自动安装这张卡片里所有依赖的前置条件。", "Python 3.12 is required before automatic install is enabled for this card."),
@@ -771,6 +773,7 @@ public sealed class SetupGuideViewModel : ObservableObject, ISetupDependencyModu
                     BuildSetupDependencyItem(SetupDependencyKind.Vsjetpack)
                 ]),
             new SetupGuideCardViewModel(
+                Texts,
                 Texts.Pick("编码器 / FFmpeg", "Encoders / FFmpeg"),
                 Texts.Pick("这些是视频工作流最常用的核心二进制。FFmpeg 与 Av1an 支持自动安装。", "These are the core binaries used most often in the video workflow. FFmpeg and Av1an support automatic install."),
                 Texts.Pick("本地编码器放入工作目录下的 encoders，命令行工具放入 tools。", "Managed encoders go into the workspace encoders folder, and CLI tools go into tools."),
@@ -782,6 +785,7 @@ public sealed class SetupGuideViewModel : ObservableObject, ISetupDependencyModu
                     BuildSetupDependencyItem(SetupDependencyKind.Av1an)
                 ]),
             new SetupGuideCardViewModel(
+                Texts,
                 Texts.Pick("解复用 / 其他依赖", "Demux / Other Dependencies"),
                 Texts.Pick("这里保留蓝光解复用、AviSynth 兼容链和音频相关工具。大多需要手动准备。", "This card keeps Blu-ray demux, the AviSynth compatibility chain, and audio tools. Most are manual dependencies."),
                 Texts.Pick("DGDemux 为蓝光解复用默认后端；eac3to 为可选后端。这些本地工具会托管在当前用户工作目录的分类文件夹中。", "DGDemux is the default Blu-ray demux backend, and eac3to is the optional backend. These local tools are managed inside categorized folders under the current user's workspace."),
