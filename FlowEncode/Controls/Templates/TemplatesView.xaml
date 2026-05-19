@@ -20,7 +20,7 @@
                     <ColumnDefinition x:Name="TemplatesSecondaryColumn" Width="1.06*" />
                 </Grid.ColumnDefinitions>
 
-                <Border x:Name="TemplateLibraryPanel" Grid.Row="0" Grid.Column="0" Padding="{StaticResource AppCardPadding}" Background="{ThemeResource CardBrush}" BorderBrush="{ThemeResource CardBorderBrush}" BorderThickness="{StaticResource AppCardBorderThickness}" CornerRadius="{StaticResource AppLargeCornerRadius}" Shadow="{StaticResource CardShadow}" DataContext="{Binding Library}">
+                <Border x:Name="TemplateLibraryPanel" Grid.Row="0" Grid.Column="0" Padding="{StaticResource AppCardPadding}" Background="{ThemeResource CardBrush}" BorderBrush="{ThemeResource CardBorderBrush}" BorderThickness="{StaticResource AppCardBorderThickness}" CornerRadius="{StaticResource AppLargeCornerRadius}" Shadow="{StaticResource CardShadow}" Translation="0,0,8" DataContext="{Binding Library}">
                     <StackPanel Spacing="{StaticResource AppSpacingM}">
                         <TextBlock FontFamily="{StaticResource AppDisplayFont}" FontSize="{StaticResource AppSubsectionTitleFontSize}" FontWeight="SemiBold" Text="{Binding Texts.TemplateLibraryTitle}" />
                         <TextBox PlaceholderText="{Binding Texts.TemplateSearchPlaceholder}" Text="{Binding TemplateSearchText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
@@ -67,7 +67,7 @@
                     </StackPanel>
                 </Border>
 
-                <Border x:Name="TemplateEditorPanel" Grid.Row="0" Grid.Column="1" Padding="{StaticResource AppCardPadding}" Background="{ThemeResource CardBrush}" BorderBrush="{ThemeResource CardBorderBrush}" BorderThickness="{StaticResource AppCardBorderThickness}" CornerRadius="{StaticResource AppLargeCornerRadius}" Shadow="{StaticResource CardShadow}" DataContext="{Binding Editor}">
+                <Border x:Name="TemplateEditorPanel" Grid.Row="0" Grid.Column="1" Padding="{StaticResource AppCardPadding}" Background="{ThemeResource CardBrush}" BorderBrush="{ThemeResource CardBorderBrush}" BorderThickness="{StaticResource AppCardBorderThickness}" CornerRadius="{StaticResource AppLargeCornerRadius}" Shadow="{StaticResource CardShadow}" Translation="0,0,8" DataContext="{Binding Editor}">
                     <StackPanel Spacing="{StaticResource AppSpacingM}">
                         <Grid x:Name="TemplateEditorHeaderGrid" ColumnSpacing="{StaticResource AppSpacingM}" RowSpacing="{StaticResource AppSpacingM}">
                             <Grid.RowDefinitions>

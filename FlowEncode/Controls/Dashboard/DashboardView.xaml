@@ -59,7 +59,7 @@
 
     <ScrollViewer x:Name="DashboardScroller" VerticalScrollBarVisibility="Auto">
         <StackPanel x:Name="DashboardContentStack" Padding="{StaticResource AppPagePadding}" Spacing="{StaticResource AppSpacingXXL}">
-            <Border x:Name="DashboardHeroCard" MinHeight="148" Padding="{StaticResource AppCardPadding}" Background="{ThemeResource HeroBrush}" BorderBrush="{ThemeResource ThemeBorderHeroBrush}" BorderThickness="{StaticResource AppCardBorderThickness}" CornerRadius="{StaticResource AppLargeCornerRadius}" Shadow="{StaticResource HeroShadow}">
+            <Border x:Name="DashboardHeroCard" MinHeight="148" Padding="{StaticResource AppCardPadding}" Background="{ThemeResource HeroBrush}" BorderBrush="{ThemeResource ThemeBorderHeroBrush}" BorderThickness="{StaticResource AppCardBorderThickness}" CornerRadius="{StaticResource AppLargeCornerRadius}" Shadow="{StaticResource HeroShadow}" Translation="0,0,8">
                 <Border.Transitions>
                     <TransitionCollection>
                         <EntranceThemeTransition FromVerticalOffset="20" />

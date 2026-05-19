@@ -20,7 +20,7 @@
                     <ColumnDefinition x:Name="SecondaryColumn" Width="1.05*" />
                 </Grid.ColumnDefinitions>
 
-                <Border x:Name="PrimaryPanel" Padding="{StaticResource AppCardPadding}" Background="{ThemeResource CardBrush}" BorderBrush="{ThemeResource CardBorderBrush}" BorderThickness="{StaticResource AppCardBorderThickness}" CornerRadius="{StaticResource AppLargeCornerRadius}" Shadow="{StaticResource CardShadow}" VerticalAlignment="Top" DataContext="{Binding Form}">
+                <Border x:Name="PrimaryPanel" Padding="{StaticResource AppCardPadding}" Background="{ThemeResource CardBrush}" BorderBrush="{ThemeResource CardBorderBrush}" BorderThickness="{StaticResource AppCardBorderThickness}" CornerRadius="{StaticResource AppLargeCornerRadius}" Shadow="{StaticResource CardShadow}" Translation="0,0,8" VerticalAlignment="Top" DataContext="{Binding Form}">
                     <StackPanel Spacing="{StaticResource AppSpacingM}">
                         <TextBlock FontFamily="{StaticResource AppDisplayFont}" FontSize="{StaticResource AppSectionTitleFontSize}" FontWeight="SemiBold" Text="{Binding Texts.AudioProcessingTitle}" />
 
@@ -118,7 +118,7 @@
                     </StackPanel>
                 </Border>
 
-                <Border x:Name="SecondaryPanel" Grid.Column="1" Padding="{StaticResource AppCardPadding}" Background="{ThemeResource CardBrush}" BorderBrush="{ThemeResource CardBorderBrush}" BorderThickness="{StaticResource AppCardBorderThickness}" CornerRadius="{StaticResource AppLargeCornerRadius}" Shadow="{StaticResource CardShadow}" VerticalAlignment="Top" DataContext="{Binding Status}">
+                <Border x:Name="SecondaryPanel" Grid.Column="1" Padding="{StaticResource AppCardPadding}" Background="{ThemeResource CardBrush}" BorderBrush="{ThemeResource CardBorderBrush}" BorderThickness="{StaticResource AppCardBorderThickness}" CornerRadius="{StaticResource AppLargeCornerRadius}" Shadow="{StaticResource CardShadow}" Translation="0,0,8" VerticalAlignment="Top" DataContext="{Binding Status}">
                     <StackPanel Spacing="{StaticResource AppSpacingM}">
                         <Border Padding="{StaticResource AppInsetPanelPadding}" Background="{ThemeResource CardAltBrush}" CornerRadius="{StaticResource AppCardCornerRadius}">
                             <StackPanel Spacing="{StaticResource AppSpacingS}">
