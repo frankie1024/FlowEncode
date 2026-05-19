@@ -64,6 +64,8 @@
 
             <!-- Shadow (Fluent Design elevation) -->
             <ThemeShadow x:Key="CardShadow" />
+            <ThemeShadow x:Key="HeroShadow" />
+            <ThemeShadow x:Key="ElevatedShadow" />
 
             <Style x:Key="StandardButtonStyle" TargetType="Button">
                 <Setter Property="MinHeight" Value="{StaticResource AppButtonMinHeight}" />

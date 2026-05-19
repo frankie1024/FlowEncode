@@ -39,7 +39,7 @@
         <Style x:Key="DashboardCardButtonStyle" TargetType="Button" BasedOn="{StaticResource ButtonRevealStyle}">
             <Setter Property="Background" Value="{ThemeResource CardBrush}" />
             <Setter Property="Foreground" Value="{ThemeResource TextFillColorPrimaryBrush}" />
-            <Setter Property="BorderBrush" Value="{ThemeResource CardBorderBrush}" />
+            <Setter Property="BorderBrush" Value="{ThemeResource ThemeBorderHeroBrush}" />
             <Setter Property="BorderThickness" Value="{StaticResource AppCardBorderThickness}" />
             <Setter Property="CornerRadius" Value="{StaticResource AppCardCornerRadius}" />
             <Setter Property="Padding" Value="{StaticResource AppCardPadding}" />
@@ -52,7 +52,7 @@
 
     <ScrollViewer x:Name="DashboardScroller" VerticalScrollBarVisibility="Auto">
         <StackPanel x:Name="DashboardContentStack" Padding="{StaticResource AppPagePadding}" Spacing="{StaticResource AppSpacingXXL}">
-            <Border x:Name="DashboardHeroCard" MinHeight="148" Padding="{StaticResource AppCardPadding}" Background="{ThemeResource HeroBrush}" BorderBrush="{ThemeResource CardBorderBrush}" BorderThickness="{StaticResource AppCardBorderThickness}" CornerRadius="{StaticResource AppLargeCornerRadius}" Shadow="{StaticResource CardShadow}">
+            <Border x:Name="DashboardHeroCard" MinHeight="148" Padding="{StaticResource AppCardPadding}" Background="{ThemeResource HeroBrush}" BorderBrush="{ThemeResource ThemeBorderHeroBrush}" BorderThickness="{StaticResource AppCardBorderThickness}" CornerRadius="{StaticResource AppLargeCornerRadius}" Shadow="{StaticResource HeroShadow}">
                 <Grid x:Name="DashboardHeroGrid" ColumnSpacing="{StaticResource AppSpacingL}">
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="*" />

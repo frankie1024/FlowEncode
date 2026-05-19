@@ -10,10 +10,13 @@
         <ResourceDictionary x:Key="Light">
             <Color x:Key="ThemeColorTextPrimary">#FF202020</Color>
             <Color x:Key="ThemeColorTextSecondary">#FF5F5F5F</Color>
-            <Color x:Key="ThemeColorSurfaceWindow">#FFF7F7F7</Color>
-            <Color x:Key="ThemeColorSurfaceLayer">#FFF3F3F3</Color>
-            <Color x:Key="ThemeColorSurfaceLayerAlt">#FFF9F9F9</Color>
-            <Color x:Key="ThemeColorBorderSubtle">#14000000</Color>
+            <Color x:Key="ThemeColorSurfaceWindow">#FFF0F0F0</Color>
+            <Color x:Key="ThemeColorSurfaceLayer">#FFEAEAEA</Color>
+            <Color x:Key="ThemeColorSurfaceLayerAlt">#FFF5F5F5</Color>
+            <Color x:Key="ThemeColorBorderSubtle">#1A000000</Color>
+            <Color x:Key="ThemeColorBorderCard">#1A000000</Color>
+            <Color x:Key="ThemeColorBorderHero">#29000000</Color>
+            <Color x:Key="ThemeColorBorderElevated">#3D000000</Color>
             <Color x:Key="ThemeColorDividerSubtle">#0F000000</Color>
             <Color x:Key="ThemeColorAccent">#FF2563EB</Color>
             <Color x:Key="ThemeColorAccentSoft">#1F2563EB</Color>
@@ -27,10 +30,10 @@
             <Color x:Key="ThemeColorNeutralSoft">#186B7280</Color>
             <Color x:Key="ThemeColorOverlayProgress">#12FFFFFF</Color>
             <Color x:Key="ThemeColorOverlayModal">#66000000</Color>
-            <Color x:Key="ThemeColorCard">#F2FFFFFF</Color>
-            <Color x:Key="ThemeColorCardAlt">#FFF9F9F9</Color>
+            <Color x:Key="ThemeColorCard">#FFFFFFFF</Color>
+            <Color x:Key="ThemeColorCardAlt">#FFF7F7F7</Color>
             <Color x:Key="ThemeColorHero">#FFFFFFFF</Color>
-            <Color x:Key="ThemeColorHeroSecondary">#FFF3F3F3</Color>
+            <Color x:Key="ThemeColorHeroSecondary">#FFF0F0F0</Color>
             <Color x:Key="ThemeColorTemplateUserCard">#FFFFF7ED</Color>
             <Color x:Key="ThemeColorTemplateUserBorder">#33C66A00</Color>
             <Color x:Key="ThemeColorTemplateUserBadge">#FFFFEDD5</Color>
@@ -99,6 +102,9 @@
             <SolidColorBrush x:Key="CardBrush" Color="{StaticResource ThemeColorCard}" />
             <SolidColorBrush x:Key="CardAltBrush" Color="{StaticResource ThemeColorCardAlt}" />
             <SolidColorBrush x:Key="CardBorderBrush" Color="{StaticResource ThemeColorBorderSubtle}" />
+            <SolidColorBrush x:Key="ThemeBorderCardBrush" Color="{StaticResource ThemeColorBorderCard}" />
+            <SolidColorBrush x:Key="ThemeBorderHeroBrush" Color="{StaticResource ThemeColorBorderHero}" />
+            <SolidColorBrush x:Key="ThemeBorderElevatedBrush" Color="{StaticResource ThemeColorBorderElevated}" />
             <SolidColorBrush x:Key="HeroBrush" Color="{StaticResource ThemeColorHero}" />
             <SolidColorBrush x:Key="HeroSecondaryBrush" Color="{StaticResource ThemeColorHeroSecondary}" />
             <SolidColorBrush x:Key="AccentChipBrush" Color="{StaticResource ThemeColorAccentSoft}" />
@@ -125,10 +131,13 @@
         <ResourceDictionary x:Key="Dark">
             <Color x:Key="ThemeColorTextPrimary">#FFF3F3F3</Color>
             <Color x:Key="ThemeColorTextSecondary">#FFC7C7C7</Color>
-            <Color x:Key="ThemeColorSurfaceWindow">#FF202020</Color>
-            <Color x:Key="ThemeColorSurfaceLayer">#FF1B1B1B</Color>
-            <Color x:Key="ThemeColorSurfaceLayerAlt">#FF2B2B2B</Color>
-            <Color x:Key="ThemeColorBorderSubtle">#21FFFFFF</Color>
+            <Color x:Key="ThemeColorSurfaceWindow">#FF1C1C1C</Color>
+            <Color x:Key="ThemeColorSurfaceLayer">#FF161616</Color>
+            <Color x:Key="ThemeColorSurfaceLayerAlt">#FF262626</Color>
+            <Color x:Key="ThemeColorBorderSubtle">#26FFFFFF</Color>
+            <Color x:Key="ThemeColorBorderCard">#26FFFFFF</Color>
+            <Color x:Key="ThemeColorBorderHero">#33FFFFFF</Color>
+            <Color x:Key="ThemeColorBorderElevated">#40FFFFFF</Color>
             <Color x:Key="ThemeColorDividerSubtle">#1FFFFFFF</Color>
             <Color x:Key="ThemeColorAccent">#FF60CDFF</Color>
             <Color x:Key="ThemeColorAccentSoft">#2460CDFF</Color>
@@ -142,10 +151,10 @@
             <Color x:Key="ThemeColorNeutralSoft">#249CA3AF</Color>
             <Color x:Key="ThemeColorOverlayProgress">#12FFFFFF</Color>
             <Color x:Key="ThemeColorOverlayModal">#99000000</Color>
-            <Color x:Key="ThemeColorCard">#E61F1F1F</Color>
-            <Color x:Key="ThemeColorCardAlt">#FF2B2B2B</Color>
-            <Color x:Key="ThemeColorHero">#FF252525</Color>
-            <Color x:Key="ThemeColorHeroSecondary">#FF2B2B2B</Color>
+            <Color x:Key="ThemeColorCard">#FF282828</Color>
+            <Color x:Key="ThemeColorCardAlt">#FF222222</Color>
+            <Color x:Key="ThemeColorHero">#FF2E2E2E</Color>
+            <Color x:Key="ThemeColorHeroSecondary">#FF242424</Color>
             <Color x:Key="ThemeColorTemplateUserCard">#FF31281F</Color>
             <Color x:Key="ThemeColorTemplateUserBorder">#66F59E0B</Color>
             <Color x:Key="ThemeColorTemplateUserBadge">#FF5C3B14</Color>
@@ -214,6 +223,9 @@
             <SolidColorBrush x:Key="CardBrush" Color="{StaticResource ThemeColorCard}" />
             <SolidColorBrush x:Key="CardAltBrush" Color="{StaticResource ThemeColorCardAlt}" />
             <SolidColorBrush x:Key="CardBorderBrush" Color="{StaticResource ThemeColorBorderSubtle}" />
+            <SolidColorBrush x:Key="ThemeBorderCardBrush" Color="{StaticResource ThemeColorBorderCard}" />
+            <SolidColorBrush x:Key="ThemeBorderHeroBrush" Color="{StaticResource ThemeColorBorderHero}" />
+            <SolidColorBrush x:Key="ThemeBorderElevatedBrush" Color="{StaticResource ThemeColorBorderElevated}" />
             <SolidColorBrush x:Key="HeroBrush" Color="{StaticResource ThemeColorHero}" />
             <SolidColorBrush x:Key="HeroSecondaryBrush" Color="{StaticResource ThemeColorHeroSecondary}" />
             <SolidColorBrush x:Key="AccentChipBrush" Color="{StaticResource ThemeColorAccentSoft}" />
@@ -294,6 +306,9 @@
             <SolidColorBrush x:Key="CardBrush" Color="{ThemeResource SystemColorButtonFaceColor}" />
             <SolidColorBrush x:Key="CardAltBrush" Color="{ThemeResource SystemColorButtonFaceColor}" />
             <SolidColorBrush x:Key="CardBorderBrush" Color="{ThemeResource SystemColorWindowTextColor}" />
+            <SolidColorBrush x:Key="ThemeBorderCardBrush" Color="{ThemeResource SystemColorWindowTextColor}" />
+            <SolidColorBrush x:Key="ThemeBorderHeroBrush" Color="{ThemeResource SystemColorWindowTextColor}" />
+            <SolidColorBrush x:Key="ThemeBorderElevatedBrush" Color="{ThemeResource SystemColorWindowTextColor}" />
             <SolidColorBrush x:Key="HeroBrush" Color="{ThemeResource SystemColorButtonFaceColor}" />
             <SolidColorBrush x:Key="HeroSecondaryBrush" Color="{ThemeResource SystemColorButtonFaceColor}" />
             <SolidColorBrush x:Key="AccentChipBrush" Color="{ThemeResource SystemColorButtonFaceColor}" />
