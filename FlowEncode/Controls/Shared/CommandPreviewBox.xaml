@@ -8,47 +8,56 @@
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />
-            <RowDefinition Height="Auto" />
         </Grid.RowDefinitions>
 
-        <Grid ColumnSpacing="{StaticResource AppSpacingM}">
-            <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="*" />
-                <ColumnDefinition Width="Auto" />
-            </Grid.ColumnDefinitions>
+        <Expander
+            x:Name="PreviewExpander"
+            HorizontalAlignment="Stretch"
+            HorizontalContentAlignment="Stretch">
+            <Expander.Header>
+                <Grid MinHeight="52" ColumnSpacing="{StaticResource AppSpacingM}">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
 
-            <TextBlock
-                FontFamily="{StaticResource AppDisplayFont}"
-                FontSize="{StaticResource AppBodyLargeFontSize}"
-                FontWeight="SemiBold"
-                Text="{x:Bind Header, Mode=OneWay}"
-                TextTrimming="CharacterEllipsis" />
+                    <TextBlock
+                        FontFamily="{StaticResource AppDisplayFont}"
+                        FontSize="{StaticResource AppBodyLargeFontSize}"
+                        FontWeight="SemiBold"
+                        Text="{x:Bind Header, Mode=OneWay}"
+                        TextTrimming="CharacterEllipsis"
+                        VerticalAlignment="Center" />
 
-            <Button
-                x:Name="CopyCommandButton"
-                Grid.Column="1"
-                Click="CopyCommandButton_Click">
-                <StackPanel Orientation="Horizontal" Spacing="{StaticResource AppCommandIconTextSpacing}">
-                    <SymbolIcon Symbol="Copy" />
-                    <TextBlock x:Name="CopyCommandButtonLabelTextBlock" />
-                </StackPanel>
-            </Button>
-        </Grid>
-
-        <TextBox
-            Grid.Row="1"
-            Height="{x:Bind PreviewHeight, Mode=OneWay}"
-            MinHeight="{x:Bind PreviewMinHeight, Mode=OneWay}"
-            FontFamily="{StaticResource AppMonoFont}"
-            IsReadOnly="True"
-            PlaceholderText="{x:Bind PlaceholderText, Mode=OneWay}"
-            ScrollViewer.VerticalScrollBarVisibility="Auto"
-            Text="{x:Bind Text, Mode=OneWay}"
-            TextWrapping="Wrap" />
+                    <Button
+                        x:Name="CopyCommandButton"
+                        Grid.Column="1"
+                        Click="CopyCommandButton_Click"
+                        VerticalAlignment="Center">
+                        <StackPanel Orientation="Horizontal" Spacing="{StaticResource AppCommandIconTextSpacing}">
+                            <SymbolIcon Symbol="Copy" />
+                            <TextBlock x:Name="CopyCommandButtonLabelTextBlock" />
+                        </StackPanel>
+                    </Button>
+                </Grid>
+            </Expander.Header>
+            <TextBox
+                Height="{x:Bind PreviewHeight, Mode=OneWay}"
+                MinHeight="{x:Bind PreviewMinHeight, Mode=OneWay}"
+                Background="Transparent"
+                BorderThickness="0"
+                FontFamily="{StaticResource AppMonoFont}"
+                IsReadOnly="True"
+                IsTabStop="False"
+                PlaceholderText="{x:Bind ResolvedPlaceholderText, Mode=OneTime}"
+                ScrollViewer.VerticalScrollBarVisibility="Auto"
+                Text="{x:Bind Text, Mode=OneWay}"
+                TextWrapping="Wrap" />
+        </Expander>
 
         <TextBlock
             x:Name="StatusTextBlock"
-            Grid.Row="2"
+            Grid.Row="1"
             AutomationProperties.LiveSetting="Polite"
             FontSize="{StaticResource AppSmallFontSize}"
             Foreground="{ThemeResource SubtleTextBrush}"

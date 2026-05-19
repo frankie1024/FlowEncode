@@ -27,7 +27,7 @@ public sealed partial class CommandPreviewBox : UserControl
         nameof(PlaceholderText),
         typeof(string),
         typeof(CommandPreviewBox),
-        new PropertyMetadata(string.Empty));
+        new PropertyMetadata(string.Empty, OnPreviewContentChanged));
 
     public static readonly DependencyProperty PreviewHeightProperty = DependencyProperty.Register(
         nameof(PreviewHeight),
@@ -101,21 +101,35 @@ public sealed partial class CommandPreviewBox : UserControl
         set => SetValue(TextsProperty, value);
     }
 
+    public string ResolvedPlaceholderText =>
+        !string.IsNullOrWhiteSpace(PlaceholderText)
+            ? PlaceholderText
+            : Texts?.CommandPreviewEmptyPlaceholder ?? "No command is available yet.";
+
     private static void OnTextChanged(DependencyObject dependencyObject, DependencyPropertyChangedEventArgs args)
     {
         var previewBox = (CommandPreviewBox)dependencyObject;
         previewBox.HideStatus();
         previewBox.SyncCopyState();
+        previewBox.RefreshBindings();
+    }
+
+    private static void OnPreviewContentChanged(DependencyObject dependencyObject, DependencyPropertyChangedEventArgs args)
+    {
+        ((CommandPreviewBox)dependencyObject).RefreshBindings();
     }
 
     private static void OnCopyStateChanged(DependencyObject dependencyObject, DependencyPropertyChangedEventArgs args)
     {
-        ((CommandPreviewBox)dependencyObject).SyncCopyState();
+        var previewBox = (CommandPreviewBox)dependencyObject;
+        previewBox.SyncCopyState();
+        previewBox.RefreshBindings();
     }
 
     private void CommandPreviewBox_Loaded(object sender, RoutedEventArgs e)
     {
         SyncCopyState();
+        RefreshBindings();
     }
 
     private void CopyCommandButton_Click(object sender, RoutedEventArgs e)
@@ -189,6 +203,10 @@ public sealed partial class CommandPreviewBox : UserControl
         StatusTextBlock.Visibility = Visibility.Collapsed;
     }
 
+    private void RefreshBindings()
+    {
+        Bindings.Update();
+    }
     private static void TryWriteClipboardFailure(
         string operationName,
         Exception exception,

@@ -109,6 +109,7 @@ public sealed class AppText
         "Select a valid template and provide a template name before exporting.");
     public string CommandPreviewTitle => Pick("命令预览", "Command Preview");
     public string CommandPreviewCopyButton => Pick("复制命令", "Copy Command");
+    public string CommandPreviewEmptyPlaceholder => Pick("当前还没有可显示的命令。", "No command is available yet.");
     public string CommandPreviewCopiedStatus => Pick("命令已复制。", "Command copied.");
     public string CommandPreviewCopyUnavailableStatus => Pick("当前没有可复制的命令。", "No command is available to copy.");
     public string CommandPreviewCopyFailedStatus(string detail) =>
@@ -183,6 +184,8 @@ public sealed class AppText
     public string AutoCompressionProgressActiveLabel => Pick("工作中...", "Working...");
     public string AutoCompressionProgressIndeterminateHint => Pick("当前阶段暂无法计算百分比，任务仍在执行。", "This stage has no reliable percentage yet. The task is still running.");
     public string JobDetailsTitle => Pick("任务详情", "Details");
+    public string JobLogTitle => Pick("任务日志", "Job Log");
+    public string JobLogPlaceholder => Pick("选择任务后，这里显示日志输出。", "Job output appears here after you select a task.");
     public string TemplateLibraryTitle => Pick("模板库", "Template Library");
     public string TemplateSearchPlaceholder => Pick("搜索模板名称", "Search templates");
     public string TemplateNoMatch => Pick("未找到匹配模板", "No matching templates");

@@ -140,9 +140,7 @@
                             <Expander.Header>
                                 <TextBlock FontFamily="{StaticResource AppDisplayFont}" FontSize="{StaticResource AppBodyLargeFontSize}" FontWeight="SemiBold" Text="{Binding Texts.AutoCompressionLogTitle}" />
                             </Expander.Header>
-                            <Border Padding="{StaticResource AppInsetPanelPadding}" Background="{ThemeResource CardAltBrush}" CornerRadius="{StaticResource AppCardCornerRadius}">
-                                <TextBox MinHeight="320" FontFamily="{StaticResource AppMonoFont}" IsReadOnly="True" PlaceholderText="{Binding Texts.AutoCompressionLogPlaceholder}" ScrollViewer.VerticalScrollBarVisibility="Auto" Text="{Binding AutoCompressionLog}" TextWrapping="Wrap" BorderThickness="0" />
-                            </Border>
+                            <TextBox MinHeight="120" MaxHeight="320" Background="Transparent" BorderThickness="0" FontFamily="{StaticResource AppMonoFont}" IsReadOnly="True" IsTabStop="False" PlaceholderText="{Binding Texts.AutoCompressionLogPlaceholder}" ScrollViewer.VerticalScrollBarVisibility="Auto" Text="{Binding AutoCompressionLog}" TextWrapping="Wrap" />
                         </Expander>
                     </StackPanel>
                 </StackPanel>

@@ -249,7 +249,7 @@
                     </Grid>
                 </Border>
 
-                <Border x:Name="OverviewQueuePanel" Grid.Row="0" Grid.Column="1" Padding="{StaticResource AppCardPadding}" Background="{ThemeResource CardBrush}" BorderBrush="{ThemeResource CardBorderBrush}" BorderThickness="{StaticResource AppCardBorderThickness}" CornerRadius="{StaticResource AppLargeCornerRadius}" Shadow="{StaticResource CardShadow}" VerticalAlignment="Stretch" DataContext="{Binding Queue}">
+                <Border x:Name="OverviewQueuePanel" Grid.Row="0" Grid.Column="1" Padding="{StaticResource AppCardPadding}" Background="{ThemeResource CardBrush}" BorderBrush="{ThemeResource CardBorderBrush}" BorderThickness="{StaticResource AppCardBorderThickness}" CornerRadius="{StaticResource AppLargeCornerRadius}" Shadow="{StaticResource CardShadow}" VerticalAlignment="Top" DataContext="{Binding Queue}">
                     <Grid RowSpacing="{StaticResource AppSpacingM}">
                         <Grid.RowDefinitions>
                             <RowDefinition Height="Auto" />
@@ -418,12 +418,18 @@
                                     Grid.Row="2"
                                     Header="{Binding Texts.CommandPreviewTitle}"
                                     IsCopyEnabled="{Binding CanCopySelectedJobCommand}"
+                                    PlaceholderText="{Binding SelectedJobCommandPlaceholderText}"
                                     PreviewHeight="72"
                                     PreviewMinHeight="72"
                                     Text="{Binding SelectedJobCommandText}"
                                     Texts="{Binding Texts}" />
 
-                                <TextBox Grid.Row="3" Height="180" FontFamily="{StaticResource AppMonoFont}" IsReadOnly="True" ScrollViewer.VerticalScrollBarVisibility="Auto" Text="{Binding SelectedJobLogText}" TextWrapping="Wrap" />
+                                <Expander Grid.Row="3" HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch">
+                                    <Expander.Header>
+                                        <TextBlock FontFamily="{StaticResource AppDisplayFont}" FontSize="{StaticResource AppBodyLargeFontSize}" FontWeight="SemiBold" Text="{Binding Texts.JobLogTitle}" />
+                                    </Expander.Header>
+                                    <TextBox MinHeight="96" MaxHeight="180" Background="Transparent" BorderThickness="0" FontFamily="{StaticResource AppMonoFont}" IsReadOnly="True" IsTabStop="False" PlaceholderText="{Binding Texts.JobLogPlaceholder}" ScrollViewer.VerticalScrollBarVisibility="Auto" Text="{Binding SelectedJobLogText}" TextWrapping="Wrap" />
+                                </Expander>
                             </Grid>
                         </Border>
                     </Grid>

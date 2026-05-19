@@ -145,8 +145,8 @@
                                             <TextBlock Grid.Column="1" Foreground="{ThemeResource SubtleTextBrush}" Text="{Binding ReadySummary}" VerticalAlignment="Center" />
                                         </Grid>
                                     </Expander.Header>
-                                    <Border Padding="{StaticResource AppInsetPanelPadding}" Background="{ThemeResource CardAltBrush}" CornerRadius="{StaticResource AppLargeCornerRadius}">
-                                    <ItemsControl ItemsSource="{Binding Items}">
+                                    <StackPanel Margin="0,8,0,0">
+                                        <ItemsControl ItemsSource="{Binding Items}">
                                             <ItemsControl.ItemTemplate>
                                                 <DataTemplate>
                                                     <Border Margin="{StaticResource AppBottomSpacingM}" Padding="{StaticResource AppInsetPanelPadding}" Background="{ThemeResource CardBrush}" BorderBrush="{ThemeResource CardBorderBrush}" BorderThickness="{StaticResource AppCardBorderThickness}" CornerRadius="{StaticResource AppCardCornerRadius}">
@@ -251,7 +251,7 @@
                                                 </DataTemplate>
                                             </ItemsControl.ItemTemplate>
                                         </ItemsControl>
-                                    </Border>
+                                    </StackPanel>
                                 </Expander>
                             </DataTemplate>
                         </ItemsControl.ItemTemplate>

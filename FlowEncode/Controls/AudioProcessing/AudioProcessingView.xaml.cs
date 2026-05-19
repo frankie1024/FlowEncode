@@ -12,6 +12,8 @@ namespace FlowEncode.Controls.AudioProcessing;
 public sealed partial class AudioProcessingView : UserControl
 {
     private bool _interactionsInitialized;
+    private bool _isStackedWorkspaceLayout;
+    private bool _isUpdatingWorkspaceHeight;
 
     private AudioProcessingViewModel? ViewModel => DataContext as AudioProcessingViewModel;
     private AudioProcessingFormViewModel? FormViewModel => ViewModel?.Form;
@@ -24,6 +26,7 @@ public sealed partial class AudioProcessingView : UserControl
 
     public void ApplyLayout(bool stackedWorkspace, bool compactForms, Thickness contentPadding)
     {
+        _isStackedWorkspaceLayout = stackedWorkspace;
         ContentStack.Padding = contentPadding;
         WorkspaceGrid.ColumnSpacing = stackedWorkspace ? 0 : UiTokens.SpacingL;
         WorkspaceGrid.RowSpacing = stackedWorkspace ? UiTokens.SpacingL : 0;
@@ -44,6 +47,7 @@ public sealed partial class AudioProcessingView : UserControl
         ConfigureTwoItemGrid(AudioSourcePathGrid, AudioSourcePathActionColumn, AudioSourceBrowseButton, compactForms, GridLength.Auto);
         ConfigureTwoItemGrid(AudioOutputPathGrid, AudioOutputPathActionColumn, AudioOutputBrowseButton, compactForms, GridLength.Auto);
         ConfigureThreeItemGrid(AudioProcessingActionGrid, AudioProcessingCancelColumn, AudioProcessingDeleteColumn, CancelAudioProcessingButton, DeleteAudioProcessingButton, compactForms);
+        ScheduleWorkspaceHeightRefresh();
     }
 
     private void AudioProcessingView_Loaded(object sender, RoutedEventArgs e)
@@ -56,6 +60,21 @@ public sealed partial class AudioProcessingView : UserControl
         _interactionsInitialized = true;
         AudioSourcePathTextBox.AddHandler(UIElement.DoubleTappedEvent, new DoubleTappedEventHandler(AudioSourcePathTextBox_DoubleTapped), true);
         AudioOutputPathTextBox.AddHandler(UIElement.DoubleTappedEvent, new DoubleTappedEventHandler(AudioOutputPathTextBox_DoubleTapped), true);
+        PrimaryPanel.SizeChanged += WorkspacePanel_SizeChanged;
+        SecondaryPanel.SizeChanged += WorkspacePanel_SizeChanged;
+        AudioCommandPreviewBox.SizeChanged += WorkspacePanel_SizeChanged;
+        AudioLogExpander.SizeChanged += WorkspacePanel_SizeChanged;
+        ScheduleWorkspaceHeightRefresh();
+    }
+
+    private void WorkspacePanel_SizeChanged(object sender, SizeChangedEventArgs e)
+    {
+        if (_isUpdatingWorkspaceHeight)
+        {
+            return;
+        }
+
+        ScheduleWorkspaceHeightRefresh();
     }
 
     private async void BrowseAudioSourceButton_Click(object sender, RoutedEventArgs e)
@@ -199,6 +218,54 @@ public sealed partial class AudioProcessingView : UserControl
     private void DeleteAudioProcessingButton_Click(object sender, RoutedEventArgs e)
     {
         FormViewModel?.ClearAudioProcessingTask();
+    }
+
+    private void ScheduleWorkspaceHeightRefresh()
+    {
+        DispatcherQueue.TryEnqueue(UpdateWorkspaceHeight);
+    }
+
+    private void UpdateWorkspaceHeight()
+    {
+        if (_isUpdatingWorkspaceHeight)
+        {
+            return;
+        }
+
+        if (_isStackedWorkspaceLayout || Visibility != Visibility.Visible)
+        {
+            ClearWorkspaceHeight();
+            return;
+        }
+
+        _isUpdatingWorkspaceHeight = true;
+
+        try
+        {
+            PrimaryPanel.Height = double.NaN;
+            SecondaryPanel.Height = double.NaN;
+            UpdateLayout();
+
+            var targetHeight = Math.Max(PrimaryPanel.ActualHeight, SecondaryPanel.ActualHeight);
+            if (targetHeight <= 0)
+            {
+                return;
+            }
+
+            targetHeight = Math.Ceiling(targetHeight);
+            PrimaryPanel.Height = targetHeight;
+            SecondaryPanel.Height = targetHeight;
+        }
+        finally
+        {
+            _isUpdatingWorkspaceHeight = false;
+        }
+    }
+
+    private void ClearWorkspaceHeight()
+    {
+        PrimaryPanel.Height = double.NaN;
+        SecondaryPanel.Height = double.NaN;
     }
 
     private static void ConfigureTwoItemGrid(

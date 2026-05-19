@@ -892,8 +892,12 @@ public partial class MainWindowViewModel : CommunityToolkit.Mvvm.ComponentModel.
         : $"{Texts.EstimatedSizePrefix} {FormatSelectedJobSize(SelectedJob?.EstimatedFileSizeBytes)}";
 
     internal string SelectedJobCommandText => IsQueueBatchSelectionActive
+        ? string.Empty
+        : SelectedJob?.DisplayCommand ?? string.Empty;
+
+    internal string SelectedJobCommandPlaceholderText => IsQueueBatchSelectionActive
         ? Texts.QueueBatchSelectionCommandText
-        : SelectedJob?.DisplayCommand ?? Texts.SelectJobForCommandText;
+        : Texts.SelectJobForCommandText;
 
     internal bool CanCopySelectedJobCommand => !IsQueueBatchSelectionActive
         && SelectedJob?.IsDisplayCommandResolved == true

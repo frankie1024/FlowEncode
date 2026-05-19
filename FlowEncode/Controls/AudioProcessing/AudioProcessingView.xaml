@@ -20,7 +20,7 @@
                     <ColumnDefinition x:Name="SecondaryColumn" Width="1.05*" />
                 </Grid.ColumnDefinitions>
 
-                <Border x:Name="PrimaryPanel" Padding="{StaticResource AppCardPadding}" Background="{ThemeResource CardBrush}" BorderBrush="{ThemeResource CardBorderBrush}" BorderThickness="{StaticResource AppCardBorderThickness}" CornerRadius="{StaticResource AppLargeCornerRadius}" Shadow="{StaticResource CardShadow}" DataContext="{Binding Form}">
+                <Border x:Name="PrimaryPanel" Padding="{StaticResource AppCardPadding}" Background="{ThemeResource CardBrush}" BorderBrush="{ThemeResource CardBorderBrush}" BorderThickness="{StaticResource AppCardBorderThickness}" CornerRadius="{StaticResource AppLargeCornerRadius}" Shadow="{StaticResource CardShadow}" VerticalAlignment="Top" DataContext="{Binding Form}">
                     <StackPanel Spacing="{StaticResource AppSpacingM}">
                         <TextBlock FontFamily="{StaticResource AppDisplayFont}" FontSize="{StaticResource AppSectionTitleFontSize}" FontWeight="SemiBold" Text="{Binding Texts.AudioProcessingTitle}" />
 
@@ -118,7 +118,7 @@
                     </StackPanel>
                 </Border>
 
-                <Border x:Name="SecondaryPanel" Grid.Column="1" Padding="{StaticResource AppCardPadding}" Background="{ThemeResource CardBrush}" BorderBrush="{ThemeResource CardBorderBrush}" BorderThickness="{StaticResource AppCardBorderThickness}" CornerRadius="{StaticResource AppLargeCornerRadius}" Shadow="{StaticResource CardShadow}" DataContext="{Binding Status}">
+                <Border x:Name="SecondaryPanel" Grid.Column="1" Padding="{StaticResource AppCardPadding}" Background="{ThemeResource CardBrush}" BorderBrush="{ThemeResource CardBorderBrush}" BorderThickness="{StaticResource AppCardBorderThickness}" CornerRadius="{StaticResource AppLargeCornerRadius}" Shadow="{StaticResource CardShadow}" VerticalAlignment="Top" DataContext="{Binding Status}">
                     <StackPanel Spacing="{StaticResource AppSpacingM}">
                         <Border Padding="{StaticResource AppInsetPanelPadding}" Background="{ThemeResource CardAltBrush}" CornerRadius="{StaticResource AppCardCornerRadius}">
                             <StackPanel Spacing="{StaticResource AppSpacingS}">
@@ -140,18 +140,17 @@
                         </Border>
 
                         <shared:CommandPreviewBox
+                            x:Name="AudioCommandPreviewBox"
                             Header="{Binding Texts.AudioProcessingCommandTitle}"
                             PlaceholderText="{Binding Texts.AudioProcessingCommandPlaceholder}"
                             Text="{Binding AudioProcessingCommandLine}"
                             Texts="{Binding Texts}" />
 
-                        <Expander HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch">
+                        <Expander x:Name="AudioLogExpander" HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch">
                             <Expander.Header>
                                 <TextBlock FontFamily="{StaticResource AppDisplayFont}" FontSize="{StaticResource AppBodyLargeFontSize}" FontWeight="SemiBold" Text="{Binding Texts.AudioProcessingLogTitle}" />
                             </Expander.Header>
-                            <Border Padding="{StaticResource AppInsetPanelPadding}" Background="{ThemeResource CardAltBrush}" CornerRadius="{StaticResource AppCardCornerRadius}">
-                                <TextBox Height="420" FontFamily="{StaticResource AppMonoFont}" IsReadOnly="True" PlaceholderText="{Binding Texts.AudioProcessingLogPlaceholder}" ScrollViewer.VerticalScrollBarVisibility="Auto" Text="{Binding AudioProcessingLog}" TextWrapping="Wrap" BorderThickness="0" />
-                            </Border>
+                            <TextBox MinHeight="120" MaxHeight="420" Background="Transparent" BorderThickness="0" FontFamily="{StaticResource AppMonoFont}" IsReadOnly="True" IsTabStop="False" PlaceholderText="{Binding Texts.AudioProcessingLogPlaceholder}" ScrollViewer.VerticalScrollBarVisibility="Auto" Text="{Binding AudioProcessingLog}" TextWrapping="Wrap" />
                         </Expander>
                     </StackPanel>
                 </Border>

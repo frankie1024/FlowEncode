@@ -75,6 +75,8 @@ public sealed class OverviewQueueViewModel : ModuleViewModelBase
 
     public string SelectedJobCommandText => Owner.SelectedJobCommandText;
 
+    public string SelectedJobCommandPlaceholderText => Owner.SelectedJobCommandPlaceholderText;
+
     public bool CanCopySelectedJobCommand => Owner.CanCopySelectedJobCommand;
 
     public string SelectedJobLogText => Owner.SelectedJobLogText;

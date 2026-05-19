@@ -1296,14 +1296,18 @@ public sealed partial class OverviewView : UserControl
 
         var naturalPanelHeight = Math.Max(OverviewComposerPanel.ActualHeight, OverviewQueuePanel.ActualHeight);
         var targetHeight = Math.Max(Math.Ceiling(availableHeight), Math.Ceiling(naturalPanelHeight));
-        OverviewComposerPanel.Height = targetHeight;
-        OverviewQueuePanel.Height = targetHeight;
+        OverviewComposerPanel.Height = double.NaN;
+        OverviewQueuePanel.Height = double.NaN;
+        OverviewComposerPanel.MinHeight = targetHeight;
+        OverviewQueuePanel.MinHeight = targetHeight;
     }
 
     private void ClearOverviewWorkspaceHeight()
     {
         OverviewComposerPanel.Height = double.NaN;
         OverviewQueuePanel.Height = double.NaN;
+        OverviewComposerPanel.MinHeight = 0;
+        OverviewQueuePanel.MinHeight = 0;
     }
 
     private void TryWriteDiagnostic(string message)
