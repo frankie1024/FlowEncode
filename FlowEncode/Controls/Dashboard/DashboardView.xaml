@@ -8,15 +8,15 @@
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
     mc:Ignorable="d">
     <UserControl.Resources>
-        <StaticResource x:Key="ButtonRevealBackground" ResourceKey="CardBrush" />
-        <StaticResource x:Key="ButtonRevealBackgroundPointerOver" ResourceKey="CardAltBrush" />
-        <StaticResource x:Key="ButtonRevealBackgroundPressed" ResourceKey="CardAltBrush" />
-        <StaticResource x:Key="ButtonRevealBorderBrush" ResourceKey="CardBorderBrush" />
-        <StaticResource x:Key="ButtonRevealBorderBrushPointerOver" ResourceKey="CardBorderBrush" />
-        <StaticResource x:Key="ButtonRevealBorderBrushPressed" ResourceKey="CardBorderBrush" />
-        <StaticResource x:Key="ButtonForeground" ResourceKey="TextFillColorPrimaryBrush" />
-        <StaticResource x:Key="ButtonForegroundPointerOver" ResourceKey="TextFillColorPrimaryBrush" />
-        <StaticResource x:Key="ButtonForegroundPressed" ResourceKey="TextFillColorPrimaryBrush" />
+        <SolidColorBrush x:Key="ButtonRevealBackground" Color="{ThemeResource ThemeColorCard}" />
+        <SolidColorBrush x:Key="ButtonRevealBackgroundPointerOver" Color="{ThemeResource ThemeColorCardAlt}" />
+        <SolidColorBrush x:Key="ButtonRevealBackgroundPressed" Color="{ThemeResource ThemeColorHeroSecondary}" />
+        <SolidColorBrush x:Key="ButtonRevealBorderBrush" Color="{ThemeResource ThemeColorBorderSubtle}" />
+        <SolidColorBrush x:Key="ButtonRevealBorderBrushPointerOver" Color="{ThemeResource ThemeColorBorderSubtle}" />
+        <SolidColorBrush x:Key="ButtonRevealBorderBrushPressed" Color="{ThemeResource ThemeColorBorderSubtle}" />
+        <SolidColorBrush x:Key="ButtonForeground" Color="{ThemeResource ThemeColorTextPrimary}" />
+        <SolidColorBrush x:Key="ButtonForegroundPointerOver" Color="{ThemeResource ThemeColorTextPrimary}" />
+        <SolidColorBrush x:Key="ButtonForegroundPressed" Color="{ThemeResource ThemeColorTextPrimary}" />
 
         <Style x:Key="DashboardActivityIndicatorStyle" TargetType="Border">
             <Setter Property="Width" Value="10" />

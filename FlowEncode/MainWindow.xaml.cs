@@ -996,9 +996,12 @@ public sealed partial class MainWindow : Window, ISettingsViewHost, IShellNaviga
     {
         try
         {
-            if (Microsoft.UI.Xaml.Application.Current.Resources.TryGetValue(resourceKey, out var activeResource))
+            var resources = Microsoft.UI.Xaml.Application.Current.Resources;
+            var themeKey = ResolveThemeDictionaryKey(actualTheme);
+            if (resources.ThemeDictionaries[themeKey] is ResourceDictionary themeDictionary
+                && themeDictionary.TryGetValue(resourceKey, out var themedResource))
             {
-                return activeResource switch
+                return themedResource switch
                 {
                     Windows.UI.Color color => color,
                     SolidColorBrush brush => brush.Color,
@@ -1006,11 +1009,9 @@ public sealed partial class MainWindow : Window, ISettingsViewHost, IShellNaviga
                 };
             }
 
-            var themeKey = ResolveThemeDictionaryKey(actualTheme);
-            if (Microsoft.UI.Xaml.Application.Current.Resources.ThemeDictionaries[themeKey] is ResourceDictionary themeDictionary)
+            if (resources.TryGetValue(resourceKey, out var activeResource))
             {
-                var resource = themeDictionary[resourceKey];
-                return resource switch
+                return activeResource switch
                 {
                     Windows.UI.Color color => color,
                     SolidColorBrush brush => brush.Color,
