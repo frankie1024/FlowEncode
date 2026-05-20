@@ -2465,9 +2465,28 @@ public partial class MainWindowViewModel : CommunityToolkit.Mvvm.ComponentModel.
     private void ApplyEnvironmentReadiness(EnvironmentReadinessReport report)
     {
         _environmentReadinessReport = report;
+        RefreshAutoCompressionMetricOptionsFromEnvironment(report);
         SetupGuideModule.ApplyEnvironmentReadiness(report);
         HandleAudioEnvironmentReadinessApplied();
         HandleBluRayEnvironmentReadinessApplied();
+    }
+
+    private void RefreshAutoCompressionMetricOptionsFromEnvironment(EnvironmentReadinessReport report)
+    {
+        var av1an = report.Tools.FirstOrDefault(tool => tool.Kind == RegisteredToolKind.Av1an);
+        if (av1an is null || !av1an.IsProtocolCompatible)
+        {
+            return;
+        }
+
+        var capabilityOptions = av1an.Av1anCapabilities is { SupportedMetrics.Count: > 0 } capabilities
+            ? BuildAutoCompressionMetricOptions(capabilities.SupportedMetrics)
+            : BuildAutoCompressionMetricOptions();
+        ReplaceItems(AutoCompressionMetricOptions, capabilityOptions);
+        _selectedAutoCompressionMetricOption = AutoCompressionMetricOptions.FirstOrDefault(option => option.Value == AutoCompressionMetric)
+            ?? AutoCompressionMetricOptions.FirstOrDefault();
+        OnPropertyChanged(nameof(AutoCompressionMetricOptions));
+        OnPropertyChanged(nameof(SelectedAutoCompressionMetricOption));
     }
 
     private string BuildRequirementLabel(CapabilityRequirementReadiness requirement)
@@ -3343,15 +3362,30 @@ public partial class MainWindowViewModel : CommunityToolkit.Mvvm.ComponentModel.
 
     private static IEnumerable<AutoCompressionMetricOption> BuildAutoCompressionMetricOptions()
     {
-        return
+        return BuildAutoCompressionMetricOptions(
         [
-            new AutoCompressionMetricOption(AutoCompressionMetric.Vmaf, "VMAF"),
-            new AutoCompressionMetricOption(AutoCompressionMetric.Ssimulacra2, "SSIMULACRA2"),
-            new AutoCompressionMetricOption(AutoCompressionMetric.ButteraugliInf, "Butteraugli-INF"),
-            new AutoCompressionMetricOption(AutoCompressionMetric.Butteraugli3, "Butteraugli-3"),
-            new AutoCompressionMetricOption(AutoCompressionMetric.Xpsnr, "XPSNR"),
-            new AutoCompressionMetricOption(AutoCompressionMetric.XpsnrWeighted, "XPSNR-Weighted")
-        ];
+            AutoCompressionMetric.Vmaf,
+            AutoCompressionMetric.Ssimulacra2,
+            AutoCompressionMetric.ButteraugliInf,
+            AutoCompressionMetric.Butteraugli3,
+            AutoCompressionMetric.Xpsnr,
+            AutoCompressionMetric.XpsnrWeighted
+        ]);
+    }
+
+    private static IEnumerable<AutoCompressionMetricOption> BuildAutoCompressionMetricOptions(IEnumerable<AutoCompressionMetric> metrics)
+    {
+        return
+            metrics.Select(metric => new AutoCompressionMetricOption(metric, metric switch
+            {
+                AutoCompressionMetric.Vmaf => "VMAF",
+                AutoCompressionMetric.Ssimulacra2 => "SSIMULACRA2",
+                AutoCompressionMetric.ButteraugliInf => "Butteraugli-INF",
+                AutoCompressionMetric.Butteraugli3 => "Butteraugli-3",
+                AutoCompressionMetric.Xpsnr => "XPSNR",
+                AutoCompressionMetric.XpsnrWeighted => "XPSNR-Weighted",
+                _ => metric.ToString()
+            }));
     }
 
     private static IEnumerable<StringChoiceOption> BuildConcurrentEncodingJobOptions()

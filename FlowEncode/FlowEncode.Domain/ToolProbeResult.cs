@@ -12,7 +12,8 @@ public sealed record ToolProbeResult(
     ExternalToolKind? ManagedExternalToolKind = null,
     bool IsProtocolCompatible = false,
     string ProtocolVersion = "",
-    string BackendCompatibilityDetail = "")
+    string BackendCompatibilityDetail = "",
+    Av1anCapabilitiesSnapshot? Av1anCapabilities = null)
 {
     public string DisplayName => Kind.ToDisplayName();
 

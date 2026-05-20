@@ -1,5 +1,6 @@
 using System.Collections.Concurrent;
 using System.Diagnostics;
+using System.Text.Json;
 using System.Text.RegularExpressions;
 using FlowEncode.Application;
 using FlowEncode.Domain;
@@ -10,6 +11,7 @@ public sealed class ProcessToolProbeService : IToolProbeService
 {
     private const int ProbeTimeoutMilliseconds = 5000;
     private const int VsrepoInstalledProbeTimeoutMilliseconds = 30000;
+    private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
 
     private readonly IToolRegistryService _toolRegistryService;
     private readonly LocalAppPaths _paths;
@@ -465,43 +467,34 @@ public sealed class ProcessToolProbeService : IToolProbeService
     {
         try
         {
-            using var process = new Process
-            {
-                StartInfo = new ProcessStartInfo
-                {
-                    FileName = executablePath,
-                    Arguments = "--protocol-version",
-                    UseShellExecute = false,
-                    RedirectStandardOutput = true,
-                    RedirectStandardError = true,
-                    CreateNoWindow = true,
-                    WorkingDirectory = Path.GetDirectoryName(executablePath) ?? AppContext.BaseDirectory
-                }
-            };
-
-            VapourSynthRuntimePathResolver.EnrichProcessPath(process.StartInfo);
-
-            using var _ = ErrorDialogSuppression.Enter();
-            var result = ProcessProbeRunner.Run(
-                process.StartInfo,
+            var protocolResult = RunSimpleProbe(
+                executablePath,
+                "--protocol-version",
                 TimeSpan.FromMilliseconds(ProbeTimeoutMilliseconds),
                 "Protocol probe timed out.");
-
             var output = string.Concat(
-                result.StandardOutput,
+                protocolResult.StandardOutput,
                 Environment.NewLine,
-                result.StandardError).Trim();
+                protocolResult.StandardError).Trim();
 
-            if (result.ExitCode == 0)
+            if (protocolResult.ExitCode == 0)
             {
                 var protocolVersion = FirstMeaningfulLine(output);
+                var capabilities = TryProbeAv1anCapabilities(executablePath);
+                var compatibilityDetail = !string.IsNullOrWhiteSpace(protocolVersion)
+                    ? $"Protocol {protocolVersion}"
+                    : "Protocol probe returned no version";
+                if (capabilities is { SupportedMetrics.Count: > 0 } snapshot)
+                {
+                    compatibilityDetail = $"{compatibilityDetail} · {snapshot.SupportedMetrics.Count} metrics";
+                }
+
                 return baseResult with
                 {
                     IsProtocolCompatible = !string.IsNullOrWhiteSpace(protocolVersion),
                     ProtocolVersion = protocolVersion,
-                    BackendCompatibilityDetail = !string.IsNullOrWhiteSpace(protocolVersion)
-                        ? $"Protocol {protocolVersion}"
-                        : "Protocol probe returned no version"
+                    BackendCompatibilityDetail = compatibilityDetail,
+                    Av1anCapabilities = capabilities
                 };
             }
 
@@ -523,6 +516,185 @@ public sealed class ProcessToolProbeService : IToolProbeService
                 BackendCompatibilityDetail = $"Protocol probe unavailable: {ex.Message}"
             };
         }
+    }
+
+    private Av1anCapabilitiesSnapshot? TryProbeAv1anCapabilities(string executablePath)
+    {
+        try
+        {
+            var result = RunSimpleProbe(
+                executablePath,
+                "--capabilities",
+                TimeSpan.FromMilliseconds(ProbeTimeoutMilliseconds),
+                "Capabilities probe timed out.");
+            if (result.ExitCode != 0)
+            {
+                return null;
+            }
+
+            var output = string.Concat(
+                result.StandardOutput,
+                Environment.NewLine,
+                result.StandardError).Trim();
+            if (string.IsNullOrWhiteSpace(output))
+            {
+                return null;
+            }
+
+            using var document = JsonDocument.Parse(output);
+            var root = document.RootElement;
+            if (!root.TryGetProperty("supported_metrics", out var supportedMetrics)
+                || supportedMetrics.ValueKind != JsonValueKind.Array
+                || !root.TryGetProperty("supported_encoders", out var supportedEncoders)
+                || supportedEncoders.ValueKind != JsonValueKind.Array)
+            {
+                return null;
+            }
+
+            var protocol = root.TryGetProperty("protocol", out var protocolProperty) && protocolProperty.TryGetInt32(out var parsedProtocol)
+                ? parsedProtocol
+                : 0;
+            var backendVersion = root.TryGetProperty("backend_version", out var backendVersionProperty)
+                ? backendVersionProperty.GetString() ?? string.Empty
+                : string.Empty;
+
+            return new Av1anCapabilitiesSnapshot(
+                protocol,
+                backendVersion,
+                ParseSupportedMetrics(supportedMetrics),
+                ParseSupportedEncoders(supportedEncoders),
+                ParseStringArray(root, "interp_methods"),
+                ParseStringArray(root, "probing_stats"));
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    private static IReadOnlyList<AutoCompressionMetric> ParseSupportedMetrics(JsonElement metricsElement)
+    {
+        var result = new List<AutoCompressionMetric>();
+        foreach (var item in metricsElement.EnumerateArray())
+        {
+            var value = item.GetString();
+            if (string.IsNullOrWhiteSpace(value))
+            {
+                continue;
+            }
+
+            if (TryMapMetric(value, out var metric))
+            {
+                result.Add(metric);
+            }
+        }
+
+        return result;
+    }
+
+    private static IReadOnlyList<EncoderKind> ParseSupportedEncoders(JsonElement encodersElement)
+    {
+        var result = new List<EncoderKind>();
+        foreach (var item in encodersElement.EnumerateArray())
+        {
+            var value = item.GetString();
+            if (string.IsNullOrWhiteSpace(value))
+            {
+                continue;
+            }
+
+            if (TryMapEncoder(value, out var encoder))
+            {
+                result.Add(encoder);
+            }
+        }
+
+        return result;
+    }
+
+    private static IReadOnlyList<string> ParseStringArray(JsonElement root, string propertyName)
+    {
+        if (!root.TryGetProperty(propertyName, out var value) || value.ValueKind != JsonValueKind.Array)
+        {
+            return [];
+        }
+
+        return value
+            .EnumerateArray()
+            .Select(static item => item.GetString())
+            .Where(static item => !string.IsNullOrWhiteSpace(item))
+            .Cast<string>()
+            .ToList();
+    }
+
+    private static bool TryMapMetric(string raw, out AutoCompressionMetric metric)
+    {
+        switch (raw.Trim().ToLowerInvariant())
+        {
+            case "vmaf":
+                metric = AutoCompressionMetric.Vmaf;
+                return true;
+            case "ssimulacra2":
+                metric = AutoCompressionMetric.Ssimulacra2;
+                return true;
+            case "butteraugli-inf":
+                metric = AutoCompressionMetric.ButteraugliInf;
+                return true;
+            case "butteraugli-3":
+                metric = AutoCompressionMetric.Butteraugli3;
+                return true;
+            case "xpsnr":
+                metric = AutoCompressionMetric.Xpsnr;
+                return true;
+            case "xpsnr-weighted":
+                metric = AutoCompressionMetric.XpsnrWeighted;
+                return true;
+            default:
+                metric = default;
+                return false;
+        }
+    }
+
+    private static bool TryMapEncoder(string raw, out EncoderKind encoder)
+    {
+        switch (raw.Trim().ToLowerInvariant())
+        {
+            case "x264":
+                encoder = EncoderKind.X264;
+                return true;
+            case "x265":
+                encoder = EncoderKind.X265;
+                return true;
+            case "svt-av1":
+                encoder = EncoderKind.SvtAv1;
+                return true;
+            default:
+                encoder = default;
+                return false;
+        }
+    }
+
+    private static ProcessProbeResult RunSimpleProbe(
+        string executablePath,
+        string arguments,
+        TimeSpan timeout,
+        string timeoutMessage)
+    {
+        var startInfo = new ProcessStartInfo
+        {
+            FileName = executablePath,
+            Arguments = arguments,
+            UseShellExecute = false,
+            RedirectStandardOutput = true,
+            RedirectStandardError = true,
+            CreateNoWindow = true,
+            WorkingDirectory = Path.GetDirectoryName(executablePath) ?? AppContext.BaseDirectory
+        };
+
+        VapourSynthRuntimePathResolver.EnrichProcessPath(startInfo);
+
+        using var _ = ErrorDialogSuppression.Enter();
+        return ProcessProbeRunner.Run(startInfo, timeout, timeoutMessage);
     }
 
     private ToolProbeResult CreateMissingResult(ToolDefinition definition)
