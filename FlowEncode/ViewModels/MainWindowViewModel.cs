@@ -2474,14 +2474,10 @@ public partial class MainWindowViewModel : CommunityToolkit.Mvvm.ComponentModel.
     private void RefreshAutoCompressionMetricOptionsFromEnvironment(EnvironmentReadinessReport report)
     {
         var av1an = report.Tools.FirstOrDefault(tool => tool.Kind == RegisteredToolKind.Av1an);
-        if (av1an is null || !av1an.IsProtocolCompatible)
-        {
-            return;
-        }
-
-        var capabilityOptions = av1an.Av1anCapabilities is { SupportedMetrics.Count: > 0 } capabilities
-            ? BuildAutoCompressionMetricOptions(capabilities.SupportedMetrics)
-            : BuildAutoCompressionMetricOptions();
+        var capabilityOptions = av1an?.IsProtocolCompatible == true
+            && av1an.Av1anCapabilities is { SupportedMetrics.Count: > 0 } capabilities
+                ? BuildAutoCompressionMetricOptions(capabilities.SupportedMetrics)
+                : BuildAutoCompressionMetricOptions();
         ReplaceItems(AutoCompressionMetricOptions, capabilityOptions);
         _selectedAutoCompressionMetricOption = AutoCompressionMetricOptions.FirstOrDefault(option => option.Value == AutoCompressionMetric)
             ?? AutoCompressionMetricOptions.FirstOrDefault();
@@ -2515,6 +2511,17 @@ public partial class MainWindowViewModel : CommunityToolkit.Mvvm.ComponentModel.
 
     private string BuildToolProbeDetail(ToolProbeResult result)
     {
+        if (result.Kind == RegisteredToolKind.Av1an && !string.IsNullOrWhiteSpace(result.BackendCompatibilityDetail))
+        {
+            var sourceLabel = Texts.ToolDetectionSourceLabel(result.Source, result.SourceLabel);
+            var versionLabel = string.IsNullOrWhiteSpace(result.DetectedVersion)
+                ? sourceLabel
+                : $"{sourceLabel} · {result.DetectedVersion}";
+            return string.IsNullOrWhiteSpace(versionLabel)
+                ? result.BackendCompatibilityDetail
+                : $"{versionLabel} · {result.BackendCompatibilityDetail}";
+        }
+
         return result.State switch
         {
             ReadinessState.Ready when !string.IsNullOrWhiteSpace(result.DetectedVersion) =>

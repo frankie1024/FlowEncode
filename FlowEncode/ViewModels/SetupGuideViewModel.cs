@@ -1097,6 +1097,39 @@ public sealed class SetupGuideViewModel : ObservableObject, ISetupDependencyModu
         bool installSupported = true)
     {
         var result = GetToolResult(toolKind);
+        if (toolKind == RegisteredToolKind.Av1an)
+        {
+            var effectiveState = result.State == ReadinessState.Ready && !result.IsProtocolCompatible
+                ? ReadinessState.Partial
+                : result.State;
+            var compatibilityDetail = result.State switch
+            {
+                ReadinessState.Ready when result.IsProtocolCompatible => "Protocol compatible",
+                ReadinessState.Ready => "Executable detected, protocol compatibility pending",
+                _ => result.BackendCompatibilityDetail
+            };
+            var detail = string.IsNullOrWhiteSpace(result.DetectedVersion)
+                ? compatibilityDetail
+                : string.IsNullOrWhiteSpace(compatibilityDetail)
+                    ? result.DetectedVersion
+                    : $"{result.DetectedVersion} · {compatibilityDetail}";
+
+            return new SetupDependencyStatus(
+                dependencyKind,
+                effectiveState,
+                result.DetectedVersion,
+                string.Empty,
+                false,
+                result.ExecutablePath,
+                result.ReleaseUrl,
+                installSupported,
+                isInstallEnabled,
+                detail,
+                result.IsProtocolCompatible,
+                result.ProtocolVersion,
+                compatibilityDetail);
+        }
+
         return new SetupDependencyStatus(
             dependencyKind,
             result.State,
@@ -1767,6 +1800,17 @@ public sealed class SetupGuideViewModel : ObservableObject, ISetupDependencyModu
 
     private string BuildToolProbeDetail(ToolProbeResult result)
     {
+        if (result.Kind == RegisteredToolKind.Av1an && !string.IsNullOrWhiteSpace(result.BackendCompatibilityDetail))
+        {
+            var sourceLabel = Texts.ToolDetectionSourceLabel(result.Source, result.SourceLabel);
+            var versionLabel = string.IsNullOrWhiteSpace(result.DetectedVersion)
+                ? sourceLabel
+                : $"{sourceLabel} · {result.DetectedVersion}";
+            return string.IsNullOrWhiteSpace(versionLabel)
+                ? result.BackendCompatibilityDetail
+                : $"{versionLabel} · {result.BackendCompatibilityDetail}";
+        }
+
         return result.State switch
         {
             ReadinessState.Ready when !string.IsNullOrWhiteSpace(result.DetectedVersion) =>

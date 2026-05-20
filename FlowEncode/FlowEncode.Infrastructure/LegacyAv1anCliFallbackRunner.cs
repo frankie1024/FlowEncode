@@ -34,7 +34,7 @@ public sealed class LegacyAv1anCliFallbackRunner : IAutoCompressionRunner
     public string BuildDisplayCommand(AutoCompressionRequest request)
     {
         var av1anPath = _toolLocator.ResolveAv1an();
-        var arguments = BuildArgumentParts(request, GetTempDirectory(request));
+        var arguments = BuildArgumentParts(request, GetTempDirectory(request), GetLanguage());
         return $"{Quote(av1anPath)} {CommandLineDisplay.JoinArguments(arguments)}";
     }
 
@@ -58,13 +58,13 @@ public sealed class LegacyAv1anCliFallbackRunner : IAutoCompressionRunner
         }
 
         var av1anPath = _toolLocator.ResolveAv1an();
-        await EnsureAv1anRuntimeReadyAsync(av1anPath, cancellationToken);
+        await EnsureAv1anRuntimeReadyAsync(av1anPath, language, cancellationToken);
         var tempDirectory = GetTempDirectory(request);
         Directory.CreateDirectory(tempDirectory);
         var stagedOutputPath = CreateStagedOutputPath(request, tempDirectory);
         var executionRequest = request with { OutputPath = stagedOutputPath };
-        var arguments = BuildArgumentParts(executionRequest, tempDirectory);
-        var displayCommand = $"{Quote(av1anPath)} {CommandLineDisplay.JoinArguments(BuildArgumentParts(request, tempDirectory))}";
+        var arguments = BuildArgumentParts(executionRequest, tempDirectory, language);
+        var displayCommand = $"{Quote(av1anPath)} {CommandLineDisplay.JoinArguments(BuildArgumentParts(request, tempDirectory, language))}";
         var logBuilder = new StringBuilder();
         var outputDirectory = Path.GetDirectoryName(request.OutputPath);
         if (!string.IsNullOrWhiteSpace(outputDirectory))
@@ -252,22 +252,26 @@ public sealed class LegacyAv1anCliFallbackRunner : IAutoCompressionRunner
             _activeExecutions.TryRemove(request.JobId, out _);
             activeExecution?.Dispose();
             PromoteStagedOutputFile(stagedOutputPath, request.OutputPath, finalExitCode);
-            CleanupPartialOutputFile(request, finalExitCode);
-            CleanupJobTempDirectory(request);
+            CleanupPartialOutputFile(request, finalExitCode, WriteDiagnostic);
+            CleanupJobTempDirectory(request, WriteDiagnostic);
         }
     }
 
-    private IReadOnlyList<string> BuildArgumentParts(AutoCompressionRequest request, string tempDirectory)
+    internal static IReadOnlyList<string> BuildArgumentParts(
+        AutoCompressionRequest request,
+        string tempDirectory,
+        AppLanguage language,
+        bool useStructuredProgress = false)
     {
         if (request.Probes <= 0)
         {
-            throw new InvalidOperationException(T(GetLanguage(), "The probe count must be greater than 0.", "探测次数必须大于 0。"));
+            throw new InvalidOperationException(T(language, "The probe count must be greater than 0.", "探测次数必须大于 0。"));
         }
 
         if (!string.IsNullOrWhiteSpace(request.VideoParameters)
             && (request.VideoParameters.Contains('\r') || request.VideoParameters.Contains('\n')))
         {
-            throw new InvalidOperationException(T(GetLanguage(), "Fine parameters must be a single line.", "小参不支持换行，请使用单行参数。"));
+            throw new InvalidOperationException(T(language, "Fine parameters must be a single line.", "小参不支持换行，请使用单行参数。"));
         }
 
         var args = new List<string>
@@ -280,7 +284,7 @@ public sealed class LegacyAv1anCliFallbackRunner : IAutoCompressionRunner
             "--temp",
             tempDirectory,
             "--encoder",
-            MapEncoder(request.EncoderKind),
+            MapEncoder(request.EncoderKind, language),
             "--target-metric",
             MapMetric(request.Metric),
             "--target-quality",
@@ -288,6 +292,12 @@ public sealed class LegacyAv1anCliFallbackRunner : IAutoCompressionRunner
             "--probes",
             request.Probes.ToString(CultureInfo.InvariantCulture)
         };
+
+        if (useStructuredProgress)
+        {
+            args.Add("--progress-format");
+            args.Add("jsonl");
+        }
 
         if (request.Workers is > 0)
         {
@@ -319,7 +329,7 @@ public sealed class LegacyAv1anCliFallbackRunner : IAutoCompressionRunner
             args.Add(searchProfile.ProbingRate.ToString(CultureInfo.InvariantCulture));
         }
 
-        if (request.SearchProfile?.ScoutEnabled == true)
+        if (!useStructuredProgress && request.SearchProfile?.ScoutEnabled == true)
         {
             // Placeholder until the fork implements scout explicitly.
             args.Add("--probe-slow");
@@ -334,7 +344,7 @@ public sealed class LegacyAv1anCliFallbackRunner : IAutoCompressionRunner
         return args;
     }
 
-    private static string GetTempDirectory(AutoCompressionRequest request)
+    internal static string GetTempDirectory(AutoCompressionRequest request)
     {
         var outputDirectory = Path.GetDirectoryName(request.OutputPath);
         var baseDirectory = string.IsNullOrWhiteSpace(outputDirectory)
@@ -343,24 +353,24 @@ public sealed class LegacyAv1anCliFallbackRunner : IAutoCompressionRunner
         return Path.Combine(baseDirectory, TempWorkspaceFolderName, "av1an", request.JobId.ToString("N"));
     }
 
-    private static string CreateStagedOutputPath(AutoCompressionRequest request, string tempDirectory)
+    internal static string CreateStagedOutputPath(AutoCompressionRequest request, string tempDirectory)
     {
         var fileName = Path.GetFileName(request.OutputPath);
         return Path.Combine(tempDirectory, fileName);
     }
 
-    private void CleanupJobTempDirectory(AutoCompressionRequest request)
+    internal static void CleanupJobTempDirectory(AutoCompressionRequest request, Action<string> writeDiagnostic)
     {
         var jobTempDirectory = GetTempDirectory(request);
         BestEffortCleanup.DeleteDirectoryRecursively(
             jobTempDirectory,
             $"auto compression temp directory '{jobTempDirectory}'",
-            WriteDiagnostic);
-        BestEffortCleanup.DeleteDirectoryIfEmpty(Path.GetDirectoryName(jobTempDirectory), WriteDiagnostic);
-        BestEffortCleanup.DeleteDirectoryIfEmpty(Path.GetDirectoryName(Path.GetDirectoryName(jobTempDirectory)), WriteDiagnostic);
+            writeDiagnostic);
+        BestEffortCleanup.DeleteDirectoryIfEmpty(Path.GetDirectoryName(jobTempDirectory), writeDiagnostic);
+        BestEffortCleanup.DeleteDirectoryIfEmpty(Path.GetDirectoryName(Path.GetDirectoryName(jobTempDirectory)), writeDiagnostic);
     }
 
-    private void CleanupPartialOutputFile(AutoCompressionRequest request, int exitCode)
+    internal static void CleanupPartialOutputFile(AutoCompressionRequest request, int exitCode, Action<string> writeDiagnostic)
     {
         if (exitCode == 0)
         {
@@ -370,10 +380,10 @@ public sealed class LegacyAv1anCliFallbackRunner : IAutoCompressionRunner
         BestEffortCleanup.DeleteFileIfZeroLength(
             request.OutputPath,
             $"auto compression partial output '{request.OutputPath}'",
-            WriteDiagnostic);
+            writeDiagnostic);
     }
 
-    private void PromoteStagedOutputFile(string stagedOutputPath, string finalOutputPath, int exitCode)
+    internal static void PromoteStagedOutputFile(string stagedOutputPath, string finalOutputPath, int exitCode)
     {
         if (exitCode != 0 || !File.Exists(stagedOutputPath))
         {
@@ -399,18 +409,18 @@ public sealed class LegacyAv1anCliFallbackRunner : IAutoCompressionRunner
         AppDiagnosticsLog.Write(_appPaths, nameof(LegacyAv1anCliFallbackRunner), message);
     }
 
-    private string MapEncoder(EncoderKind kind)
+    internal static string MapEncoder(EncoderKind kind, AppLanguage language)
     {
         return kind switch
         {
             EncoderKind.X264 => "x264",
             EncoderKind.X265 => "x265",
             EncoderKind.SvtAv1 => "svt-av1",
-            _ => throw new InvalidOperationException(T(GetLanguage(), $"Unsupported encoder: {kind}", $"不支持的编码器: {kind}"))
+            _ => throw new InvalidOperationException(T(language, $"Unsupported encoder: {kind}", $"不支持的编码器: {kind}"))
         };
     }
 
-    private static string MapMetric(AutoCompressionMetric metric)
+    internal static string MapMetric(AutoCompressionMetric metric)
     {
         return metric switch
         {
@@ -424,7 +434,7 @@ public sealed class LegacyAv1anCliFallbackRunner : IAutoCompressionRunner
         };
     }
 
-    private static Process CreateProcess(string fileName, IReadOnlyList<string> arguments)
+    internal static Process CreateProcess(string fileName, IReadOnlyList<string> arguments)
     {
         var startInfo = new ProcessStartInfo
         {
@@ -624,7 +634,7 @@ public sealed class LegacyAv1anCliFallbackRunner : IAutoCompressionRunner
             : line;
     }
 
-    private static void AppendVisibleLogLine(StringBuilder builder, string line)
+    internal static void AppendVisibleLogLine(StringBuilder builder, string line)
     {
         if (builder.Length > 0)
         {
@@ -661,7 +671,7 @@ public sealed class LegacyAv1anCliFallbackRunner : IAutoCompressionRunner
         }
     }
 
-    private static string LastMeaningfulLine(string log)
+    internal static string LastMeaningfulLine(string log)
     {
         return log
             .Split(['\r', '\n'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
@@ -669,7 +679,7 @@ public sealed class LegacyAv1anCliFallbackRunner : IAutoCompressionRunner
             ?? string.Empty;
     }
 
-    private static string Quote(string value)
+    internal static string Quote(string value)
     {
         return $"\"{value.Replace("\"", "\\\"")}\"";
     }
@@ -689,7 +699,7 @@ public sealed class LegacyAv1anCliFallbackRunner : IAutoCompressionRunner
         }
     }
 
-    private async Task EnsureAv1anRuntimeReadyAsync(string av1anPath, CancellationToken cancellationToken)
+    internal static async Task EnsureAv1anRuntimeReadyAsync(string av1anPath, AppLanguage language, CancellationToken cancellationToken)
     {
         using var process = CreateProcess(av1anPath, ["--version"]);
         using (ErrorDialogSuppression.Enter())
@@ -708,13 +718,12 @@ public sealed class LegacyAv1anCliFallbackRunner : IAutoCompressionRunner
             return;
         }
 
-        var message = BuildRuntimeFailureMessage(process.ExitCode, output, error);
+        var message = BuildRuntimeFailureMessage(language, process.ExitCode, output, error);
         throw new InvalidOperationException(message);
     }
 
-    private string BuildRuntimeFailureMessage(int exitCode, string output, string error)
+    internal static string BuildRuntimeFailureMessage(AppLanguage language, int exitCode, string output, string error)
     {
-        var language = GetLanguage();
         var stderr = (error ?? string.Empty).Trim();
         var stdout = (output ?? string.Empty).Trim();
         var merged = string.IsNullOrWhiteSpace(stderr)
