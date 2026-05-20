@@ -58,11 +58,12 @@ public sealed class LocalEncodingJobRunner : IEncodingJobRunner
     {
         var language = GetLanguage();
         var encoderPath = ResolveEncoderPath(request);
+        var stagedOutputPath = CreateStagedOutputPath(request);
         var visibleLogBuilder = new StringBuilder();
         var currentState = EncodingJobState.Running;
         var progressDispatchState = new ProgressDispatchState(DateTimeOffset.UtcNow, 0.0, 0, string.Empty);
         var pipelineKind = ResolvePipelineKind(request);
-        var outputDirectory = Path.GetDirectoryName(request.OutputPath);
+        var outputDirectory = Path.GetDirectoryName(stagedOutputPath);
         var rawLogPath = CreateTemporaryRawLogPath(request);
         var lineGate = new object();
         var rawLogWriter = EncodingJobLogWriter.CreateRawLogWriter(rawLogPath);
@@ -75,6 +76,7 @@ public sealed class LocalEncodingJobRunner : IEncodingJobRunner
         Process? activeSourceProcess = null;
         ManagedProcessExecution? activeExecution = null;
         EncodingExecutionPlan? plan = null;
+        var displayCommand = string.Empty;
 
         if (!string.IsNullOrWhiteSpace(outputDirectory))
         {
@@ -155,21 +157,26 @@ public sealed class LocalEncodingJobRunner : IEncodingJobRunner
                 includeSourceMetadata: true,
                 pipelineKind,
                 pipelineKind == InputPipelineKind.VapourSynth ? ReportSourceProbeProgress : null,
-                cancellationToken);
+                cancellationToken,
+                outputPathOverride: stagedOutputPath);
+            displayCommand = ResolveDisplayCommand(plan.DisplayCommand, stagedOutputPath, request.OutputPath);
 
             progress?.Report(new EncodingJobProgress(
                 request.JobId,
                 EncodingJobState.Running,
                 0.0,
                 BuildStageStartingSummary(language, plan.Steps[0]),
-                plan.DisplayCommand,
+                displayCommand,
                 BuildInitialSnapshot(plan)));
 
             foreach (var step in plan.Steps)
             {
                 cancellationToken.ThrowIfCancellationRequested();
 
-                EncodingJobLogWriter.AppendStageHeader(step, rawLogWriter, visibleLogBuilder);
+                EncodingJobLogWriter.AppendStageHeader(
+                    step with { DisplayCommand = ResolveDisplayCommand(step.DisplayCommand, stagedOutputPath, request.OutputPath) },
+                    rawLogWriter,
+                    visibleLogBuilder);
                 progress?.Report(new EncodingJobProgress(
                     request.JobId,
                     EncodingJobState.Running,
@@ -406,7 +413,7 @@ public sealed class LocalEncodingJobRunner : IEncodingJobRunner
                     var failedSummary = BuildStageFailureSummary(language, step, exitCode, sourceExitCode);
                     var failedVisibleLog = visibleLogBuilder.ToString();
                     await CloseRawLogWriterAsync();
-                    var failedSidecarLogPath = await _logWriter.WriteSidecarLogAsync(request, plan.DisplayCommand, currentState, effectiveExitCode, rawLogPath);
+                    var failedSidecarLogPath = await _logWriter.WriteSidecarLogAsync(request, displayCommand, currentState, effectiveExitCode, rawLogPath);
 
                     progress?.Report(new EncodingJobProgress(
                         request.JobId,
@@ -425,11 +432,12 @@ public sealed class LocalEncodingJobRunner : IEncodingJobRunner
                 }
             }
 
+            FinalizeOutputFile(stagedOutputPath, request.OutputPath, request.JobId);
             currentState = EncodingJobState.Completed;
             var summary = T(language, "Encoding completed", "编码完成");
             var visibleLog = visibleLogBuilder.ToString();
             await CloseRawLogWriterAsync();
-            var sidecarLogPath = await _logWriter.WriteSidecarLogAsync(request, plan.DisplayCommand, currentState, 0, rawLogPath);
+            var sidecarLogPath = await _logWriter.WriteSidecarLogAsync(request, displayCommand, currentState, 0, rawLogPath);
 
             progress?.Report(new EncodingJobProgress(
                 request.JobId,
@@ -478,7 +486,7 @@ public sealed class LocalEncodingJobRunner : IEncodingJobRunner
             }
 
             await CloseRawLogWriterAsync();
-            var cancelledLogPath = await _logWriter.WriteSidecarLogAsync(request, plan?.DisplayCommand ?? string.Empty, currentState, -1, rawLogPath);
+            var cancelledLogPath = await _logWriter.WriteSidecarLogAsync(request, displayCommand, currentState, -1, rawLogPath);
             return new EncodingJobResult(
                 request.JobId,
                 currentState,
@@ -493,7 +501,7 @@ public sealed class LocalEncodingJobRunner : IEncodingJobRunner
             activeExecution?.Dispose();
             activeSourceProcess?.Dispose();
             CleanupPlanArtifacts(plan);
-            CleanupPartialOutputFile(request, currentState);
+            CleanupStagedOutput(stagedOutputPath, request.OutputPath, request.JobId);
 
             if (!rawLogWriterClosed)
             {
@@ -531,7 +539,8 @@ public sealed class LocalEncodingJobRunner : IEncodingJobRunner
         InputPipelineKind? pipelineKindOverride = null,
         Action<string>? sourceProbeProgress = null,
         CancellationToken cancellationToken = default,
-        bool allowCachedSourceInfo = false)
+        bool allowCachedSourceInfo = false,
+        string? outputPathOverride = null)
     {
         var profile = request.Profile;
         var pipelineKind = pipelineKindOverride ?? ResolvePipelineKind(request);
@@ -547,7 +556,7 @@ public sealed class LocalEncodingJobRunner : IEncodingJobRunner
         var statsPath = profile.RateControl == RateControlMode.TwoPass
             ? BuildMultipassStatsPath(request, profile.Kind)
             : null;
-        return _commandBuilder.BuildPlan(request, encoderPath, pipelineKind, sourceInfo, statsPath);
+        return _commandBuilder.BuildPlan(request, encoderPath, pipelineKind, sourceInfo, statsPath, outputPathOverride);
     }
 
     private static EncodingProgressSnapshot? BuildInitialSnapshot(EncodingExecutionPlan plan)
@@ -945,16 +954,32 @@ public sealed class LocalEncodingJobRunner : IEncodingJobRunner
         }
     }
 
-    private void CleanupPartialOutputFile(EncodingJobRequest request, EncodingJobState state)
+    private static string CreateStagedOutputPath(EncodingJobRequest request)
     {
-        if (state == EncodingJobState.Completed)
-        {
-            return;
-        }
+        return ExecutionOutputStaging.CreateStagedFilePath(GetJobTempDirectory(request), request.OutputPath, request.JobId);
+    }
 
-        BestEffortCleanup.DeleteFileIfZeroLength(
-            request.OutputPath,
-            $"partial output '{request.OutputPath}'",
+    private void FinalizeOutputFile(string stagedOutputPath, string finalOutputPath, Guid jobId)
+    {
+        try
+        {
+            ExecutionOutputStaging.FinalizeFile(stagedOutputPath, finalOutputPath, jobId);
+        }
+        catch (IOException ex)
+        {
+            throw new InvalidOperationException(T(
+                GetLanguage(),
+                $"Encoding completed but the output file could not be finalized: {finalOutputPath}",
+                $"编码已完成，但无法完成输出文件落盘：{finalOutputPath}"), ex);
+        }
+    }
+
+    private void CleanupStagedOutput(string stagedOutputPath, string finalOutputPath, Guid jobId)
+    {
+        ExecutionOutputStaging.CleanupStagedFile(
+            stagedOutputPath,
+            finalOutputPath,
+            jobId,
             WriteDiagnostic);
     }
 
@@ -984,6 +1009,13 @@ public sealed class LocalEncodingJobRunner : IEncodingJobRunner
 
         var rootDirectory = Path.GetDirectoryName(jobTempDirectory);
         BestEffortCleanup.DeleteDirectoryIfEmpty(rootDirectory, WriteDiagnostic);
+    }
+
+    private static string ResolveDisplayCommand(string command, string stagedOutputPath, string finalOutputPath)
+    {
+        return string.IsNullOrWhiteSpace(command)
+            ? string.Empty
+            : command.Replace(stagedOutputPath, finalOutputPath, StringComparison.Ordinal);
     }
 
     private void WriteDiagnostic(string message)

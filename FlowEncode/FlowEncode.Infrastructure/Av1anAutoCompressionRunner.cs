@@ -34,8 +34,8 @@ public sealed class Av1anAutoCompressionRunner : IAutoCompressionRunner
     public string BuildDisplayCommand(AutoCompressionRequest request)
     {
         var av1anPath = _toolLocator.ResolveAv1an();
-        var arguments = BuildArguments(request, GetTempDirectory(request));
-        return $"{Quote(av1anPath)} {arguments}";
+        var arguments = BuildArgumentParts(request, GetTempDirectory(request));
+        return $"{Quote(av1anPath)} {CommandLineDisplay.JoinArguments(arguments)}";
     }
 
     public void Abort(Guid jobId)
@@ -61,8 +61,10 @@ public sealed class Av1anAutoCompressionRunner : IAutoCompressionRunner
         await EnsureAv1anRuntimeReadyAsync(av1anPath, cancellationToken);
         var tempDirectory = GetTempDirectory(request);
         Directory.CreateDirectory(tempDirectory);
-        var arguments = BuildArguments(request, tempDirectory);
-        var displayCommand = $"{Quote(av1anPath)} {arguments}";
+        var stagedOutputPath = CreateStagedOutputPath(request, tempDirectory);
+        var executionRequest = request with { OutputPath = stagedOutputPath };
+        var arguments = BuildArgumentParts(executionRequest, tempDirectory);
+        var displayCommand = $"{Quote(av1anPath)} {CommandLineDisplay.JoinArguments(BuildArgumentParts(request, tempDirectory))}";
         var logBuilder = new StringBuilder();
         var outputDirectory = Path.GetDirectoryName(request.OutputPath);
         if (!string.IsNullOrWhiteSpace(outputDirectory))
@@ -179,6 +181,8 @@ public sealed class Av1anAutoCompressionRunner : IAutoCompressionRunner
             var log = logBuilder.ToString();
             if (finalExitCode == 0)
             {
+                FinalizeOutputFile(executionRequest.OutputPath, request.OutputPath, request.JobId);
+
                 progress?.Report(new AutoCompressionProgress(
                     request.JobId,
                     EncodingJobState.Completed,
@@ -243,12 +247,16 @@ public sealed class Av1anAutoCompressionRunner : IAutoCompressionRunner
         {
             _activeExecutions.TryRemove(request.JobId, out _);
             activeExecution?.Dispose();
-            CleanupPartialOutputFile(request, finalExitCode);
+            ExecutionOutputStaging.CleanupStagedFile(
+                stagedOutputPath,
+                request.OutputPath,
+                request.JobId,
+                WriteDiagnostic);
             CleanupJobTempDirectory(request);
         }
     }
 
-    private string BuildArguments(AutoCompressionRequest request, string tempDirectory)
+    private IReadOnlyList<string> BuildArgumentParts(AutoCompressionRequest request, string tempDirectory)
     {
         if (request.Probes <= 0)
         {
@@ -268,27 +276,35 @@ public sealed class Av1anAutoCompressionRunner : IAutoCompressionRunner
 
         var args = new List<string>
         {
-            $"-i {Quote(request.SourcePath)}",
-            $"-o {Quote(request.OutputPath)}",
+            "-i",
+            request.SourcePath,
+            "-o",
+            request.OutputPath,
             "-y",
-            $"--temp {Quote(tempDirectory)}",
-            $"--encoder {MapEncoder(request.EncoderKind)}",
+            "--temp",
+            tempDirectory,
+            "--encoder",
+            MapEncoder(request.EncoderKind),
             "--target-metric vmaf",
-            $"--target-quality {request.TargetVmaf.ToString("0.###", CultureInfo.InvariantCulture)}",
-            $"--probes {request.Probes.ToString(CultureInfo.InvariantCulture)}"
+            "--target-quality",
+            request.TargetVmaf.ToString("0.###", CultureInfo.InvariantCulture),
+            "--probes",
+            request.Probes.ToString(CultureInfo.InvariantCulture)
         };
 
         if (request.Workers is > 0)
         {
-            args.Add($"--workers {request.Workers.Value.ToString(CultureInfo.InvariantCulture)}");
+            args.Add("--workers");
+            args.Add(request.Workers.Value.ToString(CultureInfo.InvariantCulture));
         }
 
         if (!string.IsNullOrWhiteSpace(request.VideoParameters))
         {
-            args.Add($"--video-params {Quote(request.VideoParameters.Trim())}");
+            args.Add("--video-params");
+            args.Add(request.VideoParameters.Trim());
         }
 
-        return string.Join(" ", args);
+        return args;
     }
 
     private static string GetTempDirectory(AutoCompressionRequest request)
@@ -300,6 +316,11 @@ public sealed class Av1anAutoCompressionRunner : IAutoCompressionRunner
         return Path.Combine(baseDirectory, TempWorkspaceFolderName, "av1an", request.JobId.ToString("N"));
     }
 
+    private static string CreateStagedOutputPath(AutoCompressionRequest request, string tempDirectory)
+    {
+        return ExecutionOutputStaging.CreateStagedFilePath(tempDirectory, request.OutputPath, request.JobId);
+    }
+
     private void CleanupJobTempDirectory(AutoCompressionRequest request)
     {
         var jobTempDirectory = GetTempDirectory(request);
@@ -309,19 +330,6 @@ public sealed class Av1anAutoCompressionRunner : IAutoCompressionRunner
             WriteDiagnostic);
         BestEffortCleanup.DeleteDirectoryIfEmpty(Path.GetDirectoryName(jobTempDirectory), WriteDiagnostic);
         BestEffortCleanup.DeleteDirectoryIfEmpty(Path.GetDirectoryName(Path.GetDirectoryName(jobTempDirectory)), WriteDiagnostic);
-    }
-
-    private void CleanupPartialOutputFile(AutoCompressionRequest request, int exitCode)
-    {
-        if (exitCode == 0)
-        {
-            return;
-        }
-
-        BestEffortCleanup.DeleteFileIfZeroLength(
-            request.OutputPath,
-            $"auto compression partial output '{request.OutputPath}'",
-            WriteDiagnostic);
     }
 
     private void WriteDiagnostic(string message)
@@ -340,18 +348,37 @@ public sealed class Av1anAutoCompressionRunner : IAutoCompressionRunner
         };
     }
 
-    private static Process CreateProcess(string fileName, string arguments)
+    private static void FinalizeOutputFile(string stagedOutputPath, string finalOutputPath, Guid jobId)
+    {
+        try
+        {
+            ExecutionOutputStaging.FinalizeFile(stagedOutputPath, finalOutputPath, jobId);
+        }
+        catch (IOException ex)
+        {
+            throw new InvalidOperationException(
+                $"Auto compression completed but failed to finalize the output file '{finalOutputPath}'. {ex.Message}",
+                ex);
+        }
+    }
+
+    private static Process CreateProcess(string fileName, IReadOnlyList<string> arguments)
     {
         var startInfo = new ProcessStartInfo
         {
             FileName = fileName,
-            Arguments = arguments,
             UseShellExecute = false,
             RedirectStandardOutput = true,
             RedirectStandardError = true,
             CreateNoWindow = true,
             WorkingDirectory = Path.GetDirectoryName(fileName) ?? AppContext.BaseDirectory
         };
+
+        foreach (var argument in arguments)
+        {
+            startInfo.ArgumentList.Add(argument);
+        }
+
         VapourSynthRuntimePathResolver.EnrichProcessPath(startInfo);
 
         return new Process
@@ -567,7 +594,7 @@ public sealed class Av1anAutoCompressionRunner : IAutoCompressionRunner
 
     private static string Quote(string value)
     {
-        return $"\"{value.Replace("\"", "\\\"")}\"";
+        return CommandLineDisplay.Quote(value);
     }
 
     private static void FlushConsoleSegment(StringBuilder segmentBuilder, Action<string> onLine)
@@ -587,7 +614,7 @@ public sealed class Av1anAutoCompressionRunner : IAutoCompressionRunner
 
     private async Task EnsureAv1anRuntimeReadyAsync(string av1anPath, CancellationToken cancellationToken)
     {
-        using var process = CreateProcess(av1anPath, "--version");
+        using var process = CreateProcess(av1anPath, ["--version"]);
         using (ErrorDialogSuppression.Enter())
         {
             process.Start();

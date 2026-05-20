@@ -8,6 +8,7 @@ namespace FlowEncode.Infrastructure;
 
 public abstract class CliBluRayDemuxBackendAdapterBase : IBluRayDemuxBackendAdapter
 {
+    private const string TempWorkspaceFolderName = ".flowencode-temp";
     private const int MaxLogLength = 240_000;
     private readonly IToolProbeService _toolProbeService;
     private readonly ConcurrentDictionary<Guid, ManagedProcessExecution> _activeExecutions = new();
@@ -201,7 +202,16 @@ public abstract class CliBluRayDemuxBackendAdapterBase : IBluRayDemuxBackendAdap
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
             activeExecution?.Terminate();
-            await Task.WhenAll(pumpOutput, pumpError);
+
+            try
+            {
+                await Task.WhenAll(pumpOutput, pumpError);
+            }
+            catch (OperationCanceledException)
+            {
+                // Expected while draining cancelled process output.
+            }
+
             hasExitCode = TryGetExitCode(process, out exitCode);
 
             var cancelledLog = logBuilder.ToString().Trim();
@@ -300,6 +310,21 @@ public abstract class CliBluRayDemuxBackendAdapterBase : IBluRayDemuxBackendAdap
     protected static string Quote(string value)
     {
         return $"\"{value.Replace("\"", "\\\"", StringComparison.Ordinal)}\"";
+    }
+
+    protected static string CreateStagedOutputDirectory(string finalOutputDirectory, string scope, Guid jobId)
+    {
+        var baseDirectory = string.IsNullOrWhiteSpace(finalOutputDirectory)
+            ? Environment.CurrentDirectory
+            : (Path.GetDirectoryName(finalOutputDirectory) ?? Environment.CurrentDirectory);
+        return Path.Combine(baseDirectory, TempWorkspaceFolderName, scope, jobId.ToString("N"));
+    }
+
+    protected static void CleanupStagedOutputDirectory(string stagedOutputDirectory)
+    {
+        ExecutionOutputStaging.CleanupStagedDirectory(
+            stagedOutputDirectory,
+            emptyParentLevels: 2);
     }
 
     private static async Task ReadLinesAsync(

@@ -191,29 +191,44 @@ public sealed class DgDemuxBackendAdapter : CliBluRayDemuxBackendAdapterBase
         IProgress<BluRayDemuxProgress>? progress = null,
         CancellationToken cancellationToken = default)
     {
+        var stagedRequest = CreateStagedRequest(request);
         var dgDemuxPath = await ResolveToolPathAsync(RegisteredToolKind.DgDemux, cancellationToken);
-        Directory.CreateDirectory(request.OutputDirectory);
+        Directory.CreateDirectory(stagedRequest.OutputDirectory);
 
         var startInfo = CreateStartInfo(dgDemuxPath);
         startInfo.ArgumentList.Add("-i");
-        startInfo.ArgumentList.Add(request.Playlist.SourcePath);
+        startInfo.ArgumentList.Add(stagedRequest.Playlist.SourcePath);
         startInfo.ArgumentList.Add("-o");
-        startInfo.ArgumentList.Add(request.OutputPrefixPath);
+        startInfo.ArgumentList.Add(stagedRequest.OutputPrefixPath);
         startInfo.ArgumentList.Add("-demux");
-        startInfo.ArgumentList.Add(string.Join(',', request.Selections.Select(static selection => selection.Track.DemuxToken)));
+        startInfo.ArgumentList.Add(string.Join(',', stagedRequest.Selections.Select(static selection => selection.Track.DemuxToken)));
 
-        return await RunProcessAsync(
-            request,
-            BuildDisplayCommand(request),
-            startInfo,
-            ParseProgress,
-            IsSuccessfulTerminalLine,
-            "DGDemux 解复用中",
-            "DGDemux 解复用完成",
-            "DGDemux 解复用已取消",
-            "DGDemux 解复用失败",
-            progress,
-            cancellationToken);
+        try
+        {
+            var result = await RunProcessAsync(
+                request,
+                BuildDisplayCommand(request),
+                startInfo,
+                ParseProgress,
+                IsSuccessfulTerminalLine,
+                "DGDemux 解复用中",
+                "DGDemux 解复用完成",
+                "DGDemux 解复用已取消",
+                "DGDemux 解复用失败",
+                progress,
+                cancellationToken);
+
+            if (result.State == EncodingJobState.Completed)
+            {
+                FinalizeStagedOutputDirectory(stagedRequest.OutputDirectory, request.OutputDirectory);
+            }
+
+            return result;
+        }
+        finally
+        {
+            CleanupStagedOutputDirectory(stagedRequest.OutputDirectory);
+        }
     }
 
     public override string BuildDisplayCommand(BluRayDemuxRequest request)
@@ -270,6 +285,30 @@ public sealed class DgDemuxBackendAdapter : CliBluRayDemuxBackendAdapterBase
     private static bool IsSuccessfulTerminalLine(string line)
     {
         return line.Equals("Done!", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static BluRayDemuxRequest CreateStagedRequest(BluRayDemuxRequest request)
+    {
+        var stagedOutputDirectory = CreateStagedOutputDirectory(request.OutputDirectory, "bluray-demux", request.JobId);
+        return request with
+        {
+            OutputDirectory = stagedOutputDirectory,
+            OutputPrefixPath = Path.Combine(stagedOutputDirectory, Path.GetFileName(request.OutputPrefixPath))
+        };
+    }
+
+    private static void FinalizeStagedOutputDirectory(string stagedOutputDirectory, string finalOutputDirectory)
+    {
+        try
+        {
+            ExecutionOutputStaging.FinalizeDirectory(stagedOutputDirectory, finalOutputDirectory);
+        }
+        catch (IOException ex)
+        {
+            throw new InvalidOperationException(
+                $"DGDemux completed but failed to finalize the output directory '{finalOutputDirectory}'. {ex.Message}",
+                ex);
+        }
     }
 
     private static TimeSpan? TryParseDuration(string value)

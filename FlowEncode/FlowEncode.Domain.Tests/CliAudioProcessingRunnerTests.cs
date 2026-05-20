@@ -119,7 +119,56 @@ public sealed class CliAudioProcessingRunnerTests
         Assert.AreEqual(request.OutputPath, runPlan.DisplayRequest.OutputPath);
         Assert.AreNotEqual(request.OutputPath, runPlan.ExecutionRequest.OutputPath);
         Assert.AreEqual(runPlan.ExecutionRequest.OutputPath, runPlan.StagedOutputPath);
+        Assert.IsFalse(string.IsNullOrWhiteSpace(runPlan.StagingDirectory));
         StringAssert.Contains(runPlan.ExecutionRequest.OutputPath, ".staging.tmp.opus");
+        StringAssert.Contains(runPlan.ExecutionRequest.OutputPath, ".flowencode-temp");
+    }
+
+    [TestMethod]
+    public void CreateRunPlan_WhenEac3ToRequested_StagesOutputFile()
+    {
+        var request = new AudioProcessingRequest(
+            Guid.NewGuid(),
+            @"D:\audio\input.thd",
+            @"D:\audio\movie.flac",
+            AudioProcessingMode.Eac3To,
+            AudioEac3ToOutputFormat.Flac,
+            [],
+            null,
+            null,
+            null,
+            null,
+            false);
+
+        var runPlan = CliAudioProcessingRunner.CreateRunPlan(request);
+
+        Assert.AreEqual(request.OutputPath, runPlan.DisplayRequest.OutputPath);
+        Assert.AreNotEqual(request.OutputPath, runPlan.ExecutionRequest.OutputPath);
+        Assert.AreEqual(runPlan.ExecutionRequest.OutputPath, runPlan.StagedOutputPath);
+        Assert.IsFalse(string.IsNullOrWhiteSpace(runPlan.StagingDirectory));
+        StringAssert.Contains(runPlan.ExecutionRequest.OutputPath, ".flowencode-temp");
+        StringAssert.Contains(runPlan.ExecutionRequest.OutputPath, ".staging.tmp.flac");
+    }
+
+    [TestMethod]
+    public void CreateRunPlan_WhenDdpRequested_StagesOutputDirectory()
+    {
+        var request = CreateDdpRequest(
+            sourcePath: @"D:\audio\input.wav",
+            outputDirectory: @"D:\audio\ddp-out");
+
+        var runPlan = CliAudioProcessingRunner.CreateRunPlan(request);
+
+        Assert.AreEqual(request.OutputPath, runPlan.DisplayRequest.OutputPath);
+        Assert.AreNotEqual(request.OutputPath, runPlan.ExecutionRequest.OutputPath);
+        Assert.IsNull(runPlan.StagedOutputPath);
+        Assert.AreEqual(runPlan.ExecutionRequest.OutputPath, runPlan.StagingDirectory);
+        StringAssert.Contains(runPlan.ExecutionRequest.OutputPath, ".flowencode-temp");
+        Assert.IsFalse(
+            runPlan.ExecutionRequest.OutputPath.StartsWith(
+                request.OutputPath + Path.DirectorySeparatorChar,
+                StringComparison.OrdinalIgnoreCase),
+            "DDP staging should not be created inside the final output directory.");
     }
 
     [TestMethod]

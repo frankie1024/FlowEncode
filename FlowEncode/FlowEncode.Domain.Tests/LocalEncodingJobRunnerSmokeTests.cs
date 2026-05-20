@@ -153,6 +153,61 @@ public sealed class LocalEncodingJobRunnerSmokeTests
     }
 
     [TestMethod]
+    public async Task RunAsync_X265_VspipeTwoPass_Cancellation_DuringSecondPass_DoesNotLeaveFinalOutput()
+    {
+        var sourcePath = EnsureLongRunningSmokeVpy();
+        var outputPath = Path.Combine(SmokeRoot, "x265-2pass-cancel-smoke.hevc");
+        DeleteIfExists(outputPath);
+        DeleteIfExists(Path.Combine(SmokeRoot, ".flowencode-temp"));
+
+        var runner = CreateRunner(EncoderKind.X265);
+        using var cancellationTokenSource = new CancellationTokenSource();
+        using var secondPassSignal = new ManualResetEventSlim(false);
+
+        var progress = new Progress<EncodingJobProgress>(value =>
+        {
+            if (value.State == EncodingJobState.Running
+                && !string.IsNullOrWhiteSpace(value.Summary)
+                && value.Summary.Contains("Pass 2/2", StringComparison.OrdinalIgnoreCase))
+            {
+                secondPassSignal.Set();
+            }
+        });
+
+        var task = runner.RunAsync(new EncodingJobRequest(
+            Guid.NewGuid(),
+            new EncodingProfile(
+                EncoderKind.X265,
+                "smoke-x265-2pass-cancel",
+                "smoke",
+                "medium",
+                string.Empty,
+                string.Empty,
+                RateControlMode.TwoPass,
+                0,
+                600,
+                "hevc",
+                string.Empty,
+                string.Empty),
+            sourcePath,
+            outputPath,
+            InputPipelineKind.Auto,
+            EncoderArchitecture.X64), progress, cancellationTokenSource.Token);
+
+        Assert.IsTrue(secondPassSignal.Wait(TimeSpan.FromSeconds(30)), "Encoding did not reach pass 2 before cancellation.");
+        Thread.Sleep(150);
+        cancellationTokenSource.Cancel();
+
+        var result = await task;
+
+        Assert.AreEqual(EncodingJobState.Cancelled, result.State);
+        Assert.IsFalse(File.Exists(outputPath), "Cancelled two-pass run should not leave a final output file.");
+        Assert.IsFalse(Directory.Exists(Path.Combine(SmokeRoot, ".flowencode-temp")), "Cancelled two-pass run should clean staged temp directories.");
+        AssertNoRunningProcess("x265");
+        AssertNoRunningProcess("vspipe");
+    }
+
+    [TestMethod]
     public async Task RunAsync_SvtAv1_Y4mTwoPass_Completes()
     {
         var sourcePath = EnsureSmokeSource();
@@ -524,6 +579,20 @@ public sealed class LocalEncodingJobRunnerSmokeTests
         if (!File.Exists(path))
         {
             Assert.Inconclusive($"{requirement}: missing '{path}'.");
+        }
+    }
+
+    private static void DeleteIfExists(string path)
+    {
+        if (File.Exists(path))
+        {
+            File.Delete(path);
+            return;
+        }
+
+        if (Directory.Exists(path))
+        {
+            Directory.Delete(path, recursive: true);
         }
     }
 

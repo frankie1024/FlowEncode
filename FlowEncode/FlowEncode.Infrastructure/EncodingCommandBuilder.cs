@@ -19,7 +19,8 @@ internal sealed class EncodingCommandBuilder
         string encoderPath,
         InputPipelineKind pipelineKind,
         SourceVideoInfo? sourceInfo,
-        string? statsPath)
+        string? statsPath,
+        string? outputPathOverride = null)
     {
         var profile = request.Profile;
         var preset = EncoderArgumentValueNormalizer.NormalizePresetForCli(profile.Kind, profile.Preset);
@@ -39,7 +40,8 @@ internal sealed class EncodingCommandBuilder
             preset,
             tune,
             profileValue,
-            statsPath);
+            statsPath,
+            outputPathOverride ?? request.OutputPath);
 
         var displayCommand = JoinStepDisplayCommands(steps);
 
@@ -116,15 +118,16 @@ internal sealed class EncodingCommandBuilder
         string preset,
         string tune,
         string profileValue,
-        string? statsPath)
+        string? statsPath,
+        string outputPath)
     {
         return request.Profile.Kind switch
         {
             EncoderKind.X264 or EncoderKind.X265 when request.Profile.RateControl == RateControlMode.TwoPass
-                => BuildX26xTwoPassSteps(request, encoderPath, sourceCommand, pipelineKind, sourceInfo, includeX265UhdParameters, preset, tune, profileValue, statsPath!),
+                => BuildX26xTwoPassSteps(request, encoderPath, sourceCommand, pipelineKind, sourceInfo, includeX265UhdParameters, preset, tune, profileValue, statsPath!, outputPath),
             EncoderKind.SvtAv1 when request.Profile.RateControl == RateControlMode.TwoPass
-                => BuildSvtTwoPassSteps(request, encoderPath, sourceCommand, pipelineKind, sourceInfo, preset, tune, profileValue, statsPath!),
-            _ => BuildSinglePassSteps(request, encoderPath, sourceCommand, pipelineKind, sourceInfo, includeX265UhdParameters, preset, tune, profileValue, statsPath)
+                => BuildSvtTwoPassSteps(request, encoderPath, sourceCommand, pipelineKind, sourceInfo, preset, tune, profileValue, statsPath!, outputPath),
+            _ => BuildSinglePassSteps(request, encoderPath, sourceCommand, pipelineKind, sourceInfo, includeX265UhdParameters, preset, tune, profileValue, statsPath, outputPath)
         };
     }
 
@@ -138,7 +141,8 @@ internal sealed class EncodingCommandBuilder
         string preset,
         string tune,
         string profileValue,
-        string? statsPath)
+        string? statsPath,
+        string outputPath)
     {
         var encoderCommand = BuildEncoderCommand(
             request,
@@ -149,7 +153,7 @@ internal sealed class EncodingCommandBuilder
             preset,
             tune,
             profileValue,
-            request.OutputPath,
+            outputPath,
             BuildRateControlArguments(request.Profile.Kind, request.Profile, statsPath));
 
         return [CreateExecutionStep(sourceCommand, pipelineKind, encoderCommand, 1, 1)];
@@ -165,7 +169,8 @@ internal sealed class EncodingCommandBuilder
         string preset,
         string tune,
         string profileValue,
-        string statsPath)
+        string statsPath,
+        string outputPath)
     {
         return BuildTwoPassSteps(
             request,
@@ -178,7 +183,8 @@ internal sealed class EncodingCommandBuilder
             tune,
             profileValue,
             statsPath,
-            requireSourceInfo: false);
+            requireSourceInfo: false,
+            outputPath);
     }
 
     private static IReadOnlyList<EncodingExecutionStep> BuildSvtTwoPassSteps(
@@ -190,7 +196,8 @@ internal sealed class EncodingCommandBuilder
         string preset,
         string tune,
         string profileValue,
-        string statsPath)
+        string statsPath,
+        string outputPath)
     {
         return BuildTwoPassSteps(
             request,
@@ -203,7 +210,8 @@ internal sealed class EncodingCommandBuilder
             tune,
             profileValue,
             statsPath,
-            requireSourceInfo: true);
+            requireSourceInfo: true,
+            outputPath);
     }
 
     private static IReadOnlyList<EncodingExecutionStep> BuildTwoPassSteps(
@@ -217,7 +225,8 @@ internal sealed class EncodingCommandBuilder
         string tune,
         string profileValue,
         string statsPath,
-        bool requireSourceInfo)
+        bool requireSourceInfo,
+        string outputPath)
     {
         var resolvedSourceInfo = requireSourceInfo
             ? sourceInfo ?? throw new InvalidOperationException("SVT-AV1 two-pass encoding requires detectable source metadata.")
@@ -244,7 +253,7 @@ internal sealed class EncodingCommandBuilder
             preset,
             tune,
             profileValue,
-            request.OutputPath,
+            outputPath,
             BuildRateControlArguments(request.Profile.Kind, request.Profile, statsPath, passIndex: 2, passCount: 2));
 
         return

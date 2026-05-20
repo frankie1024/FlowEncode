@@ -10,6 +10,7 @@ namespace FlowEncode.Infrastructure;
 
 public sealed class CliAudioProcessingRunner : IAudioProcessingRunner
 {
+    private const string TempWorkspaceFolderName = ".flowencode-temp";
     private static readonly Regex DeewStageProgressRegex = new(@"Stage progress:\s*(?<value>\d{1,3}(?:\.\d+)?)", RegexOptions.Compiled | RegexOptions.IgnoreCase);
     private static readonly Regex DeewDisplayProgressRegex = new(@"\[\s*(?<stage>DEE\s*:[^\]]+)\]\s*.*?(?<value>\d{1,3}(?:\.\d+)?)\s*%", RegexOptions.Compiled | RegexOptions.IgnoreCase);
     private static readonly Regex Eac3ToProcessProgressRegex = new(@"^\s*process:\s*(?<value>\d{1,3}(?:\.\d+)?)\s*%", RegexOptions.Compiled | RegexOptions.IgnoreCase);
@@ -76,9 +77,10 @@ public sealed class CliAudioProcessingRunner : IAudioProcessingRunner
         IProgress<AudioProcessingProgress>? progress,
         CancellationToken cancellationToken)
     {
+        var runPlan = CreateRunPlan(request);
         var eac3toPath = await ResolveToolPathAsync(RegisteredToolKind.Eac3To, cancellationToken);
-        var arguments = BuildEac3ToArgumentParts(request);
-        var command = $"{Quote(eac3toPath)} {CommandLineDisplay.JoinArguments(arguments)}";
+        var arguments = BuildEac3ToArgumentParts(runPlan.ExecutionRequest);
+        var command = $"{Quote(eac3toPath)} {BuildEac3ToDisplayArguments(request)}";
         var startInfo = new ProcessStartInfo
         {
             FileName = eac3toPath,
@@ -95,7 +97,7 @@ public sealed class CliAudioProcessingRunner : IAudioProcessingRunner
         }
 
         return await RunProcessAsync(
-            request,
+            runPlan,
             progress,
             command,
             startInfo,
@@ -107,17 +109,18 @@ public sealed class CliAudioProcessingRunner : IAudioProcessingRunner
         IProgress<AudioProcessingProgress>? progress,
         CancellationToken cancellationToken)
     {
+        var runPlan = CreateRunPlan(request);
         var deewPath = await ResolveToolPathAsync(RegisteredToolKind.Deew, cancellationToken);
         var deePath = await ResolveToolPathAsync(RegisteredToolKind.Dee, cancellationToken);
         var ffmpegPath = await ResolveToolPathAsync(RegisteredToolKind.Ffmpeg, cancellationToken);
         var ffprobePath = await ResolveToolPathAsync(RegisteredToolKind.Ffprobe, cancellationToken);
 
-        var outputDirectory = string.IsNullOrWhiteSpace(request.OutputPath)
+        var outputDirectory = string.IsNullOrWhiteSpace(runPlan.ExecutionRequest.OutputPath)
             ? Environment.CurrentDirectory
-            : request.OutputPath;
+            : runPlan.ExecutionRequest.OutputPath;
         Directory.CreateDirectory(outputDirectory);
 
-        var command = $"{Quote(deewPath)} {BuildDdpDisplayArguments(request.SourcePath, outputDirectory)}";
+        var command = $"{Quote(deewPath)} {BuildDdpDisplayArguments(request.SourcePath, request.OutputPath)}";
         var startInfo = new ProcessStartInfo
         {
             FileName = deewPath,
@@ -135,7 +138,7 @@ public sealed class CliAudioProcessingRunner : IAudioProcessingRunner
         startInfo.ArgumentList.Add("-np");
 
         PrepareDeewEnvironment(startInfo, deewPath, deePath, ffmpegPath, ffprobePath);
-        return await RunProcessAsync(request, progress, command, startInfo, cancellationToken);
+        return await RunProcessAsync(runPlan, progress, command, startInfo, cancellationToken);
     }
 
     private async Task<AudioProcessingResult> RunOpusAsync(
@@ -236,7 +239,7 @@ public sealed class CliAudioProcessingRunner : IAudioProcessingRunner
         string? supplementalProgressFilePath = null)
     {
         return await RunProcessAsync(
-            new AudioProcessingRunPlan(request, request, null),
+            new AudioProcessingRunPlan(request, request, null, null),
             progress,
             displayCommand,
             startInfo,
@@ -274,7 +277,7 @@ public sealed class CliAudioProcessingRunner : IAudioProcessingRunner
     {
         var language = GetLanguage();
         var request = runPlan.DisplayRequest;
-        var outputDirectory = Path.GetDirectoryName(runPlan.ExecutionRequest.OutputPath);
+        var outputDirectory = GetExecutionOutputDirectory(runPlan);
         if (!string.IsNullOrWhiteSpace(outputDirectory))
         {
             Directory.CreateDirectory(outputDirectory);
@@ -299,7 +302,7 @@ public sealed class CliAudioProcessingRunner : IAudioProcessingRunner
             ? new Eac3ToProgressState()
             : null;
         var opusTelemetryState = request.Mode == AudioProcessingMode.Opus
-            ? new OpusTelemetryState(request.SourceDurationSeconds, request.OpusBitrateKbps, request.OutputPath)
+            ? new OpusTelemetryState(request.SourceDurationSeconds, request.OpusBitrateKbps, runPlan.ExecutionRequest.OutputPath)
             : null;
 
         void HandleLine(string line)
@@ -460,8 +463,8 @@ public sealed class CliAudioProcessingRunner : IAudioProcessingRunner
             var semanticFailureDetail = TryBuildSemanticFailureDetail(request.Mode, log);
             if (executionResult.ExitCode == 0 && string.IsNullOrWhiteSpace(semanticFailureDetail))
             {
-                FinalizeOutputFileForSuccess(runPlan);
-                DeletePartialOutputFile(runPlan);
+                FinalizeOutputForSuccess(runPlan);
+                CleanupStagedOutput(runPlan);
 
                 progress?.Report(new AudioProcessingProgress(
                     request.JobId,
@@ -481,7 +484,7 @@ public sealed class CliAudioProcessingRunner : IAudioProcessingRunner
                     displayCommand);
             }
 
-            DeletePartialOutputFile(runPlan);
+            CleanupStagedOutput(runPlan);
 
             var effectiveExitCode = executionResult.ExitCode == 0 && !string.IsNullOrWhiteSpace(semanticFailureDetail)
                 ? -2
@@ -511,7 +514,7 @@ public sealed class CliAudioProcessingRunner : IAudioProcessingRunner
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
-            DeletePartialOutputFile(runPlan);
+            CleanupStagedOutput(runPlan);
 
             return new AudioProcessingResult(
                 request.JobId,
@@ -523,7 +526,7 @@ public sealed class CliAudioProcessingRunner : IAudioProcessingRunner
         }
         catch
         {
-            DeletePartialOutputFile(runPlan);
+            CleanupStagedOutput(runPlan);
             throw;
         }
     }
@@ -1023,176 +1026,107 @@ public sealed class CliAudioProcessingRunner : IAudioProcessingRunner
 
     internal static AudioProcessingRunPlan CreateRunPlan(AudioProcessingRequest request)
     {
-        if (request.Mode != AudioProcessingMode.Opus
-            || string.IsNullOrWhiteSpace(request.OutputPath))
+        if (string.IsNullOrWhiteSpace(request.OutputPath))
         {
-            return new AudioProcessingRunPlan(request, request, null);
+            return new AudioProcessingRunPlan(request, request, null, null);
         }
 
-        var stagedOutputPath = CreateStagedOutputPath(request.OutputPath, request.JobId);
+        var stagingDirectory = GetStagingDirectory(request);
+        if (request.Mode == AudioProcessingMode.Ddp)
+        {
+            Directory.CreateDirectory(stagingDirectory);
+            return new AudioProcessingRunPlan(
+                request,
+                request with { OutputPath = stagingDirectory },
+                null,
+                stagingDirectory);
+        }
+
+        var stagedOutputPath = ExecutionOutputStaging.CreateStagedFilePath(
+            stagingDirectory,
+            request.OutputPath,
+            request.JobId);
         return new AudioProcessingRunPlan(
             request,
             request with { OutputPath = stagedOutputPath },
-            stagedOutputPath);
+            stagedOutputPath,
+            stagingDirectory);
     }
 
-    private static void FinalizeOutputFileForSuccess(AudioProcessingRunPlan runPlan)
+    private static string GetExecutionOutputDirectory(AudioProcessingRunPlan runPlan)
     {
-        if (string.IsNullOrWhiteSpace(runPlan.StagedOutputPath))
+        return runPlan.DisplayRequest.Mode == AudioProcessingMode.Ddp
+            ? runPlan.ExecutionRequest.OutputPath
+            : Path.GetDirectoryName(runPlan.ExecutionRequest.OutputPath) ?? Environment.CurrentDirectory;
+    }
+
+    private static void FinalizeOutputForSuccess(AudioProcessingRunPlan runPlan)
+    {
+        if (string.IsNullOrWhiteSpace(runPlan.StagedOutputPath)
+            && string.IsNullOrWhiteSpace(runPlan.StagingDirectory))
         {
             return;
         }
 
-        var stagedOutputPath = runPlan.StagedOutputPath;
-        var finalOutputPath = runPlan.DisplayRequest.OutputPath;
-        if (!File.Exists(stagedOutputPath))
-        {
-            throw new FileNotFoundException("Opus temporary output was not produced.", stagedOutputPath);
-        }
-
         try
         {
-            var outputDirectory = Path.GetDirectoryName(finalOutputPath);
-            if (!string.IsNullOrWhiteSpace(outputDirectory))
+            if (!string.IsNullOrWhiteSpace(runPlan.StagedOutputPath))
             {
-                Directory.CreateDirectory(outputDirectory);
-            }
-
-            if (File.Exists(finalOutputPath))
-            {
-                var backupPath = CreateStagedOutputPath(finalOutputPath, runPlan.DisplayRequest.JobId, "backup");
-                TryDeleteFile(backupPath);
-                File.Replace(stagedOutputPath, finalOutputPath, backupPath, ignoreMetadataErrors: true);
-                TryDeleteFile(backupPath);
+                ExecutionOutputStaging.FinalizeFile(
+                    runPlan.StagedOutputPath,
+                    runPlan.DisplayRequest.OutputPath,
+                    runPlan.DisplayRequest.JobId);
                 return;
             }
 
-            File.Move(stagedOutputPath, finalOutputPath);
+            if (runPlan.DisplayRequest.Mode == AudioProcessingMode.Ddp
+                && !string.IsNullOrWhiteSpace(runPlan.StagingDirectory))
+            {
+                ExecutionOutputStaging.FinalizeDirectory(
+                    runPlan.StagingDirectory,
+                    runPlan.DisplayRequest.OutputPath);
+            }
         }
-        catch (Exception ex)
+        catch (IOException ex)
         {
-            throw new IOException($"Failed to finalize Opus output file: {finalOutputPath}", ex);
+            throw new InvalidOperationException(
+                $"Audio processing completed but failed to finalize the output at '{runPlan.DisplayRequest.OutputPath}'. {ex.Message}",
+                ex);
         }
     }
 
-    private static void DeletePartialOutputFile(AudioProcessingRunPlan runPlan)
+    private static void CleanupStagedOutput(AudioProcessingRunPlan runPlan)
     {
         if (!string.IsNullOrWhiteSpace(runPlan.StagedOutputPath))
         {
-            TryDeleteFile(runPlan.StagedOutputPath);
-            TryDeleteOrphanedBackupFile(runPlan);
+            ExecutionOutputStaging.CleanupStagedFile(
+                runPlan.StagedOutputPath,
+                runPlan.DisplayRequest.OutputPath,
+                runPlan.DisplayRequest.JobId,
+                WriteDebugDiagnostic);
         }
 
-        if (runPlan.DisplayRequest.Mode == AudioProcessingMode.Ddp)
+        if (!string.IsNullOrWhiteSpace(runPlan.StagingDirectory))
         {
-            TryDeleteZeroLengthDdpOutputFiles(runPlan.DisplayRequest);
-            return;
-        }
-
-        TryDeleteZeroLengthFile(runPlan.DisplayRequest.OutputPath);
-    }
-
-    private static string CreateStagedOutputPath(string outputPath, Guid jobId, string suffix = "staging")
-    {
-        var outputDirectory = Path.GetDirectoryName(outputPath);
-        var outputFileName = Path.GetFileNameWithoutExtension(outputPath);
-        var outputExtension = Path.GetExtension(outputPath);
-        var stagedFileName = $"{outputFileName}.{jobId:N}.{suffix}.tmp{outputExtension}";
-        return string.IsNullOrWhiteSpace(outputDirectory)
-            ? stagedFileName
-            : Path.Combine(outputDirectory, stagedFileName);
-    }
-
-    private static void TryDeleteFile(string path)
-    {
-        try
-        {
-            if (File.Exists(path))
-            {
-                File.Delete(path);
-            }
-        }
-        catch (Exception ex)
-        {
-            WriteDebugDiagnostic($"Failed to delete temporary audio file '{path}'", ex);
+            ExecutionOutputStaging.CleanupStagedDirectory(
+                runPlan.StagingDirectory,
+                WriteDebugDiagnostic,
+                emptyParentLevels: 2);
         }
     }
 
-    private static void TryDeleteZeroLengthFile(string path)
+    private static string GetStagingDirectory(AudioProcessingRequest request)
     {
-        try
-        {
-            if (!File.Exists(path))
-            {
-                return;
-            }
+        var baseDirectory = request.Mode == AudioProcessingMode.Ddp
+            ? (Path.GetDirectoryName(request.OutputPath) ?? Environment.CurrentDirectory)
+            : (Path.GetDirectoryName(request.OutputPath) ?? Environment.CurrentDirectory);
 
-            var fileInfo = new FileInfo(path);
-            if (fileInfo.Length == 0)
-            {
-                File.Delete(path);
-            }
-        }
-        catch (Exception ex)
-        {
-            WriteDebugDiagnostic($"Failed to delete zero-length audio file '{path}'", ex);
-        }
+        return Path.Combine(baseDirectory, TempWorkspaceFolderName, "audio", request.JobId.ToString("N"));
     }
 
-    private static void TryDeleteZeroLengthDdpOutputFiles(AudioProcessingRequest request)
+    private static void WriteDebugDiagnostic(string message)
     {
-        try
-        {
-            if (string.IsNullOrWhiteSpace(request.OutputPath) || !Directory.Exists(request.OutputPath))
-            {
-                return;
-            }
-
-            var sourceStem = Path.GetFileNameWithoutExtension(request.SourcePath);
-            foreach (var file in Directory.EnumerateFiles(request.OutputPath))
-            {
-                var extension = Path.GetExtension(file);
-                if (!string.Equals(extension, ".ec3", StringComparison.OrdinalIgnoreCase)
-                    && !string.Equals(extension, ".ac3", StringComparison.OrdinalIgnoreCase)
-                    && !string.Equals(extension, ".ddp", StringComparison.OrdinalIgnoreCase))
-                {
-                    continue;
-                }
-
-                var fileName = Path.GetFileNameWithoutExtension(file);
-                if (!string.IsNullOrWhiteSpace(sourceStem)
-                    && !fileName.Contains(sourceStem, StringComparison.OrdinalIgnoreCase))
-                {
-                    continue;
-                }
-
-                var fileInfo = new FileInfo(file);
-                if (fileInfo.Length == 0)
-                {
-                    File.Delete(file);
-                }
-            }
-        }
-        catch (Exception ex)
-        {
-            WriteDebugDiagnostic($"Failed to delete zero-length DDP output files for '{request.OutputPath}'", ex);
-        }
-    }
-
-    private static void TryDeleteOrphanedBackupFile(AudioProcessingRunPlan runPlan)
-    {
-        if (string.IsNullOrWhiteSpace(runPlan.DisplayRequest.OutputPath))
-        {
-            return;
-        }
-
-        var backupPath = CreateStagedOutputPath(runPlan.DisplayRequest.OutputPath, runPlan.DisplayRequest.JobId, "backup");
-        if (!File.Exists(runPlan.DisplayRequest.OutputPath))
-        {
-            return;
-        }
-
-        TryDeleteFile(backupPath);
+        Debug.WriteLine($"{nameof(CliAudioProcessingRunner)}: {message}");
     }
 
     private async Task<string> ResolveToolPathAsync(RegisteredToolKind kind, CancellationToken cancellationToken)
@@ -1807,7 +1741,8 @@ public sealed class CliAudioProcessingRunner : IAudioProcessingRunner
     internal sealed record AudioProcessingRunPlan(
         AudioProcessingRequest DisplayRequest,
         AudioProcessingRequest ExecutionRequest,
-        string? StagedOutputPath);
+        string? StagedOutputPath,
+        string? StagingDirectory);
 
     private sealed record OpusMappingFamily1Plan(
         bool CanUseMappingFamily1,

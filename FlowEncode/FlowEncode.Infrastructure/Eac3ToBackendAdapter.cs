@@ -169,14 +169,15 @@ public sealed class Eac3ToBackendAdapter : CliBluRayDemuxBackendAdapterBase
         IProgress<BluRayDemuxProgress>? progress = null,
         CancellationToken cancellationToken = default)
     {
+        var stagedRequest = CreateStagedRequest(request);
         var eac3ToPath = await ResolveToolPathAsync(RegisteredToolKind.Eac3To, cancellationToken);
-        Directory.CreateDirectory(request.OutputDirectory);
+        Directory.CreateDirectory(stagedRequest.OutputDirectory);
 
         var startInfo = CreateStartInfo(eac3ToPath, _appPaths.LogsRootPath);
-        startInfo.ArgumentList.Add(request.DiscPath);
-        startInfo.ArgumentList.Add(request.Playlist.SelectionToken);
+        startInfo.ArgumentList.Add(stagedRequest.DiscPath);
+        startInfo.ArgumentList.Add(stagedRequest.Playlist.SelectionToken);
 
-        foreach (var selection in request.Selections.OrderBy(static item => item.Track.Order))
+        foreach (var selection in stagedRequest.Selections.OrderBy(static item => item.Track.Order))
         {
             startInfo.ArgumentList.Add($"{selection.Track.DemuxToken}:");
             startInfo.ArgumentList.Add(selection.OutputPath);
@@ -184,18 +185,32 @@ public sealed class Eac3ToBackendAdapter : CliBluRayDemuxBackendAdapterBase
 
         startInfo.ArgumentList.Add("-progressnumbers");
 
-        return await RunProcessAsync(
-            request,
-            BuildDisplayCommand(request),
-            startInfo,
-            ParseProgress,
-            IsSuccessfulTerminalLine,
-            "eac3to 解复用中",
-            "eac3to 解复用完成",
-            "eac3to 解复用已取消",
-            "eac3to 解复用失败",
-            progress,
-            cancellationToken);
+        try
+        {
+            var result = await RunProcessAsync(
+                request,
+                BuildDisplayCommand(request),
+                startInfo,
+                ParseProgress,
+                IsSuccessfulTerminalLine,
+                "eac3to 解复用中",
+                "eac3to 解复用完成",
+                "eac3to 解复用已取消",
+                "eac3to 解复用失败",
+                progress,
+                cancellationToken);
+
+            if (result.State == EncodingJobState.Completed)
+            {
+                FinalizeStagedOutputDirectory(stagedRequest.OutputDirectory, request.OutputDirectory);
+            }
+
+            return result;
+        }
+        finally
+        {
+            CleanupStagedOutputDirectory(stagedRequest.OutputDirectory);
+        }
     }
 
     public override string BuildDisplayCommand(BluRayDemuxRequest request)
@@ -286,6 +301,38 @@ public sealed class Eac3ToBackendAdapter : CliBluRayDemuxBackendAdapterBase
     private static bool IsSuccessfulTerminalLine(string line)
     {
         return line.Equals("Done.", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static BluRayDemuxRequest CreateStagedRequest(BluRayDemuxRequest request)
+    {
+        var stagedOutputDirectory = CreateStagedOutputDirectory(request.OutputDirectory, "bluray-demux", request.JobId);
+        var stagedSelections = request.Selections
+            .Select(selection => selection with
+            {
+                OutputPath = Path.Combine(stagedOutputDirectory, Path.GetFileName(selection.OutputPath))
+            })
+            .ToList();
+
+        return request with
+        {
+            OutputDirectory = stagedOutputDirectory,
+            OutputPrefixPath = Path.Combine(stagedOutputDirectory, Path.GetFileName(request.OutputPrefixPath)),
+            Selections = stagedSelections
+        };
+    }
+
+    private static void FinalizeStagedOutputDirectory(string stagedOutputDirectory, string finalOutputDirectory)
+    {
+        try
+        {
+            ExecutionOutputStaging.FinalizeDirectory(stagedOutputDirectory, finalOutputDirectory);
+        }
+        catch (IOException ex)
+        {
+            throw new InvalidOperationException(
+                $"eac3to completed but failed to finalize the output directory '{finalOutputDirectory}'. {ex.Message}",
+                ex);
+        }
     }
 
     private static TimeSpan? TryParseDuration(string value)

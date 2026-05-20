@@ -82,6 +82,27 @@ public sealed class EncodingCommandBuilderTests
         Assert.AreEqual(request.OutputPath, plan.Steps[1].EncoderCommand.Arguments[^1]);
     }
 
+    [TestMethod]
+    public void BuildPlan_WhenOutputOverrideProvided_UsesOverrideOnlyForFinalOutput()
+    {
+        var builder = CreateBuilder();
+        var request = CreateRequest(EncoderKind.X265, RateControlMode.TwoPass, bitrate: 2600, outputContainer: "hevc");
+        const string stagedOutputPath = @"D:\temp\.flowencode-temp\job\output.staging.tmp.hevc";
+
+        var plan = builder.BuildPlan(
+            request,
+            encoderPath: "x265.exe",
+            pipelineKind: InputPipelineKind.Y4mFile,
+            sourceInfo: null,
+            statsPath: "stats.log",
+            outputPathOverride: stagedOutputPath);
+
+        Assert.AreEqual("NUL", plan.Steps[0].EncoderCommand.Arguments[^1]);
+        Assert.AreEqual(stagedOutputPath, plan.Steps[1].EncoderCommand.Arguments[^1]);
+        StringAssert.Contains(plan.DisplayCommand, stagedOutputPath);
+        CollectionAssert.Contains(plan.CleanupPaths!.ToArray(), "stats.log");
+    }
+
     private EncodingCommandBuilder CreateBuilder()
     {
         var paths = new LocalAppPaths(_testRoot, _testRoot);
