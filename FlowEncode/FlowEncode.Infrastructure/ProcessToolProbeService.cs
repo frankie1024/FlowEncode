@@ -205,7 +205,10 @@ public sealed class ProcessToolProbeService : IToolProbeService
                         : failureReason);
             }
 
-            return CreateReadyResult(definition, candidate, ResolveVersionText(definition, candidate.Path, output));
+            var ready = CreateReadyResult(definition, candidate, ResolveVersionText(definition, candidate.Path, output));
+            return definition.Kind == RegisteredToolKind.Av1an
+                ? EnrichAv1anBackendCompatibility(ready, candidate.Path)
+                : ready;
         }
         catch (Exception ex)
         {
@@ -456,6 +459,70 @@ public sealed class ProcessToolProbeService : IToolProbeService
             string.Empty,
             definition.ReleaseUrl,
             definition.ManagedExternalToolKind);
+    }
+
+    private ToolProbeResult EnrichAv1anBackendCompatibility(ToolProbeResult baseResult, string executablePath)
+    {
+        try
+        {
+            using var process = new Process
+            {
+                StartInfo = new ProcessStartInfo
+                {
+                    FileName = executablePath,
+                    Arguments = "--protocol-version",
+                    UseShellExecute = false,
+                    RedirectStandardOutput = true,
+                    RedirectStandardError = true,
+                    CreateNoWindow = true,
+                    WorkingDirectory = Path.GetDirectoryName(executablePath) ?? AppContext.BaseDirectory
+                }
+            };
+
+            VapourSynthRuntimePathResolver.EnrichProcessPath(process.StartInfo);
+
+            using var _ = ErrorDialogSuppression.Enter();
+            var result = ProcessProbeRunner.Run(
+                process.StartInfo,
+                TimeSpan.FromMilliseconds(ProbeTimeoutMilliseconds),
+                "Protocol probe timed out.");
+
+            var output = string.Concat(
+                result.StandardOutput,
+                Environment.NewLine,
+                result.StandardError).Trim();
+
+            if (result.ExitCode == 0)
+            {
+                var protocolVersion = FirstMeaningfulLine(output);
+                return baseResult with
+                {
+                    IsProtocolCompatible = !string.IsNullOrWhiteSpace(protocolVersion),
+                    ProtocolVersion = protocolVersion,
+                    BackendCompatibilityDetail = !string.IsNullOrWhiteSpace(protocolVersion)
+                        ? $"Protocol {protocolVersion}"
+                        : "Protocol probe returned no version"
+                };
+            }
+
+            return baseResult with
+            {
+                IsProtocolCompatible = false,
+                ProtocolVersion = string.Empty,
+                BackendCompatibilityDetail = string.IsNullOrWhiteSpace(output)
+                    ? "Executable detected, protocol compatibility pending"
+                    : $"Protocol probe failed: {FirstMeaningfulLine(output)}"
+            };
+        }
+        catch (Exception ex)
+        {
+            return baseResult with
+            {
+                IsProtocolCompatible = false,
+                ProtocolVersion = string.Empty,
+                BackendCompatibilityDetail = $"Protocol probe unavailable: {ex.Message}"
+            };
+        }
     }
 
     private ToolProbeResult CreateMissingResult(ToolDefinition definition)

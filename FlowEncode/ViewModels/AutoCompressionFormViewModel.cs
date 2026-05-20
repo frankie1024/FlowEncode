@@ -33,6 +33,14 @@ public sealed class AutoCompressionFormViewModel : ModuleViewModelBase
         set => Owner.SelectedAutoEncoder = value;
     }
 
+    public ObservableCollection<AutoCompressionMetricOption> AutoCompressionMetricOptions => Owner.AutoCompressionMetricOptions;
+
+    public AutoCompressionMetricOption? SelectedAutoCompressionMetricOption
+    {
+        get => Owner.SelectedAutoCompressionMetricOption;
+        set => Owner.SelectedAutoCompressionMetricOption = value;
+    }
+
     public string AutoCompressionVideoParameters
     {
         get => Owner.AutoCompressionVideoParameters;
@@ -43,6 +51,12 @@ public sealed class AutoCompressionFormViewModel : ModuleViewModelBase
     {
         get => Owner.AutoCompressionTargetVmaf;
         set => Owner.AutoCompressionTargetVmaf = value;
+    }
+
+    public AutoCompressionMetric AutoCompressionMetric
+    {
+        get => Owner.AutoCompressionMetric;
+        set => Owner.AutoCompressionMetric = value;
     }
 
     public double AutoCompressionProbes

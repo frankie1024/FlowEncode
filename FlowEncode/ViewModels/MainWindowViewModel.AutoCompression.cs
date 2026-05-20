@@ -18,6 +18,7 @@ public partial class MainWindowViewModel
     private string _autoCompressionOutputPath = string.Empty;
     private string _autoCompressionVideoParameters = string.Empty;
     private double _autoCompressionTargetVmaf = 95.0;
+    private AutoCompressionMetric _autoCompressionMetric = AutoCompressionMetric.Vmaf;
     private double _autoCompressionProbes = 4;
     private double _autoCompressionWorkers;
     private EncoderOption? _selectedAutoEncoder;
@@ -108,6 +109,36 @@ public partial class MainWindowViewModel
             var normalized = NormalizeBoundedDouble(value, 1, 100);
             if (SetProperty(ref _autoCompressionTargetVmaf, normalized))
             {
+                OnPropertyChanged(nameof(CanStartAutoCompression));
+                OnPropertyChanged(nameof(AutoCompressionSuggestedOutputFileName));
+                OnPropertyChanged(nameof(AutoCompressionOutputPreviewText));
+                RefreshAutoCompressionCommandPreview();
+            }
+        }
+    }
+
+    internal AutoCompressionMetricOption? SelectedAutoCompressionMetricOption
+    {
+        get => _selectedAutoCompressionMetricOption;
+        set
+        {
+            if (SetProperty(ref _selectedAutoCompressionMetricOption, value) && value is not null)
+            {
+                AutoCompressionMetric = value.Value;
+            }
+        }
+    }
+
+    internal AutoCompressionMetric AutoCompressionMetric
+    {
+        get => _autoCompressionMetric;
+        set
+        {
+            if (SetProperty(ref _autoCompressionMetric, value))
+            {
+                _selectedAutoCompressionMetricOption = AutoCompressionMetricOptions.FirstOrDefault(option => option.Value == value)
+                    ?? _selectedAutoCompressionMetricOption;
+                OnPropertyChanged(nameof(SelectedAutoCompressionMetricOption));
                 OnPropertyChanged(nameof(CanStartAutoCompression));
                 OnPropertyChanged(nameof(AutoCompressionSuggestedOutputFileName));
                 OnPropertyChanged(nameof(AutoCompressionOutputPreviewText));
@@ -403,6 +434,7 @@ public partial class MainWindowViewModel
             normalizedSource,
             normalizedOutputDirectory,
             SelectedAutoEncoder.Value,
+            AutoCompressionMetric,
             AutoCompressionTargetVmaf);
 
         if (string.Equals(normalizedSource, normalizedOutput, StringComparison.OrdinalIgnoreCase))
@@ -419,6 +451,7 @@ public partial class MainWindowViewModel
             normalizedSource,
             normalizedOutput,
             SelectedAutoEncoder.Value,
+            AutoCompressionMetric,
             AutoCompressionTargetVmaf,
             probes,
             AutoCompressionVideoParameters.Trim(),
@@ -462,7 +495,8 @@ public partial class MainWindowViewModel
         string sourcePath,
         string outputDirectory,
         EncoderKind encoderKind,
-        double targetVmaf)
+        AutoCompressionMetric metric,
+        double targetQuality)
     {
         var fileName = Path.GetFileNameWithoutExtension(sourcePath);
         if (string.IsNullOrWhiteSpace(fileName))
@@ -472,7 +506,7 @@ public partial class MainWindowViewModel
 
         return Path.Combine(
             outputDirectory,
-            $"{fileName}.{GetAutoCompressionEncoderToken(encoderKind)}.vmaf{FormatAutoCompressionVmafToken(targetVmaf)}.mkv");
+            $"{fileName}.{GetAutoCompressionEncoderToken(encoderKind)}.{GetAutoCompressionMetricToken(metric)}{FormatAutoCompressionQualityToken(targetQuality)}.mkv");
     }
 
     private string? TryResolveAutoCompressionOutputPreviewPath()
@@ -492,6 +526,7 @@ public partial class MainWindowViewModel
                 normalizedSource,
                 outputDirectory,
                 SelectedAutoEncoder.Value,
+                AutoCompressionMetric,
                 AutoCompressionTargetVmaf);
         }
         catch
@@ -511,9 +546,23 @@ public partial class MainWindowViewModel
         };
     }
 
-    private static string FormatAutoCompressionVmafToken(double targetVmaf)
+    private static string GetAutoCompressionMetricToken(AutoCompressionMetric metric)
     {
-        var token = Math.Clamp(targetVmaf, 0, 100).ToString("0.###", CultureInfo.InvariantCulture);
+        return metric switch
+        {
+            AutoCompressionMetric.Vmaf => "vmaf",
+            AutoCompressionMetric.Ssimulacra2 => "ssimulacra2",
+            AutoCompressionMetric.ButteraugliInf => "butteraugliinf",
+            AutoCompressionMetric.Butteraugli3 => "butteraugli3",
+            AutoCompressionMetric.Xpsnr => "xpsnr",
+            AutoCompressionMetric.XpsnrWeighted => "xpsnrw",
+            _ => "metric"
+        };
+    }
+
+    private static string FormatAutoCompressionQualityToken(double targetQuality)
+    {
+        var token = Math.Max(0, targetQuality).ToString("0.###", CultureInfo.InvariantCulture);
         return token.Replace(".", "p", StringComparison.Ordinal);
     }
 

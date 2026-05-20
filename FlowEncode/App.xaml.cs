@@ -123,7 +123,7 @@ public partial class App : Microsoft.UI.Xaml.Application
         services.AddSingleton<IBluRayDemuxRunner, CliBluRayDemuxRunner>();
         services.AddSingleton<IProfileLibraryService, LocalProfileLibraryService>();
         services.AddSingleton<IEncodingJobRunner, LocalEncodingJobRunner>();
-        services.AddSingleton<IAutoCompressionRunner, Av1anAutoCompressionRunner>();
+        services.AddSingleton<IAutoCompressionRunner, StructuredAv1anRunner>();
         services.AddSingleton<IEncoderUpdateService, GitHubReleaseEncoderUpdateService>();
         services.AddSingleton<IVapourSynthWorkspaceService, VapourSynthWorkspaceService>();
         services.AddSingleton<IVapourSynthWorkspaceLanguageService, VapourSynthWorkspaceLanguageService>();

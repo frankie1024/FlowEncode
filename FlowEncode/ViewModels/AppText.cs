@@ -120,10 +120,10 @@ public sealed class AppText
     public string QueueStatusColumn => Pick("状态", "Status");
     public string QueueProgressColumn => Pick("进度", "Progress");
     public string EmptyQueue => Pick("暂无任务", "No Jobs");
-    public string AutoCompressionTitle => Pick("自动压制 (Av1an)", "Auto Encode (Av1an)");
+    public string AutoCompressionTitle => Pick("自动压制", "Auto Encode");
     public string AutoCompressionDescription => Pick(
-        "基于 Av1an 的目标质量模式，按 VMAF 95 自动搜索质量参数。支持 x264、x265、SVT-AV1，并可输入小参（--video-params）。",
-        "Use Av1an target-quality mode to automatically search quality settings at VMAF 95. Supports x264, x265, and SVT-AV1 with optional fine params (--video-params).");
+        "基于 Av1an 后端执行目标质量自动压制。默认使用 VMAF，并将逐步支持按后端能力展示更多目标指标、探测策略和执行计划。",
+        "Run target-quality auto encode through the Av1an backend. VMAF remains the default metric, and the UI will progressively expose more backend-driven metrics, probing options, and execution-plan details.");
     public string AudioProcessingTitle => Pick("音频转码", "Audio Transcode");
     public string AudioProcessingDescription => Pick(
         "独立音频工作流页。用户手动选择转码器后直接执行：eac3to 可输出 FLAC 或 AC3，并支持 -down16 / -mono；deew 用于 DDP；Opus 默认使用 ffmpeg + opusenc，码率由用户在下拉框中手动选择，也可切换到 FFmpeg libopus 并追加 -mapping_family 1。",
@@ -170,16 +170,16 @@ public sealed class AppText
     public string AudioProcessingProgressActiveLabel => Pick("处理中...", "Working...");
     public string AudioProcessingDdpWarmupHint => Pick("ffmpeg 处理中，请稍后...", "FFmpeg is preparing the source. Please wait...");
     public string AudioProcessingProgressIndeterminateHint => Pick("当前阶段暂无法稳定计算百分比，任务仍在执行。", "This stage has no reliable percentage yet. The task is still running.");
-    public string AutoCompressionTargetVmafHeader => "VMAF";
+    public string AutoCompressionTargetVmafHeader => Pick("目标分数", "Target Score");
     public string AutoCompressionProbesHeader => Pick("探测次数", "Probes");
     public string AutoCompressionWorkersHeader => Pick("并行任务数", "Workers");
     public string AutoCompressionSmallParametersHeader => Pick("小参（--video-params）", "Fine Params (--video-params)");
     public string AutoCompressionStartButton => Pick("开始自动压制", "Start Auto Encode");
     public string AutoCompressionCancelButton => Pick("取消自动压制", "Cancel Auto Encode");
     public string AutoCompressionStatusTitle => Pick("任务状态", "Task Status");
-    public string AutoCompressionCommandTitle => Pick("Av1an 命令", "Av1an Command");
-    public string AutoCompressionLogTitle => Pick("Av1an 日志", "Av1an Log");
-    public string AutoCompressionCommandPlaceholder => Pick("开始任务后显示最终执行命令。", "The resolved command appears after start.");
+    public string AutoCompressionCommandTitle => Pick("执行计划", "Execution Plan");
+    public string AutoCompressionLogTitle => Pick("后端日志", "Backend Log");
+    public string AutoCompressionCommandPlaceholder => Pick("开始任务后显示当前后端执行计划。", "The active backend execution plan appears after start.");
     public string AutoCompressionLogPlaceholder => Pick("开始任务后显示实时日志。", "Live log appears after start.");
     public string AutoCompressionProgressActiveLabel => Pick("工作中...", "Working...");
     public string AutoCompressionProgressIndeterminateHint => Pick("当前阶段暂无法计算百分比，任务仍在执行。", "This stage has no reliable percentage yet. The task is still running.");

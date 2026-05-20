@@ -8,7 +8,7 @@ using FlowEncode.Domain;
 
 namespace FlowEncode.Infrastructure;
 
-public sealed class Av1anAutoCompressionRunner : IAutoCompressionRunner
+public sealed class LegacyAv1anCliFallbackRunner : IAutoCompressionRunner
 {
     private const string TempWorkspaceFolderName = ".flowencode-temp";
     private const int MaxVisibleLogLength = 200_000;
@@ -24,7 +24,7 @@ public sealed class Av1anAutoCompressionRunner : IAutoCompressionRunner
     private readonly LocalAppPaths _appPaths;
     private readonly ConcurrentDictionary<Guid, ManagedProcessExecution> _activeExecutions = new();
 
-    public Av1anAutoCompressionRunner(LocalAppPaths paths, IAppSettingsService settingsService)
+    public LegacyAv1anCliFallbackRunner(LocalAppPaths paths, IAppSettingsService settingsService)
     {
         _appPaths = paths;
         _settingsService = settingsService;
@@ -75,6 +75,7 @@ public sealed class Av1anAutoCompressionRunner : IAutoCompressionRunner
         progress?.Report(new AutoCompressionProgress(
             request.JobId,
             EncodingJobState.Running,
+            AutoCompressionExecutionStage.Preparing,
             null,
             T(language, "Auto encode started", "自动压制已启动"),
             displayCommand));
@@ -138,10 +139,12 @@ public sealed class Av1anAutoCompressionRunner : IAutoCompressionRunner
                 }
 
                 lastReportedLine = detailLine;
-                var summary = BuildRunningSummary(language, lastProgress, normalizedLine);
+                var stage = ResolveStage(normalizedLine);
+                var summary = BuildRunningSummary(language, stage, lastProgress, normalizedLine);
                 update = new AutoCompressionProgress(
                     request.JobId,
                     EncodingJobState.Running,
+                    stage,
                     hasKnownProgress ? lastProgress : null,
                     summary,
                     detailLine);
@@ -181,11 +184,10 @@ public sealed class Av1anAutoCompressionRunner : IAutoCompressionRunner
             var log = logBuilder.ToString();
             if (finalExitCode == 0)
             {
-                FinalizeOutputFile(executionRequest.OutputPath, request.OutputPath, request.JobId);
-
                 progress?.Report(new AutoCompressionProgress(
                     request.JobId,
                     EncodingJobState.Completed,
+                    AutoCompressionExecutionStage.Completed,
                     1.0,
                     T(language, "Auto encode completed", "自动压制完成"),
                     LastMeaningfulLine(log)));
@@ -202,6 +204,7 @@ public sealed class Av1anAutoCompressionRunner : IAutoCompressionRunner
             progress?.Report(new AutoCompressionProgress(
                 request.JobId,
                 EncodingJobState.Failed,
+                AutoCompressionExecutionStage.Failed,
                 null,
                 T(language, $"Auto encode failed (exit code {finalExitCode})", $"自动压制失败，退出代码 {finalExitCode}"),
                 LastMeaningfulLine(log)));
@@ -231,6 +234,7 @@ public sealed class Av1anAutoCompressionRunner : IAutoCompressionRunner
             progress?.Report(new AutoCompressionProgress(
                 request.JobId,
                 EncodingJobState.Cancelled,
+                AutoCompressionExecutionStage.Cancelled,
                 null,
                 T(language, "Auto encode cancelled", "自动压制已取消"),
                 T(language, "The task was cancelled.", "任务已取消。")));
@@ -247,11 +251,8 @@ public sealed class Av1anAutoCompressionRunner : IAutoCompressionRunner
         {
             _activeExecutions.TryRemove(request.JobId, out _);
             activeExecution?.Dispose();
-            ExecutionOutputStaging.CleanupStagedFile(
-                stagedOutputPath,
-                request.OutputPath,
-                request.JobId,
-                WriteDiagnostic);
+            PromoteStagedOutputFile(stagedOutputPath, request.OutputPath, finalExitCode);
+            CleanupPartialOutputFile(request, finalExitCode);
             CleanupJobTempDirectory(request);
         }
     }
@@ -261,11 +262,6 @@ public sealed class Av1anAutoCompressionRunner : IAutoCompressionRunner
         if (request.Probes <= 0)
         {
             throw new InvalidOperationException(T(GetLanguage(), "The probe count must be greater than 0.", "探测次数必须大于 0。"));
-        }
-
-        if (request.TargetVmaf <= 0 || request.TargetVmaf > 100)
-        {
-            throw new InvalidOperationException(T(GetLanguage(), "Target VMAF must be between 0 and 100.", "目标 VMAF 必须在 0 到 100 之间。"));
         }
 
         if (!string.IsNullOrWhiteSpace(request.VideoParameters)
@@ -285,9 +281,10 @@ public sealed class Av1anAutoCompressionRunner : IAutoCompressionRunner
             tempDirectory,
             "--encoder",
             MapEncoder(request.EncoderKind),
-            "--target-metric vmaf",
+            "--target-metric",
+            MapMetric(request.Metric),
             "--target-quality",
-            request.TargetVmaf.ToString("0.###", CultureInfo.InvariantCulture),
+            request.TargetQuality.ToString("0.###", CultureInfo.InvariantCulture),
             "--probes",
             request.Probes.ToString(CultureInfo.InvariantCulture)
         };
@@ -296,6 +293,36 @@ public sealed class Av1anAutoCompressionRunner : IAutoCompressionRunner
         {
             args.Add("--workers");
             args.Add(request.Workers.Value.ToString(CultureInfo.InvariantCulture));
+        }
+
+        if (request.SearchProfile is { InterpolationMethod: { Length: > 0 } interpolationMethod })
+        {
+            args.Add("--interp-method");
+            args.Add(interpolationMethod);
+        }
+
+        if (request.SearchProfile is { ProbingStatistic: { Length: > 0 } probingStatistic })
+        {
+            args.Add("--probing-stat");
+            args.Add(probingStatistic);
+        }
+
+        if (request.SearchProfile is { ProbeResolution: { Length: > 0 } probeResolution })
+        {
+            args.Add("--probe-res");
+            args.Add(probeResolution);
+        }
+
+        if (request.SearchProfile is { ProbingRate: > 0 and not 1 } searchProfile)
+        {
+            args.Add("--probing-rate");
+            args.Add(searchProfile.ProbingRate.ToString(CultureInfo.InvariantCulture));
+        }
+
+        if (request.SearchProfile?.ScoutEnabled == true)
+        {
+            // Placeholder until the fork implements scout explicitly.
+            args.Add("--probe-slow");
         }
 
         if (!string.IsNullOrWhiteSpace(request.VideoParameters))
@@ -318,7 +345,8 @@ public sealed class Av1anAutoCompressionRunner : IAutoCompressionRunner
 
     private static string CreateStagedOutputPath(AutoCompressionRequest request, string tempDirectory)
     {
-        return ExecutionOutputStaging.CreateStagedFilePath(tempDirectory, request.OutputPath, request.JobId);
+        var fileName = Path.GetFileName(request.OutputPath);
+        return Path.Combine(tempDirectory, fileName);
     }
 
     private void CleanupJobTempDirectory(AutoCompressionRequest request)
@@ -332,9 +360,43 @@ public sealed class Av1anAutoCompressionRunner : IAutoCompressionRunner
         BestEffortCleanup.DeleteDirectoryIfEmpty(Path.GetDirectoryName(Path.GetDirectoryName(jobTempDirectory)), WriteDiagnostic);
     }
 
+    private void CleanupPartialOutputFile(AutoCompressionRequest request, int exitCode)
+    {
+        if (exitCode == 0)
+        {
+            return;
+        }
+
+        BestEffortCleanup.DeleteFileIfZeroLength(
+            request.OutputPath,
+            $"auto compression partial output '{request.OutputPath}'",
+            WriteDiagnostic);
+    }
+
+    private void PromoteStagedOutputFile(string stagedOutputPath, string finalOutputPath, int exitCode)
+    {
+        if (exitCode != 0 || !File.Exists(stagedOutputPath))
+        {
+            return;
+        }
+
+        var finalDirectory = Path.GetDirectoryName(finalOutputPath);
+        if (!string.IsNullOrWhiteSpace(finalDirectory))
+        {
+            Directory.CreateDirectory(finalDirectory);
+        }
+
+        if (File.Exists(finalOutputPath))
+        {
+            File.Delete(finalOutputPath);
+        }
+
+        File.Move(stagedOutputPath, finalOutputPath);
+    }
+
     private void WriteDiagnostic(string message)
     {
-        AppDiagnosticsLog.Write(_appPaths, nameof(Av1anAutoCompressionRunner), message);
+        AppDiagnosticsLog.Write(_appPaths, nameof(LegacyAv1anCliFallbackRunner), message);
     }
 
     private string MapEncoder(EncoderKind kind)
@@ -348,18 +410,18 @@ public sealed class Av1anAutoCompressionRunner : IAutoCompressionRunner
         };
     }
 
-    private static void FinalizeOutputFile(string stagedOutputPath, string finalOutputPath, Guid jobId)
+    private static string MapMetric(AutoCompressionMetric metric)
     {
-        try
+        return metric switch
         {
-            ExecutionOutputStaging.FinalizeFile(stagedOutputPath, finalOutputPath, jobId);
-        }
-        catch (IOException ex)
-        {
-            throw new InvalidOperationException(
-                $"Auto compression completed but failed to finalize the output file '{finalOutputPath}'. {ex.Message}",
-                ex);
-        }
+            AutoCompressionMetric.Vmaf => "vmaf",
+            AutoCompressionMetric.Ssimulacra2 => "ssimulacra2",
+            AutoCompressionMetric.ButteraugliInf => "butteraugli-inf",
+            AutoCompressionMetric.Butteraugli3 => "butteraugli-3",
+            AutoCompressionMetric.Xpsnr => "xpsnr",
+            AutoCompressionMetric.XpsnrWeighted => "xpsnr-weighted",
+            _ => throw new ArgumentOutOfRangeException(nameof(metric), metric, null)
+        };
     }
 
     private static Process CreateProcess(string fileName, IReadOnlyList<string> arguments)
@@ -373,7 +435,6 @@ public sealed class Av1anAutoCompressionRunner : IAutoCompressionRunner
             CreateNoWindow = true,
             WorkingDirectory = Path.GetDirectoryName(fileName) ?? AppContext.BaseDirectory
         };
-
         foreach (var argument in arguments)
         {
             startInfo.ArgumentList.Add(argument);
@@ -484,9 +545,9 @@ public sealed class Av1anAutoCompressionRunner : IAutoCompressionRunner
             || line.Contains("progress", StringComparison.OrdinalIgnoreCase);
     }
 
-    private static string BuildRunningSummary(AppLanguage language, double progressFraction, string line)
+    private static string BuildRunningSummary(AppLanguage language, AutoCompressionExecutionStage stage, double progressFraction, string line)
     {
-        var stageText = ResolveStageText(language, line);
+        var stageText = ResolveStageText(language, stage, line);
         if (progressFraction > 0)
         {
             return string.IsNullOrWhiteSpace(stageText)
@@ -497,47 +558,63 @@ public sealed class Av1anAutoCompressionRunner : IAutoCompressionRunner
         return stageText ?? T(language, "Auto encode running", "自动压制中");
     }
 
-    private static string? ResolveStageText(AppLanguage language, string line)
+    private static AutoCompressionExecutionStage ResolveStage(string line)
     {
         if (string.IsNullOrWhiteSpace(line))
         {
-            return null;
+            return AutoCompressionExecutionStage.Preparing;
         }
 
         if (line.Contains("scenecut", StringComparison.OrdinalIgnoreCase)
             || line.Contains("scene(s)", StringComparison.OrdinalIgnoreCase))
         {
-            return T(language, "Scene detection", "场景检测中");
+            return AutoCompressionExecutionStage.SceneDetection;
         }
 
         if (line.Contains("target quality", StringComparison.OrdinalIgnoreCase)
             || line.Contains("probe", StringComparison.OrdinalIgnoreCase)
-            || line.Contains("vmaf", StringComparison.OrdinalIgnoreCase))
+            || line.Contains("vmaf", StringComparison.OrdinalIgnoreCase)
+            || line.Contains("ssimulacra", StringComparison.OrdinalIgnoreCase)
+            || line.Contains("xpsnr", StringComparison.OrdinalIgnoreCase)
+            || line.Contains("butteraugli", StringComparison.OrdinalIgnoreCase))
         {
-            return T(language, "VMAF probing", "VMAF 探测中");
+            return AutoCompressionExecutionStage.Probing;
         }
 
         if (line.Contains("chunk", StringComparison.OrdinalIgnoreCase)
             || line.Contains("encoding", StringComparison.OrdinalIgnoreCase)
             || line.Contains("fps", StringComparison.OrdinalIgnoreCase))
         {
-            return T(language, "Encoding", "编码中");
+            return AutoCompressionExecutionStage.Encoding;
         }
 
         if (line.Contains("concat", StringComparison.OrdinalIgnoreCase)
             || line.Contains("merge", StringComparison.OrdinalIgnoreCase)
             || line.Contains("mux", StringComparison.OrdinalIgnoreCase))
         {
-            return T(language, "Muxing", "封装中");
+            return AutoCompressionExecutionStage.Concatenating;
         }
 
         if (line.Contains("input:", StringComparison.OrdinalIgnoreCase)
             || line.Contains("split", StringComparison.OrdinalIgnoreCase))
         {
-            return T(language, "Preparing", "预处理中");
+            return AutoCompressionExecutionStage.ChunkPlanning;
         }
 
-        return null;
+        return AutoCompressionExecutionStage.Preparing;
+    }
+
+    private static string? ResolveStageText(AppLanguage language, AutoCompressionExecutionStage stage, string line)
+    {
+        return stage switch
+        {
+            AutoCompressionExecutionStage.SceneDetection => T(language, "Scene detection", "场景检测中"),
+            AutoCompressionExecutionStage.Probing => T(language, "Target probing", "目标探测中"),
+            AutoCompressionExecutionStage.Encoding => T(language, "Encoding", "编码中"),
+            AutoCompressionExecutionStage.Concatenating => T(language, "Finalizing", "收尾处理中"),
+            AutoCompressionExecutionStage.ChunkPlanning => T(language, "Preparing", "预处理中"),
+            _ => string.IsNullOrWhiteSpace(line) ? null : T(language, "Preparing", "预处理中")
+        };
     }
 
     private static string NormalizeDisplayLine(string line, double? parsedProgress)
@@ -594,7 +671,7 @@ public sealed class Av1anAutoCompressionRunner : IAutoCompressionRunner
 
     private static string Quote(string value)
     {
-        return CommandLineDisplay.Quote(value);
+        return $"\"{value.Replace("\"", "\\\"")}\"";
     }
 
     private static void FlushConsoleSegment(StringBuilder segmentBuilder, Action<string> onLine)

@@ -68,7 +68,10 @@
                             </Grid.ColumnDefinitions>
 
                             <ComboBox x:Name="AutoCompressionEncoderComboBox" Header="{Binding Texts.EncoderHeader}" DisplayMemberPath="Label" ItemsSource="{Binding EncoderOptions}" SelectedItem="{Binding SelectedAutoEncoder, Mode=TwoWay}" />
-                            <NumberBox x:Name="AutoCompressionTargetVmafBox" Grid.Column="1" Header="{Binding Texts.AutoCompressionTargetVmafHeader}" Minimum="1" Maximum="100" SmallChange="0.5" SpinButtonPlacementMode="Inline" Value="{Binding AutoCompressionTargetVmaf, Mode=TwoWay}" />
+                            <StackPanel Grid.Column="1" Spacing="{StaticResource AppSpacingS}">
+                                <ComboBox Header="{Binding Texts.RateControlHeader}" DisplayMemberPath="Label" ItemsSource="{Binding AutoCompressionMetricOptions}" SelectedItem="{Binding SelectedAutoCompressionMetricOption, Mode=TwoWay}" />
+                                <NumberBox x:Name="AutoCompressionTargetVmafBox" Header="{Binding Texts.AutoCompressionTargetVmafHeader}" Minimum="1" Maximum="100" SmallChange="0.5" SpinButtonPlacementMode="Inline" Value="{Binding AutoCompressionTargetVmaf, Mode=TwoWay}" />
+                            </StackPanel>
                             <NumberBox x:Name="AutoCompressionProbesBox" Grid.Column="2" Header="{Binding Texts.AutoCompressionProbesHeader}" Minimum="1" Maximum="50" SmallChange="1" SpinButtonPlacementMode="Inline" Value="{Binding AutoCompressionProbes, Mode=TwoWay}" />
                             <NumberBox x:Name="AutoCompressionWorkersBox" Grid.Column="3" Header="{Binding Texts.AutoCompressionWorkersHeader}" Minimum="0" Maximum="64" SmallChange="1" SpinButtonPlacementMode="Inline" Value="{Binding AutoCompressionWorkers, Mode=TwoWay}" />
                         </Grid>

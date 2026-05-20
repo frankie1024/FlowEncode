@@ -5,7 +5,9 @@ public sealed record AutoCompressionRequest(
     string SourcePath,
     string OutputPath,
     EncoderKind EncoderKind,
-    double TargetVmaf,
+    AutoCompressionMetric Metric,
+    double TargetQuality,
     int Probes,
     string VideoParameters,
-    int? Workers);
+    int? Workers,
+    AutoCompressionSearchProfile? SearchProfile = null);

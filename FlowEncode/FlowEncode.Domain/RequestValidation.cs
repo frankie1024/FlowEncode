@@ -19,9 +19,9 @@ public static class RequestValidation
         RequirePath(request.SourcePath, "Auto compression source path is required.");
         RequirePath(request.OutputPath, "Auto compression output path is required.");
 
-        if (!IsFinite(request.TargetVmaf) || request.TargetVmaf <= 0 || request.TargetVmaf > 100)
+        if (!IsFinite(request.TargetQuality) || request.TargetQuality <= 0)
         {
-            throw new ArgumentOutOfRangeException(nameof(request.TargetVmaf), request.TargetVmaf, "Target VMAF must be greater than 0 and no more than 100.");
+            throw new ArgumentOutOfRangeException(nameof(request.TargetQuality), request.TargetQuality, "Target quality must be a finite positive value.");
         }
 
         if (request.Probes <= 0)
@@ -32,6 +32,11 @@ public static class RequestValidation
         if (request.Workers is <= 0)
         {
             throw new ArgumentOutOfRangeException(nameof(request.Workers), request.Workers, "Worker count must be greater than 0 when specified.");
+        }
+
+        if (request.SearchProfile is { ProbingRate: <= 0 })
+        {
+            throw new ArgumentOutOfRangeException(nameof(request.SearchProfile), request.SearchProfile, "Probing rate must be greater than 0 when specified.");
         }
     }
 

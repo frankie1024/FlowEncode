@@ -6,4 +6,5 @@ public sealed record AutoCompressionResult(
     int ExitCode,
     string Summary,
     string Log,
-    string DisplayCommand);
+    string DisplayCommand,
+    AutoCompressionBackendCapabilities? BackendCapabilities = null);

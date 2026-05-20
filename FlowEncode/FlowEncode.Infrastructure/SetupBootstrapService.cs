@@ -231,7 +231,7 @@ public sealed class SetupBootstrapService : ISetupBootstrapService, IDisposable
             BuildEncoderStatus(readiness, RegisteredToolKind.X264, encoderUpdates),
             BuildEncoderStatus(readiness, RegisteredToolKind.X265, encoderUpdates),
             BuildEncoderStatus(readiness, RegisteredToolKind.SvtAv1, encoderUpdates),
-            BuildToolStatus(readiness, SetupDependencyKind.Av1an, RegisteredToolKind.Av1an, toolUpdates, installSupported: true),
+            BuildAv1anBackendStatus(readiness, toolUpdates),
             BuildToolStatus(readiness, SetupDependencyKind.Avs2PipeMod, RegisteredToolKind.Avs2PipeMod),
             BuildToolStatus(readiness, SetupDependencyKind.DgDemux, RegisteredToolKind.DgDemux),
             BuildToolStatus(readiness, SetupDependencyKind.Eac3To, RegisteredToolKind.Eac3To),
@@ -558,6 +558,44 @@ public sealed class SetupBootstrapService : ISetupBootstrapService, IDisposable
             installSupported,
             installSupported,
             BuildToolDetail(probe));
+    }
+
+    private SetupDependencyStatus BuildAv1anBackendStatus(
+        EnvironmentReadinessReport readiness,
+        IReadOnlyList<ExternalToolUpdatePackage>? toolUpdates)
+    {
+        var probe = GetToolResult(readiness, RegisteredToolKind.Av1an);
+        var latestPackage = toolUpdates?.FirstOrDefault(static package => package.Kind == ExternalToolKind.Av1an);
+        var effectiveState = probe.State == ReadinessState.Ready && !probe.IsProtocolCompatible
+            ? ReadinessState.Partial
+            : probe.State;
+        var compatibilityDetail = probe.State switch
+        {
+            ReadinessState.Ready when probe.IsProtocolCompatible => "Protocol compatible",
+            ReadinessState.Ready => "Executable detected, protocol compatibility pending",
+            _ => probe.BackendCompatibilityDetail
+        };
+
+        var detail = string.IsNullOrWhiteSpace(probe.DetectedVersion)
+            ? compatibilityDetail
+            : string.IsNullOrWhiteSpace(compatibilityDetail)
+                ? probe.DetectedVersion
+                : $"{probe.DetectedVersion} · {compatibilityDetail}";
+
+        return new SetupDependencyStatus(
+            SetupDependencyKind.Av1an,
+            effectiveState,
+            probe.DetectedVersion,
+            latestPackage?.ReleaseName ?? string.Empty,
+            AreVersionsComparableAndDifferent(probe.DetectedVersion, latestPackage?.ReleaseName ?? string.Empty),
+            probe.ExecutablePath,
+            latestPackage?.ReleaseUrl ?? probe.ReleaseUrl,
+            true,
+            true,
+            detail,
+            probe.IsProtocolCompatible,
+            probe.ProtocolVersion,
+            compatibilityDetail);
     }
 
     private async Task InstallPythonAsync(

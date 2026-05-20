@@ -69,6 +69,7 @@ public partial class MainWindowViewModel : CommunityToolkit.Mvvm.ComponentModel.
     private ThemeOption? _selectedTheme;
     private LanguageOption? _selectedLanguage;
     private EncoderOption? _selectedEncoder;
+    private AutoCompressionMetricOption? _selectedAutoCompressionMetricOption;
     private RateControlOption? _selectedRateControl;
     private StringChoiceOption? _selectedPreset;
     private StringChoiceOption? _selectedTune;
@@ -165,6 +166,7 @@ public partial class MainWindowViewModel : CommunityToolkit.Mvvm.ComponentModel.
                 new EncoderOption(EncoderKind.X265, EncoderKind.X265.ToDisplayName()),
                 new EncoderOption(EncoderKind.SvtAv1, EncoderKind.SvtAv1.ToDisplayName())
             ]);
+        ReplaceItems(AutoCompressionMetricOptions, BuildAutoCompressionMetricOptions());
         ReplaceItems(ConcurrentEncodingJobOptions, BuildConcurrentEncodingJobOptions());
         ReplaceItems(QueueCompletionActionOptions, BuildQueueCompletionActionOptions());
 
@@ -172,6 +174,7 @@ public partial class MainWindowViewModel : CommunityToolkit.Mvvm.ComponentModel.
         _selectedLanguage = LanguageOptions[0];
         _selectedEncoder = EncoderOptions[0];
         _selectedAutoEncoder = EncoderOptions[0];
+        _selectedAutoCompressionMetricOption = AutoCompressionMetricOptions[0];
         _selectedConcurrentEncodingJobOption = ConcurrentEncodingJobOptions[0];
         _selectedQueueCompletionActionOption = QueueCompletionActionOptions[0];
         _autoCompressionStatusText = _texts.AutoCompressionIdleStatus;
@@ -191,6 +194,8 @@ public partial class MainWindowViewModel : CommunityToolkit.Mvvm.ComponentModel.
     internal ObservableCollection<LanguageOption> LanguageOptions { get; } = [];
 
     internal ObservableCollection<EncoderOption> EncoderOptions { get; } = [];
+
+    internal ObservableCollection<AutoCompressionMetricOption> AutoCompressionMetricOptions { get; } = [];
 
     internal ObservableCollection<RateControlOption> AvailableRateControlModes { get; } = [];
 
@@ -3333,6 +3338,19 @@ public partial class MainWindowViewModel : CommunityToolkit.Mvvm.ComponentModel.
             new ThemeOption(AppThemePreference.Default, Texts.ThemeLabel(AppThemePreference.Default)),
             new ThemeOption(AppThemePreference.Light, Texts.ThemeLabel(AppThemePreference.Light)),
             new ThemeOption(AppThemePreference.Dark, Texts.ThemeLabel(AppThemePreference.Dark))
+        ];
+    }
+
+    private static IEnumerable<AutoCompressionMetricOption> BuildAutoCompressionMetricOptions()
+    {
+        return
+        [
+            new AutoCompressionMetricOption(AutoCompressionMetric.Vmaf, "VMAF"),
+            new AutoCompressionMetricOption(AutoCompressionMetric.Ssimulacra2, "SSIMULACRA2"),
+            new AutoCompressionMetricOption(AutoCompressionMetric.ButteraugliInf, "Butteraugli-INF"),
+            new AutoCompressionMetricOption(AutoCompressionMetric.Butteraugli3, "Butteraugli-3"),
+            new AutoCompressionMetricOption(AutoCompressionMetric.Xpsnr, "XPSNR"),
+            new AutoCompressionMetricOption(AutoCompressionMetric.XpsnrWeighted, "XPSNR-Weighted")
         ];
     }
 

@@ -9,7 +9,10 @@ public sealed record ToolProbeResult(
     string DetectedVersion,
     string FailureReason,
     string ReleaseUrl,
-    ExternalToolKind? ManagedExternalToolKind = null)
+    ExternalToolKind? ManagedExternalToolKind = null,
+    bool IsProtocolCompatible = false,
+    string ProtocolVersion = "",
+    string BackendCompatibilityDetail = "")
 {
     public string DisplayName => Kind.ToDisplayName();
 

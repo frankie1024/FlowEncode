@@ -10,4 +10,7 @@ public sealed record SetupDependencyStatus(
     string ReleaseUrl,
     bool IsInstallSupported,
     bool IsInstallEnabled,
-    string Detail);
+    string Detail,
+    bool IsProtocolCompatible = false,
+    string ProtocolVersion = "",
+    string CompatibilityDetail = "");
