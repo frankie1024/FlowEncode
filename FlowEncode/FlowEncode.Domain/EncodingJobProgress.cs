@@ -7,4 +7,5 @@ public sealed record EncodingJobProgress(
     string Summary,
     string DetailLine,
     EncodingProgressSnapshot? Snapshot = null,
-    bool IsSourcePreparation = false);
+    bool IsSourcePreparation = false,
+    bool ShouldShowInLog = true);

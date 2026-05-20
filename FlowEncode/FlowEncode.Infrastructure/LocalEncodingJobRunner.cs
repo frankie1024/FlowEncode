@@ -85,21 +85,18 @@ public sealed class LocalEncodingJobRunner : IEncodingJobRunner
 
         void ReportSourceProbeProgress(string line)
         {
-            var normalizedLine = EncoderConsoleLineNormalizer.Normalize(line);
-            if (string.IsNullOrWhiteSpace(normalizedLine))
+            var parsedLine = VideoEncodingOutputBridge.ParseSourcePreparationLine(line);
+            if (parsedLine is null)
             {
                 return;
             }
 
-            var sourceDisplayLine = $"[source] {normalizedLine}";
-            var sourcePreparationProgressPercent = EncodingProgressParser.ParseSourcePreparationProgressPercent(normalizedLine);
-
             lock (lineGate)
             {
-                rawLogWriter.WriteLine(sourceDisplayLine);
-                if (ShouldAppendSourcePreparationVisibleLogLine(normalizedLine))
+                rawLogWriter.WriteLine(parsedLine.DisplayLine);
+                if (parsedLine.ShouldShowInLog)
                 {
-                    visibleLogBuilder.AppendLine(sourceDisplayLine);
+                    visibleLogBuilder.AppendLine(parsedLine.DisplayLine);
                     EncodingJobLogWriter.TrimVisibleLogIfNeeded(visibleLogBuilder);
                 }
             }
@@ -107,13 +104,14 @@ public sealed class LocalEncodingJobRunner : IEncodingJobRunner
             progress?.Report(new EncodingJobProgress(
                 request.JobId,
                 currentState,
-                sourcePreparationProgressPercent.HasValue
-                    ? Math.Clamp(sourcePreparationProgressPercent.Value / 100.0, 0.0, 1.0)
+                parsedLine.ProgressPercent.HasValue
+                    ? Math.Clamp(parsedLine.ProgressPercent.Value / 100.0, 0.0, 1.0)
                     : null,
-                BuildSourceProbeSummary(language, sourcePreparationProgressPercent),
-                sourceDisplayLine,
+                BuildSourceProbeSummary(language, parsedLine.ProgressPercent),
+                parsedLine.DisplayLine,
                 Snapshot: null,
-                IsSourcePreparation: true));
+                IsSourcePreparation: true,
+                ShouldShowInLog: parsedLine.ShouldShowInLog));
         }
 
         async Task CloseRawLogWriterAsync()
@@ -148,7 +146,8 @@ public sealed class LocalEncodingJobRunner : IEncodingJobRunner
                     BuildSourceProbeSummary(language, null),
                     "[source] Probing source metadata...",
                     Snapshot: null,
-                    IsSourcePreparation: true));
+                    IsSourcePreparation: true,
+                    ShouldShowInLog: false));
             }
 
             plan = BuildPlan(
@@ -184,6 +183,11 @@ public sealed class LocalEncodingJobRunner : IEncodingJobRunner
                     BuildStageStartingSummary(language, step),
                     BuildStageStartingDetail(language, step),
                     BuildStageStartingSnapshot(plan, step)));
+                progressDispatchState = new ProgressDispatchState(
+                    DateTimeOffset.UtcNow,
+                    BuildStageStartingProgress(step),
+                    0,
+                    string.Empty);
 
                 var process = CreateProcess(step.EncoderCommand, encoderPath, redirectStandardInput: step.SourceCommand is not null);
                 activeProcess = process;
@@ -234,8 +238,12 @@ public sealed class LocalEncodingJobRunner : IEncodingJobRunner
 
                 void HandleLine(string line)
                 {
-                    var normalizedLine = EncoderConsoleLineNormalizer.Normalize(line);
-                    if (string.IsNullOrWhiteSpace(normalizedLine))
+                    var parsedLine = VideoEncodingOutputBridge.ParseEncodingLine(
+                        plan.Kind,
+                        plan.TotalFrames,
+                        plan.SourceFramesPerSecond,
+                        line);
+                    if (parsedLine is null)
                     {
                         return;
                     }
@@ -244,25 +252,26 @@ public sealed class LocalEncodingJobRunner : IEncodingJobRunner
 
                     lock (lineGate)
                     {
-                        rawLogWriter.WriteLine(normalizedLine);
+                        rawLogWriter.WriteLine(parsedLine.NormalizedLine);
 
-                        if (!EncodingLogLineClassifier.IsTransientProgressLine(plan.Kind, normalizedLine))
+                        if (parsedLine.ShouldShowInLog)
                         {
-                            visibleLogBuilder.AppendLine(normalizedLine);
+                            visibleLogBuilder.AppendLine(parsedLine.NormalizedLine);
                             EncodingJobLogWriter.TrimVisibleLogIfNeeded(visibleLogBuilder);
                         }
 
-                        var progressSnapshot = EncodingProgressParser.ParseSnapshot(plan.Kind, plan.TotalFrames, plan.SourceFramesPerSecond, normalizedLine);
+                        var progressSnapshot = parsedLine.ParseResult;
                         var stageAwareProgress = ApplyStageProgress(progressSnapshot, step);
+                        var reportedProgressFraction = ResolveReportedProgressFraction(stageAwareProgress, progressDispatchState);
                         if (sourceProcess is not null
                             && !sourceProcess.HasExited
                             && stageAwareProgress?.ProgressFraction is null
-                            && !ShouldSurfaceLineDuringSourcePreparation(normalizedLine))
+                            && !parsedLine.ShouldSurfaceDuringSourcePreparation)
                         {
                             return;
                         }
 
-                        if (!ShouldReportProgress(plan.Kind, normalizedLine, stageAwareProgress, ref progressDispatchState))
+                        if (!ShouldReportProgress(parsedLine.IsTransient, parsedLine.NormalizedLine, stageAwareProgress, ref progressDispatchState))
                         {
                             return;
                         }
@@ -270,10 +279,11 @@ public sealed class LocalEncodingJobRunner : IEncodingJobRunner
                         pendingProgress = new EncodingJobProgress(
                             request.JobId,
                             currentState,
-                            stageAwareProgress?.ProgressFraction,
-                            BuildRunningSummary(language, step, stageAwareProgress?.ProgressFraction),
-                            normalizedLine,
-                            stageAwareProgress?.Snapshot);
+                            reportedProgressFraction,
+                            BuildRunningSummary(language, step, reportedProgressFraction),
+                            parsedLine.NormalizedLine,
+                            stageAwareProgress?.Snapshot,
+                            ShouldShowInLog: parsedLine.ShouldShowInLog);
                     }
 
                     if (pendingProgress is not null)
@@ -284,35 +294,34 @@ public sealed class LocalEncodingJobRunner : IEncodingJobRunner
 
                 void HandleSourceLine(string line)
                 {
-                    var normalizedLine = EncoderConsoleLineNormalizer.Normalize(line);
-                    if (string.IsNullOrWhiteSpace(normalizedLine))
+                    var parsedLine = VideoEncodingOutputBridge.ParseSourcePreparationLine(line);
+                    if (parsedLine is null)
                     {
                         return;
                     }
 
-                    var sourceDisplayLine = $"[source] {normalizedLine}";
-                    var sourcePreparationProgressPercent = EncodingProgressParser.ParseSourcePreparationProgressPercent(normalizedLine);
                     EncodingJobProgress? pendingProgress = null;
 
                     lock (lineGate)
                     {
-                        rawLogWriter.WriteLine(sourceDisplayLine);
-                        if (ShouldAppendSourcePreparationVisibleLogLine(normalizedLine))
+                        rawLogWriter.WriteLine(parsedLine.DisplayLine);
+                        if (parsedLine.ShouldShowInLog)
                         {
-                            visibleLogBuilder.AppendLine(sourceDisplayLine);
+                            visibleLogBuilder.AppendLine(parsedLine.DisplayLine);
                             EncodingJobLogWriter.TrimVisibleLogIfNeeded(visibleLogBuilder);
                         }
 
                         pendingProgress = new EncodingJobProgress(
                             request.JobId,
                             currentState,
-                            sourcePreparationProgressPercent.HasValue
-                                ? Math.Clamp(sourcePreparationProgressPercent.Value / 100.0, 0.0, 1.0)
+                            parsedLine.ProgressPercent.HasValue
+                                ? Math.Clamp(parsedLine.ProgressPercent.Value / 100.0, 0.0, 1.0)
                                 : null,
-                            BuildSourceRunningSummary(language, step, sourcePreparationProgressPercent),
-                            sourceDisplayLine,
+                            BuildSourceRunningSummary(language, step, parsedLine.ProgressPercent),
+                            parsedLine.DisplayLine,
                             Snapshot: null,
-                            IsSourcePreparation: true);
+                            IsSourcePreparation: true,
+                            ShouldShowInLog: parsedLine.ShouldShowInLog);
                     }
 
                     if (pendingProgress is not null)
@@ -332,7 +341,8 @@ public sealed class LocalEncodingJobRunner : IEncodingJobRunner
                             ? $"[source] Pass {step.StageIndex}/{step.StageCount}: preparing source..."
                             : "[source] Preparing source...",
                         Snapshot: null,
-                        IsSourcePreparation: true));
+                        IsSourcePreparation: true,
+                        ShouldShowInLog: false));
 
                     copySourceToEncoder = CopyPipeAsync(
                         sourceProcess.StandardOutput.BaseStream,
@@ -569,43 +579,9 @@ public sealed class LocalEncodingJobRunner : IEncodingJobRunner
         return new EncodingProgressSnapshot(0, plan.TotalFrames, null, null, null, null);
     }
 
-    private static async Task PumpAsync(StreamReader reader, Action<string> onLine, CancellationToken cancellationToken)
+    private static Task PumpAsync(StreamReader reader, Action<string> onLine, CancellationToken cancellationToken)
     {
-        var buffer = new char[512];
-        var current = new StringBuilder();
-
-        while (true)
-        {
-            cancellationToken.ThrowIfCancellationRequested();
-
-            var read = await reader.ReadAsync(buffer.AsMemory(0, buffer.Length), cancellationToken);
-            if (read <= 0)
-            {
-                break;
-            }
-
-            for (var index = 0; index < read; index++)
-            {
-                var ch = buffer[index];
-                if (ch is '\r' or '\n')
-                {
-                    if (current.Length > 0)
-                    {
-                        onLine(current.ToString());
-                        current.Clear();
-                    }
-
-                    continue;
-                }
-
-                current.Append(ch);
-            }
-        }
-
-        if (current.Length > 0)
-        {
-            onLine(current.ToString());
-        }
+        return ProcessOutputPump.PumpLinesAsync(reader, onLine, cancellationToken);
     }
 
     private SourceVideoInfo? ResolveSourceInfo(
@@ -646,7 +622,7 @@ public sealed class LocalEncodingJobRunner : IEncodingJobRunner
     }
 
     private static bool ShouldReportProgress(
-        EncoderKind kind,
+        bool isTransient,
         string line,
         EncodingProgressParseResult? progressSnapshot,
         ref ProgressDispatchState state)
@@ -654,11 +630,10 @@ public sealed class LocalEncodingJobRunner : IEncodingJobRunner
         var now = DateTimeOffset.UtcNow;
         var currentProgressFraction = progressSnapshot?.ProgressFraction;
         var currentFrame = progressSnapshot?.Snapshot?.CurrentFrame;
-        var isTransient = EncodingLogLineClassifier.IsTransientProgressLine(kind, line);
 
         if (!isTransient)
         {
-            state = new ProgressDispatchState(now, currentProgressFraction, currentFrame, line);
+            state = CreateUpdatedDispatchState(now, currentProgressFraction, currentFrame, line, state);
             return true;
         }
 
@@ -671,7 +646,7 @@ public sealed class LocalEncodingJobRunner : IEncodingJobRunner
                 return false;
             }
 
-            state = new ProgressDispatchState(now, state.LastProgressFraction, state.LastCurrentFrame, line);
+            state = CreateUpdatedDispatchState(now, state.LastProgressFraction, state.LastCurrentFrame, line, state);
             return true;
         }
 
@@ -691,16 +666,41 @@ public sealed class LocalEncodingJobRunner : IEncodingJobRunner
             return false;
         }
 
-        state = new ProgressDispatchState(now, currentProgressFraction, currentFrame, line);
+        state = CreateUpdatedDispatchState(now, currentProgressFraction, currentFrame, line, state);
         return true;
+    }
+
+    private static ProgressDispatchState CreateUpdatedDispatchState(
+        DateTimeOffset at,
+        double? currentProgressFraction,
+        long? currentFrame,
+        string line,
+        ProgressDispatchState previous)
+    {
+        return new ProgressDispatchState(
+            at,
+            ResolveReportedProgressFraction(currentProgressFraction, previous.LastProgressFraction),
+            currentFrame ?? previous.LastCurrentFrame,
+            line);
+    }
+
+    private static double? ResolveReportedProgressFraction(
+        EncodingProgressParseResult? progressSnapshot,
+        ProgressDispatchState state)
+    {
+        return ResolveReportedProgressFraction(progressSnapshot?.ProgressFraction, state.LastProgressFraction);
+    }
+
+    private static double? ResolveReportedProgressFraction(
+        double? currentProgressFraction,
+        double? lastProgressFraction)
+    {
+        return currentProgressFraction ?? lastProgressFraction;
     }
 
     private static bool ShouldSurfaceLineDuringSourcePreparation(string line)
     {
-        return line.Contains("error", StringComparison.OrdinalIgnoreCase)
-            || line.Contains("failed", StringComparison.OrdinalIgnoreCase)
-            || line.Contains("exception", StringComparison.OrdinalIgnoreCase)
-            || line.Contains("traceback", StringComparison.OrdinalIgnoreCase);
+        return VideoEncodingOutputBridge.ShouldSurfaceLineDuringSourcePreparation(line);
     }
 
     private static bool ShouldAppendSourcePreparationVisibleLogLine(string line)
@@ -713,6 +713,11 @@ public sealed class LocalEncodingJobRunner : IEncodingJobRunner
 
     internal static bool ShouldAppendSourcePreparationVisibleLogLineForTesting(string line)
         => ShouldAppendSourcePreparationVisibleLogLine(EncoderConsoleLineNormalizer.Normalize(line));
+
+    internal static double? ResolveReportedProgressFractionForTesting(
+        double? currentProgressFraction,
+        double? lastProgressFraction)
+        => ResolveReportedProgressFraction(currentProgressFraction, lastProgressFraction);
 
     internal static Process CreateProcess(ProcessCommand command, string encoderPath, bool redirectStandardInput = false)
     {
