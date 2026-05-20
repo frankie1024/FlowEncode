@@ -399,7 +399,7 @@ public sealed class EncodingJobItemViewModel : ObservableObject
             SourcePreparationText = string.IsNullOrWhiteSpace(progress.Summary)
                 ? T("源处理中...", "Preparing source...")
                 : progress.Summary;
-            if (ShouldAppendSourcePreparationLogLine(progress.DetailLine))
+            if (progress.ShouldShowInLog)
             {
                 AppendLogLine(progress.DetailLine);
             }
@@ -413,7 +413,7 @@ public sealed class EncodingJobItemViewModel : ObservableObject
         Summary = progress.Summary;
         DetailLine = progress.DetailLine;
 
-        if (!EncodingLogLineClassifier.IsTransientProgressLine(Request.Profile.Kind, progress.DetailLine))
+        if (progress.ShouldShowInLog)
         {
             AppendLogLine(progress.DetailLine);
         }
@@ -502,41 +502,6 @@ public sealed class EncodingJobItemViewModel : ObservableObject
         TrimVisibleLogIfNeeded();
         _lastMeaningfulLogLine = normalized;
         Log = _logBuilder.ToString();
-    }
-
-    private static bool ShouldAppendSourcePreparationLogLine(string line)
-    {
-        if (string.IsNullOrWhiteSpace(line))
-        {
-            return false;
-        }
-
-        var normalized = line.Trim();
-        if (normalized.StartsWith("[source]", StringComparison.OrdinalIgnoreCase))
-        {
-            normalized = normalized["[source]".Length..].TrimStart();
-        }
-
-        if (LooksLikeSourcePreparationProgressTick(normalized))
-        {
-            return false;
-        }
-
-        return normalized.Contains("error", StringComparison.OrdinalIgnoreCase)
-            || normalized.Contains("failed", StringComparison.OrdinalIgnoreCase)
-            || normalized.Contains("exception", StringComparison.OrdinalIgnoreCase)
-            || normalized.Contains("traceback", StringComparison.OrdinalIgnoreCase);
-    }
-
-    private static bool LooksLikeSourcePreparationProgressTick(string line)
-    {
-        if (string.IsNullOrWhiteSpace(line) || !line.Contains('%'))
-        {
-            return false;
-        }
-
-        return line.Contains("Creating lwi index file", StringComparison.OrdinalIgnoreCase)
-            || line.Contains("index progress", StringComparison.OrdinalIgnoreCase);
     }
 
     private void ReplaceLog(string log)

@@ -31,6 +31,29 @@ public sealed class LocalEncodingJobRunnerProgressParsingTests
     }
 
     [TestMethod]
+    public void ParseSnapshot_WithBracketedX265TickerWithoutLeadingInnerSpace_ParsesProgressMetrics()
+    {
+        const string line = "[45.2%] 2440/5400 Frames @ 46.49 FPS | 13974.00 kb/s | 0:00:31 | 220.4 MB [220.4 MB]";
+
+        var parsed = EncodingProgressParser.ParseSnapshot(
+            EncoderKind.X265,
+            totalFrames: 5400,
+            sourceFramesPerSecond: 24000d / 1001d,
+            line);
+
+        Assert.IsNotNull(parsed);
+        Assert.IsNotNull(parsed.Snapshot);
+        var snapshot = parsed.Snapshot!;
+        Assert.AreEqual(2440L, snapshot.CurrentFrame);
+        Assert.AreEqual(5400L, snapshot.TotalFrames);
+        Assert.AreEqual(46.49, snapshot.FramesPerSecond!.Value, 0.001);
+        Assert.AreEqual(13974.00, snapshot.BitrateKbps!.Value, 0.001);
+        Assert.AreEqual(TimeSpan.FromSeconds(31), snapshot.Eta);
+        Assert.IsTrue(snapshot.EstimatedFileSizeBytes > 0);
+        Assert.AreEqual(0.452, parsed.ProgressFraction!.Value, 0.000001);
+    }
+
+    [TestMethod]
     public void ParseSourcePreparationProgressPercent_WithLwiIndexLine_ParsesPercent()
     {
         const string line = "Creating lwi index file 42%";
@@ -61,6 +84,26 @@ public sealed class LocalEncodingJobRunnerProgressParsingTests
     }
 
     [TestMethod]
+    public void ResolveReportedProgressFractionForTesting_WithNullCurrentAndKnownLast_ReturnsLast()
+    {
+        var resolved = LocalEncodingJobRunner.ResolveReportedProgressFractionForTesting(
+            currentProgressFraction: null,
+            lastProgressFraction: 0.452);
+
+        Assert.AreEqual(0.452, resolved);
+    }
+
+    [TestMethod]
+    public void ResolveReportedProgressFractionForTesting_WithKnownCurrent_PrefersCurrent()
+    {
+        var resolved = LocalEncodingJobRunner.ResolveReportedProgressFractionForTesting(
+            currentProgressFraction: 0.31,
+            lastProgressFraction: 0.452);
+
+        Assert.AreEqual(0.31, resolved);
+    }
+
+    [TestMethod]
     public void ShouldSurfaceLineDuringSourcePreparationForTesting_WithNeutralLine_ReturnsFalse()
     {
         const string line = "x265 [info]: HEVC encoder version 4.1";
@@ -74,6 +117,16 @@ public sealed class LocalEncodingJobRunnerProgressParsingTests
     public void ShouldSurfaceLineDuringSourcePreparationForTesting_WithFailureLine_ReturnsTrue()
     {
         const string line = "x265 [error]: failed to open output file";
+
+        var result = LocalEncodingJobRunner.ShouldSurfaceLineDuringSourcePreparationForTesting(line);
+
+        Assert.IsTrue(result);
+    }
+
+    [TestMethod]
+    public void ShouldSurfaceLineDuringSourcePreparationForTesting_WithTracebackLine_ReturnsTrue()
+    {
+        const string line = "Traceback (most recent call last):";
 
         var result = LocalEncodingJobRunner.ShouldSurfaceLineDuringSourcePreparationForTesting(line);
 
