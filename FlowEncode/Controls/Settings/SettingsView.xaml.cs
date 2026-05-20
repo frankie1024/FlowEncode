@@ -5,6 +5,7 @@ using FlowEncode.Domain;
 using FlowEncode.ViewModels;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
+using Windows.Foundation;
 
 namespace FlowEncode.Controls.Settings;
 
@@ -65,14 +66,6 @@ public sealed partial class SettingsView : UserControl
             "Failed to handle app update action",
             generalViewModel.Texts.ErrorSaveFailedTitle,
             Host.HandleAppUpdateAsync);
-    }
-
-    private void OpenToolsetFolderButton_Click(object sender, RoutedEventArgs e)
-    {
-        if (GeneralViewModel is not null)
-        {
-            SetupDependencyInteractionHelper.OpenPath(GeneralViewModel.AppRootPath);
-        }
     }
 
     private async void OpenSetupGuideButton_Click(object sender, RoutedEventArgs e)
@@ -232,7 +225,16 @@ public sealed partial class SettingsView : UserControl
             await RunGeneralGuardedAsync(
                 "Failed to persist settings toggle state",
                 generalViewModel.Texts.ErrorSaveSettingsFailedTitle,
-                () => Host.PersistSettingsAsync(refreshTemplateLibrary: false));
+                async () =>
+                {
+                    var persisted = await Host.PersistSettingsAsync(refreshTemplateLibrary: false);
+                    if (persisted
+                        && ReferenceEquals(sender, PreferSystemEncodersToggle)
+                        && DependenciesViewModel is not null)
+                    {
+                        await DependenciesViewModel.RefreshSetupGuideAsync();
+                    }
+                });
         }
     }
 
@@ -242,6 +244,27 @@ public sealed partial class SettingsView : UserControl
         {
             SetupDependencyInteractionHelper.OpenUrl(url);
         }
+    }
+
+    private void SetupGuideCardExpander_Collapsed(Expander sender, ExpanderCollapsedEventArgs args)
+    {
+        DispatcherQueue.TryEnqueue(() =>
+        {
+            if (SettingsScrollViewer.Content is not FrameworkElement scrollContent)
+            {
+                return;
+            }
+
+            var transform = sender.TransformToVisual(scrollContent);
+            var expanderTop = transform.TransformPoint(new Point(0, 0)).Y;
+            var targetOffset = Math.Max(0, expanderTop - UiTokens.SpacingS);
+            if (SettingsScrollViewer.VerticalOffset <= targetOffset)
+            {
+                return;
+            }
+
+            SettingsScrollViewer.ChangeView(null, targetOffset, null, true);
+        });
     }
 
     private async Task RunGeneralGuardedAsync(string diagnosticAction, string errorTitle, Func<Task> action)

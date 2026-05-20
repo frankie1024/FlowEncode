@@ -62,6 +62,41 @@ public sealed class ProcessToolProbeServiceTests
         Assert.AreEqual(1, settings.LoadCount);
     }
 
+    [TestMethod]
+    public async Task ProbeAsync_WhenPreferSystemEncodersChanges_DoesNotReuseCachedEncoderResult()
+    {
+        var settings = new MutableSettingsService(AppSettings.Default);
+        var definition = new ToolDefinition(
+            RegisteredToolKind.X264,
+            ToolProbeMode.EncoderBinary,
+            ["x264.exe"],
+            [],
+            ToolSearchLocation.None,
+            string.Empty,
+            "https://example.invalid/x264");
+        var registry = new StubToolRegistryService(definition);
+        var encoderPath = Path.Combine(_testRoot, "x264.exe");
+        var service = new ProcessToolProbeService(
+            registry,
+            new LocalAppPaths(_testRoot, _testRoot),
+            new PreferenceAwareEncoderDiscoveryService(encoderPath),
+            settings);
+
+        var enabledResult = await service.ProbeAsync(RegisteredToolKind.X264);
+
+        Assert.AreEqual(ReadinessState.Ready, enabledResult.State);
+        Assert.AreEqual(ToolDetectionSource.SystemEncoder, enabledResult.Source);
+
+        settings.Settings = settings.Settings with
+        {
+            PreferSystemEncoders = false
+        };
+
+        var disabledResult = await service.ProbeAsync(RegisteredToolKind.X264);
+
+        Assert.AreEqual(ReadinessState.Missing, disabledResult.State);
+    }
+
     private sealed class CountingSettingsService : IAppSettingsService
     {
         private readonly AppSettings _settings;
@@ -82,6 +117,23 @@ public sealed class ProcessToolProbeServiceTests
         public void Save(AppSettings settings)
         {
             throw new NotSupportedException();
+        }
+    }
+
+    private sealed class MutableSettingsService : IAppSettingsService
+    {
+        public MutableSettingsService(AppSettings settings)
+        {
+            Settings = settings;
+        }
+
+        public AppSettings Settings { get; set; }
+
+        public AppSettings Load() => Settings;
+
+        public void Save(AppSettings settings)
+        {
+            Settings = settings;
         }
     }
 
@@ -117,6 +169,38 @@ public sealed class ProcessToolProbeServiceTests
             EncoderKind kind,
             EncoderArchitecture preferredArchitecture,
             bool preferSystemEncoders) => null;
+
+        public void InvalidateCache()
+        {
+        }
+    }
+
+    private sealed class PreferenceAwareEncoderDiscoveryService : IEncoderDiscoveryService
+    {
+        private readonly string _encoderPath;
+
+        public PreferenceAwareEncoderDiscoveryService(string encoderPath)
+        {
+            _encoderPath = encoderPath;
+        }
+
+        public IReadOnlyList<DiscoveredEncoderBinary> DiscoverSystemBinaries() => [];
+
+        public DiscoveredEncoderBinary? ResolveEncoder(
+            EncoderKind kind,
+            EncoderArchitecture preferredArchitecture,
+            bool preferSystemEncoders)
+        {
+            return preferSystemEncoders
+                ? new DiscoveredEncoderBinary(
+                    kind,
+                    preferredArchitecture,
+                    _encoderPath,
+                    EncoderBinarySource.Path,
+                    "PATH",
+                    "3.0")
+                : null;
+        }
 
         public void InvalidateCache()
         {

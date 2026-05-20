@@ -70,6 +70,7 @@
             <Style x:Key="StandardButtonStyle" TargetType="Button">
                 <Setter Property="MinHeight" Value="{StaticResource AppButtonMinHeight}" />
                 <Setter Property="Padding" Value="{StaticResource AppButtonPadding}" />
+                <Setter Property="CornerRadius" Value="{StaticResource AppControlCornerRadius}" />
             </Style>
 
             <Style x:Key="IconButtonStyle" TargetType="Button" BasedOn="{StaticResource StandardButtonStyle}">

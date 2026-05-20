@@ -7,7 +7,7 @@
     xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
     mc:Ignorable="d">
-    <ScrollViewer VerticalScrollBarVisibility="Auto">
+    <ScrollViewer x:Name="SettingsScrollViewer" VerticalScrollBarVisibility="Auto">
         <StackPanel x:Name="ContentStack" Padding="{StaticResource AppPagePadding}" Spacing="{StaticResource AppSpacingL}">
             <Border Padding="{StaticResource AppCardPadding}" Background="{ThemeResource CardBrush}" BorderBrush="{ThemeResource CardBorderBrush}" BorderThickness="{StaticResource AppCardBorderThickness}" CornerRadius="{StaticResource AppLargeCornerRadius}" Shadow="{StaticResource CardShadow}" Translation="0,0,8" DataContext="{Binding General}">
                 <Grid x:Name="SettingsOverviewGrid" ColumnSpacing="{StaticResource AppSpacingXXL}" RowSpacing="{StaticResource AppSpacingL}">
@@ -39,12 +39,6 @@
                             <StackPanel Orientation="Horizontal" Spacing="{StaticResource AppCommandIconTextSpacing}">
                                 <SymbolIcon Symbol="Help" />
                                 <TextBlock Text="{Binding Texts.SetupGuideButton}" />
-                            </StackPanel>
-                        </Button>
-                        <Button Style="{StaticResource StandardButtonStyle}" AutomationProperties.Name="{Binding Texts.ToolDirectoryButton}" Click="OpenToolsetFolderButton_Click" ToolTipService.ToolTip="{Binding Texts.ToolDirectoryButton}">
-                            <StackPanel Orientation="Horizontal" Spacing="{StaticResource AppCommandIconTextSpacing}">
-                                <SymbolIcon Symbol="OpenLocal" />
-                                <TextBlock Text="{Binding Texts.ToolDirectoryButton}" />
                             </StackPanel>
                         </Button>
                     </StackPanel>
@@ -83,13 +77,13 @@
                                 </Grid.ColumnDefinitions>
 
                                 <TextBox x:Name="WorkspaceRootPathTextBox" Header="{Binding Texts.WorkspaceDirectoryHeader}" IsReadOnly="True" Text="{Binding WorkspaceRootPath, Mode=TwoWay}" TextWrapping="Wrap" />
-                                <Button Grid.Column="1" MinHeight="40" VerticalAlignment="Bottom" AutomationProperties.Name="{Binding Texts.ChooseFolderButton}" Click="BrowseWorkspaceFolderButton_Click" ToolTipService.ToolTip="{Binding Texts.ChooseFolderButton}">
+                                <Button Grid.Column="1" MinHeight="40" VerticalAlignment="Bottom" AutomationProperties.Name="{Binding Texts.ChooseFolderButton}" Click="BrowseWorkspaceFolderButton_Click" Style="{StaticResource StandardButtonStyle}" ToolTipService.ToolTip="{Binding Texts.ChooseFolderButton}">
                                     <StackPanel Orientation="Horizontal" Spacing="{StaticResource AppCommandIconTextSpacing}">
                                         <SymbolIcon Symbol="Folder" />
                                         <TextBlock Text="{Binding Texts.ChooseFolderButton}" />
                                     </StackPanel>
                                 </Button>
-                                <Button Grid.Column="2" MinHeight="40" VerticalAlignment="Bottom" AutomationProperties.Name="{Binding Texts.AppFolderButton}" Tag="{Binding WorkspaceRootPath}" Click="OpenTaggedFolderButton_Click" ToolTipService.ToolTip="{Binding Texts.AppFolderButton}">
+                                <Button Grid.Column="2" MinHeight="40" VerticalAlignment="Bottom" AutomationProperties.Name="{Binding Texts.AppFolderButton}" Tag="{Binding WorkspaceRootPath}" Click="OpenTaggedFolderButton_Click" Style="{StaticResource StandardButtonStyle}" ToolTipService.ToolTip="{Binding Texts.AppFolderButton}">
                                     <StackPanel Orientation="Horizontal" Spacing="{StaticResource AppCommandIconTextSpacing}">
                                         <SymbolIcon Symbol="OpenLocal" />
                                         <TextBlock Text="{Binding Texts.AppFolderButton}" />
@@ -134,7 +128,7 @@
                     <ItemsControl ItemsSource="{Binding SetupGuideCards}">
                         <ItemsControl.ItemTemplate>
                             <DataTemplate>
-                                <Expander Margin="{StaticResource AppBottomSpacingM}" HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch">
+                                <Expander Margin="{StaticResource AppBottomSpacingM}" HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch" Collapsed="SetupGuideCardExpander_Collapsed" IsExpanded="{Binding IsExpanded, Mode=TwoWay}">
                                     <Expander.Header>
                                         <Grid ColumnSpacing="{StaticResource AppSpacingM}">
                                             <Grid.ColumnDefinitions>
