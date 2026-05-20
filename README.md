@@ -109,7 +109,7 @@ flowchart LR
 
 对具体工具的支持深度取决于上游版本、本机运行时状态、插件完整性和用户环境配置。FlowEncode 会尽量提供检测和引导，但不替代上游项目自身的安装说明和许可证。
 
-其中，应用内自动安装或更新主要覆盖 `Python 3.12`、`VapourSynth` / `vsrepo` 及公开插件包、`awsmfunc`、`vsjetpack`、`FFmpeg`、`x264`、`x265`、`SVT-AV1` 和 `Av1an`。`Avs2PipeMod`、`DGDemux`、`eac3to`、`deew`、`Dolby Encoding Engine` / `DEE`、`opusenc` / `Opus Encoder` 属于用户自行获取并遵守各自许可证的外部工具；FlowEncode 只负责检测、手动导入、固定路径和调用，不随安装包分发，也不授予这些工具的使用许可。
+其中，应用内自动安装或更新主要覆盖 `Python 3.12`、`VapourSynth` / `vsrepo` 及公开插件包、`awsmfunc`、`vsjetpack`、`FFmpeg`、`x264`、`x265`、`SVT-AV1`，以及在托管兼容包可用时的 `Av1an`。`Avs2PipeMod`、`DGDemux`、`eac3to`、`deew`、`Dolby Encoding Engine` / `DEE`、`opusenc` / `Opus Encoder` 属于用户自行获取并遵守各自许可证的外部工具；FlowEncode 只负责检测、手动导入、固定路径和调用，不随安装包分发，也不授予这些工具的使用许可。
 
 ## 安装与运行要求
 

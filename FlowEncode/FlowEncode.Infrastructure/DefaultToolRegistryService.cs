@@ -5,6 +5,7 @@ namespace FlowEncode.Infrastructure;
 
 public sealed class DefaultToolRegistryService : IToolRegistryService
 {
+    private const string ManagedAv1anReleasesUrl = "https://github.com/frankie1024/Av1an/releases";
     private static readonly IReadOnlyList<string> PythonExecutables = ["python.exe", "py.exe"];
     private static readonly IReadOnlyList<string> PythonEnvironmentVariables = ["FLOWENCODE_PYTHON", "PYTHON_PATH", "PYTHON_EXE", "PYTHON"];
     private const ToolSearchLocation PythonSearchLocations =
@@ -30,7 +31,7 @@ public sealed class DefaultToolRegistryService : IToolRegistryService
         new ToolDefinition(RegisteredToolKind.PythonModuleAwsmfunc, ToolProbeMode.PythonModuleImport, PythonExecutables, PythonEnvironmentVariables, PythonSearchLocations, string.Empty, "https://github.com/OpusGang/awsmfunc", ProbeValue: "awsmfunc"),
         new ToolDefinition(RegisteredToolKind.PythonModuleVsjetpack, ToolProbeMode.PythonModuleImport, PythonExecutables, PythonEnvironmentVariables, PythonSearchLocations, string.Empty, "https://github.com/Jaded-Encoding-Thaumaturgy/vs-jetpack", ProbeValue: "vsjetpack"),
         new ToolDefinition(RegisteredToolKind.Avs2PipeMod, ToolProbeMode.FileVersionInfo, ["avs2pipemod64.exe", "avs2pipemod.exe", "Avs2Pipemod.exe"], ["FLOWENCODE_AVS2PIPEMOD", "AVS2PIPEMOD_PATH", "AVS2PIPEMOD_EXE", "AVS2PIPEMOD"], ToolSearchLocation.EnvironmentVariables | ToolSearchLocation.LocalToolsRoot | ToolSearchLocation.Path, string.Empty, "https://github.com/chikuzen/avs2pipemod"),
-        new ToolDefinition(RegisteredToolKind.Av1an, ToolProbeMode.ProcessVersion, ["av1an.exe", "Av1an.exe"], ["FLOWENCODE_AV1AN", "AV1AN_PATH", "AV1AN_EXE", "AV1AN"], ToolSearchLocation.EnvironmentVariables | ToolSearchLocation.LocalToolsRoot | ToolSearchLocation.Path, "--version", "https://github.com/rust-av/Av1an/releases", ExternalToolKind.Av1an),
+        new ToolDefinition(RegisteredToolKind.Av1an, ToolProbeMode.ProcessVersion, ["av1an.exe", "Av1an.exe"], ["FLOWENCODE_AV1AN", "AV1AN_PATH", "AV1AN_EXE", "AV1AN"], ToolSearchLocation.EnvironmentVariables | ToolSearchLocation.LocalToolsRoot | ToolSearchLocation.Path, "--version", ManagedAv1anReleasesUrl, ExternalToolKind.Av1an),
         new ToolDefinition(RegisteredToolKind.DgDemux, ToolProbeMode.FileVersionInfo, ["DGDemux.exe", "dgdemux.exe"], ["FLOWENCODE_DGDEMUX", "DGDEMUX_PATH", "DGDEMUX_EXE", "DGDEMUX"], ToolSearchLocation.EnvironmentVariables | ToolSearchLocation.LocalToolsRoot | ToolSearchLocation.Path, string.Empty, "https://www.rationalqm.us/dgdemux/binaries/"),
         new ToolDefinition(RegisteredToolKind.Eac3To, ToolProbeMode.FileVersionInfo, ["eac3to.exe", "Eac3to.exe"], ["FLOWENCODE_EAC3TO", "EAC3TO_PATH", "EAC3TO_EXE", "EAC3TO"], ToolSearchLocation.EnvironmentVariables | ToolSearchLocation.LocalToolsRoot | ToolSearchLocation.Path, string.Empty, "https://www.rationalqm.us/eac3to/"),
         new ToolDefinition(RegisteredToolKind.Deew, ToolProbeMode.ProcessVersion, ["deew.exe", "Deew.exe"], ["FLOWENCODE_DEEW", "DEEW_PATH", "DEEW_EXE", "DEEW"], ToolSearchLocation.EnvironmentVariables | ToolSearchLocation.LocalToolsRoot | ToolSearchLocation.Path, "--version", "https://github.com/pcroland/deew"),

@@ -726,7 +726,10 @@ public sealed class SetupBootstrapService : ISetupBootstrapService, IDisposable
         ReportProgress(progress, dependencyKind, 10, "Checking tool package...");
         var package = (await _externalToolService.GetAvailableUpdatesAsync(cancellationToken))
             .FirstOrDefault(item => item.Kind == toolKind && item.IsAutomatic)
-            ?? throw new InvalidOperationException($"No automatic package was found for {toolKind.ToDisplayName()}.");
+            ?? throw new InvalidOperationException(
+                toolKind == ExternalToolKind.Av1an
+                    ? "当前未找到可自动安装的 Av1an 托管包。请先手动导入 av1an.exe，或等待后续 FlowEncode 更新。"
+                    : $"No automatic package was found for {toolKind.ToDisplayName()}.");
 
         ReportProgress(progress, dependencyKind, 35, $"Installing {package.ReleaseName}...");
         await _externalToolService.InstallUpdateAsync(package, cancellationToken);

@@ -775,7 +775,7 @@ public sealed class SetupGuideViewModel : ObservableObject, ISetupDependencyModu
             new SetupGuideCardViewModel(
                 Texts,
                 Texts.Pick("编码器 / FFmpeg", "Encoders / FFmpeg"),
-                Texts.Pick("这些是视频工作流最常用的核心二进制。FFmpeg 与 Av1an 支持自动安装。", "These are the core binaries used most often in the video workflow. FFmpeg and Av1an support automatic install."),
+                Texts.Pick("这些是视频工作流最常用的核心二进制。FFmpeg 支持自动安装；Av1an 在提供托管兼容包时可自动安装。", "These are the core binaries used most often in the video workflow. FFmpeg supports automatic install, while Av1an can auto-install when a managed compatible package is available."),
                 Texts.Pick("本地编码器放入工作目录下的 encoders，命令行工具放入 tools。", "Managed encoders go into the workspace encoders folder, and CLI tools go into tools."),
                 [
                     BuildSetupDependencyItem(SetupDependencyKind.FfmpegBundle),
@@ -1182,7 +1182,7 @@ public sealed class SetupGuideViewModel : ObservableObject, ISetupDependencyModu
             SetupDependencyKind.X264 => Texts.Pick("H.264 编码器。", "H.264 encoder."),
             SetupDependencyKind.X265 => Texts.Pick("HEVC 编码器。", "HEVC encoder."),
             SetupDependencyKind.SvtAv1 => Texts.Pick("AV1 编码器。", "AV1 encoder."),
-            SetupDependencyKind.Av1an => Texts.Pick("自动压制流程依赖。", "Required for the auto-encode workflow."),
+            SetupDependencyKind.Av1an => Texts.Pick("自动压制后端。优先使用 FlowEncode 兼容的托管版本，也支持手动导入。", "Auto-encode backend. Prefer the FlowEncode-compatible managed build, with manual import as a fallback."),
             SetupDependencyKind.Avs2PipeMod => Texts.Pick("AviSynth 输入桥接工具。", "Bridge tool for AviSynth input."),
             SetupDependencyKind.DgDemux => Texts.Pick("蓝光播放列表扫描与解复用默认后端。", "Default backend for Blu-ray playlist scanning and demux."),
             SetupDependencyKind.Eac3To => Texts.Pick("音频扫描与 FLAC 转换。", "Audio scanning and FLAC conversion."),
