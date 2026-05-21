@@ -3,7 +3,8 @@
     x:Class="FlowEncode.Controls.Shared.CommandPreviewBox"
     x:Name="Root"
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
-    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:shared="using:FlowEncode.Controls.Shared">
     <Grid RowSpacing="{StaticResource AppSpacingS}">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
@@ -12,6 +13,7 @@
 
         <Expander
             x:Name="PreviewExpander"
+            shared:ExpanderLayoutAnimation.IsEnabled="True"
             HorizontalAlignment="Stretch"
             HorizontalContentAlignment="Stretch">
             <Expander.Header>

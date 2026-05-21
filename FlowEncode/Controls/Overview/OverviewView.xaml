@@ -424,7 +424,7 @@
                                     Text="{Binding SelectedJobCommandText}"
                                     Texts="{Binding Texts}" />
 
-                                <Expander Grid.Row="3" HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch">
+                                <Expander shared:ExpanderLayoutAnimation.IsEnabled="True" Grid.Row="3" HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch">
                                     <Expander.Header>
                                         <TextBlock FontFamily="{StaticResource AppDisplayFont}" FontSize="{StaticResource AppBodyLargeFontSize}" FontWeight="SemiBold" Text="{Binding Texts.JobLogTitle}" />
                                     </Expander.Header>

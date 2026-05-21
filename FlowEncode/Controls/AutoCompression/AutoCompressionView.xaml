@@ -83,7 +83,7 @@
                             PlaceholderText="--preset 6 --film-grain 8"
                             Text="{Binding AutoCompressionVideoParameters, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
 
-                        <Expander HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch">
+                        <Expander shared:ExpanderLayoutAnimation.IsEnabled="True" HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch">
                             <Expander.Header>
                                 <TextBlock FontWeight="SemiBold" Text="{Binding Texts.AutoCompressionAdvancedHeader}" />
                             </Expander.Header>
@@ -168,7 +168,7 @@
                             Text="{Binding AutoCompressionCommandLine}"
                             Texts="{Binding Texts}" />
 
-                        <Expander HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch">
+                        <Expander shared:ExpanderLayoutAnimation.IsEnabled="True" HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch">
                             <Expander.Header>
                                 <TextBlock FontFamily="{StaticResource AppDisplayFont}" FontSize="{StaticResource AppBodyLargeFontSize}" FontWeight="SemiBold" Text="{Binding Texts.AutoCompressionLogTitle}" />
                             </Expander.Header>
