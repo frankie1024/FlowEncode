@@ -69,7 +69,9 @@ public sealed class ProcessToolProbeService : IToolProbeService
 
         var settings = _settingsService.Load();
         var manualToolPaths = settings.EffectiveManualToolPaths;
-        var key = new ToolProbeCacheKey(definition.Kind, BuildProbeSignature(definition, manualToolPaths));
+        var key = new ToolProbeCacheKey(
+            definition.Kind,
+            BuildProbeSignature(definition, manualToolPaths, settings.PreferSystemEncoders));
         if (_probeCache.TryGetValue(key, out var cached))
         {
             cancellationToken.ThrowIfCancellationRequested();
@@ -739,7 +741,10 @@ public sealed class ProcessToolProbeService : IToolProbeService
             definition.ManagedExternalToolKind);
     }
 
-    private string BuildProbeSignature(ToolDefinition definition, IReadOnlyDictionary<string, string> manualToolPaths)
+    private string BuildProbeSignature(
+        ToolDefinition definition,
+        IReadOnlyDictionary<string, string> manualToolPaths,
+        bool preferSystemEncoders)
     {
         var builder = new System.Text.StringBuilder();
         builder.Append(definition.Kind)
@@ -749,6 +754,9 @@ public sealed class ProcessToolProbeService : IToolProbeService
             .Append(definition.VersionArguments)
             .Append('|')
             .Append(definition.ProbeValue)
+            .AppendLine();
+        builder.Append("preferSystemEncoders=")
+            .Append(preferSystemEncoders)
             .AppendLine();
 
         AppendManualToolPath(builder, ManualToolPathKeys.ForRegisteredTool(definition.Kind), manualToolPaths);

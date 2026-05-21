@@ -29,19 +29,35 @@ public sealed partial class AutoCompressionView : UserControl
         ConfigureTwoItemGrid(AutoOutputPathGrid, AutoOutputPathActionColumn, AutoOutputBrowseButton, compactForms, GridLength.Auto);
 
         var optionColumnCount = width >= 900
-            ? 4
-            : width >= 640
-                ? 2
-                : 1;
-        ConfigureFourItemGrid(
+            ? 5
+            : width >= 720
+                ? 3
+                : width >= 560
+                    ? 2
+                    : 1;
+        RebuildAutoRows(
             AutoCompressionOptionsGrid,
+            optionColumnCount switch
+            {
+                >= 5 => 1,
+                3 => 2,
+                2 => 3,
+                _ => 5
+            });
+        ConfigureFiveItemGrid(
+            AutoCompressionOptionsGrid,
+            AutoCompressionMetricColumn,
             AutoCompressionTargetColumn,
             AutoCompressionProbesColumn,
             AutoCompressionWorkersColumn,
+            AutoCompressionMetricComboBox,
             AutoCompressionTargetVmafBox,
             AutoCompressionProbesBox,
             AutoCompressionWorkersBox,
             optionColumnCount);
+
+        ConfigureFourAdvancedItemsGrid(AutoCompressionAdvancedOptionsGrid, width >= 1080 ? 4 : width >= 760 ? 2 : 1);
+
         ConfigureTwoItemGrid(AutoCompressionActionGrid, AutoCompressionCancelColumn, CancelAutoCompressionButton, compactForms, new GridLength(1, GridUnitType.Star));
     }
 
@@ -206,28 +222,109 @@ public sealed partial class AutoCompressionView : UserControl
         Grid.SetColumn(secondItem, stacked ? 0 : 1);
     }
 
-    private static void ConfigureFourItemGrid(
+    private static void RebuildAutoRows(Grid grid, int rowCount)
+    {
+        grid.RowDefinitions.Clear();
+        for (var index = 0; index < rowCount; index++)
+        {
+            grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+        }
+    }
+
+    private void ConfigureFourAdvancedItemsGrid(Grid grid, int columnCount)
+    {
+        RebuildAutoRows(
+            grid,
+            columnCount switch
+            {
+                >= 4 => 1,
+                2 => 2,
+                _ => 4
+            });
+
+        grid.ColumnSpacing = columnCount == 1 ? 0 : UiTokens.SpacingM;
+
+        var columns = new[]
+        {
+            grid.ColumnDefinitions[0],
+            grid.ColumnDefinitions[1],
+            grid.ColumnDefinitions[2],
+            grid.ColumnDefinitions[3]
+        };
+
+        for (var index = 0; index < columns.Length; index++)
+        {
+            columns[index].Width = index < columnCount
+                ? new GridLength(1, GridUnitType.Star)
+                : new GridLength(0);
+        }
+
+        var items = new FrameworkElement[]
+        {
+            AutoCompressionProbingRateBox,
+            AutoCompressionProbingStatisticComboBox,
+            AutoCompressionProbeResolutionTextBox,
+            AutoCompressionInterpolationMethodComboBox
+        };
+
+        for (var index = 0; index < items.Length; index++)
+        {
+            var item = items[index];
+            var row = index / columnCount;
+            var column = index % columnCount;
+            Grid.SetRow(item, row);
+            Grid.SetColumn(item, column);
+        }
+    }
+
+    private static void ConfigureFiveItemGrid(
         Grid grid,
         ColumnDefinition secondColumn,
         ColumnDefinition thirdColumn,
         ColumnDefinition fourthColumn,
+        ColumnDefinition fifthColumn,
         FrameworkElement secondItem,
         FrameworkElement thirdItem,
         FrameworkElement fourthItem,
+        FrameworkElement fifthItem,
         int columnCount)
     {
         grid.ColumnSpacing = columnCount == 1 ? 0 : UiTokens.SpacingM;
         secondColumn.Width = columnCount >= 2 ? new GridLength(1, GridUnitType.Star) : new GridLength(0);
-        thirdColumn.Width = columnCount >= 4 ? new GridLength(1, GridUnitType.Star) : new GridLength(0);
+        thirdColumn.Width = columnCount >= 3 ? new GridLength(1, GridUnitType.Star) : new GridLength(0);
         fourthColumn.Width = columnCount >= 4 ? new GridLength(1, GridUnitType.Star) : new GridLength(0);
+        fifthColumn.Width = columnCount >= 5 ? new GridLength(1, GridUnitType.Star) : new GridLength(0);
 
-        Grid.SetRow(secondItem, columnCount == 1 ? 1 : 0);
-        Grid.SetColumn(secondItem, columnCount == 1 ? 0 : 1);
+        var items = new[] { secondItem, thirdItem, fourthItem, fifthItem };
+        for (var index = 0; index < items.Length; index++)
+        {
+            var item = items[index];
+            int row;
+            int column;
 
-        Grid.SetRow(thirdItem, columnCount >= 4 ? 0 : columnCount == 2 ? 1 : 2);
-        Grid.SetColumn(thirdItem, columnCount >= 4 ? 2 : 0);
+            if (columnCount >= 5)
+            {
+                row = 0;
+                column = index + 1;
+            }
+            else if (columnCount == 3)
+            {
+                row = (index + 1) / 3;
+                column = (index + 1) % 3;
+            }
+            else if (columnCount == 2)
+            {
+                row = (index + 1) / 2;
+                column = (index + 1) % 2;
+            }
+            else
+            {
+                row = index + 1;
+                column = 0;
+            }
 
-        Grid.SetRow(fourthItem, columnCount >= 4 ? 0 : columnCount == 2 ? 1 : 3);
-        Grid.SetColumn(fourthItem, columnCount >= 4 ? 3 : columnCount == 2 ? 1 : 0);
+            Grid.SetRow(item, row);
+            Grid.SetColumn(item, column);
+        }
     }
 }

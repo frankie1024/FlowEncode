@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using System.IO.Compression;
+using System.Net;
 using System.Text.Json;
 using System.Text.RegularExpressions;
 using FlowEncode.Application;
@@ -11,6 +12,11 @@ namespace FlowEncode.Infrastructure;
 public sealed class LocalExternalToolService : IExternalToolService, IDisposable
 {
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
+    private const string ManagedAv1anRepositoryOverrideVariable = "FLOWENCODE_AV1AN_RELEASE_REPO";
+    private static readonly string[] ManagedAv1anRepositoryCandidates =
+    [
+        "frankie1024/Av1an"
+    ];
 
     private static readonly IReadOnlyDictionary<ExternalToolKind, string[]> ExecutableNames = new Dictionary<ExternalToolKind, string[]>
     {
@@ -285,9 +291,31 @@ public sealed class LocalExternalToolService : IExternalToolService, IDisposable
 
     private async Task<ExternalToolUpdatePackage?> GetAv1anPackageAsync(CancellationToken cancellationToken)
     {
+        foreach (var repository in GetManagedAv1anRepositoryCandidates())
+        {
+            var package = await TryGetManagedAv1anPackageFromRepositoryAsync(repository, cancellationToken);
+            if (package is not null)
+            {
+                return package;
+            }
+        }
+
+        return null;
+    }
+
+    private async Task<ExternalToolUpdatePackage?> TryGetManagedAv1anPackageFromRepositoryAsync(
+        string repository,
+        CancellationToken cancellationToken)
+    {
         using var response = await _apiHttpClient.GetAsync(
-            "https://api.github.com/repos/rust-av/Av1an/releases?per_page=20",
+            $"https://api.github.com/repos/{repository}/releases?per_page=20",
             cancellationToken);
+
+        if (response.StatusCode == HttpStatusCode.NotFound)
+        {
+            return null;
+        }
+
         response.EnsureSuccessStatusCode();
 
         await using var contentStream = await response.Content.ReadAsStreamAsync(cancellationToken);
@@ -300,9 +328,10 @@ public sealed class LocalExternalToolService : IExternalToolService, IDisposable
         var candidates = releases
             .Where(static release => IsStableGitHubRelease(release))
             .SelectMany(release => (release.Assets ?? [])
-                .Where(static asset => asset.Name.Equals("av1an.exe", StringComparison.OrdinalIgnoreCase))
+                .Where(static asset => IsManagedAv1anAssetName(asset.Name))
                 .Select(asset => new { Release = release, Asset = asset }))
             .OrderByDescending(static candidate => candidate.Release.PublishedAt)
+            .ThenByDescending(static candidate => ScoreManagedAv1anAssetName(candidate.Asset.Name))
             .ToList();
 
         if (candidates.Count == 0)
@@ -313,7 +342,7 @@ public sealed class LocalExternalToolService : IExternalToolService, IDisposable
         var selected = candidates[0];
         var sha256 = PackageIntegrityVerifier.NormalizeSha256Digest(selected.Asset.Digest);
         var isAutomatic = !string.IsNullOrWhiteSpace(sha256);
-        var notes = "使用 Av1an 官方稳定发布版本。";
+        var notes = "使用 FlowEncode 兼容的 Av1an 托管发布包。";
         if (!isAutomatic)
         {
             notes += " 当前资源未提供 SHA256 摘要，已禁用自动安装。";
@@ -707,5 +736,85 @@ public sealed class LocalExternalToolService : IExternalToolService, IDisposable
         {
             yield return root;
         }
+    }
+
+    internal static IReadOnlyList<string> GetManagedAv1anRepositoryCandidates()
+    {
+        var result = new List<string>();
+        var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+        var overrideRepository = Environment.GetEnvironmentVariable(ManagedAv1anRepositoryOverrideVariable);
+        if (!string.IsNullOrWhiteSpace(overrideRepository))
+        {
+            var normalizedOverride = overrideRepository.Trim().Trim('/');
+            if (seen.Add(normalizedOverride))
+            {
+                result.Add(normalizedOverride);
+            }
+        }
+
+        foreach (var candidate in ManagedAv1anRepositoryCandidates)
+        {
+            if (seen.Add(candidate))
+            {
+                result.Add(candidate);
+            }
+        }
+
+        return result;
+    }
+
+    internal static bool IsManagedAv1anAssetName(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return false;
+        }
+
+        var normalized = value.Trim();
+        if (normalized.EndsWith(".sha256", StringComparison.OrdinalIgnoreCase))
+        {
+            return false;
+        }
+
+        var hasRecognizedExtension =
+            normalized.EndsWith(".exe", StringComparison.OrdinalIgnoreCase)
+            || normalized.EndsWith(".zip", StringComparison.OrdinalIgnoreCase)
+            || normalized.EndsWith(".7z", StringComparison.OrdinalIgnoreCase);
+        if (!hasRecognizedExtension)
+        {
+            return false;
+        }
+
+        return normalized.Contains("av1an", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static int ScoreManagedAv1anAssetName(string value)
+    {
+        var score = 0;
+        if (value.Equals("av1an.exe", StringComparison.OrdinalIgnoreCase))
+        {
+            score += 500;
+        }
+
+        if (value.EndsWith(".exe", StringComparison.OrdinalIgnoreCase))
+        {
+            score += 300;
+        }
+        else if (value.EndsWith(".zip", StringComparison.OrdinalIgnoreCase))
+        {
+            score += 200;
+        }
+        else if (value.EndsWith(".7z", StringComparison.OrdinalIgnoreCase))
+        {
+            score += 100;
+        }
+
+        if (value.Contains("flowencode", StringComparison.OrdinalIgnoreCase))
+        {
+            score += 25;
+        }
+
+        return score;
     }
 }

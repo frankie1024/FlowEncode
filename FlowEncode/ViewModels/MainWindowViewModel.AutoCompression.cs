@@ -18,10 +18,14 @@ public partial class MainWindowViewModel
     private string _autoCompressionSourcePath = string.Empty;
     private string _autoCompressionOutputPath = string.Empty;
     private string _autoCompressionVideoParameters = string.Empty;
+    private string _autoCompressionBackendArguments = string.Empty;
     private double _autoCompressionTargetVmaf = 95.0;
     private AutoCompressionMetric _autoCompressionMetric = AutoCompressionMetric.Vmaf;
     private double _autoCompressionProbes = 4;
     private double _autoCompressionWorkers;
+    private double _autoCompressionProbingRate = 1;
+    private string _autoCompressionProbeResolution = string.Empty;
+    private string _autoCompressionInterpolationMethod = string.Empty;
     private EncoderOption? _selectedAutoEncoder;
     private string _autoCompressionStatusText = string.Empty;
     private string _autoCompressionCommandLine = string.Empty;
@@ -107,12 +111,13 @@ public partial class MainWindowViewModel
         get => _autoCompressionTargetVmaf;
         set
         {
-            var normalized = NormalizeBoundedDouble(value, 1, 100);
+            var normalized = NormalizeBoundedDouble(value, AutoCompressionTargetScoreMinimum, AutoCompressionTargetScoreMaximum);
             if (SetProperty(ref _autoCompressionTargetVmaf, normalized))
             {
                 OnPropertyChanged(nameof(CanStartAutoCompression));
                 OnPropertyChanged(nameof(AutoCompressionSuggestedOutputFileName));
                 OnPropertyChanged(nameof(AutoCompressionOutputPreviewText));
+                OnPropertyChanged(nameof(AutoCompressionMetricGuidanceText));
                 RefreshAutoCompressionCommandPreview();
             }
         }
@@ -130,6 +135,20 @@ public partial class MainWindowViewModel
         }
     }
 
+    internal string AutoCompressionBackendArguments
+    {
+        get => _autoCompressionBackendArguments;
+        set
+        {
+            var normalized = value.Trim();
+            if (SetProperty(ref _autoCompressionBackendArguments, normalized))
+            {
+                OnPropertyChanged(nameof(CanStartAutoCompression));
+                RefreshAutoCompressionCommandPreview();
+            }
+        }
+    }
+
     internal AutoCompressionMetric AutoCompressionMetric
     {
         get => _autoCompressionMetric;
@@ -143,6 +162,10 @@ public partial class MainWindowViewModel
                 OnPropertyChanged(nameof(CanStartAutoCompression));
                 OnPropertyChanged(nameof(AutoCompressionSuggestedOutputFileName));
                 OnPropertyChanged(nameof(AutoCompressionOutputPreviewText));
+                OnPropertyChanged(nameof(AutoCompressionMetricGuidanceText));
+                OnPropertyChanged(nameof(AutoCompressionTargetScoreMinimum));
+                OnPropertyChanged(nameof(AutoCompressionTargetScoreMaximum));
+                AutoCompressionTargetVmaf = _autoCompressionTargetVmaf;
                 RefreshAutoCompressionCommandPreview();
             }
         }
@@ -176,6 +199,94 @@ public partial class MainWindowViewModel
         }
     }
 
+    internal double AutoCompressionProbingRate
+    {
+        get => _autoCompressionProbingRate;
+        set
+        {
+            var normalized = NormalizeBoundedDouble(value, 1, int.MaxValue);
+            if (SetProperty(ref _autoCompressionProbingRate, normalized))
+            {
+                OnPropertyChanged(nameof(CanStartAutoCompression));
+                RefreshAutoCompressionCommandPreview();
+            }
+        }
+    }
+
+    internal string AutoCompressionProbeResolution
+    {
+        get => _autoCompressionProbeResolution;
+        set
+        {
+            var normalized = value.Trim();
+            if (SetProperty(ref _autoCompressionProbeResolution, normalized))
+            {
+                OnPropertyChanged(nameof(CanStartAutoCompression));
+                RefreshAutoCompressionCommandPreview();
+            }
+        }
+    }
+
+    internal StringChoiceOption? SelectedAutoCompressionProbingStatisticOption
+    {
+        get => _selectedAutoCompressionProbingStatisticOption;
+        set
+        {
+            if (SetProperty(ref _selectedAutoCompressionProbingStatisticOption, value) && value is not null)
+            {
+                AutoCompressionProbingStatistic = value.Value;
+            }
+        }
+    }
+
+    internal string AutoCompressionProbingStatistic
+    {
+        get => _selectedAutoCompressionProbingStatisticOption?.Value ?? "auto";
+        set
+        {
+            var selectedOption = AutoCompressionProbingStatisticOptions.FirstOrDefault(option =>
+                    string.Equals(option.Value, value, StringComparison.OrdinalIgnoreCase))
+                ?? AutoCompressionProbingStatisticOptions.FirstOrDefault();
+            if (SetProperty(ref _selectedAutoCompressionProbingStatisticOption, selectedOption))
+            {
+                OnPropertyChanged(nameof(SelectedAutoCompressionProbingStatisticOption));
+                OnPropertyChanged(nameof(CanStartAutoCompression));
+                RefreshAutoCompressionCommandPreview();
+            }
+        }
+    }
+
+    internal string AutoCompressionInterpolationMethod
+    {
+        get => _selectedAutoCompressionInterpolationMethodOption?.Value ?? string.Empty;
+        set
+        {
+            var selectedOption = AutoCompressionInterpolationMethodOptions.FirstOrDefault(option =>
+                    string.Equals(option.Value, value, StringComparison.OrdinalIgnoreCase))
+                ?? AutoCompressionInterpolationMethodOptions.FirstOrDefault();
+            if (SetProperty(ref _selectedAutoCompressionInterpolationMethodOption, selectedOption))
+            {
+                OnPropertyChanged(nameof(SelectedAutoCompressionInterpolationMethodOption));
+                OnPropertyChanged(nameof(CanStartAutoCompression));
+                RefreshAutoCompressionCommandPreview();
+            }
+        }
+    }
+
+    internal StringChoiceOption? SelectedAutoCompressionInterpolationMethodOption
+    {
+        get => _selectedAutoCompressionInterpolationMethodOption;
+        set
+        {
+            if (SetProperty(ref _selectedAutoCompressionInterpolationMethodOption, value))
+            {
+                OnPropertyChanged(nameof(SelectedAutoCompressionInterpolationMethodOption));
+                OnPropertyChanged(nameof(CanStartAutoCompression));
+                RefreshAutoCompressionCommandPreview();
+            }
+        }
+    }
+
     internal string AutoCompressionStatusText
     {
         get => _autoCompressionStatusText;
@@ -203,6 +314,8 @@ public partial class MainWindowViewModel
             if (SetProperty(ref _autoCompressionProgressPercent, normalized))
             {
                 OnPropertyChanged(nameof(AutoCompressionProgressLabel));
+                OnPropertyChanged(nameof(AutoCompressionProgressPercentText));
+                OnPropertyChanged(nameof(AutoCompressionProgressValue));
             }
         }
     }
@@ -215,6 +328,7 @@ public partial class MainWindowViewModel
             if (SetProperty(ref _autoCompressionProgressIsIndeterminate, value))
             {
                 OnPropertyChanged(nameof(AutoCompressionProgressLabel));
+                OnPropertyChanged(nameof(AutoCompressionProgressPercentText));
                 OnPropertyChanged(nameof(AutoCompressionProgressHintVisibility));
             }
         }
@@ -223,6 +337,15 @@ public partial class MainWindowViewModel
     internal string AutoCompressionOutputPreviewText => _isAutoCompressionInputRefreshPending
         ? Texts.OutputPreviewUpdating
         : BuildOutputPreviewText(TryResolveAutoCompressionOutputPreviewPath());
+
+    internal string AutoCompressionMetricGuidanceText => Texts.AutoCompressionMetricGuidance(AutoCompressionMetric);
+
+    internal double AutoCompressionTargetScoreMinimum => 0;
+
+    internal double AutoCompressionTargetScoreMaximum =>
+        AutoCompressionMetric is AutoCompressionMetric.Vmaf or AutoCompressionMetric.Ssimulacra2
+            ? 100
+            : 1000000;
 
     internal bool IsAutoCompressionRunning => _isAutoCompressionRunning;
 
@@ -239,6 +362,13 @@ public partial class MainWindowViewModel
             ? Texts.AutoCompressionProgressActiveLabel
             : $"{AutoCompressionProgressPercent:0.#}%";
 
+    internal string AutoCompressionProgressPercentText =>
+        AutoCompressionProgressIsIndeterminate && _isAutoCompressionRunning && AutoCompressionProgressPercent <= 0
+            ? "--"
+            : $"{AutoCompressionProgressPercent:0.#}%";
+
+    internal double AutoCompressionProgressValue => AutoCompressionProgressPercent / 100.0;
+
     internal Visibility AutoCompressionProgressHintVisibility =>
         _isAutoCompressionRunning && AutoCompressionProgressIsIndeterminate
             ? Visibility.Visible
@@ -247,6 +377,12 @@ public partial class MainWindowViewModel
     internal string AutoCompressionProgressHint => Texts.AutoCompressionProgressIndeterminateHint;
 
     internal Brush AutoCompressionStatusPanelBorderBrush => ResolveTaskStatusPanelBorderBrush(_autoCompressionDisplayState);
+
+    internal Brush AutoCompressionProgressTrackBrush => ResolveAutoCompressionProgressTrackBrush(_autoCompressionDisplayState);
+
+    internal Brush AutoCompressionProgressBorderBrush => ResolveAutoCompressionProgressBorderBrush(_autoCompressionDisplayState);
+
+    internal Brush AutoCompressionProgressFillBrush => ResolveAutoCompressionProgressFillBrush(_autoCompressionDisplayState);
 
     internal string AutoCompressionSuggestedOutputExtension => "mkv";
 
@@ -447,6 +583,7 @@ public partial class MainWindowViewModel
         var workers = AutoCompressionWorkers > 0
             ? (int?)Math.Round(AutoCompressionWorkers, MidpointRounding.AwayFromZero)
             : null;
+        var searchProfile = BuildAutoCompressionSearchProfile();
         var request = new AutoCompressionRequest(
             Guid.NewGuid(),
             normalizedSource,
@@ -456,9 +593,34 @@ public partial class MainWindowViewModel
             AutoCompressionTargetVmaf,
             probes,
             AutoCompressionVideoParameters.Trim(),
+            AutoCompressionBackendArguments.Trim(),
             workers);
+        request = request with { SearchProfile = searchProfile };
         RequestValidation.ValidateAutoCompressionRequest(request);
         return request;
+    }
+
+    private AutoCompressionSearchProfile? BuildAutoCompressionSearchProfile()
+    {
+        var interpolationMethod = AutoCompressionInterpolationMethod.Trim();
+        var probingStatistic = AutoCompressionProbingStatistic.Trim();
+        var probeResolution = AutoCompressionProbeResolution.Trim();
+        var probingRate = Math.Max(1, (int)Math.Round(AutoCompressionProbingRate, MidpointRounding.AwayFromZero));
+
+        if (string.IsNullOrWhiteSpace(interpolationMethod)
+            && string.Equals(probingStatistic, "auto", StringComparison.OrdinalIgnoreCase)
+            && string.IsNullOrWhiteSpace(probeResolution)
+            && probingRate == 1)
+        {
+            return null;
+        }
+
+        return new AutoCompressionSearchProfile(
+            string.IsNullOrWhiteSpace(interpolationMethod) ? null : interpolationMethod,
+            string.Equals(probingStatistic, "auto", StringComparison.OrdinalIgnoreCase) ? null : probingStatistic,
+            string.IsNullOrWhiteSpace(probeResolution) ? null : probeResolution,
+            probingRate,
+            ScoutEnabled: false);
     }
 
     private bool TryCreateAutoCompressionRequest(
@@ -805,6 +967,8 @@ public partial class MainWindowViewModel
         OnPropertyChanged(nameof(CanStartAutoCompression));
         OnPropertyChanged(nameof(CanCancelAutoCompression));
         OnPropertyChanged(nameof(AutoCompressionProgressLabel));
+        OnPropertyChanged(nameof(AutoCompressionProgressPercentText));
+        OnPropertyChanged(nameof(AutoCompressionProgressValue));
         OnPropertyChanged(nameof(AutoCompressionProgressHintVisibility));
         RaiseDashboardCardActivityPropertyChanges();
 
@@ -827,6 +991,9 @@ public partial class MainWindowViewModel
 
         _autoCompressionDisplayState = state;
         OnPropertyChanged(nameof(AutoCompressionStatusPanelBorderBrush));
+        OnPropertyChanged(nameof(AutoCompressionProgressTrackBrush));
+        OnPropertyChanged(nameof(AutoCompressionProgressBorderBrush));
+        OnPropertyChanged(nameof(AutoCompressionProgressFillBrush));
     }
 
     private void ClampAutoCompressionProgressForTerminalState(EncodingJobState state)
@@ -848,6 +1015,36 @@ public partial class MainWindowViewModel
         OnPropertyChanged(nameof(CanStartAutoCompression));
         OnPropertyChanged(nameof(AutoCompressionSuggestedOutputFileName));
         OnPropertyChanged(nameof(AutoCompressionOutputPreviewText));
+    }
+
+    private static Brush ResolveAutoCompressionProgressTrackBrush(EncodingJobState? state)
+    {
+        return state switch
+        {
+            EncodingJobState.Failed => ResolveBrush("AppErrorSoftBrush"),
+            EncodingJobState.Cancelled => ResolveBrush("AppNeutralSoftBrush"),
+            _ => ResolveBrush("QueueProgressSoftBrush")
+        };
+    }
+
+    private static Brush ResolveAutoCompressionProgressBorderBrush(EncodingJobState? state)
+    {
+        return state switch
+        {
+            EncodingJobState.Failed => ResolveBrush("AppErrorBrush"),
+            EncodingJobState.Cancelled => ResolveBrush("AppNeutralBrush"),
+            _ => ResolveBrush("QueueProgressFillBrush")
+        };
+    }
+
+    private static Brush ResolveAutoCompressionProgressFillBrush(EncodingJobState? state)
+    {
+        return state switch
+        {
+            EncodingJobState.Failed => ResolveBrush("AppErrorBrush"),
+            EncodingJobState.Cancelled => ResolveBrush("AppNeutralBrush"),
+            _ => ResolveBrush("QueueProgressAreaBrush")
+        };
     }
 
     private static double NormalizeBoundedDouble(double value, double minimum, double maximum)

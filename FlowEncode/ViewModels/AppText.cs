@@ -170,10 +170,33 @@ public sealed class AppText
     public string AudioProcessingProgressActiveLabel => Pick("处理中...", "Working...");
     public string AudioProcessingDdpWarmupHint => Pick("ffmpeg 处理中，请稍后...", "FFmpeg is preparing the source. Please wait...");
     public string AudioProcessingProgressIndeterminateHint => Pick("当前阶段暂无法稳定计算百分比，任务仍在执行。", "This stage has no reliable percentage yet. The task is still running.");
-    public string AutoCompressionTargetVmafHeader => Pick("目标分数", "Target Score");
-    public string AutoCompressionProbesHeader => Pick("探测次数", "Probes");
-    public string AutoCompressionWorkersHeader => Pick("并行任务数", "Workers");
-    public string AutoCompressionSmallParametersHeader => Pick("小参（--video-params）", "Fine Params (--video-params)");
+    public string AutoCompressionMetricHeader => "Target Metric";
+    public string AutoCompressionTargetVmafHeader => "Target Score";
+    public string AutoCompressionProbesHeader => "Probes";
+    public string AutoCompressionWorkersHeader => "Workers (0 = Auto)";
+    public string AutoCompressionSmallParametersHeader => "Encoder Args (--video-params)";
+    public string AutoCompressionAdvancedHeader => Pick("高级探测 / 后端参数", "Advanced Probing / Backend Args");
+    public string AutoCompressionBackendArgumentsHeader => "Extra Backend Args (passed to Av1an)";
+    public string AutoCompressionBackendArgumentsPlaceholder => "--chunk-method lsmash --concat mkvmerge";
+    public string AutoCompressionProbingRateHeader => "Probing Rate (--probing-rate)";
+    public string AutoCompressionProbeResolutionHeader => "Probe Resolution (--probe-res)";
+    public string AutoCompressionProbeResolutionPlaceholder => "Example: 1280x720";
+    public string AutoCompressionProbingStatisticHeader => "Probing Statistic (--probing-stat)";
+    public string AutoCompressionInterpolationMethodHeader => "Interpolation Method (--interp-method)";
+    public string AutoCompressionInterpolationMethodPlaceholder => "Example: natural-pchip";
+    public string AutoCompressionMetricGuidance(AutoCompressionMetric metric)
+    {
+        return metric switch
+        {
+            AutoCompressionMetric.Vmaf => Pick("VMAF：0-100，越大越好。", "VMAF: 0-100, higher is better."),
+            AutoCompressionMetric.Ssimulacra2 => Pick("SSIMULACRA2：0-100，越大越好。", "SSIMULACRA2: 0-100, higher is better."),
+            AutoCompressionMetric.Xpsnr => Pick("XPSNR：≥ 0，越大越好。", "XPSNR: >= 0, higher is better."),
+            AutoCompressionMetric.XpsnrWeighted => Pick("XPSNR-Weighted：≥ 0，越大越好。", "XPSNR-Weighted: >= 0, higher is better."),
+            AutoCompressionMetric.ButteraugliInf => Pick("Butteraugli-INF：≥ 0，越小越好。", "Butteraugli-INF: >= 0, lower is better."),
+            AutoCompressionMetric.Butteraugli3 => Pick("Butteraugli-3：≥ 0，越小越好。", "Butteraugli-3: >= 0, lower is better."),
+            _ => string.Empty
+        };
+    }
     public string AutoCompressionStartButton => Pick("开始自动压制", "Start Auto Encode");
     public string AutoCompressionCancelButton => Pick("取消自动压制", "Cancel Auto Encode");
     public string AutoCompressionStatusTitle => Pick("任务状态", "Task Status");

@@ -109,7 +109,7 @@ Common usage patterns:
 
 Support depth depends on upstream versions, local runtime state, plugin availability and user environment configuration. FlowEncode provides detection and guidance where possible, but it does not replace upstream installation instructions or licenses.
 
-In-app automatic installation or updates mainly cover `Python 3.12`, `VapourSynth` / `vsrepo` and public plugin packages, `awsmfunc`, `vsjetpack`, `FFmpeg`, `x264`, `x265`, `SVT-AV1` and `Av1an`. `Avs2PipeMod`, `DGDemux`, `eac3to`, `deew`, `Dolby Encoding Engine` / `DEE`, and `opusenc` / `Opus Encoder` are user-supplied external tools governed by their own licenses; FlowEncode only detects them, imports local binaries, pins paths and invokes them. It does not distribute those tools in the installer or grant rights to use them.
+In-app automatic installation or updates mainly cover `Python 3.12`, `VapourSynth` / `vsrepo` and public plugin packages, `awsmfunc`, `vsjetpack`, `FFmpeg`, `x264`, `x265`, `SVT-AV1`, and `Av1an` when a managed compatible package is available. `Avs2PipeMod`, `DGDemux`, `eac3to`, `deew`, `Dolby Encoding Engine` / `DEE`, and `opusenc` / `Opus Encoder` are user-supplied external tools governed by their own licenses; FlowEncode only detects them, imports local binaries, pins paths and invokes them. It does not distribute those tools in the installer or grant rights to use them.
 
 ## Installation and Runtime Requirements
 

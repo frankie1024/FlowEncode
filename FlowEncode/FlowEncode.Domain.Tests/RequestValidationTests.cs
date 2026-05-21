@@ -18,6 +18,7 @@ public sealed class RequestValidationTests
             double.NaN,
             4,
             string.Empty,
+            string.Empty,
             null);
 
         AssertThrows<ArgumentOutOfRangeException>(() => RequestValidation.ValidateAutoCompressionRequest(request));
@@ -34,6 +35,7 @@ public sealed class RequestValidationTests
             AutoCompressionMetric.Vmaf,
             95,
             0,
+            string.Empty,
             string.Empty,
             null);
 

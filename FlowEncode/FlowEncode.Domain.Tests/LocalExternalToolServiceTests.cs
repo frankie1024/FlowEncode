@@ -6,6 +6,25 @@ namespace FlowEncode.Domain.Tests;
 [TestClass]
 public sealed class LocalExternalToolServiceTests
 {
+    [TestMethod]
+    public void GetManagedAv1anRepositoryCandidates_WithoutOverride_ReturnsManagedForkRepository()
+    {
+        Environment.SetEnvironmentVariable("FLOWENCODE_AV1AN_RELEASE_REPO", null);
+
+        var candidates = LocalExternalToolService.GetManagedAv1anRepositoryCandidates();
+
+        CollectionAssert.AreEqual(new[] { "frankie1024/Av1an" }, candidates.ToArray());
+    }
+
+    [TestMethod]
+    public void IsManagedAv1anAssetName_WithExecutableOrArchiveNames_ReturnsExpectedResult()
+    {
+        Assert.IsTrue(LocalExternalToolService.IsManagedAv1anAssetName("av1an.exe"));
+        Assert.IsTrue(LocalExternalToolService.IsManagedAv1anAssetName("flowencode-av1an-r76.zip"));
+        Assert.IsFalse(LocalExternalToolService.IsManagedAv1anAssetName("av1an.exe.sha256"));
+        Assert.IsFalse(LocalExternalToolService.IsManagedAv1anAssetName("FlowEncode_Setup_v1.9.1.exe"));
+    }
+
     [DataTestMethod]
     [DataRow("v1.0-rc1")]
     [DataRow("v1.0-rc")]
