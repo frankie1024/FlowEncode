@@ -9,5 +9,6 @@ public sealed record AutoCompressionRequest(
     double TargetQuality,
     int Probes,
     string VideoParameters,
+    string BackendArguments,
     int? Workers,
     AutoCompressionSearchProfile? SearchProfile = null);

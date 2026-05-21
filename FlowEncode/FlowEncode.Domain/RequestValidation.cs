@@ -29,6 +29,16 @@ public static class RequestValidation
             throw new ArgumentOutOfRangeException(nameof(request.Probes), request.Probes, "Probe count must be greater than 0.");
         }
 
+        if (request.VideoParameters.Contains('\r') || request.VideoParameters.Contains('\n'))
+        {
+            throw new ArgumentException("Encoder arguments must be a single line.", nameof(request.VideoParameters));
+        }
+
+        if (request.BackendArguments.Contains('\r') || request.BackendArguments.Contains('\n'))
+        {
+            throw new ArgumentException("Backend arguments must be a single line.", nameof(request.BackendArguments));
+        }
+
         if (request.Workers is <= 0)
         {
             throw new ArgumentOutOfRangeException(nameof(request.Workers), request.Workers, "Worker count must be greater than 0 when specified.");

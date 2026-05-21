@@ -47,11 +47,21 @@ public sealed class AutoCompressionFormViewModel : ModuleViewModelBase
         set => Owner.AutoCompressionVideoParameters = value;
     }
 
+    public string AutoCompressionBackendArguments
+    {
+        get => Owner.AutoCompressionBackendArguments;
+        set => Owner.AutoCompressionBackendArguments = value;
+    }
+
     public double AutoCompressionTargetVmaf
     {
         get => Owner.AutoCompressionTargetVmaf;
         set => Owner.AutoCompressionTargetVmaf = value;
     }
+
+    public double AutoCompressionTargetScoreMinimum => Owner.AutoCompressionTargetScoreMinimum;
+
+    public double AutoCompressionTargetScoreMaximum => Owner.AutoCompressionTargetScoreMaximum;
 
     public AutoCompressionMetric AutoCompressionMetric
     {
@@ -71,7 +81,37 @@ public sealed class AutoCompressionFormViewModel : ModuleViewModelBase
         set => Owner.AutoCompressionWorkers = value;
     }
 
+    public double AutoCompressionProbingRate
+    {
+        get => Owner.AutoCompressionProbingRate;
+        set => Owner.AutoCompressionProbingRate = value;
+    }
+
+    public string AutoCompressionProbeResolution
+    {
+        get => Owner.AutoCompressionProbeResolution;
+        set => Owner.AutoCompressionProbeResolution = value;
+    }
+
+    public ObservableCollection<StringChoiceOption> AutoCompressionProbingStatisticOptions => Owner.AutoCompressionProbingStatisticOptions;
+
+    public StringChoiceOption? SelectedAutoCompressionProbingStatisticOption
+    {
+        get => Owner.SelectedAutoCompressionProbingStatisticOption;
+        set => Owner.SelectedAutoCompressionProbingStatisticOption = value;
+    }
+
+    public ObservableCollection<StringChoiceOption> AutoCompressionInterpolationMethodOptions => Owner.AutoCompressionInterpolationMethodOptions;
+
+    public StringChoiceOption? SelectedAutoCompressionInterpolationMethodOption
+    {
+        get => Owner.SelectedAutoCompressionInterpolationMethodOption;
+        set => Owner.SelectedAutoCompressionInterpolationMethodOption = value;
+    }
+
     public string AutoCompressionOutputPreviewText => Owner.AutoCompressionOutputPreviewText;
+
+    public string AutoCompressionMetricGuidanceText => Owner.AutoCompressionMetricGuidanceText;
 
     public bool CanStartAutoCompression => Owner.CanStartAutoCompression;
 

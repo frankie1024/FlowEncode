@@ -341,6 +341,11 @@ public sealed class LegacyAv1anCliFallbackRunner : IAutoCompressionRunner
             args.Add(request.VideoParameters.Trim());
         }
 
+        if (!string.IsNullOrWhiteSpace(request.BackendArguments))
+        {
+            args.AddRange(CommandArgumentTokenizer.Tokenize(request.BackendArguments, throwOnUnclosedQuote: true));
+        }
+
         return args;
     }
 

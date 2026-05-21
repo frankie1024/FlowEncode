@@ -18,6 +18,8 @@ public interface IFlowEncodeHttpClientFactory
 
 internal sealed partial class FlowEncodeHttpClientFactory : IFlowEncodeHttpClientFactory, IDisposable
 {
+    private const string FlowEncodeGitHubTokenVariable = "FLOWENCODE_GITHUB_TOKEN";
+    private const string GitHubTokenVariable = "GITHUB_TOKEN";
     internal static readonly TimeSpan ApiTimeout = TimeSpan.FromSeconds(30);
     internal static readonly TimeSpan DownloadTimeout = TimeSpan.FromMinutes(30);
     internal static readonly TimeSpan ConnectionLifetime = TimeSpan.FromMinutes(15);
@@ -43,6 +45,7 @@ internal sealed partial class FlowEncodeHttpClientFactory : IFlowEncodeHttpClien
         };
 
         client.DefaultRequestHeaders.UserAgent.Add(new ProductInfoHeaderValue("FlowEncode", ResolveUserAgentVersion()));
+        TryApplyGitHubAuthorizationHeader(client, profile);
         return client;
     }
 
@@ -53,6 +56,23 @@ internal sealed partial class FlowEncodeHttpClientFactory : IFlowEncodeHttpClien
     public void Dispose()
     {
         _handler.Dispose();
+    }
+
+    private static void TryApplyGitHubAuthorizationHeader(HttpClient client, FlowEncodeHttpClientProfile profile)
+    {
+        if (profile != FlowEncodeHttpClientProfile.Api)
+        {
+            return;
+        }
+
+        var token = Environment.GetEnvironmentVariable(FlowEncodeGitHubTokenVariable)
+            ?? Environment.GetEnvironmentVariable(GitHubTokenVariable);
+        if (string.IsNullOrWhiteSpace(token))
+        {
+            return;
+        }
+
+        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token.Trim());
     }
 
     private static string ResolveUserAgentVersion()

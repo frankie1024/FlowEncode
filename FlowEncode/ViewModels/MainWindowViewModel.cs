@@ -70,6 +70,8 @@ public partial class MainWindowViewModel : CommunityToolkit.Mvvm.ComponentModel.
     private LanguageOption? _selectedLanguage;
     private EncoderOption? _selectedEncoder;
     private AutoCompressionMetricOption? _selectedAutoCompressionMetricOption;
+    private StringChoiceOption? _selectedAutoCompressionInterpolationMethodOption;
+    private StringChoiceOption? _selectedAutoCompressionProbingStatisticOption;
     private RateControlOption? _selectedRateControl;
     private StringChoiceOption? _selectedPreset;
     private StringChoiceOption? _selectedTune;
@@ -167,6 +169,8 @@ public partial class MainWindowViewModel : CommunityToolkit.Mvvm.ComponentModel.
                 new EncoderOption(EncoderKind.SvtAv1, EncoderKind.SvtAv1.ToDisplayName())
             ]);
         ReplaceItems(AutoCompressionMetricOptions, BuildAutoCompressionMetricOptions());
+        ReplaceItems(AutoCompressionInterpolationMethodOptions, BuildAutoCompressionInterpolationMethodOptions());
+        ReplaceItems(AutoCompressionProbingStatisticOptions, BuildAutoCompressionProbingStatisticOptions());
         ReplaceItems(ConcurrentEncodingJobOptions, BuildConcurrentEncodingJobOptions());
         ReplaceItems(QueueCompletionActionOptions, BuildQueueCompletionActionOptions());
 
@@ -175,6 +179,8 @@ public partial class MainWindowViewModel : CommunityToolkit.Mvvm.ComponentModel.
         _selectedEncoder = EncoderOptions[0];
         _selectedAutoEncoder = EncoderOptions[0];
         _selectedAutoCompressionMetricOption = AutoCompressionMetricOptions[0];
+        _selectedAutoCompressionInterpolationMethodOption = AutoCompressionInterpolationMethodOptions.FirstOrDefault();
+        _selectedAutoCompressionProbingStatisticOption = AutoCompressionProbingStatisticOptions[0];
         _selectedConcurrentEncodingJobOption = ConcurrentEncodingJobOptions[0];
         _selectedQueueCompletionActionOption = QueueCompletionActionOptions[0];
         _autoCompressionStatusText = _texts.AutoCompressionIdleStatus;
@@ -196,6 +202,10 @@ public partial class MainWindowViewModel : CommunityToolkit.Mvvm.ComponentModel.
     internal ObservableCollection<EncoderOption> EncoderOptions { get; } = [];
 
     internal ObservableCollection<AutoCompressionMetricOption> AutoCompressionMetricOptions { get; } = [];
+
+    internal ObservableCollection<StringChoiceOption> AutoCompressionInterpolationMethodOptions { get; } = [];
+
+    internal ObservableCollection<StringChoiceOption> AutoCompressionProbingStatisticOptions { get; } = [];
 
     internal ObservableCollection<RateControlOption> AvailableRateControlModes { get; } = [];
 
@@ -2483,6 +2493,28 @@ public partial class MainWindowViewModel : CommunityToolkit.Mvvm.ComponentModel.
             ?? AutoCompressionMetricOptions.FirstOrDefault();
         OnPropertyChanged(nameof(AutoCompressionMetricOptions));
         OnPropertyChanged(nameof(SelectedAutoCompressionMetricOption));
+
+        var interpolationMethodOptions = av1an?.IsProtocolCompatible == true
+            && av1an.Av1anCapabilities is { InterpolationMethods.Count: > 0 } interpolationCapabilities
+                ? BuildAutoCompressionInterpolationMethodOptions(interpolationCapabilities.InterpolationMethods)
+                : BuildAutoCompressionInterpolationMethodOptions();
+        ReplaceItems(AutoCompressionInterpolationMethodOptions, interpolationMethodOptions);
+        _selectedAutoCompressionInterpolationMethodOption = AutoCompressionInterpolationMethodOptions.FirstOrDefault(option =>
+                string.Equals(option.Value, AutoCompressionInterpolationMethod, StringComparison.OrdinalIgnoreCase))
+            ?? AutoCompressionInterpolationMethodOptions.FirstOrDefault();
+        OnPropertyChanged(nameof(AutoCompressionInterpolationMethodOptions));
+        OnPropertyChanged(nameof(SelectedAutoCompressionInterpolationMethodOption));
+
+        var probingStatisticOptions = av1an?.IsProtocolCompatible == true
+            && av1an.Av1anCapabilities is { ProbingStatistics.Count: > 0 } probingCapabilities
+                ? BuildAutoCompressionProbingStatisticOptions(probingCapabilities.ProbingStatistics)
+                : BuildAutoCompressionProbingStatisticOptions();
+        ReplaceItems(AutoCompressionProbingStatisticOptions, probingStatisticOptions);
+        _selectedAutoCompressionProbingStatisticOption = AutoCompressionProbingStatisticOptions.FirstOrDefault(option =>
+                string.Equals(option.Value, AutoCompressionProbingStatistic, StringComparison.OrdinalIgnoreCase))
+            ?? AutoCompressionProbingStatisticOptions.FirstOrDefault();
+        OnPropertyChanged(nameof(AutoCompressionProbingStatisticOptions));
+        OnPropertyChanged(nameof(SelectedAutoCompressionProbingStatisticOption));
     }
 
     private string BuildRequirementLabel(CapabilityRequirementReadiness requirement)
@@ -3393,6 +3425,94 @@ public partial class MainWindowViewModel : CommunityToolkit.Mvvm.ComponentModel.
                 AutoCompressionMetric.XpsnrWeighted => "XPSNR-Weighted",
                 _ => metric.ToString()
             }));
+    }
+
+    private static IEnumerable<StringChoiceOption> BuildAutoCompressionProbingStatisticOptions()
+    {
+        return BuildAutoCompressionProbingStatisticOptions(
+        [
+            "auto",
+            "mean",
+            "median",
+            "harmonic",
+            "percentile",
+            "standard-deviation",
+            "mode",
+            "minimum",
+            "maximum",
+            "root-mean-square"
+        ]);
+    }
+
+    private static IEnumerable<StringChoiceOption> BuildAutoCompressionProbingStatisticOptions(IEnumerable<string> values)
+    {
+        static string ToLabel(string value)
+        {
+            return value switch
+            {
+                "auto" => "Auto",
+                "mean" => "Mean",
+                "median" => "Median",
+                "harmonic" => "Harmonic",
+                "percentile" => "Percentile",
+                "standard-deviation" => "Standard Deviation",
+                "mode" => "Mode",
+                "minimum" => "Minimum",
+                "maximum" => "Maximum",
+                "root-mean-square" => "Root Mean Square",
+                _ => value
+            };
+        }
+
+        return values
+            .Where(static value => !string.IsNullOrWhiteSpace(value))
+            .Where(static value => !string.Equals(value, "percentile", StringComparison.OrdinalIgnoreCase)
+                && !string.Equals(value, "standard-deviation", StringComparison.OrdinalIgnoreCase))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .Select(value => new StringChoiceOption(value, ToLabel(value)));
+    }
+
+    private static IEnumerable<StringChoiceOption> BuildAutoCompressionInterpolationMethodOptions()
+    {
+        return BuildAutoCompressionInterpolationMethodOptions(
+        [
+            "linear",
+            "quadratic",
+            "natural",
+            "pchip",
+            "catmull",
+            "akima",
+            "cubic-polynomial"
+        ]);
+    }
+
+    private static IEnumerable<StringChoiceOption> BuildAutoCompressionInterpolationMethodOptions(IEnumerable<string> values)
+    {
+        var available = values
+            .Where(static value => !string.IsNullOrWhiteSpace(value))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+
+        var fourthRoundMethods = new[] { "linear", "quadratic", "natural" }
+            .Where(method => available.Contains(method, StringComparer.OrdinalIgnoreCase))
+            .ToArray();
+        var fifthRoundMethods = available;
+
+        var result = new List<StringChoiceOption>
+        {
+            new(string.Empty, "Backend Default")
+        };
+
+        foreach (var fourthRoundMethod in fourthRoundMethods)
+        {
+            foreach (var fifthRoundMethod in fifthRoundMethods)
+            {
+                var combined = $"{fourthRoundMethod}-{fifthRoundMethod}";
+                result.Add(new StringChoiceOption(combined, combined));
+            }
+        }
+
+        return result;
     }
 
     private static IEnumerable<StringChoiceOption> BuildConcurrentEncodingJobOptions()

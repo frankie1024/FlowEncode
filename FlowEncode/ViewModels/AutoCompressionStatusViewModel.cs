@@ -14,13 +14,23 @@ public sealed class AutoCompressionStatusViewModel : ModuleViewModelBase
 
     public Brush AutoCompressionStatusPanelBorderBrush => Owner.AutoCompressionStatusPanelBorderBrush;
 
+    public Brush AutoCompressionProgressTrackBrush => Owner.AutoCompressionProgressTrackBrush;
+
+    public Brush AutoCompressionProgressBorderBrush => Owner.AutoCompressionProgressBorderBrush;
+
+    public Brush AutoCompressionProgressFillBrush => Owner.AutoCompressionProgressFillBrush;
+
     public string AutoCompressionStatusText => Owner.AutoCompressionStatusText;
 
     public double AutoCompressionProgressPercent => Owner.AutoCompressionProgressPercent;
 
+    public double AutoCompressionProgressValue => Owner.AutoCompressionProgressValue;
+
     public bool AutoCompressionProgressIsIndeterminate => Owner.AutoCompressionProgressIsIndeterminate;
 
     public string AutoCompressionProgressLabel => Owner.AutoCompressionProgressLabel;
+
+    public string AutoCompressionProgressPercentText => Owner.AutoCompressionProgressPercentText;
 
     public string AutoCompressionProgressHint => Owner.AutoCompressionProgressHint;
 
