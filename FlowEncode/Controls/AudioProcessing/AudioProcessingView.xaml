@@ -146,7 +146,7 @@
                             Text="{Binding AudioProcessingCommandLine}"
                             Texts="{Binding Texts}" />
 
-                        <Expander x:Name="AudioLogExpander" shared:ExpanderLayoutAnimation.IsEnabled="True" HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch">
+                        <Expander x:Name="AudioLogExpander" HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch">
                             <Expander.Header>
                                 <TextBlock FontFamily="{StaticResource AppDisplayFont}" FontSize="{StaticResource AppBodyLargeFontSize}" FontWeight="SemiBold" Text="{Binding Texts.AudioProcessingLogTitle}" />
                             </Expander.Header>

@@ -129,7 +129,7 @@
                     <ItemsControl ItemsSource="{Binding SetupGuideCards}">
                         <ItemsControl.ItemTemplate>
                             <DataTemplate>
-                                <Expander shared:ExpanderLayoutAnimation.IsEnabled="True" Margin="{StaticResource AppBottomSpacingM}" HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch" Collapsed="SetupGuideCardExpander_Collapsed" IsExpanded="{Binding IsExpanded, Mode=TwoWay}">
+                                <Expander Margin="{StaticResource AppBottomSpacingM}" HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch" Collapsed="SetupGuideCardExpander_Collapsed" IsExpanded="{Binding IsExpanded, Mode=TwoWay}">
                                     <Expander.Header>
                                         <Grid ColumnSpacing="{StaticResource AppSpacingM}">
                                             <Grid.ColumnDefinitions>

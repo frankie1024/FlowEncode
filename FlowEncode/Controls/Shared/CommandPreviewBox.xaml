@@ -13,7 +13,6 @@
 
         <Expander
             x:Name="PreviewExpander"
-            shared:ExpanderLayoutAnimation.IsEnabled="True"
             HorizontalAlignment="Stretch"
             HorizontalContentAlignment="Stretch">
             <Expander.Header>
