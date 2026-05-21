@@ -188,6 +188,7 @@ public sealed class StructuredAv1anRunner : IAutoCompressionRunner
         Task pumpOutput = Task.CompletedTask;
         Task pumpError = Task.CompletedTask;
         var finalExitCode = -1;
+        var outputFinalized = false;
 
         try
         {
@@ -211,6 +212,36 @@ public sealed class StructuredAv1anRunner : IAutoCompressionRunner
             var log = logBuilder.ToString();
             if (finalExitCode == 0)
             {
+                if (!AutoCompressionOutputFinalizer.TryFinalizeOutput(
+                        request.JobId,
+                        stagedOutputPath,
+                        request.OutputPath,
+                        language,
+                        WriteDiagnostic,
+                        out var finalizationFailureSummary))
+                {
+                    currentState = EncodingJobState.Failed;
+                    currentStage = AutoCompressionExecutionStage.Failed;
+                    currentSummary = finalizationFailureSummary;
+                    progress?.Report(new AutoCompressionProgress(
+                        request.JobId,
+                        currentState,
+                        currentStage,
+                        currentProgress,
+                        finalizationFailureSummary,
+                        finalizationFailureSummary));
+
+                    return new AutoCompressionResult(
+                        request.JobId,
+                        EncodingJobState.Failed,
+                        finalExitCode,
+                        finalizationFailureSummary,
+                        log,
+                        displayCommand,
+                        backendCapabilities);
+                }
+
+                outputFinalized = true;
                 if (currentState != EncodingJobState.Completed)
                 {
                     currentState = EncodingJobState.Completed;
@@ -310,8 +341,8 @@ public sealed class StructuredAv1anRunner : IAutoCompressionRunner
         {
             _activeExecutions.TryRemove(request.JobId, out _);
             activeExecution?.Dispose();
-            LegacyAv1anCliFallbackRunner.PromoteStagedOutputFile(stagedOutputPath, request.OutputPath, finalExitCode);
-            LegacyAv1anCliFallbackRunner.CleanupPartialOutputFile(request, finalExitCode, WriteDiagnostic);
+            ExecutionOutputStaging.CleanupStagedFile(stagedOutputPath, request.OutputPath, request.JobId, WriteDiagnostic);
+            LegacyAv1anCliFallbackRunner.CleanupPartialOutputFile(request, outputFinalized, WriteDiagnostic);
             LegacyAv1anCliFallbackRunner.CleanupJobTempDirectory(request, WriteDiagnostic);
         }
     }

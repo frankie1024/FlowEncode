@@ -2489,6 +2489,14 @@ public partial class MainWindowViewModel : CommunityToolkit.Mvvm.ComponentModel.
                 ? BuildAutoCompressionMetricOptions(capabilities.SupportedMetrics)
                 : BuildAutoCompressionMetricOptions();
         ReplaceItems(AutoCompressionMetricOptions, capabilityOptions);
+        var resolvedMetric = AutoCompressionMetricSelection.ResolvePreferredMetric(
+            AutoCompressionMetric,
+            AutoCompressionMetricOptions.Select(static option => option.Value));
+        if (resolvedMetric != AutoCompressionMetric)
+        {
+            AutoCompressionMetric = resolvedMetric;
+        }
+
         _selectedAutoCompressionMetricOption = AutoCompressionMetricOptions.FirstOrDefault(option => option.Value == AutoCompressionMetric)
             ?? AutoCompressionMetricOptions.FirstOrDefault();
         OnPropertyChanged(nameof(AutoCompressionMetricOptions));

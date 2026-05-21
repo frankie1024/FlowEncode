@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.Globalization;
 using System.IO;
 using System.Linq;
 using System.Threading;
@@ -661,15 +660,12 @@ public partial class MainWindowViewModel
         AutoCompressionMetric metric,
         double targetQuality)
     {
-        var fileName = Path.GetFileNameWithoutExtension(sourcePath);
-        if (string.IsNullOrWhiteSpace(fileName))
-        {
-            fileName = "encode";
-        }
-
-        return Path.Combine(
+        return AutoCompressionOutputPathPlanner.BuildOutputPath(
+            sourcePath,
             outputDirectory,
-            $"{fileName}.{GetAutoCompressionEncoderToken(encoderKind)}.{GetAutoCompressionMetricToken(metric)}{FormatAutoCompressionQualityToken(targetQuality)}.mkv");
+            encoderKind,
+            metric,
+            targetQuality);
     }
 
     private string? TryResolveAutoCompressionOutputPreviewPath()
@@ -696,37 +692,6 @@ public partial class MainWindowViewModel
         {
             return null;
         }
-    }
-
-    private static string GetAutoCompressionEncoderToken(EncoderKind encoderKind)
-    {
-        return encoderKind switch
-        {
-            EncoderKind.X264 => "x264",
-            EncoderKind.X265 => "x265",
-            EncoderKind.SvtAv1 => "av1",
-            _ => "encode"
-        };
-    }
-
-    private static string GetAutoCompressionMetricToken(AutoCompressionMetric metric)
-    {
-        return metric switch
-        {
-            AutoCompressionMetric.Vmaf => "vmaf",
-            AutoCompressionMetric.Ssimulacra2 => "ssimulacra2",
-            AutoCompressionMetric.ButteraugliInf => "butteraugliinf",
-            AutoCompressionMetric.Butteraugli3 => "butteraugli3",
-            AutoCompressionMetric.Xpsnr => "xpsnr",
-            AutoCompressionMetric.XpsnrWeighted => "xpsnrw",
-            _ => "metric"
-        };
-    }
-
-    private static string FormatAutoCompressionQualityToken(double targetQuality)
-    {
-        var token = Math.Max(0, targetQuality).ToString("0.###", CultureInfo.InvariantCulture);
-        return token.Replace(".", "p", StringComparison.Ordinal);
     }
 
     private void ScheduleAutoCompressionInputRefresh()

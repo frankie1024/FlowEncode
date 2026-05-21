@@ -161,6 +161,7 @@ public sealed class LegacyAv1anCliFallbackRunner : IAutoCompressionRunner
         Task pumpOutput = Task.CompletedTask;
         Task pumpError = Task.CompletedTask;
         var finalExitCode = -1;
+        var outputFinalized = false;
 
         try
         {
@@ -184,6 +185,32 @@ public sealed class LegacyAv1anCliFallbackRunner : IAutoCompressionRunner
             var log = logBuilder.ToString();
             if (finalExitCode == 0)
             {
+                if (!AutoCompressionOutputFinalizer.TryFinalizeOutput(
+                        request.JobId,
+                        stagedOutputPath,
+                        request.OutputPath,
+                        language,
+                        WriteDiagnostic,
+                        out var failureSummary))
+                {
+                    progress?.Report(new AutoCompressionProgress(
+                        request.JobId,
+                        EncodingJobState.Failed,
+                        AutoCompressionExecutionStage.Failed,
+                        null,
+                        failureSummary,
+                        failureSummary));
+
+                    return new AutoCompressionResult(
+                        request.JobId,
+                        EncodingJobState.Failed,
+                        finalExitCode,
+                        failureSummary,
+                        log,
+                        displayCommand);
+                }
+
+                outputFinalized = true;
                 progress?.Report(new AutoCompressionProgress(
                     request.JobId,
                     EncodingJobState.Completed,
@@ -251,8 +278,8 @@ public sealed class LegacyAv1anCliFallbackRunner : IAutoCompressionRunner
         {
             _activeExecutions.TryRemove(request.JobId, out _);
             activeExecution?.Dispose();
-            PromoteStagedOutputFile(stagedOutputPath, request.OutputPath, finalExitCode);
-            CleanupPartialOutputFile(request, finalExitCode, WriteDiagnostic);
+            ExecutionOutputStaging.CleanupStagedFile(stagedOutputPath, request.OutputPath, request.JobId, WriteDiagnostic);
+            CleanupPartialOutputFile(request, outputFinalized, WriteDiagnostic);
             CleanupJobTempDirectory(request, WriteDiagnostic);
         }
     }
@@ -375,9 +402,9 @@ public sealed class LegacyAv1anCliFallbackRunner : IAutoCompressionRunner
         BestEffortCleanup.DeleteDirectoryIfEmpty(Path.GetDirectoryName(Path.GetDirectoryName(jobTempDirectory)), writeDiagnostic);
     }
 
-    internal static void CleanupPartialOutputFile(AutoCompressionRequest request, int exitCode, Action<string> writeDiagnostic)
+    internal static void CleanupPartialOutputFile(AutoCompressionRequest request, bool preserveOutput, Action<string> writeDiagnostic)
     {
-        if (exitCode == 0)
+        if (preserveOutput)
         {
             return;
         }
@@ -386,27 +413,6 @@ public sealed class LegacyAv1anCliFallbackRunner : IAutoCompressionRunner
             request.OutputPath,
             $"auto compression partial output '{request.OutputPath}'",
             writeDiagnostic);
-    }
-
-    internal static void PromoteStagedOutputFile(string stagedOutputPath, string finalOutputPath, int exitCode)
-    {
-        if (exitCode != 0 || !File.Exists(stagedOutputPath))
-        {
-            return;
-        }
-
-        var finalDirectory = Path.GetDirectoryName(finalOutputPath);
-        if (!string.IsNullOrWhiteSpace(finalDirectory))
-        {
-            Directory.CreateDirectory(finalDirectory);
-        }
-
-        if (File.Exists(finalOutputPath))
-        {
-            File.Delete(finalOutputPath);
-        }
-
-        File.Move(stagedOutputPath, finalOutputPath);
     }
 
     private void WriteDiagnostic(string message)
