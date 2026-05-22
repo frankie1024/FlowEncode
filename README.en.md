@@ -23,7 +23,7 @@
 
 ---
 
-FlowEncode is a Windows x64 desktop frontend for video encoding workflows. It coordinates `x264`, `x265`, `SVT-AV1`, `Av1an`, `FFmpeg`, `VapourSynth`, `VSPipe` and related public toolchains through one interface for Blu-ray demuxing, script editing and preview, video encoding, audio transcoding, auto encoding, queue execution, log inspection and template reuse.
+FlowEncode is a Windows x64 desktop frontend for video encoding workflows. It coordinates `x264`, `x265`, `SVT-AV1`, `Av1an`, `FFmpeg`, `VapourSynth`, `VSPipe` and related public toolchains through one interface for Blu-ray demuxing, script editing and preview, video encoding, audio transcoding, auto encoding, queue execution, log inspection, template reuse, and drag-and-drop entry points for video, audio, and Blu-ray sources.
 
 It is designed for users who want a graphical Windows video encoding GUI while keeping the flexibility of command-line encoders, VapourSynth scripts and Av1an automation.
 
@@ -61,14 +61,14 @@ FlowEncode is not a standalone encoder and does not bundle every dependency into
 
 | Module | Capabilities |
 | --- | --- |
-| Dashboard | Entry point for demux, VapourSynth, video encode, audio transcode, auto encode, templates and settings, with active task indicators. |
+| Dashboard | Entry point for demux, VapourSynth, video encode, audio transcode, auto encode, templates and settings, with active task indicators and direct drag-and-drop routing for video files, audio files, and Blu-ray folders. |
 | Blu-ray Demux | Scan Blu-ray folders, choose playlists and tracks, then export video, audio and subtitles through detected or imported `DGDemux` / `eac3to`. |
 | VapourSynth | Edit `.vpy` / `.py` scripts, drop files to open them, manage tabs, compare scripts side by side, inspect diagnostics, preview frames, view frame props, save snapshots, manage chapters, use crop helpers and read preview logs. |
 | Video Encode | Configure regular `x264`, `x265` and `SVT-AV1` jobs with input/output paths, HDR argument import, copyable command previews, job queues, batch actions, keyboard shortcuts and real-time logs. |
 | Audio Transcode | Run standalone `eac3to`, `deew`, `FFmpeg` / `opusenc` audio workflows for FLAC, AC3, DDP, Opus and related outputs; DDP workflows require a user-supplied, properly licensed `Dolby Encoding Engine` / `DEE`. |
-| Auto Encode | Run Av1an-based target-quality workflows with `VMAF`, probe count, parallelism, extra encoder arguments, command previews and real-time logs. |
+| Auto Encode | Run target-quality workflows through a structured `Av1an` backend, probe backend-supported metrics and encoders, and tune probing options, backend arguments, execution plans, and staged live progress. |
 | Template Library | Save, load, import, export, pin and overwrite `.profile` templates for reusable encoding presets. |
-| Environment Guide | Check dependency status; guide installation or updates for publicly supported runtimes, plugins, encoders, `FFmpeg` and `Av1an`, and allow manual import, pinning or removal of app-local copies for selected demuxers and audio tools. |
+| Environment Guide | Show grouped collapsible dependency cards, check local and remote readiness, guide installation or updates for publicly supported runtimes, plugins, encoders, `FFmpeg` and `Av1an`, and allow manual import, pinning or removal of app-local copies for selected demuxers and audio tools. |
 | Settings and Updates | Manage workspace path, theme, language, dependency status, application updates, queue completion actions and first-run guide access. |
 
 ## Workflow
@@ -86,11 +86,12 @@ flowchart LR
 Common usage patterns:
 
 - Scan Blu-ray folders, choose playlists and tracks, then demux through prepared `DGDemux` or `eac3to` binaries.
+- Drop video files, audio files, or Blu-ray folders onto the main window to jump straight into the matching workflow.
 - Maintain `.vpy` / `.py` scripts in the VapourSynth editor and inspect output frames, frame properties, chapters and crop parameters in the preview window.
 - Drop scripts onto the main window to open them, or create empty `.vpy` scripts from the Windows Explorer new-file menu.
 - Configure regular encoding tasks with `x264`, `x265` or `SVT-AV1`, then copy the resolved command for review or debugging.
 - Run standalone audio transcode jobs for FLAC, AC3, DDP, Opus and related formats; DDP output depends on a user-supplied, properly licensed `Dolby Encoding Engine` / `DEE`.
-- Run VMAF-based target-quality automation through `Av1an`.
+- Run target-quality automation through `Av1an`, with metrics, probing options, and execution details exposed according to the active backend capabilities.
 - Start, cancel, delete and reorder queued jobs in batches, use keyboard shortcuts for faster queue work, and optionally sleep or shut down after a successful queue drain and system idle.
 - Save stable settings as `.profile` templates and reuse them in future jobs.
 
@@ -100,6 +101,7 @@ Common usage patterns:
 | --- | --- |
 | Video encoders | `x264`, `x265`, `SVT-AV1` |
 | Auto encoding | `Av1an`, `VMAF` |
+| Quality metrics | `VMAF`, `SSIMULACRA2`, `XPSNR` / `XPSNR-Weighted`, `Butteraugli-INF` / `Butteraugli-3` (subject to the active `Av1an` backend capabilities) |
 | Blu-ray demuxing | `DGDemux`, `eac3to` |
 | Audio processing | `eac3to`, `deew`, `opusenc` / `Opus Encoder`, `FFmpeg`; DDP output requires a user-supplied, properly licensed `Dolby Encoding Engine` / `DEE` |
 | Media probing and pipelines | `FFmpeg`, `FFprobe` |
