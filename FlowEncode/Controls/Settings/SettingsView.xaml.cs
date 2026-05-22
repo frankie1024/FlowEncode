@@ -246,8 +246,13 @@ public sealed partial class SettingsView : UserControl
         }
     }
 
-    private void SetupGuideCardExpander_Collapsed(Expander sender, ExpanderCollapsedEventArgs args)
+    private void SetupGuideCardExpander_CollapsedCompleted(object sender, RoutedEventArgs args)
     {
+        if (sender is not FrameworkElement expander)
+        {
+            return;
+        }
+
         DispatcherQueue.TryEnqueue(() =>
         {
             if (SettingsScrollViewer.Content is not FrameworkElement scrollContent)
@@ -255,7 +260,7 @@ public sealed partial class SettingsView : UserControl
                 return;
             }
 
-            var transform = sender.TransformToVisual(scrollContent);
+            var transform = expander.TransformToVisual(scrollContent);
             var expanderTop = transform.TransformPoint(new Point(0, 0)).Y;
             var targetOffset = Math.Max(0, expanderTop - UiTokens.SpacingS);
             if (SettingsScrollViewer.VerticalOffset <= targetOffset)

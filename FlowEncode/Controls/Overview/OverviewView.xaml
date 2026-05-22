@@ -424,12 +424,14 @@
                                     Text="{Binding SelectedJobCommandText}"
                                     Texts="{Binding Texts}" />
 
-                                <Expander Grid.Row="3" HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch">
-                                    <Expander.Header>
+                                <shared:AnimatedExpander Grid.Row="3" HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch">
+                                    <shared:AnimatedExpander.HeaderContent>
                                         <TextBlock FontFamily="{StaticResource AppDisplayFont}" FontSize="{StaticResource AppBodyLargeFontSize}" FontWeight="SemiBold" Text="{Binding Texts.JobLogTitle}" />
-                                    </Expander.Header>
-                                    <TextBox MinHeight="96" MaxHeight="180" Background="Transparent" BorderThickness="0" FontFamily="{StaticResource AppMonoFont}" IsReadOnly="True" IsTabStop="False" PlaceholderText="{Binding Texts.JobLogPlaceholder}" ScrollViewer.VerticalScrollBarVisibility="Auto" Text="{Binding SelectedJobLogText}" TextWrapping="Wrap" />
-                                </Expander>
+                                    </shared:AnimatedExpander.HeaderContent>
+                                    <shared:AnimatedExpander.BodyContent>
+                                        <TextBox MinHeight="96" MaxHeight="180" Background="Transparent" BorderThickness="0" FontFamily="{StaticResource AppMonoFont}" IsReadOnly="True" IsTabStop="False" PlaceholderText="{Binding Texts.JobLogPlaceholder}" ScrollViewer.VerticalScrollBarVisibility="Auto" Text="{Binding SelectedJobLogText}" TextWrapping="Wrap" />
+                                    </shared:AnimatedExpander.BodyContent>
+                                </shared:AnimatedExpander>
                             </Grid>
                         </Border>
                     </Grid>

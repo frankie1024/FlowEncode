@@ -11,11 +11,12 @@
             <RowDefinition Height="Auto" />
         </Grid.RowDefinitions>
 
-        <Expander
+        <shared:AnimatedExpander
             x:Name="PreviewExpander"
+            HeaderPadding="16,0,8,0"
             HorizontalAlignment="Stretch"
             HorizontalContentAlignment="Stretch">
-            <Expander.Header>
+            <shared:AnimatedExpander.HeaderContent>
                 <Grid MinHeight="52" ColumnSpacing="{StaticResource AppSpacingM}">
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="*" />
@@ -41,20 +42,22 @@
                         </StackPanel>
                     </Button>
                 </Grid>
-            </Expander.Header>
-            <TextBox
-                Height="{x:Bind PreviewHeight, Mode=OneWay}"
-                MinHeight="{x:Bind PreviewMinHeight, Mode=OneWay}"
-                Background="Transparent"
-                BorderThickness="0"
-                FontFamily="{StaticResource AppMonoFont}"
-                IsReadOnly="True"
-                IsTabStop="False"
-                PlaceholderText="{x:Bind ResolvedPlaceholderText, Mode=OneTime}"
-                ScrollViewer.VerticalScrollBarVisibility="Auto"
-                Text="{x:Bind Text, Mode=OneWay}"
-                TextWrapping="Wrap" />
-        </Expander>
+            </shared:AnimatedExpander.HeaderContent>
+            <shared:AnimatedExpander.BodyContent>
+                <TextBox
+                    Height="{x:Bind PreviewHeight, Mode=OneWay}"
+                    MinHeight="{x:Bind PreviewMinHeight, Mode=OneWay}"
+                    Background="Transparent"
+                    BorderThickness="0"
+                    FontFamily="{StaticResource AppMonoFont}"
+                    IsReadOnly="True"
+                    IsTabStop="False"
+                    PlaceholderText="{x:Bind ResolvedPlaceholderText, Mode=OneTime}"
+                    ScrollViewer.VerticalScrollBarVisibility="Auto"
+                    Text="{x:Bind Text, Mode=OneWay}"
+                    TextWrapping="Wrap" />
+            </shared:AnimatedExpander.BodyContent>
+        </shared:AnimatedExpander>
 
         <TextBlock
             x:Name="StatusTextBlock"

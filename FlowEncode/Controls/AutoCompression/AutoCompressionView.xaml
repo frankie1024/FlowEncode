@@ -83,36 +83,38 @@
                             PlaceholderText="--preset 6 --film-grain 8"
                             Text="{Binding AutoCompressionVideoParameters, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
 
-                        <Expander HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch">
-                            <Expander.Header>
+                        <shared:AnimatedExpander HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch">
+                            <shared:AnimatedExpander.HeaderContent>
                                 <TextBlock FontWeight="SemiBold" Text="{Binding Texts.AutoCompressionAdvancedHeader}" />
-                            </Expander.Header>
-                            <StackPanel Spacing="{StaticResource AppSpacingM}">
-                                <Grid x:Name="AutoCompressionAdvancedOptionsGrid" ColumnSpacing="{StaticResource AppSpacingM}" RowSpacing="{StaticResource AppSpacingM}">
-                                    <Grid.RowDefinitions>
-                                        <RowDefinition Height="Auto" />
-                                    </Grid.RowDefinitions>
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition x:Name="AutoCompressionAdvancedColumn0" Width="*" />
-                                        <ColumnDefinition x:Name="AutoCompressionAdvancedColumn1" Width="*" />
-                                        <ColumnDefinition x:Name="AutoCompressionAdvancedColumn2" Width="*" />
-                                        <ColumnDefinition x:Name="AutoCompressionAdvancedColumn3" Width="*" />
-                                    </Grid.ColumnDefinitions>
+                            </shared:AnimatedExpander.HeaderContent>
+                            <shared:AnimatedExpander.BodyContent>
+                                <StackPanel Spacing="{StaticResource AppSpacingM}">
+                                    <Grid x:Name="AutoCompressionAdvancedOptionsGrid" ColumnSpacing="{StaticResource AppSpacingM}" RowSpacing="{StaticResource AppSpacingM}">
+                                        <Grid.RowDefinitions>
+                                            <RowDefinition Height="Auto" />
+                                        </Grid.RowDefinitions>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition x:Name="AutoCompressionAdvancedColumn0" Width="*" />
+                                            <ColumnDefinition x:Name="AutoCompressionAdvancedColumn1" Width="*" />
+                                            <ColumnDefinition x:Name="AutoCompressionAdvancedColumn2" Width="*" />
+                                            <ColumnDefinition x:Name="AutoCompressionAdvancedColumn3" Width="*" />
+                                        </Grid.ColumnDefinitions>
 
-                                    <NumberBox x:Name="AutoCompressionProbingRateBox" Header="{Binding Texts.AutoCompressionProbingRateHeader}" Minimum="1" Maximum="64" SmallChange="1" SpinButtonPlacementMode="Inline" Value="{Binding AutoCompressionProbingRate, Mode=TwoWay}" />
-                                    <ComboBox x:Name="AutoCompressionProbingStatisticComboBox" Grid.Column="1" Header="{Binding Texts.AutoCompressionProbingStatisticHeader}" DisplayMemberPath="Label" ItemsSource="{Binding AutoCompressionProbingStatisticOptions}" SelectedItem="{Binding SelectedAutoCompressionProbingStatisticOption, Mode=TwoWay}" />
-                                    <TextBox x:Name="AutoCompressionProbeResolutionTextBox" Grid.Column="2" Header="{Binding Texts.AutoCompressionProbeResolutionHeader}" PlaceholderText="{Binding Texts.AutoCompressionProbeResolutionPlaceholder}" Text="{Binding AutoCompressionProbeResolution, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
-                                    <ComboBox x:Name="AutoCompressionInterpolationMethodComboBox" Grid.Column="3" Header="{Binding Texts.AutoCompressionInterpolationMethodHeader}" DisplayMemberPath="Label" ItemsSource="{Binding AutoCompressionInterpolationMethodOptions}" SelectedItem="{Binding SelectedAutoCompressionInterpolationMethodOption, Mode=TwoWay}" />
-                                </Grid>
+                                        <NumberBox x:Name="AutoCompressionProbingRateBox" Header="{Binding Texts.AutoCompressionProbingRateHeader}" Minimum="1" Maximum="64" SmallChange="1" SpinButtonPlacementMode="Inline" Value="{Binding AutoCompressionProbingRate, Mode=TwoWay}" />
+                                        <ComboBox x:Name="AutoCompressionProbingStatisticComboBox" Grid.Column="1" Header="{Binding Texts.AutoCompressionProbingStatisticHeader}" DisplayMemberPath="Label" ItemsSource="{Binding AutoCompressionProbingStatisticOptions}" SelectedItem="{Binding SelectedAutoCompressionProbingStatisticOption, Mode=TwoWay}" />
+                                        <TextBox x:Name="AutoCompressionProbeResolutionTextBox" Grid.Column="2" Header="{Binding Texts.AutoCompressionProbeResolutionHeader}" PlaceholderText="{Binding Texts.AutoCompressionProbeResolutionPlaceholder}" Text="{Binding AutoCompressionProbeResolution, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                                        <ComboBox x:Name="AutoCompressionInterpolationMethodComboBox" Grid.Column="3" Header="{Binding Texts.AutoCompressionInterpolationMethodHeader}" DisplayMemberPath="Label" ItemsSource="{Binding AutoCompressionInterpolationMethodOptions}" SelectedItem="{Binding SelectedAutoCompressionInterpolationMethodOption, Mode=TwoWay}" />
+                                    </Grid>
 
-                                <TextBox
-                                    x:Name="AutoCompressionBackendArgumentsTextBox"
-                                    Header="{Binding Texts.AutoCompressionBackendArgumentsHeader}"
-                                    PlaceholderText="{Binding Texts.AutoCompressionBackendArgumentsPlaceholder}"
-                                    Text="{Binding AutoCompressionBackendArguments, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                                    <TextBox
+                                        x:Name="AutoCompressionBackendArgumentsTextBox"
+                                        Header="{Binding Texts.AutoCompressionBackendArgumentsHeader}"
+                                        PlaceholderText="{Binding Texts.AutoCompressionBackendArgumentsPlaceholder}"
+                                        Text="{Binding AutoCompressionBackendArguments, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
 
-                            </StackPanel>
-                        </Expander>
+                                </StackPanel>
+                            </shared:AnimatedExpander.BodyContent>
+                        </shared:AnimatedExpander>
 
                         <Grid x:Name="AutoCompressionActionGrid" ColumnSpacing="{StaticResource AppSpacingM}" RowSpacing="{StaticResource AppSpacingM}">
                             <Grid.RowDefinitions>
@@ -168,12 +170,14 @@
                             Text="{Binding AutoCompressionCommandLine}"
                             Texts="{Binding Texts}" />
 
-                        <Expander HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch">
-                            <Expander.Header>
+                        <shared:AnimatedExpander HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch">
+                            <shared:AnimatedExpander.HeaderContent>
                                 <TextBlock FontFamily="{StaticResource AppDisplayFont}" FontSize="{StaticResource AppBodyLargeFontSize}" FontWeight="SemiBold" Text="{Binding Texts.AutoCompressionLogTitle}" />
-                            </Expander.Header>
-                            <TextBox MinHeight="120" MaxHeight="320" Background="Transparent" BorderThickness="0" FontFamily="{StaticResource AppMonoFont}" IsReadOnly="True" IsTabStop="False" PlaceholderText="{Binding Texts.AutoCompressionLogPlaceholder}" ScrollViewer.VerticalScrollBarVisibility="Auto" Text="{Binding AutoCompressionLog}" TextWrapping="Wrap" />
-                        </Expander>
+                            </shared:AnimatedExpander.HeaderContent>
+                            <shared:AnimatedExpander.BodyContent>
+                                <TextBox MinHeight="120" MaxHeight="320" Background="Transparent" BorderThickness="0" FontFamily="{StaticResource AppMonoFont}" IsReadOnly="True" IsTabStop="False" PlaceholderText="{Binding Texts.AutoCompressionLogPlaceholder}" ScrollViewer.VerticalScrollBarVisibility="Auto" Text="{Binding AutoCompressionLog}" TextWrapping="Wrap" />
+                            </shared:AnimatedExpander.BodyContent>
+                        </shared:AnimatedExpander>
                     </StackPanel>
                 </StackPanel>
             </Border>

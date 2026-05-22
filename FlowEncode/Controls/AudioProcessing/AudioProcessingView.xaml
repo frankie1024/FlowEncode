@@ -146,12 +146,14 @@
                             Text="{Binding AudioProcessingCommandLine}"
                             Texts="{Binding Texts}" />
 
-                        <Expander x:Name="AudioLogExpander" HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch">
-                            <Expander.Header>
+                        <shared:AnimatedExpander x:Name="AudioLogExpander" HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch">
+                            <shared:AnimatedExpander.HeaderContent>
                                 <TextBlock FontFamily="{StaticResource AppDisplayFont}" FontSize="{StaticResource AppBodyLargeFontSize}" FontWeight="SemiBold" Text="{Binding Texts.AudioProcessingLogTitle}" />
-                            </Expander.Header>
-                            <TextBox MinHeight="120" MaxHeight="420" Background="Transparent" BorderThickness="0" FontFamily="{StaticResource AppMonoFont}" IsReadOnly="True" IsTabStop="False" PlaceholderText="{Binding Texts.AudioProcessingLogPlaceholder}" ScrollViewer.VerticalScrollBarVisibility="Auto" Text="{Binding AudioProcessingLog}" TextWrapping="Wrap" />
-                        </Expander>
+                            </shared:AnimatedExpander.HeaderContent>
+                            <shared:AnimatedExpander.BodyContent>
+                                <TextBox MinHeight="120" MaxHeight="420" Background="Transparent" BorderThickness="0" FontFamily="{StaticResource AppMonoFont}" IsReadOnly="True" IsTabStop="False" PlaceholderText="{Binding Texts.AudioProcessingLogPlaceholder}" ScrollViewer.VerticalScrollBarVisibility="Auto" Text="{Binding AudioProcessingLog}" TextWrapping="Wrap" />
+                            </shared:AnimatedExpander.BodyContent>
+                        </shared:AnimatedExpander>
                     </StackPanel>
                 </Border>
             </Grid>

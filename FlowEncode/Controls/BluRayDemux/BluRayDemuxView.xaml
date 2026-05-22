@@ -225,12 +225,14 @@
                             Text="{Binding BluRayDemuxCommandLine}"
                             Texts="{Binding Texts}" />
 
-                        <Expander HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch">
-                            <Expander.Header>
+                        <shared:AnimatedExpander HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch">
+                            <shared:AnimatedExpander.HeaderContent>
                                 <TextBlock FontFamily="{StaticResource AppDisplayFont}" FontSize="{StaticResource AppBodyLargeFontSize}" FontWeight="SemiBold" Text="{Binding Texts.BluRayDemuxLogTitle}" />
-                            </Expander.Header>
-                            <TextBox MinHeight="120" MaxHeight="360" Background="Transparent" BorderThickness="0" FontFamily="{StaticResource AppMonoFont}" IsReadOnly="True" IsTabStop="False" PlaceholderText="{Binding Texts.BluRayDemuxLogPlaceholder}" ScrollViewer.VerticalScrollBarVisibility="Auto" Text="{Binding BluRayDemuxLog}" TextWrapping="Wrap" />
-                        </Expander>
+                            </shared:AnimatedExpander.HeaderContent>
+                            <shared:AnimatedExpander.BodyContent>
+                                <TextBox MinHeight="120" MaxHeight="360" Background="Transparent" BorderThickness="0" FontFamily="{StaticResource AppMonoFont}" IsReadOnly="True" IsTabStop="False" PlaceholderText="{Binding Texts.BluRayDemuxLogPlaceholder}" ScrollViewer.VerticalScrollBarVisibility="Auto" Text="{Binding BluRayDemuxLog}" TextWrapping="Wrap" />
+                            </shared:AnimatedExpander.BodyContent>
+                        </shared:AnimatedExpander>
                     </StackPanel>
                 </Border>
             </Grid>
