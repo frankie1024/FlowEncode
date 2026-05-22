@@ -22,7 +22,7 @@ public sealed class LocalExternalToolServiceTests
         Assert.IsTrue(LocalExternalToolService.IsManagedAv1anAssetName("av1an.exe"));
         Assert.IsTrue(LocalExternalToolService.IsManagedAv1anAssetName("flowencode-av1an-r76.zip"));
         Assert.IsFalse(LocalExternalToolService.IsManagedAv1anAssetName("av1an.exe.sha256"));
-        Assert.IsFalse(LocalExternalToolService.IsManagedAv1anAssetName("FlowEncode_Setup_v1.9.1.exe"));
+        Assert.IsFalse(LocalExternalToolService.IsManagedAv1anAssetName("FlowEncode_Setup_v1.9.2.exe"));
     }
 
     [DataTestMethod]
