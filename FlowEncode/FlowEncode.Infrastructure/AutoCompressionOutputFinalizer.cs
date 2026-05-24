@@ -4,6 +4,9 @@ namespace FlowEncode.Infrastructure;
 
 internal static class AutoCompressionOutputFinalizer
 {
+    private static readonly TimeSpan StagedOutputWaitTimeout = TimeSpan.FromSeconds(10);
+    private static readonly TimeSpan StagedOutputPollInterval = TimeSpan.FromMilliseconds(250);
+
     public static bool TryFinalizeOutput(
         Guid jobId,
         string stagedOutputPath,
@@ -13,6 +16,14 @@ internal static class AutoCompressionOutputFinalizer
         out string failureSummary)
     {
         failureSummary = string.Empty;
+
+        if (!WaitForStagedOutput(stagedOutputPath))
+        {
+            failureSummary = BuildFailureSummary(language, finalOutputPath);
+            writeDiagnostic?.Invoke(
+                $"Auto compression finished without producing final output '{finalOutputPath}'. Staged path: '{stagedOutputPath}'.");
+            return false;
+        }
 
         try
         {
@@ -35,6 +46,23 @@ internal static class AutoCompressionOutputFinalizer
         writeDiagnostic?.Invoke(
             $"Auto compression finished without producing final output '{finalOutputPath}'. Staged path: '{stagedOutputPath}'.");
         return false;
+    }
+
+    private static bool WaitForStagedOutput(string stagedOutputPath)
+    {
+        var deadline = DateTimeOffset.UtcNow + StagedOutputWaitTimeout;
+
+        while (DateTimeOffset.UtcNow < deadline)
+        {
+            if (File.Exists(stagedOutputPath))
+            {
+                return true;
+            }
+
+            Thread.Sleep(StagedOutputPollInterval);
+        }
+
+        return File.Exists(stagedOutputPath);
     }
 
     private static string BuildFailureSummary(

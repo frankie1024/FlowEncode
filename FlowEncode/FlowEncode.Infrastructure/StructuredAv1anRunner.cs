@@ -192,7 +192,10 @@ public sealed class StructuredAv1anRunner : IAutoCompressionRunner
 
         try
         {
-            process = LegacyAv1anCliFallbackRunner.CreateProcess(av1anPath, arguments);
+            process = LegacyAv1anCliFallbackRunner.CreateProcess(
+                av1anPath,
+                arguments,
+                LegacyAv1anCliFallbackRunner.GetWorkingDirectory(request, av1anPath));
             process.Start();
             activeExecution = new ManagedProcessExecution(
                 message => WriteDiagnostic($"Structured auto compression job {request.JobId}: {message}"),

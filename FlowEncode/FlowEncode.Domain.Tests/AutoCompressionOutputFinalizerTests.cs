@@ -73,4 +73,35 @@ public sealed class AutoCompressionOutputFinalizerTests
         StringAssert.Contains(failureSummary, finalOutputPath);
         Assert.IsFalse(File.Exists(finalOutputPath));
     }
+
+    [TestMethod]
+    public async Task TryFinalizeOutput_WhenStagedFileAppearsLate_StillFinalizesSuccessfully()
+    {
+        var jobId = Guid.NewGuid();
+        var stagedDirectory = Path.Combine(_testRoot, ".flowencode-temp", "av1an", jobId.ToString("N"));
+        var finalOutputPath = Path.Combine(_testRoot, "late.mkv");
+        var stagedOutputPath = Path.Combine(stagedDirectory, "late.mkv");
+
+        var writerTask = Task.Run(async () =>
+        {
+            await Task.Delay(300);
+            Directory.CreateDirectory(stagedDirectory);
+            File.WriteAllText(stagedOutputPath, "encoded-data");
+        });
+
+        var success = AutoCompressionOutputFinalizer.TryFinalizeOutput(
+            jobId,
+            stagedOutputPath,
+            finalOutputPath,
+            AppLanguage.English,
+            writeDiagnostic: null,
+            out var failureSummary);
+
+        await writerTask;
+
+        Assert.IsTrue(success);
+        Assert.AreEqual(string.Empty, failureSummary);
+        Assert.AreEqual("encoded-data", File.ReadAllText(finalOutputPath));
+        Assert.IsFalse(File.Exists(stagedOutputPath));
+    }
 }

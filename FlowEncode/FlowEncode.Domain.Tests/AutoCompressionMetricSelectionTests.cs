@@ -80,4 +80,28 @@ public sealed class AutoCompressionMetricSelectionTests
         Assert.IsTrue(targetMetricIndex >= 0);
         Assert.AreEqual("butteraugli-inf", arguments[targetMetricIndex + 1]);
     }
+
+    [TestMethod]
+    public void BuildArgumentParts_IncludesKeepToPreserveAppManagedTempOutput()
+    {
+        var request = new AutoCompressionRequest(
+            Guid.NewGuid(),
+            @"D:\input\movie.vpy",
+            @"D:\output\movie.mkv",
+            EncoderKind.SvtAv1,
+            AutoCompressionMetric.Vmaf,
+            95,
+            4,
+            string.Empty,
+            string.Empty,
+            null);
+
+        var arguments = LegacyAv1anCliFallbackRunner.BuildArgumentParts(
+            request,
+            @"D:\temp",
+            AppLanguage.English,
+            useStructuredProgress: true);
+
+        CollectionAssert.Contains(arguments.ToArray(), "--keep");
+    }
 }

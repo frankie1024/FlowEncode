@@ -172,6 +172,7 @@ public sealed class CliAudioProcessingRunnerTests
     }
 
     [TestMethod]
+    [TestCategory("ExternalToolSmoke")]
     public async Task RunAsync_Eac3To_WithInvalidAdditionalArguments_FailsInsteadOfCancelling()
     {
         var sourcePath = EnsureSmokeWav();
@@ -203,6 +204,7 @@ public sealed class CliAudioProcessingRunnerTests
     }
 
     [TestMethod]
+    [TestCategory("ExternalToolSmoke")]
     public async Task RunAsync_Ddp_WithStereoSource_CompletesWithoutPromptOrEofError()
     {
         var sourcePath = EnsureStereoSmokeWav();
@@ -242,6 +244,7 @@ public sealed class CliAudioProcessingRunnerTests
     }
 
     [TestMethod]
+    [TestCategory("ExternalToolSmoke")]
     public async Task RunAsync_Ddp_WithStereoSource_ReportsDeeProgressUpdates()
     {
         var sourcePath = EnsureStereoSmokeWav();
@@ -398,6 +401,7 @@ allowed. Valid value(s): 1,2,6.
     }
 
     [TestMethod]
+    [TestCategory("ExternalToolSmoke")]
     public async Task RunAsync_OpusWithoutRequestDuration_ReportsProgressFromRuntimeProbe()
     {
         var sourcePath = EnsureStereoSmokeWav();

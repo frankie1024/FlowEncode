@@ -165,7 +165,7 @@ public sealed class LegacyAv1anCliFallbackRunner : IAutoCompressionRunner
 
         try
         {
-            process = CreateProcess(av1anPath, arguments);
+            process = CreateProcess(av1anPath, arguments, GetWorkingDirectory(request, av1anPath));
             process.Start();
             activeExecution = new ManagedProcessExecution(
                 message => WriteDiagnostic($"Auto compression job {request.JobId}: {message}"),
@@ -308,6 +308,7 @@ public sealed class LegacyAv1anCliFallbackRunner : IAutoCompressionRunner
             "-o",
             request.OutputPath,
             "-y",
+            "--keep",
             "--temp",
             tempDirectory,
             "--encoder",
@@ -445,7 +446,10 @@ public sealed class LegacyAv1anCliFallbackRunner : IAutoCompressionRunner
         };
     }
 
-    internal static Process CreateProcess(string fileName, IReadOnlyList<string> arguments)
+    internal static Process CreateProcess(
+        string fileName,
+        IReadOnlyList<string> arguments,
+        string? workingDirectory = null)
     {
         var startInfo = new ProcessStartInfo
         {
@@ -454,7 +458,9 @@ public sealed class LegacyAv1anCliFallbackRunner : IAutoCompressionRunner
             RedirectStandardOutput = true,
             RedirectStandardError = true,
             CreateNoWindow = true,
-            WorkingDirectory = Path.GetDirectoryName(fileName) ?? AppContext.BaseDirectory
+            WorkingDirectory = string.IsNullOrWhiteSpace(workingDirectory)
+                ? Path.GetDirectoryName(fileName) ?? AppContext.BaseDirectory
+                : workingDirectory
         };
         foreach (var argument in arguments)
         {
@@ -467,6 +473,17 @@ public sealed class LegacyAv1anCliFallbackRunner : IAutoCompressionRunner
         {
             StartInfo = startInfo
         };
+    }
+
+    internal static string GetWorkingDirectory(AutoCompressionRequest request, string fileName)
+    {
+        var sourceDirectory = Path.GetDirectoryName(request.SourcePath);
+        if (!string.IsNullOrWhiteSpace(sourceDirectory))
+        {
+            return sourceDirectory;
+        }
+
+        return Path.GetDirectoryName(fileName) ?? AppContext.BaseDirectory;
     }
 
     private static async Task PumpAsync(

@@ -25,7 +25,7 @@ public sealed class LocalExternalToolServiceTests
         Assert.IsFalse(LocalExternalToolService.IsManagedAv1anAssetName("FlowEncode_Setup_v1.9.2.exe"));
     }
 
-    [DataTestMethod]
+    [TestMethod]
     [DataRow("v1.0-rc1")]
     [DataRow("v1.0-rc")]
     [DataRow("v1.0.rc2")]
@@ -39,7 +39,7 @@ public sealed class LocalExternalToolServiceTests
         Assert.IsTrue(LocalExternalToolService.ContainsUnstableReleaseMarker(value));
     }
 
-    [DataTestMethod]
+    [TestMethod]
     [DataRow("source")]
     [DataRow("resource")]
     [DataRow("architecture")]
@@ -54,7 +54,7 @@ public sealed class LocalExternalToolServiceTests
         Assert.IsFalse(LocalExternalToolService.ContainsUnstableReleaseMarker(value));
     }
 
-    [DataTestMethod]
+    [TestMethod]
     [DataRow("v1.0-beta1")]
     [DataRow("nightly-build")]
     [DataRow("dev-20260517")]
@@ -67,7 +67,7 @@ public sealed class LocalExternalToolServiceTests
         Assert.IsTrue(LocalExternalToolService.ContainsUnstableReleaseMarker(value));
     }
 
-    [DataTestMethod]
+    [TestMethod]
     [DataRow("v1.0.0")]
     [DataRow("2026.05.17")]
     [DataRow("")]
