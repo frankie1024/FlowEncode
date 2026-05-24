@@ -23,9 +23,9 @@ internal static class EncoderManifestCatalog
             false,
             [
                 new EncoderUpdateChannel(
-                    "Patman86 x264 发布页",
-                    "https://github.com/Patman86/x264-Mod-by-Patman/releases/latest",
-                    "FlowEncode 默认回退到这个 x264 发布源，便于统一自动更新与手动导入策略。"),
+                    "FlowEncode x264 Windows Builds",
+                    "https://github.com/frankie1024/x264-windows-builds/releases/latest",
+                    "FlowEncode 默认使用这个 x264 Windows x64 发布源，统一自动更新与手动导入策略。"),
                 new EncoderUpdateChannel(
                     "VideoLAN 源码",
                     "https://code.videolan.org/videolan/x264",
@@ -42,9 +42,9 @@ internal static class EncoderManifestCatalog
             false,
             [
                 new EncoderUpdateChannel(
-                    "Patman86 x265 发布页",
-                    "https://github.com/Patman86/x265-Mod-by-Patman/releases/latest",
-                    "FlowEncode 默认回退到这个 x265 发布源，优先拿通用 x86-64 GCC 构建。"),
+                    "FlowEncode x265 Windows Builds",
+                    "https://github.com/frankie1024/x265-windows-builds/releases/latest",
+                    "FlowEncode 默认使用这个 x265 Windows x64 发布源。"),
                 new EncoderUpdateChannel(
                     "MulticoreWare 仓库",
                     "https://bitbucket.org/multicoreware/x265_git",
@@ -61,9 +61,9 @@ internal static class EncoderManifestCatalog
             true,
             [
                 new EncoderUpdateChannel(
-                    "Patman86 SVT-AV1 发布页",
-                    "https://github.com/Patman86/SVT-AV1-Mods-by-Patman/releases/latest",
-                    "FlowEncode 默认回退到这个 SVT-AV1 EncApp 发布源。"),
+                    "FlowEncode SVT-AV1 Windows Builds",
+                    "https://github.com/frankie1024/svt-av1-windows-builds/releases/latest",
+                    "FlowEncode 默认使用这个 SVT-AV1 EncApp Windows x64 发布源。"),
                 new EncoderUpdateChannel(
                     "AOMedia GitLab",
                     "https://gitlab.com/AOMediaCodec/SVT-AV1",

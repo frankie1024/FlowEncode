@@ -13,9 +13,9 @@ public sealed class DefaultToolRegistryService : IToolRegistryService
 
     private static readonly IReadOnlyList<ToolDefinition> Tools = Array.AsReadOnly(
     [
-        new ToolDefinition(RegisteredToolKind.X264, ToolProbeMode.EncoderBinary, [], [], ToolSearchLocation.None, string.Empty, "https://github.com/Patman86/x264-Mod-by-Patman/releases"),
-        new ToolDefinition(RegisteredToolKind.X265, ToolProbeMode.EncoderBinary, [], [], ToolSearchLocation.None, string.Empty, "https://github.com/Patman86/x265-Mod-by-Patman/releases"),
-        new ToolDefinition(RegisteredToolKind.SvtAv1, ToolProbeMode.EncoderBinary, [], [], ToolSearchLocation.None, string.Empty, "https://github.com/Patman86/SVT-AV1-Mods-by-Patman/releases"),
+        new ToolDefinition(RegisteredToolKind.X264, ToolProbeMode.EncoderBinary, [], [], ToolSearchLocation.None, string.Empty, "https://github.com/frankie1024/x264-windows-builds/releases"),
+        new ToolDefinition(RegisteredToolKind.X265, ToolProbeMode.EncoderBinary, [], [], ToolSearchLocation.None, string.Empty, "https://github.com/frankie1024/x265-windows-builds/releases"),
+        new ToolDefinition(RegisteredToolKind.SvtAv1, ToolProbeMode.EncoderBinary, [], [], ToolSearchLocation.None, string.Empty, "https://github.com/frankie1024/svt-av1-windows-builds/releases"),
         new ToolDefinition(RegisteredToolKind.Ffmpeg, ToolProbeMode.ProcessVersion, ["ffmpeg.exe", "ffmpeg64.exe"], ["FLOWENCODE_FFMPEG", "FFMPEG_PATH", "FFMPEG_EXE", "FFMPEG"], ToolSearchLocation.EnvironmentVariables | ToolSearchLocation.LocalToolsRoot | ToolSearchLocation.Path, "-version", "https://github.com/BtbN/FFmpeg-Builds/releases/latest", ExternalToolKind.Ffmpeg),
         new ToolDefinition(RegisteredToolKind.Ffprobe, ToolProbeMode.ProcessVersion, ["ffprobe.exe", "ffprobe64.exe"], ["FLOWENCODE_FFPROBE", "FFPROBE_PATH", "FFPROBE_EXE", "FFPROBE"], ToolSearchLocation.EnvironmentVariables | ToolSearchLocation.LocalToolsRoot | ToolSearchLocation.Path, "-version", "https://github.com/BtbN/FFmpeg-Builds/releases/latest"),
         new ToolDefinition(RegisteredToolKind.Vspipe, ToolProbeMode.ProcessVersion, ["vspipe.exe", "VSPipe.exe"], ["FLOWENCODE_VSPIPE", "VSPIPE_PATH", "VSPIPE_EXE", "VSPIPE"], ToolSearchLocation.EnvironmentVariables | ToolSearchLocation.LocalToolsRoot | ToolSearchLocation.Path | ToolSearchLocation.VspipeSidecar | ToolSearchLocation.ProgramFilesVapourSynth | ToolSearchLocation.PythonScripts, "--version", "https://www.vapoursynth.com/"),

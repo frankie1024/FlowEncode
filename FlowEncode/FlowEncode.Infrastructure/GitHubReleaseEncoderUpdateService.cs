@@ -1,3 +1,4 @@
+using System.IO.Compression;
 using System.Text.Json;
 using System.Text.RegularExpressions;
 using FlowEncode.Application;
@@ -32,12 +33,10 @@ public sealed class GitHubReleaseEncoderUpdateService : IEncoderUpdateService, I
         var x264 = await GetLatestPackageAsync(
             EncoderKind.X264,
             EncoderArchitecture.X64,
-            "Patman86/x264-Mod-by-Patman",
-            static asset => asset.Name.EndsWith(".7z", StringComparison.OrdinalIgnoreCase)
-                && asset.Name.Contains("x264", StringComparison.OrdinalIgnoreCase)
-                && asset.Name.Contains("x64", StringComparison.OrdinalIgnoreCase),
+            "frankie1024/x264-windows-builds",
+            static asset => IsExpectedEncoderAssetName(asset.Name, "x264"),
             static asset => ScoreX264Asset(asset.Name),
-            "默认回退到 Patman86 的 x264 发布包，采用 x64 性能优先策略。",
+            "默认使用 FlowEncode x264 Windows x64 发布包。",
             cancellationToken);
         if (x264 is not null)
         {
@@ -47,12 +46,10 @@ public sealed class GitHubReleaseEncoderUpdateService : IEncoderUpdateService, I
         var x265 = await GetLatestPackageAsync(
             EncoderKind.X265,
             EncoderArchitecture.X64,
-            "Patman86/x265-Mod-by-Patman",
-            static asset => asset.Name.EndsWith(".7z", StringComparison.OrdinalIgnoreCase)
-                && asset.Name.Contains("x265", StringComparison.OrdinalIgnoreCase)
-                && asset.Name.Contains("x64", StringComparison.OrdinalIgnoreCase),
+            "frankie1024/x265-windows-builds",
+            static asset => IsExpectedEncoderAssetName(asset.Name, "x265"),
             static asset => ScoreX265Asset(asset.Name),
-            "统一回退到 Patman86 的 x265 发布包，默认优先选择性能更高的 x86-64-v3 / x86-64 构建。",
+            "默认使用 FlowEncode x265 Windows x64 发布包。",
             cancellationToken);
         if (x265 is not null)
         {
@@ -62,16 +59,10 @@ public sealed class GitHubReleaseEncoderUpdateService : IEncoderUpdateService, I
         var svt = await GetLatestPackageAsync(
             EncoderKind.SvtAv1,
             EncoderArchitecture.X64,
-            "Patman86/SVT-AV1-Mods-by-Patman",
-            static asset => asset.Name.Contains("SVT-AV1-EncApp", StringComparison.OrdinalIgnoreCase)
-                && asset.Name.Contains("x64", StringComparison.OrdinalIgnoreCase)
-                && asset.Name.EndsWith(".7z", StringComparison.OrdinalIgnoreCase)
-                && !asset.Name.Contains("Essential", StringComparison.OrdinalIgnoreCase)
-                && !asset.Name.Contains("HDR", StringComparison.OrdinalIgnoreCase)
-                && !asset.Name.Contains("Tritium", StringComparison.OrdinalIgnoreCase)
-                && !asset.Name.Contains("PSYEX", StringComparison.OrdinalIgnoreCase),
+            "frankie1024/svt-av1-windows-builds",
+            static asset => IsExpectedEncoderAssetName(asset.Name, "svt-av1"),
             static asset => ScoreSvtAsset(asset.Name),
-            "统一回退到 Patman86 的标准 SVT-AV1 EncApp x64 构建（msvc > gcc > clang）。",
+            "默认使用 FlowEncode SVT-AV1 Windows x64 发布包。",
             cancellationToken);
         if (svt is not null)
         {
@@ -181,6 +172,26 @@ public sealed class GitHubReleaseEncoderUpdateService : IEncoderUpdateService, I
     {
         var normalizedExtractRoot = Path.GetFullPath(extractRoot);
 
+        if (archivePath.EndsWith(".zip", StringComparison.OrdinalIgnoreCase))
+        {
+            using var zipArchive = ZipFile.OpenRead(archivePath);
+            foreach (var entry in zipArchive.Entries.Where(static entry => !string.IsNullOrWhiteSpace(entry.Name)))
+            {
+                var entryPath = entry.FullName.TrimStart('/', '\\');
+                var destinationPath = Path.GetFullPath(Path.Combine(normalizedExtractRoot, entryPath));
+                EnsureDestinationPath(normalizedExtractRoot, destinationPath, entryPath);
+                var destinationDirectory = Path.GetDirectoryName(destinationPath);
+                if (!string.IsNullOrWhiteSpace(destinationDirectory))
+                {
+                    Directory.CreateDirectory(destinationDirectory);
+                }
+
+                entry.ExtractToFile(destinationPath, true);
+            }
+
+            return;
+        }
+
         using var archiveStream = File.OpenRead(archivePath);
         using var archive = SevenZipArchive.OpenArchive(archiveStream);
 
@@ -197,10 +208,7 @@ public sealed class GitHubReleaseEncoderUpdateService : IEncoderUpdateService, I
                 .Replace('/', Path.DirectorySeparatorChar);
 
             var destinationPath = Path.GetFullPath(Path.Combine(normalizedExtractRoot, relativePath));
-            if (!destinationPath.StartsWith(normalizedExtractRoot + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase))
-            {
-                throw new InvalidOperationException($"压缩包包含非法路径：{entryKey}");
-            }
+            EnsureDestinationPath(normalizedExtractRoot, destinationPath, entryKey);
 
             var destinationDirectory = Path.GetDirectoryName(destinationPath);
             if (!string.IsNullOrWhiteSpace(destinationDirectory))
@@ -211,6 +219,14 @@ public sealed class GitHubReleaseEncoderUpdateService : IEncoderUpdateService, I
             using var entryStream = entry.OpenEntryStream();
             using var fileStream = File.Open(destinationPath, FileMode.Create, FileAccess.Write, FileShare.None);
             entryStream.CopyTo(fileStream);
+        }
+    }
+
+    private static void EnsureDestinationPath(string normalizedExtractRoot, string destinationPath, string entryName)
+    {
+        if (!destinationPath.StartsWith(normalizedExtractRoot + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase))
+        {
+            throw new InvalidOperationException($"压缩包包含非法路径：{entryName}");
         }
     }
 
@@ -267,6 +283,24 @@ public sealed class GitHubReleaseEncoderUpdateService : IEncoderUpdateService, I
     private static int ScoreContains(string source, string token, int score)
     {
         return source.Contains(token, StringComparison.OrdinalIgnoreCase) ? score : 0;
+    }
+
+    internal static bool IsExpectedEncoderAssetName(string? assetName, string expectedPrefix)
+    {
+        if (string.IsNullOrWhiteSpace(assetName) || string.IsNullOrWhiteSpace(expectedPrefix))
+        {
+            return false;
+        }
+
+        if (assetName.Contains("-windows-x64", StringComparison.OrdinalIgnoreCase))
+        {
+            return false;
+        }
+
+        return Regex.IsMatch(
+            assetName.Trim(),
+            $"^{Regex.Escape(expectedPrefix)}-(?!.*(?:^|-)x64-)(?!.*(?:^|-)windows(?:-|\\.))(?!.*(?:^|-)x86(?:-|\\.))[A-Za-z0-9._-]+-x64\\.zip$",
+            RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
     }
 
     private async Task<EncoderUpdatePackage?> GetLatestPackageAsync(
