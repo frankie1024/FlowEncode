@@ -19,7 +19,7 @@ internal static class EncoderManifestCatalog
             ["Film", "Animation", "Grain", "StillImage", "PSNR", "SSIM", "FastDecode", "ZeroLatency", "Touhou"],
             ["Baseline", "Main", "High", "High10", "High422", "High444"],
             [RateControlMode.Crf, RateControlMode.Cq, RateControlMode.TwoPass, RateControlMode.Abr],
-            ["264", "mkv", "mp4"],
+            ["264", "mkv"],
             false,
             [
                 new EncoderUpdateChannel(
@@ -38,7 +38,7 @@ internal static class EncoderManifestCatalog
             ["Grain", "PSNR", "SSIM", "FastDecode", "ZeroLatency", "Animation"],
             ["main", "main10", "mainstillpicture"],
             [RateControlMode.Crf, RateControlMode.Cq, RateControlMode.TwoPass, RateControlMode.Abr],
-            ["hevc", "mkv", "mp4"],
+            ["hevc", "mkv"],
             false,
             [
                 new EncoderUpdateChannel(
