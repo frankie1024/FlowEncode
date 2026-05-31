@@ -35,6 +35,14 @@ public sealed partial class VapourSynthEditorPaneView : UserControl, IDisposable
 
     public bool IsEditorReady { get; private set; }
 
+    /// <summary>
+    /// Indicates whether the initial document has been pushed to the editor after it became ready.
+    /// This is false between the editor's "ready" signal and the completion of the first
+    /// <see cref="LoadDocumentAsync"/> call. Used to prevent saving empty editor content
+    /// when F9 is pressed before the document has been loaded.
+    /// </summary>
+    public bool HasDocumentBeenPushed { get; internal set; }
+
     public event EventHandler? EditorReady;
 
     public event EventHandler<string>? LoadFailed;
@@ -60,6 +68,7 @@ public sealed partial class VapourSynthEditorPaneView : UserControl, IDisposable
         try
         {
             IsEditorReady = false;
+            HasDocumentBeenPushed = false;
             ShowEditorOverlay(showRetryButton: false, showProgress: true);
 
             if (!_isCoreInitialized)

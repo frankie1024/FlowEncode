@@ -612,6 +612,15 @@ public sealed partial class VapourSynthWorkspaceView : UserControl, IDisposable
 
     private async Task StartEncodeAsync()
     {
+        // If the editor became ready but the initial document hasn't been pushed yet
+        // (race: F9 pressed between editor "ready" and PushDocumentToEditorAsync),
+        // push the document first so we don't capture and save empty editor content.
+        var activePane = GetActiveEditorPane();
+        if (activePane.IsEditorReady && !activePane.HasDocumentBeenPushed)
+        {
+            await PushDocumentToEditorAsync(activePane);
+        }
+
         await CaptureActiveEditorStateAsync();
 
         var sourcePath = ViewModel.CurrentFilePath;
@@ -1052,6 +1061,7 @@ public sealed partial class VapourSynthWorkspaceView : UserControl, IDisposable
         }
 
         await pane.LoadDocumentAsync(tab.CurrentContent, tab.CurrentFilePath);
+        pane.HasDocumentBeenPushed = true;
     }
 
     private async Task FocusEditorAsync()
