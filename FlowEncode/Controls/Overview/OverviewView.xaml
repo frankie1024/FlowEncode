@@ -322,7 +322,7 @@
                                 </Grid>
 
                                 <CommandBar x:Name="QueueSelectionCommandBar" Grid.Row="1" Padding="6,0" Background="Transparent" DefaultLabelPosition="Right" IsDynamicOverflowEnabled="False" OverflowButtonVisibility="Collapsed" Visibility="Collapsed">
-                                    <AppBarButton x:Name="QueueExitSelectionModeButton" Icon="Accept" Label="{Binding Texts.QueueExitSelectionModeButton}" Click="ExitQueueSelectionModeButton_Click" Visibility="Collapsed" />
+                                    <AppBarButton x:Name="QueueExitSelectionModeButton" Icon="Accept" Label="{Binding Texts.QueueExitSelectionModeButton}" Click="ClearQueueSelectionButton_Click" Visibility="Collapsed" />
                                     <AppBarSeparator x:Name="QueueSelectionModeSeparator" Visibility="Collapsed" />
                                     <AppBarButton x:Name="QueueSelectAllJobsButton" Icon="SelectAll" Label="{Binding Texts.QueueSelectAllButton}" Click="SelectAllQueueJobsButton_Click" IsEnabled="{Binding CanSelectAllQueueJobs}" Visibility="Collapsed" />
                                     <AppBarButton x:Name="QueueInvertSelectionButton" Icon="Switch" Label="{Binding Texts.QueueInvertSelectionButton}" Click="InvertQueueSelectionButton_Click" IsEnabled="{Binding CanInvertQueueSelection}" Visibility="Collapsed" />
@@ -336,7 +336,7 @@
                                 </CommandBar>
 
                                 <Grid Grid.Row="2">
-                                    <ListView x:Name="JobsList" ItemsSource="{Binding Jobs}" MinHeight="320" SelectionMode="Single" CanDragItems="True" CanReorderItems="True" AllowDrop="True" DragItemsStarting="JobsList_DragItemsStarting" DragItemsCompleted="JobsList_DragItemsCompleted" ContextRequested="JobsList_ContextRequested" SelectionChanged="JobsList_SelectionChanged">
+                                    <ListView x:Name="JobsList" ItemsSource="{Binding Jobs}" MinHeight="320" SelectionMode="Extended" CanDragItems="True" CanReorderItems="True" AllowDrop="True" DragItemsStarting="JobsList_DragItemsStarting" DragItemsCompleted="JobsList_DragItemsCompleted" ContextRequested="JobsList_ContextRequested" SelectionChanged="JobsList_SelectionChanged">
                                         <ListView.ItemTemplate>
                                             <DataTemplate>
                                                 <Grid Padding="12,12">
