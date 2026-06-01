@@ -121,34 +121,9 @@ public sealed class OverviewQueueViewModel : ModuleViewModelBase
         return Owner.RemoveJob(job);
     }
 
-    public string? PrioritizeJob(EncodingJobItemViewModel? job)
-    {
-        return Owner.PrioritizeJob(job);
-    }
-
     public string? StartJobNow(EncodingJobItemViewModel? job)
     {
         return Owner.StartJobNow(job);
-    }
-
-    public string? MoveJobUp(EncodingJobItemViewModel? job)
-    {
-        return Owner.MoveJobUp(job);
-    }
-
-    public string? MoveJobDown(EncodingJobItemViewModel? job)
-    {
-        return Owner.MoveJobDown(job);
-    }
-
-    public string? MoveJobToTop(EncodingJobItemViewModel? job)
-    {
-        return Owner.MoveJobToTop(job);
-    }
-
-    public string? MoveJobToBottom(EncodingJobItemViewModel? job)
-    {
-        return Owner.MoveJobToBottom(job);
     }
 
     public void CorrectQueueOrderAfterDrop()

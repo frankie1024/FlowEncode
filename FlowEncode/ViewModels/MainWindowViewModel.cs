@@ -1599,17 +1599,6 @@ public partial class MainWindowViewModel : CommunityToolkit.Mvvm.ComponentModel.
         return null;
     }
 
-    internal string? PrioritizeJob(EncodingJobItemViewModel? job)
-    {
-        var error = MoveQueuedJob(job, MoveQueuedJobMode.Next);
-        if (string.IsNullOrWhiteSpace(error))
-        {
-            _ = ProcessQueueAsync();
-        }
-
-        return error;
-    }
-
     internal string? StartJobNow(EncodingJobItemViewModel? job)
     {
         if (job is null)
@@ -1631,26 +1620,6 @@ public partial class MainWindowViewModel : CommunityToolkit.Mvvm.ComponentModel.
         StatusText = Texts.JobStartedManuallyStatus(job.SourceFileName);
         _ = RunJobAsync(job);
         return null;
-    }
-
-    internal string? MoveJobUp(EncodingJobItemViewModel? job)
-    {
-        return MoveQueuedJob(job, MoveQueuedJobMode.Up);
-    }
-
-    internal string? MoveJobDown(EncodingJobItemViewModel? job)
-    {
-        return MoveQueuedJob(job, MoveQueuedJobMode.Down);
-    }
-
-    internal string? MoveJobToTop(EncodingJobItemViewModel? job)
-    {
-        return MoveQueuedJob(job, MoveQueuedJobMode.Top);
-    }
-
-    internal string? MoveJobToBottom(EncodingJobItemViewModel? job)
-    {
-        return MoveQueuedJob(job, MoveQueuedJobMode.Bottom);
     }
 
     private Task ProcessQueueAsync()
@@ -2017,51 +1986,6 @@ public partial class MainWindowViewModel : CommunityToolkit.Mvvm.ComponentModel.
         {
             await Task.Delay(100);
         }
-    }
-
-    private string? MoveQueuedJob(EncodingJobItemViewModel? job, MoveQueuedJobMode mode)
-    {
-        if (job is null)
-        {
-            return Texts.MoveJobMissingError;
-        }
-
-        if (job.State != EncodingJobState.Queued)
-        {
-            return Texts.MoveJobInvalidError;
-        }
-
-        var currentIndex = Jobs.IndexOf(job);
-        if (currentIndex < 0)
-        {
-            return Texts.MoveJobNotInQueueError;
-        }
-
-        var minimumIndex = GetQueuedMoveFloorIndex();
-        var maximumIndex = Jobs.Count - 1;
-        var targetIndex = mode switch
-        {
-            MoveQueuedJobMode.Next or MoveQueuedJobMode.Top => minimumIndex,
-            MoveQueuedJobMode.Up => Math.Max(minimumIndex, currentIndex - 1),
-            MoveQueuedJobMode.Down => Math.Min(maximumIndex, currentIndex + 1),
-            MoveQueuedJobMode.Bottom => maximumIndex,
-            _ => currentIndex
-        };
-
-        if (targetIndex == currentIndex)
-        {
-            StatusText = Texts.MoveJobEdgeStatus(mode, job.SourceFileName);
-
-            return null;
-        }
-
-        Jobs.Move(currentIndex, targetIndex);
-        SelectedJob = job;
-        RaiseJobSummaryPropertyChanges();
-
-        StatusText = Texts.MoveJobCompletedStatus(mode, job.SourceFileName);
-
-        return null;
     }
 
     private void MoveQueuedJobsToFront(IReadOnlyList<EncodingJobItemViewModel> jobs)
@@ -3837,15 +3761,6 @@ public partial class MainWindowViewModel : CommunityToolkit.Mvvm.ComponentModel.
             .ThenBy(binary => binary.Source)
             .FirstOrDefault();
     }
-}
-
-public enum MoveQueuedJobMode
-{
-    Next,
-    Top,
-    Up,
-    Down,
-    Bottom
 }
 
 public sealed record QueueJobPreflightResult(

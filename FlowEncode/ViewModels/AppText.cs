@@ -579,10 +579,6 @@ public sealed class AppText
     public string UnpinTemplateButton => Pick("取消置顶", "Unpin Template");
     public string DeleteTemplateButton => Pick("删除模板", "Delete Template");
     public string JobMenuStart => Pick("开始", "Start");
-    public string JobMenuMoveTop => Pick("移到顶部", "Move to Top");
-    public string JobMenuMoveUp => Pick("上移一位", "Move Up");
-    public string JobMenuMoveDown => Pick("下移一位", "Move Down");
-    public string JobMenuMoveBottom => Pick("移到队尾", "Move to Bottom");
     public string JobMenuCancel => Pick("取消任务", "Cancel Job");
     public string JobMenuRestart => Pick("重启任务", "Restart Job");
     public string JobMenuDelete => Pick("删除任务", "Delete Job");
@@ -1475,62 +1471,6 @@ public sealed class AppText
     public string EncodingFailedStatus(string sourceFileName) =>
         IsChinese ? $"失败：{sourceFileName}" : $"Failed: {sourceFileName}";
 
-    public string MoveJobMissingError => Pick("未找到要调整顺序的任务。", "The job to reorder was not found.");
-    public string MoveJobInvalidError => Pick("只有排队中的任务才能调整顺序。", "Only queued jobs can be reordered.");
-    public string MoveJobNotInQueueError => Pick("任务不在当前队列中。", "The job is not in the current queue.");
-
-    public string MoveJobEdgeStatus(MoveQueuedJobMode mode, string fileName)
-    {
-        if (IsChinese)
-        {
-            return mode switch
-            {
-                MoveQueuedJobMode.Next => $"任务已经是下一项：{fileName}",
-                MoveQueuedJobMode.Top => $"任务已经位于可执行区顶部：{fileName}",
-                MoveQueuedJobMode.Bottom => $"任务已经位于队尾：{fileName}",
-                MoveQueuedJobMode.Up => $"任务已经无法继续上移：{fileName}",
-                MoveQueuedJobMode.Down => $"任务已经无法继续下移：{fileName}",
-                _ => fileName
-            };
-        }
-
-        return mode switch
-        {
-            MoveQueuedJobMode.Next => $"Already next: {fileName}",
-            MoveQueuedJobMode.Top => $"Already at the top: {fileName}",
-            MoveQueuedJobMode.Bottom => $"Already at the bottom: {fileName}",
-            MoveQueuedJobMode.Up => $"Cannot move up: {fileName}",
-            MoveQueuedJobMode.Down => $"Cannot move down: {fileName}",
-            _ => fileName
-        };
-    }
-
-    public string MoveJobCompletedStatus(MoveQueuedJobMode mode, string fileName)
-    {
-        if (IsChinese)
-        {
-            return mode switch
-            {
-                MoveQueuedJobMode.Next => $"已设为下一项：{fileName}",
-                MoveQueuedJobMode.Top => $"已移到可执行区顶部：{fileName}",
-                MoveQueuedJobMode.Bottom => $"已移到队尾：{fileName}",
-                MoveQueuedJobMode.Up => $"已上移任务：{fileName}",
-                MoveQueuedJobMode.Down => $"已下移任务：{fileName}",
-                _ => $"已调整任务顺序：{fileName}"
-            };
-        }
-
-        return mode switch
-        {
-            MoveQueuedJobMode.Next => $"Set as next: {fileName}",
-            MoveQueuedJobMode.Top => $"Moved to top: {fileName}",
-            MoveQueuedJobMode.Bottom => $"Moved to bottom: {fileName}",
-            MoveQueuedJobMode.Up => $"Moved up: {fileName}",
-            MoveQueuedJobMode.Down => $"Moved down: {fileName}",
-            _ => $"Reordered: {fileName}"
-        };
-    }
-
     public string MissingEncoderError => Pick("请先选择编码器，并完成当前草稿的关键参数。", "Select an encoder and finish the key draft parameters first.");
     public string MissingSourceError => Pick("请先选择源文件。", "Select a source file first.");
     public string MissingOutputError => Pick("请先指定输出目录。", "Select an output directory first.");
@@ -1653,7 +1593,6 @@ public sealed class AppText
     public string ErrorCannotStartAutoCompressionTitle => Pick("无法启动自动压制", "Unable to start auto encode");
     public string ErrorCannotStartAudioProcessingTitle => Pick("无法启动音频处理", "Unable to start audio processing");
     public string ErrorCannotStartBluRayDemuxTitle => Pick("无法启动蓝光解复用", "Unable to start Blu-ray demux");
-    public string ErrorCannotReorderTitle => Pick("无法调整任务顺序", "Unable to reorder");
     public string ErrorCannotStartTitle => Pick("无法开始任务", "Unable to start");
     public string ErrorCannotCancelTitle => Pick("无法取消任务", "Unable to cancel");
     public string ErrorCannotRestartTitle => Pick("无法重启任务", "Unable to restart");
