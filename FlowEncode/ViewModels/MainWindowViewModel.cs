@@ -2098,6 +2098,22 @@ public partial class MainWindowViewModel : CommunityToolkit.Mvvm.ComponentModel.
         return runningIndex.HasValue ? runningIndex.Value + 1 : 0;
     }
 
+    internal void CorrectQueueOrderAfterDrop()
+    {
+        var floorIndex = GetQueuedMoveFloorIndex();
+        for (var i = 0; i < floorIndex; i++)
+        {
+            if (Jobs[i].State == EncodingJobState.Queued)
+            {
+                Jobs.Move(i, floorIndex);
+                break;
+            }
+        }
+
+        RefreshJobPositionFlags();
+        RaiseJobSummaryPropertyChanges();
+    }
+
     private EncodingJobRequest CreateDraftRequest(
         bool requireSourceExists = true,
         bool uniquifyOutputPath = true,

@@ -151,6 +151,11 @@ public sealed class OverviewQueueViewModel : ModuleViewModelBase
         return Owner.MoveJobToBottom(job);
     }
 
+    public void CorrectQueueOrderAfterDrop()
+    {
+        Owner.CorrectQueueOrderAfterDrop();
+    }
+
     public void UpdateSelectedQueueJobs(IEnumerable<EncodingJobItemViewModel> selectedJobs)
     {
         Owner.UpdateSelectedQueueJobs(selectedJobs);

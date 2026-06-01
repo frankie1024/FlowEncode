@@ -393,94 +393,6 @@ public sealed partial class OverviewView : UserControl
             QueueViewModel?.Texts.ErrorCannotStartTitle);
     }
 
-    private async void MoveJobToTopMenuItem_Click(object sender, RoutedEventArgs e)
-    {
-        await RunGuardedAsync(
-            nameof(MoveJobToTopMenuItem_Click),
-            async () =>
-            {
-                var queueViewModel = QueueViewModel;
-                if (!TryGetJobFromMenu(sender, out var job) || queueViewModel is null)
-                {
-                    return;
-                }
-
-                SelectQueueJobForSingleAction(job);
-                var error = queueViewModel.MoveJobToTop(job);
-                if (!string.IsNullOrWhiteSpace(error))
-                {
-                    await ShowMessageAsync(queueViewModel.Texts.ErrorCannotReorderTitle, error);
-                }
-            },
-            QueueViewModel?.Texts.ErrorCannotReorderTitle);
-    }
-
-    private async void MoveJobUpMenuItem_Click(object sender, RoutedEventArgs e)
-    {
-        await RunGuardedAsync(
-            nameof(MoveJobUpMenuItem_Click),
-            async () =>
-            {
-                var queueViewModel = QueueViewModel;
-                if (!TryGetJobFromMenu(sender, out var job) || queueViewModel is null)
-                {
-                    return;
-                }
-
-                SelectQueueJobForSingleAction(job);
-                var error = queueViewModel.MoveJobUp(job);
-                if (!string.IsNullOrWhiteSpace(error))
-                {
-                    await ShowMessageAsync(queueViewModel.Texts.ErrorCannotReorderTitle, error);
-                }
-            },
-            QueueViewModel?.Texts.ErrorCannotReorderTitle);
-    }
-
-    private async void MoveJobDownMenuItem_Click(object sender, RoutedEventArgs e)
-    {
-        await RunGuardedAsync(
-            nameof(MoveJobDownMenuItem_Click),
-            async () =>
-            {
-                var queueViewModel = QueueViewModel;
-                if (!TryGetJobFromMenu(sender, out var job) || queueViewModel is null)
-                {
-                    return;
-                }
-
-                SelectQueueJobForSingleAction(job);
-                var error = queueViewModel.MoveJobDown(job);
-                if (!string.IsNullOrWhiteSpace(error))
-                {
-                    await ShowMessageAsync(queueViewModel.Texts.ErrorCannotReorderTitle, error);
-                }
-            },
-            QueueViewModel?.Texts.ErrorCannotReorderTitle);
-    }
-
-    private async void MoveJobToBottomMenuItem_Click(object sender, RoutedEventArgs e)
-    {
-        await RunGuardedAsync(
-            nameof(MoveJobToBottomMenuItem_Click),
-            async () =>
-            {
-                var queueViewModel = QueueViewModel;
-                if (!TryGetJobFromMenu(sender, out var job) || queueViewModel is null)
-                {
-                    return;
-                }
-
-                SelectQueueJobForSingleAction(job);
-                var error = queueViewModel.MoveJobToBottom(job);
-                if (!string.IsNullOrWhiteSpace(error))
-                {
-                    await ShowMessageAsync(queueViewModel.Texts.ErrorCannotReorderTitle, error);
-                }
-            },
-            QueueViewModel?.Texts.ErrorCannotReorderTitle);
-    }
-
     private async void AbortJobMenuItem_Click(object sender, RoutedEventArgs e)
     {
         await RunGuardedAsync(
@@ -905,10 +817,6 @@ public sealed partial class OverviewView : UserControl
             : CreateMenuItem(texts.QueueEnterSelectionModeButton, Symbol.Edit, EnterQueueSelectionModeMenuItem_Click, job));
         flyout.Items.Add(new MenuFlyoutSeparator());
         flyout.Items.Add(CreateMenuItem(texts.JobMenuStart, Symbol.Play, StartQueuedJobMenuItem_Click, job, job.CanStart));
-        flyout.Items.Add(CreateMenuItem(texts.JobMenuMoveTop, Symbol.Upload, MoveJobToTopMenuItem_Click, job, job.CanMoveToTop));
-        flyout.Items.Add(CreateMenuItem(texts.JobMenuMoveUp, Symbol.Up, MoveJobUpMenuItem_Click, job, job.CanMoveUp));
-        flyout.Items.Add(CreateMenuItem(texts.JobMenuMoveDown, Symbol.Download, MoveJobDownMenuItem_Click, job, job.CanMoveDown));
-        flyout.Items.Add(CreateMenuItem(texts.JobMenuMoveBottom, Symbol.Download, MoveJobToBottomMenuItem_Click, job, job.CanMoveToBottom));
         flyout.Items.Add(new MenuFlyoutSeparator());
         flyout.Items.Add(CreateMenuItem(texts.JobMenuCancel, Symbol.Cancel, AbortJobMenuItem_Click, job, job.CanCancel));
         flyout.Items.Add(new MenuFlyoutSeparator());
@@ -949,6 +857,20 @@ public sealed partial class OverviewView : UserControl
                 .LastOrDefault();
 
         queueViewModel.SelectJob(activeJob);
+    }
+
+    private void JobsList_DragItemsStarting(object sender, DragItemsStartingEventArgs e)
+    {
+        if (e.Items.OfType<EncodingJobItemViewModel>()
+            .Any(static j => j.State != EncodingJobState.Queued))
+        {
+            e.Cancel = true;
+        }
+    }
+
+    private void JobsList_Drop(object sender, DragEventArgs e)
+    {
+        QueueViewModel?.CorrectQueueOrderAfterDrop();
     }
 
     private async void QueueHeaderComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
