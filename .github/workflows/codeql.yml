@@ -26,6 +26,12 @@ jobs:
     - name: Checkout repository
       uses: actions/checkout@v6
 
+    - name: Enable long paths
+      shell: pwsh
+      run: |
+        New-ItemProperty -Path "HKLM:\SYSTEM\CurrentControlSet\Control\FileSystem" `
+          -Name "LongPathsEnabled" -Value 1 -PropertyType DWORD -Force
+
     - name: Setup .NET
       uses: actions/setup-dotnet@v5
       with:
