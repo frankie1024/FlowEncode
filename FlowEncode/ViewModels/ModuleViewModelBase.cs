@@ -48,7 +48,7 @@ public abstract class ModuleViewModelBase : CommunityToolkit.Mvvm.ComponentModel
         return value;
     }
 
-    public void Dispose()
+    public virtual void Dispose()
     {
         if (_isDisposed)
         {

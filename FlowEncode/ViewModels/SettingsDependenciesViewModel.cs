@@ -95,4 +95,10 @@ public sealed class SettingsDependenciesViewModel : ModuleViewModelBase, ISetupD
     {
         OnPropertyChanged(e.PropertyName);
     }
+
+    public override void Dispose()
+    {
+        Owner.SetupGuideModule.PropertyChanged -= SetupGuide_PropertyChanged;
+        base.Dispose();
+    }
 }
