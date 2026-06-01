@@ -868,9 +868,13 @@ public sealed partial class OverviewView : UserControl
         }
     }
 
-    private void JobsList_Drop(object sender, DragEventArgs e)
+    private void JobsList_DragItemsCompleted(ListViewBase sender, DragItemsCompletedEventArgs args)
     {
-        QueueViewModel?.CorrectQueueOrderAfterDrop();
+        // 延迟到下一帧修正，避免在 WinUI 内部处理中修改集合导致 Access Violation
+        DispatcherQueue.TryEnqueue(() =>
+        {
+            QueueViewModel?.CorrectQueueOrderAfterDrop();
+        });
     }
 
     private async void QueueHeaderComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
