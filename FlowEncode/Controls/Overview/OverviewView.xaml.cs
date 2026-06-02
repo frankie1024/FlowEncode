@@ -13,6 +13,7 @@ using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Controls.Primitives;
 using Microsoft.UI.Xaml.Input;
 using Microsoft.UI.Xaml.Media;
+using Windows.ApplicationModel.DataTransfer;
 using Windows.System;
 
 namespace FlowEncode.Controls.Overview;
@@ -469,12 +470,9 @@ public sealed partial class OverviewView : UserControl
 
     private void ClearQueueSelectionButton_Click(object sender, RoutedEventArgs e)
     {
-        var current = JobsList.SelectedItem;
         JobsList.SelectedItems.Clear();
-        if (current is not null)
-        {
-            JobsList.SelectedItem = current;
-        }
+        JobsList.SelectedItem = null;
+        SyncSelectedQueueJobs();
     }
 
     private void SelectAllQueueJobsButton_Click(object sender, RoutedEventArgs e)
@@ -608,7 +606,10 @@ public sealed partial class OverviewView : UserControl
                         if (JobsList.SelectedItems.Count > 1)
                         {
                             e.Handled = true;
-                            JobsList.SelectedItem = JobsList.SelectedItems[0];
+                            var first = JobsList.SelectedItems[0];
+                            JobsList.SelectedItems.Clear();
+                            JobsList.SelectedItem = first;
+                            SyncSelectedQueueJobs();
                         }
 
                         break;
@@ -848,11 +849,20 @@ public sealed partial class OverviewView : UserControl
 
     private void JobsList_DragItemsCompleted(ListViewBase sender, DragItemsCompletedEventArgs args)
     {
+        if (args.DropResult == DataPackageOperation.None)
+        {
+            return;
+        }
+
         // 延迟到下一帧修正，避免在 WinUI 内部处理中修改集合导致 Access Violation
-        DispatcherQueue.TryEnqueue(() =>
+        if (!DispatcherQueue.TryEnqueue(() =>
         {
             QueueViewModel?.CorrectQueueOrderAfterDrop();
-        });
+        }))
+        {
+            // TryEnqueue 失败（Dispatcher 已关闭），同步执行兜底
+            QueueViewModel?.CorrectQueueOrderAfterDrop();
+        }
     }
 
     private async void QueueHeaderComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
