@@ -487,12 +487,7 @@ public sealed class LocalExternalToolService : IExternalToolService, IDisposable
                 var entryPath = entry.FullName.TrimStart('/', '\\');
                 var destinationPath = Path.GetFullPath(Path.Combine(normalizedExtractRoot, entryPath));
                 EnsureDestinationPath(normalizedExtractRoot, destinationPath, entryPath);
-                var destinationDirectory = Path.GetDirectoryName(destinationPath);
-                if (!string.IsNullOrWhiteSpace(destinationDirectory))
-                {
-                    Directory.CreateDirectory(destinationDirectory);
-                }
-
+                EnsureParentDirectory(destinationPath);
                 entry.ExtractToFile(destinationPath, true);
             }
 
@@ -515,16 +510,20 @@ public sealed class LocalExternalToolService : IExternalToolService, IDisposable
                 .Replace('/', Path.DirectorySeparatorChar);
             var destinationPath = Path.GetFullPath(Path.Combine(normalizedExtractRoot, relativePath));
             EnsureDestinationPath(normalizedExtractRoot, destinationPath, entryKey);
-
-            var destinationDirectory = Path.GetDirectoryName(destinationPath);
-            if (!string.IsNullOrWhiteSpace(destinationDirectory))
-            {
-                Directory.CreateDirectory(destinationDirectory);
-            }
+            EnsureParentDirectory(destinationPath);
 
             using var entryStream = entry.OpenEntryStream();
             using var fileStream = File.Open(destinationPath, FileMode.Create, FileAccess.Write, FileShare.None);
             entryStream.CopyTo(fileStream);
+        }
+    }
+
+    private static void EnsureParentDirectory(string filePath)
+    {
+        var directory = Path.GetDirectoryName(filePath);
+        if (!string.IsNullOrWhiteSpace(directory))
+        {
+            Directory.CreateDirectory(directory);
         }
     }
 
@@ -632,35 +631,24 @@ public sealed class LocalExternalToolService : IExternalToolService, IDisposable
 
     private IEnumerable<string> EnumeratePathMatches(ExternalToolKind kind)
     {
-        var path = Environment.GetEnvironmentVariable("PATH");
-        if (string.IsNullOrWhiteSpace(path))
-        {
-            yield break;
-        }
-
-        foreach (var root in path.Split(Path.PathSeparator, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+        foreach (var root in EnumerateCurrentPathRoots())
         {
             foreach (var fileName in ExecutableNames[kind])
             {
-                var candidate = Path.Combine(root, fileName);
+                var candidate = Path.GetFullPath(Path.Combine(root, fileName));
                 if (File.Exists(candidate))
                 {
-                    yield return Path.GetFullPath(candidate);
+                    yield return candidate;
                 }
             }
         }
     }
 
-    private static bool IsStableGitHubRelease(GitHubRelease release)
-    {
-        if (release.Draft || release.Prerelease)
-        {
-            return false;
-        }
-
-        return !ContainsUnstableReleaseMarker(release.TagName)
-            && !ContainsUnstableReleaseMarker(release.Name);
-    }
+    private static bool IsStableGitHubRelease(GitHubRelease release) =>
+        !release.Draft
+        && !release.Prerelease
+        && !ContainsUnstableReleaseMarker(release.TagName)
+        && !ContainsUnstableReleaseMarker(release.Name);
 
     internal static bool ContainsUnstableReleaseMarker(string? value)
     {

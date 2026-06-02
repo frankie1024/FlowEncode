@@ -812,13 +812,18 @@ public partial class MainWindowViewModel : CommunityToolkit.Mvvm.ComponentModel.
                 return Texts.NoQueueJobs;
             }
 
-            var running = Jobs.Count(static job => job.State == EncodingJobState.Running);
-            var queued = Jobs.Count(static job => job.State == EncodingJobState.Queued);
-            var completed = Jobs.Count(static job => job.State == EncodingJobState.Completed);
-            var failed = Jobs.Count(static job => job.State == EncodingJobState.Failed);
-            var cancelled = Jobs.Count(static job => job.State == EncodingJobState.Cancelled);
+            var counts = new Dictionary<EncodingJobState, int>();
+            foreach (var job in Jobs)
+            {
+                counts[job.State] = counts.GetValueOrDefault(job.State) + 1;
+            }
 
-            return Texts.QueueSummary(running, queued, completed, failed, cancelled);
+            return Texts.QueueSummary(
+                counts.GetValueOrDefault(EncodingJobState.Running),
+                counts.GetValueOrDefault(EncodingJobState.Queued),
+                counts.GetValueOrDefault(EncodingJobState.Completed),
+                counts.GetValueOrDefault(EncodingJobState.Failed),
+                counts.GetValueOrDefault(EncodingJobState.Cancelled));
         }
     }
 
@@ -1676,7 +1681,7 @@ public partial class MainWindowViewModel : CommunityToolkit.Mvvm.ComponentModel.
 
     private int GetMaxConcurrentEncodingJobCount()
     {
-        return NormalizeConcurrentEncodingJobs(MaxConcurrentEncodingJobs);
+        return (int)_maxConcurrentEncodingJobs;
     }
 
     private static int NormalizeConcurrentEncodingJobs(double value)
