@@ -736,7 +736,9 @@ public sealed partial class OverviewView : UserControl
             return;
         }
 
-        var flyout = BuildJobContextMenu(job, texts);
+        var flyout = JobsList.SelectedItems.Count > 1
+            ? BuildBatchContextMenu(texts)
+            : BuildJobContextMenu(job, texts);
         var anchor = ResolveJobContextMenuAnchor(args.OriginalSource as DependencyObject, job);
         if (args.TryGetPosition(anchor, out var position))
         {
@@ -817,6 +819,34 @@ public sealed partial class OverviewView : UserControl
         return item;
     }
 
+    private static MenuFlyoutItem CreateMenuItem(string text, Symbol icon, RoutedEventHandler click, bool isEnabled = true)
+    {
+        var item = new MenuFlyoutItem
+        {
+            Text = text,
+            Icon = new SymbolIcon(icon),
+            IsEnabled = isEnabled
+        };
+        item.Click += click;
+        return item;
+    }
+
+    private MenuFlyout BuildBatchContextMenu(AppText texts)
+    {
+        var queueViewModel = QueueViewModel;
+        var flyout = new MenuFlyout();
+
+        flyout.Items.Add(CreateMenuItem(texts.QueueSelectAllButton, Symbol.SelectAll, SelectAllQueueJobsButton_Click, queueViewModel?.CanSelectAllQueueJobs ?? false));
+        flyout.Items.Add(CreateMenuItem(texts.QueueInvertSelectionButton, Symbol.Switch, InvertQueueSelectionButton_Click, queueViewModel?.CanInvertQueueSelection ?? false));
+        flyout.Items.Add(CreateMenuItem(texts.QueueClearSelectionButton, Symbol.Clear, ClearQueueSelectionButton_Click));
+        flyout.Items.Add(new MenuFlyoutSeparator());
+        flyout.Items.Add(CreateMenuItem(texts.QueueBatchStartButton, Symbol.Play, StartSelectedJobsButton_Click, queueViewModel?.CanStartSelectedJobs ?? false));
+        flyout.Items.Add(CreateMenuItem(texts.QueueBatchCancelButton, Symbol.Cancel, CancelSelectedJobsButton_Click, queueViewModel?.CanCancelSelectedJobs ?? false));
+        flyout.Items.Add(CreateMenuItem(texts.QueueBatchDeleteButton, Symbol.Delete, DeleteSelectedJobsButton_Click, queueViewModel?.CanDeleteSelectedJobs ?? false));
+
+        return flyout;
+    }
+
     private void JobsList_SelectionChanged(object sender, SelectionChangedEventArgs e)
     {
         var queueViewModel = QueueViewModel;
@@ -835,7 +865,6 @@ public sealed partial class OverviewView : UserControl
                 .LastOrDefault();
 
         queueViewModel.SelectJob(activeJob);
-        UpdateBatchActionBarVisibility();
     }
 
     private void JobsList_DragItemsStarting(object sender, DragItemsStartingEventArgs e)
@@ -945,23 +974,6 @@ public sealed partial class OverviewView : UserControl
         SyncSelectedQueueJobs();
     }
 
-    private void UpdateBatchActionBarVisibility()
-    {
-        var show = JobsList.SelectedItems.Count > 1
-            ? Visibility.Visible
-            : Visibility.Collapsed;
-
-        QueueSelectionCommandBar.Visibility = show;
-        QueueExitSelectionModeButton.Visibility = show;
-        QueueSelectionModeSeparator.Visibility = show;
-        QueueSelectAllJobsButton.Visibility = show;
-        QueueInvertSelectionButton.Visibility = show;
-        QueueBatchActionSeparator.Visibility = show;
-        QueueBatchStartButton.Visibility = show;
-        QueueBatchCancelButton.Visibility = show;
-        QueueBatchDeleteButton.Visibility = show;
-        QueueSelectionStatusTextBlock.Visibility = show;
-    }
 
     private EncodingJobItemViewModel? GetCurrentQueueJobSelection()
     {
