@@ -365,6 +365,7 @@ public sealed class TemplateLibraryViewModel : CommunityToolkit.Mvvm.ComponentMo
             template.Id,
             template.IsPinned,
             template.IsPinned ? Texts.UnpinTemplateButton : Texts.PinTemplateButton,
+            Texts.DeleteTemplateButton,
             template);
     }
 

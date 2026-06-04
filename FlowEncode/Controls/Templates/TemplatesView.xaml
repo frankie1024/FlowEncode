@@ -52,7 +52,7 @@
                                                     <Button MinWidth="40" Padding="10" VerticalAlignment="Top" AutomationProperties.Name="{Binding PinActionLabel}" CommandParameter="{Binding}" Tag="{Binding TemplateId}" Click="PinTemplateButton_Click" Visibility="{Binding PinVisibility}" ToolTipService.ToolTip="{Binding PinActionLabel}">
                                                         <SymbolIcon Symbol="{Binding PinSymbol}" />
                                                     </Button>
-                                                    <Button MinWidth="40" Padding="10" VerticalAlignment="Top" AutomationProperties.Name="{Binding DataContext.Texts.DeleteTemplateButton, ElementName=RootView}" CommandParameter="{Binding}" Tag="{Binding TemplateId}" Click="DeleteTemplateButton_Click" Visibility="{Binding DeleteVisibility}" ToolTipService.ToolTip="{Binding DataContext.Texts.DeleteTemplateButton, ElementName=RootView}">
+                                                    <Button MinWidth="40" Padding="10" VerticalAlignment="Top" AutomationProperties.Name="{Binding DeleteActionLabel}" CommandParameter="{Binding}" Tag="{Binding TemplateId}" Click="DeleteTemplateButton_Click" Visibility="{Binding DeleteVisibility}" ToolTipService.ToolTip="{Binding DeleteActionLabel}">
                                                         <SymbolIcon Symbol="Delete" />
                                                     </Button>
                                                 </StackPanel>

@@ -13,6 +13,7 @@ public sealed record TemplateLibraryItemViewModel(
     string TemplateId,
     bool IsPinned,
     string PinActionLabel,
+    string DeleteActionLabel,
     SavedTemplate? UserTemplate)
 {
     public bool CanDelete => UserTemplate is not null && !IsPinned;
