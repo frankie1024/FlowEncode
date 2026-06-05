@@ -233,8 +233,8 @@ public sealed partial class BluRayDemuxView : UserControl
             this,
             nameof(BluRayDemuxView),
             actionName,
-            texts?.ErrorCannotStartBluRayDemuxTitle ?? "Blu-ray demux failed",
-            texts?.OkButton ?? "OK",
+            texts?.ErrorCannotStartBluRayDemuxTitle ?? "无法启动蓝光解复用",
+            texts?.OkButton ?? "确定",
             action);
     }
 

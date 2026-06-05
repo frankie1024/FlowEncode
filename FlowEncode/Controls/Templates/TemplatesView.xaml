@@ -5,6 +5,7 @@
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     xmlns:shared="using:FlowEncode.Controls.Shared"
+    xmlns:vm="using:FlowEncode.ViewModels"
     xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
     mc:Ignorable="d">
@@ -27,7 +28,7 @@
                         <Grid>
                             <ListView x:Name="TemplateLibraryList" ItemsSource="{Binding TemplateLibraryItems}" SelectionChanged="TemplateLibraryList_SelectionChanged" SelectionMode="Single">
                                 <ListView.ItemTemplate>
-                                    <DataTemplate>
+                                    <DataTemplate x:DataType="vm:TemplateLibraryItemViewModel">
                                         <Border Margin="{StaticResource AppBottomSpacingM}" Padding="{StaticResource AppInsetPanelPadding}" Background="{ThemeResource TemplateUserCardBrush}" BorderBrush="{ThemeResource TemplateUserBorderBrush}" BorderThickness="{StaticResource AppCardBorderThickness}" CornerRadius="{StaticResource AppCardCornerRadius}">
                                             <Grid ColumnSpacing="{StaticResource AppSpacingM}">
                                                 <Grid.ColumnDefinitions>

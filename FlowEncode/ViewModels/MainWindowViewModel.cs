@@ -56,16 +56,19 @@ public partial class MainWindowViewModel : CommunityToolkit.Mvvm.ComponentModel.
     private bool _isCheckingUpdates;
     private bool _isDownloadingAppUpdateInstaller;
     private int? _appUpdateDownloadProgressPercent;
-    private string _statusText = "环境已准备完成，等待首次刷新。";
-    private string _previewTitle = "选择一个预设以生成命令预览";
+    private AppText _texts = new(AppLanguage.Chinese);
+    private string _statusText;
+    private string _previewTitle;
     private string _previewCommandLine = string.Empty;
-    private string _previewNotes = "预览命令会围绕后续的作业队列和滤镜管线展开。";
-    private string _selectedProfileCaption = "尚未选择预设";
+    private string _previewNotes;
+    private string _selectedProfileCaption;
+
+    private string _draftProfileName;
+    private string _draftProfileDescription;
     private string _draftTemplateName = string.Empty;
     private string _draftTemplateNotes = string.Empty;
     private string _sourcePath = string.Empty;
     private string _outputPath = string.Empty;
-    private AppText _texts = new(AppLanguage.Chinese);
     private ThemeOption? _selectedTheme;
     private LanguageOption? _selectedLanguage;
     private EncoderOption? _selectedEncoder;
@@ -95,8 +98,6 @@ public partial class MainWindowViewModel : CommunityToolkit.Mvvm.ComponentModel.
     private string _draftUhdParameters = string.Empty;
     private double _draftQuality = 18.0;
     private double _draftBitrate = 3500.0;
-    private string _draftProfileName = "x264 草稿";
-    private string _draftProfileDescription = "先选择输入源和编码器，再微调当前作业的编码参数。";
     private string? _lastAutoOutputPath;
     private bool _isSynchronizingDraft;
     private bool _isUpdatingOutputPath;
@@ -153,6 +154,13 @@ public partial class MainWindowViewModel : CommunityToolkit.Mvvm.ComponentModel.
         _environmentReadinessService = environmentReadinessService;
         _setupBootstrapService = setupBootstrapService;
         _appUpdateService = appUpdateService;
+
+        _statusText = _texts.QueuePreparing;
+        _previewTitle = _texts.InitialPreviewTitle;
+        _previewNotes = _texts.InitialPreviewNotes;
+        _selectedProfileCaption = _texts.NoProfileSelectedCaption;
+        _draftProfileName = $"x264 {_texts.DraftSuffix}";
+        _draftProfileDescription = _texts.DraftNotReadyNotes;
 
         ReplaceItems(ThemeOptions, BuildThemeOptions());
         ReplaceItems(
@@ -894,13 +902,13 @@ public partial class MainWindowViewModel : CommunityToolkit.Mvvm.ComponentModel.
     internal string SelectedJobFpsText => IsQueueBatchSelectionActive
         ? Texts.QueueBatchSelectionRunningMetric(SelectedRunningJobCount)
         : SelectedJob?.FramesPerSecond is > 0
-            ? $"{SelectedJob.FramesPerSecond.Value:0.00} fps"
+            ? $"{SelectedJob.FramesPerSecond.Value.ToString("0.00", CultureInfo.InvariantCulture)} fps"
             : "--.-- fps";
 
     internal string SelectedJobBitrateText => IsQueueBatchSelectionActive
         ? Texts.QueueBatchSelectionCancelableMetric(SelectedCancelableQueueJobCount)
         : SelectedJob?.BitrateKbps is > 0
-            ? $"{SelectedJob.BitrateKbps.Value:0.00} kb/s"
+            ? $"{SelectedJob.BitrateKbps.Value.ToString("0.00", CultureInfo.InvariantCulture)} kb/s"
             : "--.-- kb/s";
 
     internal string SelectedJobEtaText => IsQueueBatchSelectionActive
@@ -1658,6 +1666,10 @@ public partial class MainWindowViewModel : CommunityToolkit.Mvvm.ComponentModel.
 
                 _ = RunJobAsync(nextJob);
             }
+        }
+        catch (Exception ex)
+        {
+            WriteDiagnostic($"ProcessQueueAsync failed. {ex.GetType().Name}: {ex.Message}");
         }
         finally
         {

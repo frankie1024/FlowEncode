@@ -1105,8 +1105,8 @@ public sealed partial class OverviewView : UserControl
             this,
             nameof(OverviewView),
             actionName,
-            errorTitle ?? texts?.ErrorSelectionFailedTitle ?? "Operation failed",
-            texts?.OkButton ?? "OK",
+            errorTitle ?? texts?.ErrorSelectionFailedTitle ?? "选择失败",
+            texts?.OkButton ?? "确定",
             action);
     }
 

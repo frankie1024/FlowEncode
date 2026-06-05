@@ -104,7 +104,7 @@ public sealed partial class CommandPreviewBox : UserControl
     public string ResolvedPlaceholderText =>
         !string.IsNullOrWhiteSpace(PlaceholderText)
             ? PlaceholderText
-            : Texts?.CommandPreviewEmptyPlaceholder ?? "No command is available yet.";
+            : Texts?.CommandPreviewEmptyPlaceholder ?? "当前还没有可显示的命令。";
 
     private static void OnTextChanged(DependencyObject dependencyObject, DependencyPropertyChangedEventArgs args)
     {
@@ -137,7 +137,7 @@ public sealed partial class CommandPreviewBox : UserControl
         var command = Text;
         if (string.IsNullOrWhiteSpace(command))
         {
-            ShowStatus(Texts?.CommandPreviewCopyUnavailableStatus ?? "No command is available to copy.");
+            ShowStatus(Texts?.CommandPreviewCopyUnavailableStatus ?? "当前没有可复制的命令。");
             SyncCopyState();
             return;
         }
@@ -151,7 +151,7 @@ public sealed partial class CommandPreviewBox : UserControl
         catch (Exception ex)
         {
             TryWriteClipboardFailure("SetContent", ex);
-            ShowStatus(Texts?.CommandPreviewCopyFailedStatus(ex.Message) ?? $"Copying the command failed: {ex.Message}");
+            ShowStatus(Texts?.CommandPreviewCopyFailedStatus(ex.Message) ?? $"复制命令失败：{ex.Message}");
             return;
         }
 
@@ -164,7 +164,7 @@ public sealed partial class CommandPreviewBox : UserControl
             TryWriteClipboardFailure("Flush", ex, AppDiagnosticSeverity.Warning);
         }
 
-        ShowStatus(Texts?.CommandPreviewCopiedStatus ?? "Command copied.");
+        ShowStatus(Texts?.CommandPreviewCopiedStatus ?? "命令已复制。");
     }
 
     private void SyncCopyState()
@@ -174,7 +174,7 @@ public sealed partial class CommandPreviewBox : UserControl
             return;
         }
 
-        var copyButtonText = Texts?.CommandPreviewCopyButton ?? "Copy Command";
+        var copyButtonText = Texts?.CommandPreviewCopyButton ?? "复制命令";
         CopyCommandButtonLabelTextBlock.Text = copyButtonText;
         CopyCommandButton.IsEnabled = IsCopyEnabled && !string.IsNullOrWhiteSpace(Text);
         ToolTipService.SetToolTip(CopyCommandButton, copyButtonText);

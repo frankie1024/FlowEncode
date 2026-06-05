@@ -5,6 +5,8 @@
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     xmlns:shared="using:FlowEncode.Controls.Shared"
+    xmlns:vm="using:FlowEncode.ViewModels"
+    xmlns:domain="using:FlowEncode.Domain"
     xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
     mc:Ignorable="d">
@@ -102,10 +104,10 @@
                                 MinHeight="280"
                                 ItemsSource="{Binding BluRayPlaylists}"
                                 ScrollViewer.VerticalScrollBarVisibility="Auto"
-                                SelectedItem="{Binding SelectedBluRayPlaylist, Mode=TwoWay}"
+                                SelectedItem="{Binding SelectedBluRayPlaylist, Mode=TwoWay, FallbackValue=''}"
                                 SelectionChanged="BluRayPlaylistListView_SelectionChanged">
                                 <ListView.ItemTemplate>
-                                    <DataTemplate>
+                                    <DataTemplate x:DataType="domain:BluRayPlaylistItem">
                                         <Border Margin="{StaticResource AppBottomSpacingS}" Padding="{StaticResource AppInsetPanelPadding}" Background="{ThemeResource CardAltBrush}" CornerRadius="{StaticResource AppCardCornerRadius}">
                                             <StackPanel Spacing="{StaticResource AppSpacingXS}">
                                                 <TextBlock FontWeight="SemiBold" Text="{Binding DisplayName}" />
@@ -158,7 +160,7 @@
                             SelectionMode="None"
                             ItemClick="BluRayTrackListView_ItemClick">
                             <ListView.ItemTemplate>
-                                <DataTemplate>
+                                <DataTemplate x:DataType="vm:BluRayTrackItemViewModel">
                                     <Border Margin="{StaticResource AppBottomSpacingS}" Padding="{StaticResource AppInsetPanelPadding}" Background="{ThemeResource CardAltBrush}" CornerRadius="{StaticResource AppCardCornerRadius}">
                                         <StackPanel Spacing="{StaticResource AppSpacingS}">
                                             <CheckBox Content="{Binding Title}" IsChecked="{Binding IsSelected, Mode=OneWay}" IsHitTestVisible="False" />

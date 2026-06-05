@@ -199,8 +199,8 @@ public sealed partial class AutoCompressionView : UserControl
             this,
             nameof(AutoCompressionView),
             actionName,
-            texts?.ErrorCannotStartAutoCompressionTitle ?? "Auto compression failed",
-            texts?.OkButton ?? "OK",
+            texts?.ErrorCannotStartAutoCompressionTitle ?? "无法启动自动压制",
+            texts?.OkButton ?? "确定",
             action);
     }
 

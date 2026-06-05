@@ -205,8 +205,8 @@ public sealed partial class AudioProcessingView : UserControl
             this,
             nameof(AudioProcessingView),
             actionName,
-            texts?.ErrorCannotStartAudioProcessingTitle ?? "Audio processing failed",
-            texts?.OkButton ?? "OK",
+            texts?.ErrorCannotStartAudioProcessingTitle ?? "无法启动音频处理",
+            texts?.OkButton ?? "确定",
             action);
     }
 

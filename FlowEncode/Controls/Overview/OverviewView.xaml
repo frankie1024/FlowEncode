@@ -5,6 +5,7 @@
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     xmlns:shared="using:FlowEncode.Controls.Shared"
+    xmlns:vm="using:FlowEncode.ViewModels"
     xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
     mc:Ignorable="d">
@@ -323,7 +324,7 @@
                                 <Grid Grid.Row="1">
                                     <ListView x:Name="JobsList" ItemsSource="{Binding Jobs}" MinHeight="320" SelectionMode="Extended" CanDragItems="True" CanReorderItems="True" AllowDrop="True" DragItemsStarting="JobsList_DragItemsStarting" DragItemsCompleted="JobsList_DragItemsCompleted" ContextRequested="JobsList_ContextRequested" SelectionChanged="JobsList_SelectionChanged">
                                         <ListView.ItemTemplate>
-                                            <DataTemplate>
+                                            <DataTemplate x:DataType="vm:EncodingJobItemViewModel">
                                                 <Grid Padding="12,12">
                                                     <Grid.ColumnDefinitions>
                                                         <ColumnDefinition Width="*" />
@@ -362,15 +363,15 @@
 
                                 <StackPanel Spacing="{StaticResource AppSpacingXS}">
                                     <TextBlock FontFamily="{StaticResource AppDisplayFont}" FontSize="{StaticResource AppCardTitleFontSize}" FontWeight="SemiBold" Text="{Binding Texts.JobDetailsTitle}" />
-                                    <TextBlock Text="{Binding SelectedJobSummary}" />
-                                    <TextBlock Foreground="{ThemeResource SubtleTextBrush}" Text="{Binding SelectedJobSourcePreparationText}" TextWrapping="Wrap" Visibility="{Binding SelectedJobSourcePreparationVisibility}" />
+                                    <TextBlock Text="{Binding SelectedJobSummary, FallbackValue=''}" />
+                                    <TextBlock Foreground="{ThemeResource SubtleTextBrush}" Text="{Binding SelectedJobSourcePreparationText, FallbackValue=''}" TextWrapping="Wrap" Visibility="{Binding SelectedJobSourcePreparationVisibility}" />
                                 </StackPanel>
 
                                 <Border Grid.Row="1" Padding="0" Background="{ThemeResource QueueProgressSoftBrush}" BorderBrush="{ThemeResource QueueProgressFillBrush}" BorderThickness="{StaticResource AppCardBorderThickness}" CornerRadius="{StaticResource AppCardCornerRadius}">
                                     <Grid Height="72">
                                         <Rectangle RadiusX="8" RadiusY="8" Fill="{ThemeResource QueueProgressAreaBrush}" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" RenderTransformOrigin="0,0.5">
                                             <Rectangle.RenderTransform>
-                                                <ScaleTransform ScaleX="{Binding SelectedJobProgressValue}" />
+                                                <ScaleTransform ScaleX="{Binding SelectedJobProgressValue, FallbackValue=0}" />
                                             </Rectangle.RenderTransform>
                                         </Rectangle>
                                         <Border Margin="1" Background="{ThemeResource AppProgressOverlayBrush}" CornerRadius="{StaticResource AppCardCornerRadius}" />
@@ -382,18 +383,18 @@
                                                     <ColumnDefinition Width="0.9*" />
                                                     <ColumnDefinition Width="1*" />
                                                 </Grid.ColumnDefinitions>
-                                                <TextBlock FontFamily="{StaticResource AppMonoFont}" FontSize="{StaticResource AppBodyFontSize}" FontWeight="SemiBold" HorizontalAlignment="Center" Foreground="{ThemeResource TextFillColorPrimaryBrush}" Text="{Binding SelectedJobProgressPercentText}" TextAlignment="Center" TextTrimming="CharacterEllipsis" />
-                                                <TextBlock Grid.Column="1" FontFamily="{StaticResource AppMonoFont}" FontSize="{StaticResource AppBodyFontSize}" FontWeight="SemiBold" HorizontalAlignment="Center" Foreground="{ThemeResource TextFillColorPrimaryBrush}" Text="{Binding SelectedJobFramesText}" TextAlignment="Center" TextTrimming="CharacterEllipsis" />
-                                                <TextBlock Grid.Column="2" FontFamily="{StaticResource AppMonoFont}" FontSize="{StaticResource AppBodyFontSize}" FontWeight="SemiBold" HorizontalAlignment="Center" Foreground="{ThemeResource TextFillColorPrimaryBrush}" Text="{Binding SelectedJobFpsText}" TextAlignment="Center" TextTrimming="CharacterEllipsis" />
-                                                <TextBlock Grid.Column="3" FontFamily="{StaticResource AppMonoFont}" FontSize="{StaticResource AppBodyFontSize}" FontWeight="SemiBold" HorizontalAlignment="Center" Foreground="{ThemeResource TextFillColorPrimaryBrush}" Text="{Binding SelectedJobBitrateText}" TextAlignment="Center" TextTrimming="CharacterEllipsis" />
+                                                <TextBlock FontFamily="{StaticResource AppMonoFont}" FontSize="{StaticResource AppBodyFontSize}" FontWeight="SemiBold" HorizontalAlignment="Center" Foreground="{ThemeResource TextFillColorPrimaryBrush}" Text="{Binding SelectedJobProgressPercentText, FallbackValue=''}" TextAlignment="Center" TextTrimming="CharacterEllipsis" />
+                                                <TextBlock Grid.Column="1" FontFamily="{StaticResource AppMonoFont}" FontSize="{StaticResource AppBodyFontSize}" FontWeight="SemiBold" HorizontalAlignment="Center" Foreground="{ThemeResource TextFillColorPrimaryBrush}" Text="{Binding SelectedJobFramesText, FallbackValue=''}" TextAlignment="Center" TextTrimming="CharacterEllipsis" />
+                                                <TextBlock Grid.Column="2" FontFamily="{StaticResource AppMonoFont}" FontSize="{StaticResource AppBodyFontSize}" FontWeight="SemiBold" HorizontalAlignment="Center" Foreground="{ThemeResource TextFillColorPrimaryBrush}" Text="{Binding SelectedJobFpsText, FallbackValue=''}" TextAlignment="Center" TextTrimming="CharacterEllipsis" />
+                                                <TextBlock Grid.Column="3" FontFamily="{StaticResource AppMonoFont}" FontSize="{StaticResource AppBodyFontSize}" FontWeight="SemiBold" HorizontalAlignment="Center" Foreground="{ThemeResource TextFillColorPrimaryBrush}" Text="{Binding SelectedJobBitrateText, FallbackValue=''}" TextAlignment="Center" TextTrimming="CharacterEllipsis" />
                                             </Grid>
                                             <Grid ColumnSpacing="{StaticResource AppSpacingL}">
                                                 <Grid.ColumnDefinitions>
                                                     <ColumnDefinition Width="*" />
                                                     <ColumnDefinition Width="*" />
                                                 </Grid.ColumnDefinitions>
-                                                <TextBlock FontFamily="{StaticResource AppMonoFont}" FontSize="{StaticResource AppSmallFontSize}" FontWeight="SemiBold" HorizontalAlignment="Center" Foreground="{ThemeResource TextFillColorPrimaryBrush}" Text="{Binding SelectedJobEtaText}" TextAlignment="Center" TextTrimming="CharacterEllipsis" />
-                                                <TextBlock Grid.Column="1" FontFamily="{StaticResource AppMonoFont}" FontSize="{StaticResource AppSmallFontSize}" FontWeight="SemiBold" HorizontalAlignment="Center" Foreground="{ThemeResource TextFillColorPrimaryBrush}" Text="{Binding SelectedJobEstimatedSizeText}" TextAlignment="Center" TextTrimming="CharacterEllipsis" />
+                                                <TextBlock FontFamily="{StaticResource AppMonoFont}" FontSize="{StaticResource AppSmallFontSize}" FontWeight="SemiBold" HorizontalAlignment="Center" Foreground="{ThemeResource TextFillColorPrimaryBrush}" Text="{Binding SelectedJobEtaText, FallbackValue=''}" TextAlignment="Center" TextTrimming="CharacterEllipsis" />
+                                                <TextBlock Grid.Column="1" FontFamily="{StaticResource AppMonoFont}" FontSize="{StaticResource AppSmallFontSize}" FontWeight="SemiBold" HorizontalAlignment="Center" Foreground="{ThemeResource TextFillColorPrimaryBrush}" Text="{Binding SelectedJobEstimatedSizeText, FallbackValue=''}" TextAlignment="Center" TextTrimming="CharacterEllipsis" />
                                             </Grid>
                                         </StackPanel>
                                     </Grid>
@@ -406,7 +407,7 @@
                                     PlaceholderText="{Binding SelectedJobCommandPlaceholderText}"
                                     PreviewHeight="72"
                                     PreviewMinHeight="72"
-                                    Text="{Binding SelectedJobCommandText}"
+                                    Text="{Binding SelectedJobCommandText, FallbackValue=''}"
                                     Texts="{Binding Texts}" />
 
                                 <shared:AnimatedExpander Grid.Row="3" HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch">
@@ -414,7 +415,7 @@
                                         <TextBlock FontFamily="{StaticResource AppDisplayFont}" FontSize="{StaticResource AppBodyLargeFontSize}" FontWeight="SemiBold" Text="{Binding Texts.JobLogTitle}" />
                                     </shared:AnimatedExpander.HeaderContent>
                                     <shared:AnimatedExpander.BodyContent>
-                                        <TextBox MinHeight="96" MaxHeight="180" Background="Transparent" BorderThickness="0" FontFamily="{StaticResource AppMonoFont}" IsReadOnly="True" IsTabStop="False" PlaceholderText="{Binding Texts.JobLogPlaceholder}" ScrollViewer.VerticalScrollBarVisibility="Auto" Text="{Binding SelectedJobLogText}" TextWrapping="Wrap" />
+                                        <TextBox MinHeight="96" MaxHeight="180" Background="Transparent" BorderThickness="0" FontFamily="{StaticResource AppMonoFont}" IsReadOnly="True" IsTabStop="False" PlaceholderText="{Binding Texts.JobLogPlaceholder}" ScrollViewer.VerticalScrollBarVisibility="Auto" Text="{Binding SelectedJobLogText, FallbackValue=''}" TextWrapping="Wrap" />
                                     </shared:AnimatedExpander.BodyContent>
                                 </shared:AnimatedExpander>
                             </Grid>

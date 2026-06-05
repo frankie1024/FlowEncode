@@ -3,6 +3,7 @@
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:vm="using:FlowEncode.ViewModels"
     xmlns:vs="using:FlowEncode.Controls.VapourSynth"
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
     mc:Ignorable="d"
@@ -135,7 +136,7 @@
                 TabCloseRequested="WorkspaceTabView_TabCloseRequested"
                 TabItemsSource="{Binding Tabs}">
                 <TabView.TabItemTemplate>
-                    <DataTemplate>
+                    <DataTemplate x:DataType="vm:VapourSynthWorkspaceTabViewModel">
                         <TabViewItem ContextRequested="WorkspaceTabViewItem_ContextRequested" IsClosable="True" DoubleTapped="WorkspaceTabViewItem_DoubleTapped">
                             <TabViewItem.Header>
                                 <StackPanel Orientation="Horizontal" Spacing="8">

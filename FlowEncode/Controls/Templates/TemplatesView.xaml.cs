@@ -542,8 +542,8 @@ public sealed partial class TemplatesView : UserControl
             this,
             nameof(TemplatesView),
             actionName,
-            errorTitle ?? texts?.ErrorSelectionFailedTitle ?? "Operation failed",
-            texts?.OkButton ?? "OK",
+            errorTitle ?? texts?.ErrorSelectionFailedTitle ?? "选择失败",
+            texts?.OkButton ?? "确定",
             action);
     }
 

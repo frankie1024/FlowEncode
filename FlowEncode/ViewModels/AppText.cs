@@ -359,7 +359,7 @@ public sealed class AppText
     public string VapourSynthPreviewOgmChapterFileTypeDescription => Pick("OGM 章节文本", "OGM Chapter Text");
     public string VapourSynthPreviewXmlChapterFileTypeDescription => Pick("Matroska Chapters XML", "Matroska Chapters XML");
     public string VapourSynthPreviewChapterFallbackTitle(int index) =>
-        IsChinese ? $"Chapter {index:00}" : $"Chapter {index:00}";
+        IsChinese ? $"章节 {index:00}" : $"Chapter {index:00}";
     public string VapourSynthPreviewChaptersImportedStatus(int count) =>
         IsChinese ? $"已导入 {count} 个章节。" : $"Imported {count} chapters.";
     public string VapourSynthPreviewChaptersExportedStatus(int count, string filePath) =>

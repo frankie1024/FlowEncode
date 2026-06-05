@@ -5,6 +5,7 @@
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     xmlns:shared="using:FlowEncode.Controls.Shared"
+    xmlns:vm="using:FlowEncode.ViewModels"
     xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
     mc:Ignorable="d">
@@ -128,7 +129,7 @@
                     </Grid>
                     <ItemsControl ItemsSource="{Binding SetupGuideCards}">
                         <ItemsControl.ItemTemplate>
-                            <DataTemplate>
+                            <DataTemplate x:DataType="vm:SetupGuideCardViewModel">
                                 <shared:AnimatedExpander Margin="{StaticResource AppBottomSpacingM}" HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch" CollapsedCompleted="SetupGuideCardExpander_CollapsedCompleted" ContentMargin="0" IsExpanded="{Binding IsExpanded, Mode=TwoWay}">
                                     <shared:AnimatedExpander.HeaderContent>
                                         <Grid ColumnSpacing="{StaticResource AppSpacingM}">
@@ -144,7 +145,7 @@
                                         <StackPanel>
                                             <ItemsControl ItemsSource="{Binding Items}">
                                                 <ItemsControl.ItemTemplate>
-                                                    <DataTemplate>
+                                                    <DataTemplate x:DataType="vm:SetupGuideDependencyItemViewModel">
                                                         <Border Margin="{StaticResource AppBottomSpacingM}" Padding="{StaticResource AppInsetPanelPadding}" Background="{ThemeResource CardBrush}" BorderBrush="{ThemeResource CardBorderBrush}" BorderThickness="{StaticResource AppCardBorderThickness}" CornerRadius="{StaticResource AppCardCornerRadius}">
                                                             <Grid RowSpacing="{StaticResource AppSpacingM}">
                                                                 <Grid.RowDefinitions>
