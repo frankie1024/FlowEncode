@@ -514,20 +514,24 @@ public sealed class SetupBootstrapService : ISetupBootstrapService, IDisposable
             RegisteredToolKind.SvtAv1 => EncoderKind.SvtAv1,
             _ => throw new ArgumentOutOfRangeException(nameof(toolKind), toolKind, null)
         };
+        var dependencyKind = toolKind switch
+        {
+            RegisteredToolKind.X264 => SetupDependencyKind.X264,
+            RegisteredToolKind.X265 => SetupDependencyKind.X265,
+            RegisteredToolKind.SvtAv1 => SetupDependencyKind.SvtAv1,
+            _ => throw new ArgumentOutOfRangeException(nameof(toolKind), toolKind, null)
+        };
         var latestPackage = encoderUpdates.FirstOrDefault(package => package.Kind == encoderKind && package.Architecture == EncoderArchitecture.X64);
 
         return new SetupDependencyStatus(
-            toolKind switch
-            {
-                RegisteredToolKind.X264 => SetupDependencyKind.X264,
-                RegisteredToolKind.X265 => SetupDependencyKind.X265,
-                RegisteredToolKind.SvtAv1 => SetupDependencyKind.SvtAv1,
-                _ => throw new ArgumentOutOfRangeException(nameof(toolKind), toolKind, null)
-            },
+            dependencyKind,
             probe.State,
             probe.DetectedVersion,
             latestPackage?.ReleaseName ?? string.Empty,
-            AreVersionsComparableAndDifferent(probe.DetectedVersion, latestPackage?.ReleaseName ?? string.Empty),
+            HasSetupDependencyVersionUpdate(
+                dependencyKind,
+                probe.DetectedVersion,
+                latestPackage?.ReleaseName ?? string.Empty),
             probe.ExecutablePath,
             latestPackage?.ReleaseUrl ?? probe.ReleaseUrl,
             true,
@@ -1485,11 +1489,17 @@ public sealed class SetupBootstrapService : ISetupBootstrapService, IDisposable
         return installed is not null && latest is not null && installed < latest;
     }
 
-    private static bool HasSetupDependencyVersionUpdate(
+    internal static bool HasSetupDependencyVersionUpdate(
         SetupDependencyKind kind,
         string installedVersion,
         string latestVersion)
     {
+        if (kind is SetupDependencyKind.X264 or SetupDependencyKind.X265 or SetupDependencyKind.SvtAv1
+            && TryResolveEncoderVersionUpdate(installedVersion, latestVersion, out var encoderUpdateAvailable))
+        {
+            return encoderUpdateAvailable;
+        }
+
         if (kind == SetupDependencyKind.FfmpegBundle
             && TryExtractFfmpegBuildDate(installedVersion, out var installedBuildDate)
             && TryExtractFfmpegBuildDate(latestVersion, out var latestBuildDate))
@@ -1498,6 +1508,75 @@ public sealed class SetupBootstrapService : ISetupBootstrapService, IDisposable
         }
 
         return AreVersionsComparableAndDifferent(installedVersion, latestVersion);
+    }
+
+    private static bool TryResolveEncoderVersionUpdate(
+        string installedVersion,
+        string latestVersion,
+        out bool updateAvailable)
+    {
+        updateAvailable = false;
+
+        if (string.IsNullOrWhiteSpace(installedVersion) || string.IsNullOrWhiteSpace(latestVersion))
+        {
+            return false;
+        }
+
+        var installedRevision = ExtractGitRevision(installedVersion);
+        var latestRevision = ExtractGitRevision(latestVersion);
+        if (installedRevision is not null && latestRevision is not null)
+        {
+            if (RevisionsMatch(installedRevision, latestRevision))
+            {
+                updateAvailable = false;
+                return true;
+            }
+
+            if (TryExtractReleaseDate(installedVersion, out var installedDate)
+                && TryExtractReleaseDate(latestVersion, out var latestDate))
+            {
+                updateAvailable = installedDate.Date < latestDate.Date;
+                return true;
+            }
+
+            updateAvailable = true;
+            return true;
+        }
+
+        return false;
+    }
+
+    private static string? ExtractGitRevision(string value)
+    {
+        var matches = Regex.Matches(value, @"(?<![A-Za-z0-9])[a-f0-9]{7,40}(?![A-Za-z0-9])", RegexOptions.IgnoreCase);
+        foreach (Match match in matches)
+        {
+            var revision = match.Value;
+            if (!Regex.IsMatch(revision, "[a-f]", RegexOptions.IgnoreCase))
+            {
+                continue;
+            }
+
+            return revision.ToLowerInvariant();
+        }
+
+        return null;
+    }
+
+    private static bool RevisionsMatch(string left, string right)
+    {
+        var shortestLength = Math.Min(left.Length, right.Length);
+        if (shortestLength < 7)
+        {
+            return false;
+        }
+
+        return left.AsSpan(0, shortestLength).SequenceEqual(right.AsSpan(0, shortestLength));
+    }
+
+    private static bool TryExtractReleaseDate(string value, out DateTime releaseDate)
+    {
+        return TryExtractFfmpegBuildDate(value, out releaseDate);
     }
 
     private static Version? ExtractComparableVersion(string value)

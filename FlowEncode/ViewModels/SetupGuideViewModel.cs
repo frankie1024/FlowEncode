@@ -1447,9 +1447,6 @@ public sealed class SetupGuideViewModel : ObservableObject, ISetupDependencyModu
             or SetupDependencyKind.VapourSynth
             or SetupDependencyKind.Vsrepo
             or SetupDependencyKind.Vsjetpack
-            or SetupDependencyKind.X264
-            or SetupDependencyKind.X265
-            or SetupDependencyKind.SvtAv1
             or SetupDependencyKind.Av1an;
 
         return supportsRawVersionFallback
