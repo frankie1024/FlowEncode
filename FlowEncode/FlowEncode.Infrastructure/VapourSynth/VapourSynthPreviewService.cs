@@ -36,6 +36,7 @@ public sealed class VapourSynthPreviewService : IVapourSynthPreviewService
     private IVapourSynthPreviewHostSession? _hostSession;
     private string? _activeSessionPath;
     private int _commandCounter;
+    private int _disposeStarted;
     private bool _stderrTracebackActive;
     private bool _disposed;
 
@@ -245,14 +246,22 @@ public sealed class VapourSynthPreviewService : IVapourSynthPreviewService
 
     public void Dispose()
     {
-        if (_disposed)
+        if (Interlocked.Exchange(ref _disposeStarted, 1) != 0)
         {
             return;
         }
 
-        _disposed = true;
-        CloseHostCoreAsync().GetAwaiter().GetResult();
-        _stateLock.Dispose();
+        _stateLock.Wait();
+        try
+        {
+            _disposed = true;
+            CloseHostCoreAsync().GetAwaiter().GetResult();
+        }
+        finally
+        {
+            _stateLock.Release();
+            _stateLock.Dispose();
+        }
     }
 
     private void HostSession_StderrLineReceived(string line)
@@ -528,7 +537,7 @@ public sealed class VapourSynthPreviewService : IVapourSynthPreviewService
 
     private void ThrowIfDisposed()
     {
-        ObjectDisposedException.ThrowIf(_disposed, nameof(VapourSynthPreviewService));
+        ObjectDisposedException.ThrowIf(_disposed || Volatile.Read(ref _disposeStarted) != 0, nameof(VapourSynthPreviewService));
     }
 
     private static int GetMaximumFrameByteSize(IReadOnlyList<VapourSynthPreviewOutputInfo> outputs)

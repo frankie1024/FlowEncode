@@ -11,6 +11,7 @@ using System.IO;
 using System.IO.Pipes;
 using System.Linq;
 using System.Runtime.InteropServices;
+using System.Security.Principal;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -26,10 +27,14 @@ public partial class App : Microsoft.UI.Xaml.Application
     private static readonly TimeSpan SingleInstanceForwardConnectTimeout = TimeSpan.FromMilliseconds(150);
     private static readonly TimeSpan SingleInstanceForwardInitialDelay = TimeSpan.FromMilliseconds(50);
     private static readonly TimeSpan SingleInstanceForwardMaxDelay = TimeSpan.FromMilliseconds(250);
+    private static readonly TimeSpan SingleInstancePipeRestartInitialDelay = TimeSpan.FromMilliseconds(250);
+    private static readonly TimeSpan SingleInstancePipeRestartMaxDelay = TimeSpan.FromSeconds(5);
     private readonly ServiceProvider _services;
     private AppInstance? _mainAppInstance;
+    private Mutex? _singleInstanceMutex;
     private CancellationTokenSource? _singleInstancePipeCancellationTokenSource;
     private Task? _singleInstancePipeServerTask;
+    private bool _ownsSingleInstanceMutex;
     private bool _isShuttingDown;
     private Window? _window;
 
@@ -140,17 +145,41 @@ public partial class App : Microsoft.UI.Xaml.Application
 
     private async Task<bool> TryConfigureSingleInstanceAsync()
     {
-        _mainAppInstance = AppInstance.FindOrRegisterForKey(SingleInstanceKey);
-        if (_mainAppInstance.IsCurrent)
+        var requestedFilePath = ResolveRequestedVapourSynthFilePath();
+        var mutexResult = TryAcquireSingleInstanceMutex();
+        if (mutexResult == false)
         {
-            StartSingleInstancePipeServer();
-            return true;
+            await ForwardExternalActivationAndExitAsync(requestedFilePath, "single-instance mutex is owned by another process");
+            return false;
         }
 
-        await TrySendExternalOpenRequestAsync(ResolveRequestedVapourSynthFilePath());
-        ShutdownServices();
-        Environment.Exit(0);
-        return false;
+        _mainAppInstance = AppInstance.FindOrRegisterForKey(SingleInstanceKey);
+        if (mutexResult is null && !_mainAppInstance.IsCurrent)
+        {
+            await ForwardExternalActivationAndExitAsync(requestedFilePath, "AppInstance is owned by another process");
+            return false;
+        }
+
+        if (mutexResult == true && !_mainAppInstance.IsCurrent)
+        {
+            WriteLifecycleDiagnostic(
+                "AppInstance owner differs from the single-instance mutex owner; trying to forward to existing AppInstance.",
+                AppDiagnosticSeverity.Warning);
+
+            if (await TrySendExternalOpenRequestAsync(requestedFilePath))
+            {
+                ShutdownServices();
+                Environment.Exit(0);
+                return false;
+            }
+
+            WriteLifecycleDiagnostic(
+                "Existing AppInstance did not accept activation forwarding; continuing with mutex ownership.",
+                AppDiagnosticSeverity.Warning);
+        }
+
+        StartSingleInstancePipeServer();
+        return true;
     }
 
     private void MainWindow_Closed(object sender, WindowEventArgs args)
@@ -212,6 +241,7 @@ public partial class App : Microsoft.UI.Xaml.Application
         }
 
         StopSingleInstancePipeServer();
+        ReleaseSingleInstanceMutex();
 
         try
         {
@@ -263,6 +293,8 @@ public partial class App : Microsoft.UI.Xaml.Application
 
     private async Task RunSingleInstancePipeServerAsync(CancellationToken cancellationToken)
     {
+        var retryDelay = SingleInstancePipeRestartInitialDelay;
+
         while (!cancellationToken.IsCancellationRequested)
         {
             try
@@ -279,6 +311,7 @@ public partial class App : Microsoft.UI.Xaml.Application
                 using var reader = new StreamReader(server);
                 var filePath = (await reader.ReadToEndAsync()).Trim();
                 DispatchExternalOpenRequest(filePath);
+                retryDelay = SingleInstancePipeRestartInitialDelay;
             }
             catch (OperationCanceledException)
             {
@@ -286,16 +319,25 @@ public partial class App : Microsoft.UI.Xaml.Application
             }
             catch (Exception ex)
             {
-                TryWriteActivationErrorLog(ex, "Receive single-instance activation request");
+                var isPipeBusy = ex is IOException ioException && IsPipeBusy(ioException);
+                TryWriteActivationErrorLog(
+                    ex,
+                    "Receive single-instance activation request",
+                    isPipeBusy ? AppDiagnosticSeverity.Warning : AppDiagnosticSeverity.Error,
+                    persistExceptionFile: !isPipeBusy);
 
                 try
                 {
-                    await Task.Delay(TimeSpan.FromMilliseconds(250), cancellationToken);
+                    await Task.Delay(retryDelay, cancellationToken);
                 }
                 catch (OperationCanceledException)
                 {
                     break;
                 }
+
+                retryDelay = TimeSpan.FromMilliseconds(Math.Min(
+                    retryDelay.TotalMilliseconds * 2,
+                    SingleInstancePipeRestartMaxDelay.TotalMilliseconds));
             }
         }
     }
@@ -354,7 +396,7 @@ public partial class App : Microsoft.UI.Xaml.Application
         }
     }
 
-    private async Task TrySendExternalOpenRequestAsync(string? filePath)
+    private async Task<bool> TrySendExternalOpenRequestAsync(string? filePath)
     {
         var normalizedPath = AppLaunchActivation.NormalizeSupportedScriptPath(filePath);
         var pipePayload = string.IsNullOrWhiteSpace(normalizedPath)
@@ -390,13 +432,17 @@ public partial class App : Microsoft.UI.Xaml.Application
                 };
 
                 await writer.WriteAsync(pipePayload);
-                return;
+                return true;
             }
             catch (TimeoutException ex)
             {
                 lastException = ex;
             }
             catch (IOException ex)
+            {
+                lastException = ex;
+            }
+            catch (UnauthorizedAccessException ex)
             {
                 lastException = ex;
             }
@@ -423,6 +469,7 @@ public partial class App : Microsoft.UI.Xaml.Application
             ("attempts", attempts.ToString()),
             ("timeoutMs", ((int)SingleInstanceForwardTimeout.TotalMilliseconds).ToString()),
             ("elapsedMs", ((int)elapsed.TotalMilliseconds).ToString()));
+
         if (lastException is not null)
         {
             TryWriteAppExceptionDiagnostic(
@@ -438,12 +485,142 @@ public partial class App : Microsoft.UI.Xaml.Application
                 AppDiagnosticSeverity.Warning,
                 context);
         }
+
+        return false;
     }
 
-    private void TryWriteActivationErrorLog(Exception exception, string operationName)
+    private async Task ForwardExternalActivationAndExitAsync(string? filePath, string reason)
     {
-        TryWriteAppExceptionDiagnostic(operationName, exception, AppDiagnosticSeverity.Error);
-        TryWriteExceptionFile("activation-error.log", exception, "activation error");
+        try
+        {
+            _ = await TrySendExternalOpenRequestAsync(filePath);
+        }
+        catch (Exception ex)
+        {
+            TryWriteAppExceptionDiagnostic(
+                "Forward external activation before exit",
+                ex,
+                AppDiagnosticSeverity.Warning,
+                DiagnosticContext(("reason", reason)));
+        }
+        finally
+        {
+            WriteLifecycleDiagnostic(
+                "Exiting secondary application instance.",
+                AppDiagnosticSeverity.Information,
+                DiagnosticContext(("reason", reason)));
+            ShutdownServices();
+            Environment.Exit(0);
+        }
+    }
+
+    private bool? TryAcquireSingleInstanceMutex()
+    {
+        try
+        {
+            var mutex = new Mutex(initiallyOwned: false, BuildSingleInstanceMutexName());
+            var acquired = false;
+
+            try
+            {
+                acquired = mutex.WaitOne(0);
+            }
+            catch (AbandonedMutexException ex)
+            {
+                acquired = true;
+                TryWriteAppExceptionDiagnostic(
+                    "Recover abandoned single-instance mutex",
+                    ex,
+                    AppDiagnosticSeverity.Warning);
+            }
+
+            if (!acquired)
+            {
+                mutex.Dispose();
+                return false;
+            }
+
+            _singleInstanceMutex = mutex;
+            _ownsSingleInstanceMutex = true;
+            return true;
+        }
+        catch (Exception ex)
+        {
+            TryWriteAppExceptionDiagnostic(
+                "Acquire single-instance mutex",
+                ex,
+                AppDiagnosticSeverity.Warning);
+            return null;
+        }
+    }
+
+    private void ReleaseSingleInstanceMutex()
+    {
+        var mutex = _singleInstanceMutex;
+        _singleInstanceMutex = null;
+
+        if (mutex is null)
+        {
+            return;
+        }
+
+        try
+        {
+            if (_ownsSingleInstanceMutex)
+            {
+                mutex.ReleaseMutex();
+            }
+        }
+        catch (Exception ex)
+        {
+            TryWriteAppExceptionDiagnostic(
+                "Release single-instance mutex",
+                ex,
+                AppDiagnosticSeverity.Warning);
+        }
+        finally
+        {
+            _ownsSingleInstanceMutex = false;
+            mutex.Dispose();
+        }
+    }
+
+    private static string BuildSingleInstanceMutexName()
+    {
+        var userKey = Environment.UserName;
+        try
+        {
+            userKey = WindowsIdentity.GetCurrent().User?.Value ?? userKey;
+        }
+        catch (Exception ex)
+        {
+            Debug.WriteLine($"Failed to resolve current user SID for single-instance mutex. {ex}");
+        }
+
+        var normalizedUserKey = new string(userKey
+            .Select(static c => char.IsLetterOrDigit(c) || c is '-' or '_' or '.' ? c : '_')
+            .ToArray());
+
+        return $@"Local\FlowEncode.SingleInstance.frankie1024.{normalizedUserKey}";
+    }
+
+    private static bool IsPipeBusy(IOException exception)
+    {
+        const int ErrorPipeBusy = 231;
+        return (exception.HResult & 0xFFFF) == ErrorPipeBusy;
+    }
+
+    private void TryWriteActivationErrorLog(
+        Exception exception,
+        string operationName,
+        AppDiagnosticSeverity severity,
+        bool persistExceptionFile)
+    {
+        TryWriteAppExceptionDiagnostic(operationName, exception, severity);
+        if (persistExceptionFile)
+        {
+            TryWriteExceptionFile("activation-error.log", exception, "activation error");
+        }
     }
 
     private void WriteLifecycleDiagnostic(

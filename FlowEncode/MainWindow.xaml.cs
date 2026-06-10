@@ -998,25 +998,18 @@ public sealed partial class MainWindow : Window, ISettingsViewHost, IShellNaviga
         {
             var resources = Microsoft.UI.Xaml.Application.Current.Resources;
             var themeKey = ResolveThemeDictionaryKey(actualTheme);
-            if (resources.ThemeDictionaries[themeKey] is ResourceDictionary themeDictionary
-                && themeDictionary.TryGetValue(resourceKey, out var themedResource))
+            if (resources.ThemeDictionaries.TryGetValue(themeKey, out var themeResources)
+                && themeResources is ResourceDictionary themeDictionary
+                && themeDictionary.TryGetValue(resourceKey, out var themedResource)
+                && TryGetColor(themedResource, actualTheme, out var themedColor))
             {
-                return themedResource switch
-                {
-                    Windows.UI.Color color => color,
-                    SolidColorBrush brush => brush.Color,
-                    _ => actualTheme == ElementTheme.Light ? Colors.Black : Colors.White
-                };
+                return themedColor;
             }
 
-            if (resources.TryGetValue(resourceKey, out var activeResource))
+            if (resources.TryGetValue(resourceKey, out var activeResource)
+                && TryGetColor(activeResource, actualTheme, out var activeColor))
             {
-                return activeResource switch
-                {
-                    Windows.UI.Color color => color,
-                    SolidColorBrush brush => brush.Color,
-                    _ => actualTheme == ElementTheme.Light ? Colors.Black : Colors.White
-                };
+                return activeColor;
             }
         }
         catch (Exception ex)
@@ -1029,6 +1022,23 @@ public sealed partial class MainWindow : Window, ISettingsViewHost, IShellNaviga
         }
 
         return actualTheme == ElementTheme.Light ? Colors.Black : Colors.White;
+    }
+
+    private static bool TryGetColor(object resource, ElementTheme actualTheme, out Windows.UI.Color color)
+    {
+        color = actualTheme == ElementTheme.Light ? Colors.Black : Colors.White;
+
+        switch (resource)
+        {
+            case Windows.UI.Color resourceColor:
+                color = resourceColor;
+                return true;
+            case SolidColorBrush brush:
+                color = brush.Color;
+                return true;
+            default:
+                return false;
+        }
     }
 
     private static string ResolveThemeDictionaryKey(ElementTheme actualTheme)

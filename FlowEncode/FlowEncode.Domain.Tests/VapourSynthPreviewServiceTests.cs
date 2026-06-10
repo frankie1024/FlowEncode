@@ -149,6 +149,37 @@ public sealed class VapourSynthPreviewServiceTests
         Assert.IsFalse(Directory.Exists(sessionDirectory));
     }
 
+    [TestMethod]
+    public async Task Dispose_WhenCloseSessionIsInProgress_WaitsForCloseInsteadOfClosingHostConcurrently()
+    {
+        using var context = CreateContext();
+        var gracefulCloseStarted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var allowGracefulClose = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        context.Session.EnqueueResponse(CreateReadyResponseJson((0, "Preview", 1920, 1080, 100)));
+        context.Session.EnqueueWaitBehavior(async session =>
+        {
+            gracefulCloseStarted.SetResult();
+            await allowGracefulClose.Task;
+            session.HasExited = true;
+        });
+
+        await context.Service.OpenSessionAsync(CreateOpenRequest());
+
+        var closeTask = context.Service.CloseSessionAsync();
+        await gracefulCloseStarted.Task.WaitAsync(TimeSpan.FromSeconds(5));
+
+        var disposeTask = Task.Run(context.Service.Dispose);
+        await Task.Delay(100);
+
+        Assert.IsFalse(disposeTask.IsCompleted);
+        allowGracefulClose.SetResult();
+        await closeTask.WaitAsync(TimeSpan.FromSeconds(5));
+        await disposeTask.WaitAsync(TimeSpan.FromSeconds(5));
+
+        Assert.IsFalse(context.Session.KillCalled);
+        Assert.AreEqual(1, context.Session.WrittenLines.Count(static line => line.Contains("\"command\":\"close\"", StringComparison.Ordinal)));
+    }
+
     private static TestContext CreateContext()
     {
         var tempRootPath = Path.Combine(Path.GetTempPath(), "FlowEncodePreviewTests", Guid.NewGuid().ToString("N"));
