@@ -17,7 +17,7 @@
     <img alt="Version" src="https://img.shields.io/badge/version-1.9.5-167a7f">
     <img alt="Framework" src="https://img.shields.io/badge/.NET-8.0-512bd4">
     <img alt="UI" src="https://img.shields.io/badge/UI-WinUI%203-0d6efd">
-    <img alt="License" src="https://img.shields.io/github/license/frankie1024/FlowEncode">
+    <img alt="License" src="https://img.shields.io/badge/license-GPL--3.0--only-blue">
   </p>
 </div>
 
