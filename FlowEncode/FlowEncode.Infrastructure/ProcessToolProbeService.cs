@@ -209,6 +209,11 @@ public sealed class ProcessToolProbeService : IToolProbeService
                         : failureReason);
             }
 
+            if (definition.Kind == RegisteredToolKind.Python)
+            {
+                return EnrichPythonRuntimeCompatibility(definition, candidate);
+            }
+
             var ready = CreateReadyResult(definition, candidate, ResolveVersionText(definition, candidate.Path, output));
             return definition.Kind == RegisteredToolKind.Av1an
                 ? EnrichAv1anBackendCompatibility(ready, candidate.Path)
@@ -463,6 +468,55 @@ public sealed class ProcessToolProbeService : IToolProbeService
             string.Empty,
             definition.ReleaseUrl,
             definition.ManagedExternalToolKind);
+    }
+
+    private ToolProbeResult EnrichPythonRuntimeCompatibility(ToolDefinition definition, ToolCandidate candidate)
+    {
+        try
+        {
+            var startInfo = CreatePythonModuleProcessStartInfo(
+                candidate.Path,
+                ["-c", PythonRuntimeCompatibility.BuildProbeScript()]);
+            var result = ProcessProbeRunner.Run(
+                startInfo,
+                TimeSpan.FromMilliseconds(ProbeTimeoutMilliseconds),
+                "Python compatibility probe timed out.");
+            var output = string.Concat(
+                result.StandardOutput,
+                Environment.NewLine,
+                result.StandardError).Trim();
+            var lines = EnumerateMeaningfulLines(output).ToList();
+            if (result.ExitCode != 0
+                || lines.Count < 3
+                || !Version.TryParse(lines[0], out var version)
+                || !int.TryParse(lines[2], out var pointerSize))
+            {
+                return CreateMisconfiguredResult(
+                    definition,
+                    candidate,
+                    string.IsNullOrWhiteSpace(FirstMeaningfulLine(output))
+                        ? $"Python compatibility probe failed with exit code {result.ExitCode}."
+                        : FirstMeaningfulLine(output));
+            }
+
+            var is64Bit = pointerSize == 64;
+            if (!PythonRuntimeCompatibility.IsSupportedRuntime(version, is64Bit))
+            {
+                return CreateMisconfiguredResult(
+                    definition,
+                    candidate,
+                    $"Python {version} {(is64Bit ? "x64" : "x86")} is not compatible with the VapourSynth stack. Python 3.12+ x64 is required.");
+            }
+
+            var executablePath = lines.Count > 1 && File.Exists(lines[1])
+                ? Path.GetFullPath(lines[1])
+                : candidate.Path;
+            return CreateReadyResult(definition, candidate with { Path = executablePath }, $"{version} x64");
+        }
+        catch (Exception ex)
+        {
+            return CreateMisconfiguredResult(definition, candidate, ex.Message);
+        }
     }
 
     private ToolProbeResult EnrichAv1anBackendCompatibility(ToolProbeResult baseResult, string executablePath)
@@ -1024,6 +1078,17 @@ public sealed class ProcessToolProbeService : IToolProbeService
                 if (File.Exists(candidatePath) && seen.Add(candidatePath))
                 {
                     yield return new ToolCandidate(candidatePath, ToolDetectionSource.LocalTools, "tools");
+                }
+            }
+        }
+
+        if (definition.SearchLocations.HasFlag(ToolSearchLocation.KnownPythonInstallations))
+        {
+            foreach (var candidatePath in PythonRuntimeCompatibility.EnumerateKnownPythonExecutablePaths())
+            {
+                if (File.Exists(candidatePath) && seen.Add(candidatePath))
+                {
+                    yield return new ToolCandidate(candidatePath, ToolDetectionSource.SpecialLocation, "Python install");
                 }
             }
         }

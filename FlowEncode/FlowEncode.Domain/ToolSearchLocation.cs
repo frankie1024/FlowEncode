@@ -9,5 +9,6 @@ public enum ToolSearchLocation
     Path = 1 << 2,
     VspipeSidecar = 1 << 3,
     ProgramFilesVapourSynth = 1 << 4,
-    PythonScripts = 1 << 5
+    PythonScripts = 1 << 5,
+    KnownPythonInstallations = 1 << 6
 }

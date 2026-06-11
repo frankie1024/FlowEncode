@@ -7,9 +7,9 @@ public sealed class DefaultToolRegistryService : IToolRegistryService
 {
     private const string ManagedAv1anReleasesUrl = "https://github.com/frankie1024/Av1an/releases";
     private static readonly IReadOnlyList<string> PythonExecutables = ["python.exe", "py.exe"];
-    private static readonly IReadOnlyList<string> PythonEnvironmentVariables = ["FLOWENCODE_PYTHON", "PYTHON_PATH", "PYTHON_EXE", "PYTHON"];
+    private static readonly IReadOnlyList<string> PythonEnvironmentVariables = PythonRuntimeCompatibility.EnvironmentVariableNames;
     private const ToolSearchLocation PythonSearchLocations =
-        ToolSearchLocation.EnvironmentVariables | ToolSearchLocation.Path;
+        ToolSearchLocation.EnvironmentVariables | ToolSearchLocation.KnownPythonInstallations | ToolSearchLocation.Path;
 
     private static readonly IReadOnlyList<ToolDefinition> Tools = Array.AsReadOnly(
     [

@@ -1257,27 +1257,27 @@ public sealed class SetupGuideViewModel : ObservableObject, ISetupDependencyModu
         if (status.State == ReadinessState.Ready)
         {
             return Texts.Pick(
-                "已检测到 Python 3.12，可继续安装 VapourSynth 和后续 Python 侧依赖。",
-                "Python 3.12 was detected. You can continue with VapourSynth and the remaining Python-side dependencies.");
+                "已检测到 Python 3.12 x64，可继续安装 VapourSynth 和后续 Python 侧依赖。",
+                "Python 3.12 x64 was detected. You can continue with VapourSynth and the remaining Python-side dependencies.");
         }
 
         if (status.State == ReadinessState.Partial)
         {
             return Texts.Pick(
-                "检测到了更高版本的 Python。当前环境可能可用，但首启引导仍以 3.12 为目标。",
-                "A higher Python version was detected. The current environment may still work, but this guide still targets 3.12.");
+                "检测到了更高版本的 Python x64，可继续安装 VapourSynth 和后续 Python 侧依赖；内置安装器仍提供 3.12.10。",
+                "A newer Python x64 version was detected. You can continue with VapourSynth and the remaining Python-side dependencies; the built-in installer still provides 3.12.10.");
         }
 
         if (!string.IsNullOrWhiteSpace(status.InstalledVersion))
         {
             return Texts.Pick(
-                $"当前检测到的 Python 版本为 {status.InstalledVersion}，引导目标仍为 3.12。",
-                $"The detected Python version is {status.InstalledVersion}, but the guide target remains 3.12.");
+                $"当前检测到的 Python 版本为 {status.InstalledVersion}，VapourSynth 栈需要 Python 3.12+ x64。",
+                $"The detected Python version is {status.InstalledVersion}, but the VapourSynth stack requires Python 3.12+ x64.");
         }
 
         return Texts.Pick(
-            "未检测到 Python 3.12。建议先安装官方 Windows x64 版本。",
-            "Python 3.12 was not detected. Install the official Windows x64 build first.");
+            "未检测到 Python 3.12+ x64。建议先安装官方 Windows x64 版本。",
+            "Python 3.12+ x64 was not detected. Install the official Windows x64 build first.");
     }
 
     private string BuildPythonDependentStatusText(SetupDependencyStatus status, string readyText, string missingText)
@@ -1290,8 +1290,8 @@ public sealed class SetupGuideViewModel : ObservableObject, ISetupDependencyModu
         if (!status.IsInstallEnabled && status.IsInstallSupported)
         {
             return Texts.Pick(
-                "需先安装 Python 3.12，当前项的自动安装才会启用。",
-                "Install Python 3.12 first before automatic install is enabled for this item.");
+                "需先准备 Python 3.12 x64 或更新的 x64 版本，当前项的自动安装才会启用。",
+                "Install Python 3.12 x64 or a newer x64 version before automatic install is enabled for this item.");
         }
 
         return missingText;
@@ -1325,8 +1325,8 @@ public sealed class SetupGuideViewModel : ObservableObject, ISetupDependencyModu
         if (kind == SetupDependencyKind.Python312 && status.State == ReadinessState.Partial)
         {
             warnings.Add(Texts.Pick(
-                "检测到更高版本的 Python，可能与当前引导目标存在兼容性差异。你可以保持现状，也可以并行安装 3.12.10。",
-                "A higher Python version was detected and may differ from the current guide target. You can keep the current setup or install 3.12.10 in parallel."));
+                "检测到更高版本的 Python x64。可以保持现状继续后续步骤，也可以并行安装 3.12.10。",
+                "A newer Python x64 version was detected. You can keep it and continue, or install 3.12.10 in parallel."));
         }
 
         if (hasUpdateAvailable && !string.IsNullOrWhiteSpace(status.LatestVersion))
@@ -1339,8 +1339,8 @@ public sealed class SetupGuideViewModel : ObservableObject, ISetupDependencyModu
         if (status.IsInstallSupported && !status.IsInstallEnabled)
         {
             warnings.Add(Texts.Pick(
-                "自动安装按钮已保留，但需要先准备 Python 3.12。",
-                "The install button is kept visible, but Python 3.12 must be ready first."));
+                "自动安装按钮已保留，但需要先准备 Python 3.12 x64 或更新的 x64 版本。",
+                "The install button is kept visible, but Python 3.12 x64 or a newer x64 version must be ready first."));
         }
 
         if (isInstalled && !canUninstall && HasLocalManagedUninstallScope(kind))

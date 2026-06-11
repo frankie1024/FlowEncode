@@ -22,7 +22,7 @@ internal static class VapourSynthRuntimePathResolver
             .Split(Path.PathSeparator, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
             .ToList();
 
-        foreach (var directory in directories)
+        foreach (var directory in directories.Reverse())
         {
             if (pathSegments.Any(item => string.Equals(item, directory, StringComparison.OrdinalIgnoreCase)))
             {
@@ -72,6 +72,17 @@ internal static class VapourSynthRuntimePathResolver
             }
         }
 
+        foreach (var pythonPath in PythonRuntimeCompatibility.EnumerateCompatiblePythonExecutablePaths())
+        {
+            foreach (var directory in PythonRuntimeCompatibility.EnumeratePythonRuntimeDirectories(pythonPath))
+            {
+                if (directory.EndsWith($"{Path.DirectorySeparatorChar}Scripts", StringComparison.OrdinalIgnoreCase))
+                {
+                    TryAdd(directory);
+                }
+            }
+        }
+
         return result;
     }
 
@@ -97,6 +108,14 @@ internal static class VapourSynthRuntimePathResolver
             foreach (var vapourSynthDirectory in EnumeratePythonVapourSynthDirectories(root))
             {
                 TryAdd(vapourSynthDirectory);
+            }
+        }
+
+        foreach (var pythonPath in PythonRuntimeCompatibility.EnumerateCompatiblePythonExecutablePaths())
+        {
+            foreach (var directory in PythonRuntimeCompatibility.EnumeratePythonRuntimeDirectories(pythonPath))
+            {
+                TryAdd(directory);
             }
         }
 
