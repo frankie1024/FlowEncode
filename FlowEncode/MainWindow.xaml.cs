@@ -23,7 +23,6 @@ using Microsoft.UI;
 using Microsoft.UI.Windowing;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
-using Microsoft.UI.Xaml.Media;
 using Windows.ApplicationModel.DataTransfer;
 using Windows.Storage;
 using Windows.UI.ViewManagement;
@@ -38,6 +37,7 @@ public sealed partial class MainWindow : Window, ISettingsViewHost, IShellNaviga
     private const int WindowIconLarge = 1;
     private const int WindowClassLongIcon = -14;
     private const int WindowClassLongSmallIcon = -34;
+    private const int SystemColorGrayText = 17;
     private readonly AppLaunchActivation _launchActivation;
     private readonly LocalAppSettingsService _localAppSettingsService;
     private readonly IAppDiagnostics _diagnostics;
@@ -977,8 +977,8 @@ public sealed partial class MainWindow : Window, ISettingsViewHost, IShellNaviga
     private void ApplyTitleBarColors(ElementTheme actualTheme)
     {
         var titleBar = AppWindow.TitleBar;
-        var foregroundColor = ResolveThemeColor(actualTheme, "TitleBarButtonForegroundBrush");
-        var inactiveForegroundColor = ResolveThemeColor(actualTheme, "TitleBarButtonInactiveForegroundBrush");
+        var foregroundColor = ResolveTitleBarForegroundColor(actualTheme);
+        var inactiveForegroundColor = ResolveTitleBarInactiveForegroundColor(actualTheme);
 
         titleBar.BackgroundColor = Colors.Transparent;
         titleBar.InactiveBackgroundColor = Colors.Transparent;
@@ -992,70 +992,62 @@ public sealed partial class MainWindow : Window, ISettingsViewHost, IShellNaviga
         titleBar.ButtonInactiveForegroundColor = inactiveForegroundColor;
     }
 
-    private static Windows.UI.Color ResolveThemeColor(ElementTheme actualTheme, string resourceKey)
+    private static Windows.UI.Color ResolveTitleBarForegroundColor(ElementTheme actualTheme)
     {
-        try
+        if (IsHighContrast())
         {
-            var resources = Microsoft.UI.Xaml.Application.Current.Resources;
-            var themeKey = ResolveThemeDictionaryKey(actualTheme);
-            if (resources.ThemeDictionaries.TryGetValue(themeKey, out var themeResources)
-                && themeResources is ResourceDictionary themeDictionary
-                && themeDictionary.TryGetValue(resourceKey, out var themedResource)
-                && TryGetColor(themedResource, actualTheme, out var themedColor))
-            {
-                return themedColor;
-            }
-
-            if (resources.TryGetValue(resourceKey, out var activeResource)
-                && TryGetColor(activeResource, actualTheme, out var activeColor))
-            {
-                return activeColor;
-            }
-        }
-        catch (Exception ex)
-        {
-            TryWriteWindowException(
-                "Resolve theme resource",
-                ex,
-                AppDiagnosticSeverity.Warning,
-                DiagnosticContext(("resourceKey", resourceKey), ("actualTheme", actualTheme.ToString())));
+            return TryGetSystemColor(UIColorType.Foreground, actualTheme == ElementTheme.Light ? Colors.Black : Colors.White);
         }
 
         return actualTheme == ElementTheme.Light ? Colors.Black : Colors.White;
     }
 
-    private static bool TryGetColor(object resource, ElementTheme actualTheme, out Windows.UI.Color color)
+    private static Windows.UI.Color ResolveTitleBarInactiveForegroundColor(ElementTheme actualTheme)
     {
-        color = actualTheme == ElementTheme.Light ? Colors.Black : Colors.White;
-
-        switch (resource)
+        if (IsHighContrast())
         {
-            case Windows.UI.Color resourceColor:
-                color = resourceColor;
-                return true;
-            case SolidColorBrush brush:
-                color = brush.Color;
-                return true;
-            default:
-                return false;
+            return GetSystemColor(SystemColorGrayText);
         }
+
+        return actualTheme == ElementTheme.Light
+            ? Windows.UI.Color.FromArgb(0x99, 0x00, 0x00, 0x00)
+            : Windows.UI.Color.FromArgb(0x99, 0xFF, 0xFF, 0xFF);
     }
 
-    private static string ResolveThemeDictionaryKey(ElementTheme actualTheme)
+    private static bool IsHighContrast()
     {
         try
         {
-            if (new AccessibilitySettings().HighContrast)
-            {
-                return "HighContrast";
-            }
+            return new AccessibilitySettings().HighContrast;
         }
         catch (Exception ex)
         {
             TryWriteWindowException("Inspect HighContrast state", ex, AppDiagnosticSeverity.Warning);
+            return false;
         }
+    }
 
-        return actualTheme == ElementTheme.Light ? "Light" : "Dark";
+    private static Windows.UI.Color TryGetSystemColor(UIColorType colorType, Windows.UI.Color fallback)
+    {
+        try
+        {
+            return new UISettings().GetColorValue(colorType);
+        }
+        catch (Exception ex)
+        {
+            TryWriteWindowException("Resolve system color", ex, AppDiagnosticSeverity.Warning);
+            return fallback;
+        }
+    }
+
+    private static Windows.UI.Color GetSystemColor(int colorIndex)
+    {
+        var colorRef = GetSysColor(colorIndex);
+        return Windows.UI.Color.FromArgb(
+            0xFF,
+            (byte)(colorRef & 0xFF),
+            (byte)((colorRef >> 8) & 0xFF),
+            (byte)((colorRef >> 16) & 0xFF));
     }
 
     private void UiSettings_ColorValuesChanged(UISettings sender, object args)
@@ -1479,6 +1471,9 @@ public sealed partial class MainWindow : Window, ISettingsViewHost, IShellNaviga
     [DllImport("User32.dll", SetLastError = true)]
     [return: MarshalAs(UnmanagedType.Bool)]
     private static extern bool DestroyIcon(IntPtr iconHandle);
+
+    [DllImport("User32.dll")]
+    private static extern uint GetSysColor(int colorIndex);
 
     private void PrepareForClose()
     {
