@@ -507,8 +507,8 @@ public sealed class AppText
     public string SetupGuideRefreshingButton => Pick("检测中...", "Checking...");
     public string SetupGuideCheckUpdatesButton => Pick("检查依赖更新", "Check Dependency Updates");
     public string SetupGuideCloseButton => Pick("进入工作台", "Enter Workspace");
-    public string SetupGuidePreviousButton => Pick("上一张", "Previous");
-    public string SetupGuideNextButton => Pick("下一张", "Next");
+    public string SetupGuidePreviousButton => Pick("上一页", "Previous");
+    public string SetupGuideNextButton => Pick("下一页", "Next");
     public string SetupGuideLocalCheckIdleStatus => Pick("本地环境状态：尚未检测。", "Local environment status has not been checked.");
     public string SetupGuideRemoteCheckIdleStatus => Pick("依赖更新：尚未检查。", "Dependency updates have not been checked.");
     public string SetupGuideLocalRefreshCompletedStatus => Pick("本地环境状态已更新。", "Local environment status refreshed.");
