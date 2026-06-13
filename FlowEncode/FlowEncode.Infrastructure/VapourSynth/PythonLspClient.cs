@@ -116,21 +116,6 @@ internal sealed class PythonLspClient : IDisposable
                                     snippetSupport = true,
                                     documentationFormat = new[] { "markdown", "plaintext" }
                                 }
-                            },
-                            hover = new
-                            {
-                                contentFormat = new[] { "markdown", "plaintext" }
-                            },
-                            signatureHelp = new
-                            {
-                                signatureInformation = new
-                                {
-                                    documentationFormat = new[] { "markdown", "plaintext" },
-                                    parameterInformation = new
-                                    {
-                                        labelOffsetSupport = true
-                                    }
-                                }
                             }
                         }
                     },
@@ -176,42 +161,6 @@ internal sealed class PythonLspClient : IDisposable
             cancellationToken);
 
         return MapCompletions(result);
-    }
-
-    public async Task<VapourSynthPythonHover?> GetHoverAsync(
-        VapourSynthTextDocumentContext document,
-        VapourSynthTextDocumentPosition position,
-        CancellationToken cancellationToken)
-    {
-        var documentUri = await EnsureDocumentSynchronizedAsync(document, cancellationToken);
-        var result = await SendRequestAsync(
-            "textDocument/hover",
-            new
-            {
-                textDocument = new { uri = documentUri },
-                position = CreatePosition(position)
-            },
-            cancellationToken);
-
-        return MapHover(result);
-    }
-
-    public async Task<VapourSynthPythonSignatureHelp?> GetSignatureHelpAsync(
-        VapourSynthTextDocumentContext document,
-        VapourSynthTextDocumentPosition position,
-        CancellationToken cancellationToken)
-    {
-        var documentUri = await EnsureDocumentSynchronizedAsync(document, cancellationToken);
-        var result = await SendRequestAsync(
-            "textDocument/signatureHelp",
-            new
-            {
-                textDocument = new { uri = documentUri },
-                position = CreatePosition(position)
-            },
-            cancellationToken);
-
-        return MapSignatureHelp(result);
     }
 
     public void Dispose()
@@ -814,85 +763,6 @@ internal sealed class PythonLspClient : IDisposable
         return items;
     }
 
-    private static VapourSynthPythonHover? MapHover(JsonElement? result)
-    {
-        if (result is null || result.Value.ValueKind != JsonValueKind.Object)
-        {
-            return null;
-        }
-
-        if (!TryGetProperty(result.Value, "contents", out var contentsElement))
-        {
-            return null;
-        }
-
-        var markdown = ConvertMarkupToMarkdown(contentsElement);
-        if (string.IsNullOrWhiteSpace(markdown))
-        {
-            return null;
-        }
-
-        VapourSynthTextRange? range = null;
-        if (TryGetProperty(result.Value, "range", out var rangeElement))
-        {
-            range = MapRange(rangeElement);
-        }
-
-        return new VapourSynthPythonHover(range, markdown);
-    }
-
-    private static VapourSynthPythonSignatureHelp? MapSignatureHelp(JsonElement? result)
-    {
-        if (result is null || result.Value.ValueKind != JsonValueKind.Object)
-        {
-            return null;
-        }
-
-        if (!TryGetProperty(result.Value, "signatures", out var signaturesElement)
-            || signaturesElement.ValueKind != JsonValueKind.Array)
-        {
-            return null;
-        }
-
-        var signatures = new List<VapourSynthPythonSignature>();
-
-        foreach (var signatureElement in signaturesElement.EnumerateArray())
-        {
-            var label = TryGetString(signatureElement, "label");
-            if (string.IsNullOrWhiteSpace(label))
-            {
-                continue;
-            }
-
-            var documentation = TryGetProperty(signatureElement, "documentation", out var documentationElement)
-                ? ConvertMarkupToMarkdown(documentationElement)
-                : string.Empty;
-            var parameters = new List<VapourSynthPythonSignatureParameter>();
-
-            if (TryGetProperty(signatureElement, "parameters", out var parameterElements)
-                && parameterElements.ValueKind == JsonValueKind.Array)
-            {
-                foreach (var parameterElement in parameterElements.EnumerateArray())
-                {
-                    parameters.Add(new VapourSynthPythonSignatureParameter(
-                        ExtractParameterLabel(parameterElement, label),
-                        TryGetProperty(parameterElement, "documentation", out var parameterDocumentation)
-                            ? ConvertMarkupToMarkdown(parameterDocumentation)
-                            : string.Empty));
-                }
-            }
-
-            signatures.Add(new VapourSynthPythonSignature(label, documentation, parameters));
-        }
-
-        return signatures.Count == 0
-            ? null
-            : new VapourSynthPythonSignatureHelp(
-                Math.Max(0, ReadInt(result.Value, "activeSignature")),
-                Math.Max(0, ReadInt(result.Value, "activeParameter")),
-                signatures);
-    }
-
     private static bool TryGetCompletionItems(JsonElement? result, out JsonElement itemsElement)
     {
         itemsElement = default;
@@ -916,58 +786,6 @@ internal sealed class PythonLspClient : IDisposable
         }
 
         return false;
-    }
-
-    private static VapourSynthTextRange? MapRange(JsonElement rangeElement)
-    {
-        if (rangeElement.ValueKind != JsonValueKind.Object)
-        {
-            return null;
-        }
-
-        if (!TryGetProperty(rangeElement, "start", out var start)
-            || !TryGetProperty(rangeElement, "end", out var end))
-        {
-            return null;
-        }
-
-        return new VapourSynthTextRange(
-            ReadInt(start, "line") + 1,
-            ReadInt(start, "character") + 1,
-            ReadInt(end, "line") + 1,
-            ReadInt(end, "character") + 1);
-    }
-
-    private static string ExtractParameterLabel(JsonElement parameterElement, string signatureLabel)
-    {
-        if (!TryGetProperty(parameterElement, "label", out var labelElement))
-        {
-            return string.Empty;
-        }
-
-        return labelElement.ValueKind switch
-        {
-            JsonValueKind.String => labelElement.GetString() ?? string.Empty,
-            JsonValueKind.Array => ExtractOffsetLabel(labelElement, signatureLabel),
-            _ => string.Empty
-        };
-    }
-
-    private static string ExtractOffsetLabel(JsonElement labelElement, string signatureLabel)
-    {
-        var offsets = labelElement.EnumerateArray().ToArray();
-        if (offsets.Length != 2
-            || !offsets[0].TryGetInt32(out var start)
-            || !offsets[1].TryGetInt32(out var end)
-            || start < 0
-            || end <= start
-            || start >= signatureLabel.Length)
-        {
-            return string.Empty;
-        }
-
-        var length = Math.Min(signatureLabel.Length, end) - start;
-        return length > 0 ? signatureLabel.Substring(start, length) : string.Empty;
     }
 
     private static string ConvertMarkupToMarkdown(JsonElement element)

@@ -25,9 +25,6 @@ public sealed partial class VapourSynthWorkspaceView : UserControl, IDisposable
     {
         PropertyNamingPolicy = JsonNamingPolicy.CamelCase
     };
-    private const double LogSectionMinHeight = 88;
-    private const double LogSectionMaxHeight = 144;
-
     private readonly TaskCompletionSource<bool> _workspaceInitializedCompletionSource = new(TaskCreationOptions.RunContinuationsAsynchronously);
     private readonly IVapourSynthWorkspaceLanguageService _languageService;
     private readonly IVapourSynthPreviewService _previewService;
@@ -116,7 +113,6 @@ public sealed partial class VapourSynthWorkspaceView : UserControl, IDisposable
 
         try
         {
-            UpdateWorkspaceLayout(ActualHeight);
             await ViewModel.InitializeAsync();
             SelectActiveTabViewItem();
             _workspaceInitializedCompletionSource.TrySetResult(true);
@@ -132,11 +128,6 @@ public sealed partial class VapourSynthWorkspaceView : UserControl, IDisposable
     private void UserControl_Unloaded(object sender, RoutedEventArgs e)
     {
         CancelPendingDiagnostics();
-    }
-
-    private void UserControl_SizeChanged(object sender, SizeChangedEventArgs e)
-    {
-        UpdateWorkspaceLayout(e.NewSize.Height);
     }
 
     private async Task InitializeEditorAsync(bool forceReload = false)
@@ -192,6 +183,7 @@ public sealed partial class VapourSynthWorkspaceView : UserControl, IDisposable
 
         ViewModel.ActivatePane(pane.PaneKind);
         SelectActiveTabViewItem();
+        ScheduleDiagnostics(pane);
     }
 
     private async void EditorPane_EditorReady(object? sender, EventArgs e)
@@ -231,7 +223,7 @@ public sealed partial class VapourSynthWorkspaceView : UserControl, IDisposable
         ViewModel.ActivatePane(pane.PaneKind);
         ViewModel.ApplyEditorBuffer(snapshot.Text, snapshot.Line, snapshot.Column, snapshot.LineCount, snapshot.CharCount);
         SelectActiveTabViewItem();
-        ScheduleDiagnostics();
+        ScheduleDiagnostics(pane);
     }
 
     private void EditorPane_CursorChanged(object? sender, VapourSynthEditorPaneSnapshot snapshot)
@@ -667,49 +659,6 @@ public sealed partial class VapourSynthWorkspaceView : UserControl, IDisposable
         await RunUiActionAsync(() => ExecuteEditorCommandAsync("goto"));
     }
 
-    private async void InsertSnippetMenuItem_Click(object sender, RoutedEventArgs e)
-    {
-        if (sender is not MenuFlyoutItem { Tag: string snippetId })
-        {
-            return;
-        }
-
-        await RunUiActionAsync(() => InsertSnippetAsync(snippetId));
-    }
-
-    private async Task InsertSnippetAsync(string snippetId)
-    {
-        var snippet = VapourSynthSnippetLibrary.FindById(snippetId);
-        if (snippet is null)
-        {
-            return;
-        }
-
-        var activePane = GetActiveEditorPane();
-        if (!activePane.IsEditorReady)
-        {
-            ViewModel.SetWorkspaceStatus(static texts => texts.VapourSynthEditorLoadingStatus);
-            return;
-        }
-
-        var beforeSnapshot = await activePane.CaptureStateAsync();
-        var inserted = await activePane.InsertSnippetAsync(snippet.InsertText, snippet.InsertOnNewLine);
-        var afterSnapshot = inserted
-            ? await activePane.CaptureStateAsync()
-            : null;
-
-        if (!inserted || !HasEditorTextChanged(beforeSnapshot, afterSnapshot))
-        {
-            ViewModel.SetWorkspaceStatus(static texts => texts.VapourSynthSnippetInsertFailedStatus);
-            return;
-        }
-
-        ApplyEditorSnapshot(activePane, afterSnapshot!);
-        await activePane.FocusEditorAsync();
-        ViewModel.SetWorkspaceStatus(texts =>
-            texts.VapourSynthSnippetInsertedStatus(texts.VapourSynthSnippetLabel(snippet.Id)));
-    }
-
     private async Task StartNewDocumentAsync()
     {
         await CaptureActiveEditorStateAsync();
@@ -1062,6 +1011,11 @@ public sealed partial class VapourSynthWorkspaceView : UserControl, IDisposable
 
         await pane.LoadDocumentAsync(tab.CurrentContent, tab.CurrentFilePath);
         pane.HasDocumentBeenPushed = true;
+
+        if (ReferenceEquals(pane, GetActiveEditorPane()))
+        {
+            ScheduleDiagnostics(pane);
+        }
     }
 
     private async Task FocusEditorAsync()
@@ -1086,9 +1040,16 @@ public sealed partial class VapourSynthWorkspaceView : UserControl, IDisposable
         await GetActiveEditorPane().ExecuteEditorCommandAsync(command);
     }
 
-    private void ScheduleDiagnostics()
+    private void ScheduleDiagnostics(VapourSynthEditorPaneView? pane = null)
     {
-        if (!GetActiveEditorPane().IsEditorReady || _isDisposed)
+        var targetPane = pane ?? GetActiveEditorPane();
+        if (!targetPane.IsEditorReady || _isDisposed)
+        {
+            return;
+        }
+
+        var tab = ViewModel.GetPaneTab(targetPane.PaneKind);
+        if (tab is null)
         {
             return;
         }
@@ -1096,7 +1057,12 @@ public sealed partial class VapourSynthWorkspaceView : UserControl, IDisposable
         CancelPendingDiagnostics();
         _diagnosticsCancellationTokenSource = new CancellationTokenSource();
         var version = Interlocked.Increment(ref _diagnosticsVersion);
-        _ = UpdateDiagnosticsAfterDelayAsync(version, _diagnosticsCancellationTokenSource.Token);
+        _ = UpdateDiagnosticsAfterDelayAsync(
+            version,
+            targetPane,
+            tab.CurrentFilePath,
+            tab.CurrentContent,
+            _diagnosticsCancellationTokenSource.Token);
     }
 
     private async Task HandleLanguageRequestAsync(VapourSynthEditorPaneView pane, JsonElement root)
@@ -1123,14 +1089,6 @@ public sealed partial class VapourSynthWorkspaceView : UserControl, IDisposable
                     document,
                     position,
                     GetString(root, "triggerCharacter"),
-                    CancellationToken.None),
-                "hover" => await _languageService.GetPythonHoverAsync(
-                    document,
-                    position,
-                    CancellationToken.None),
-                "signatureHelp" => await _languageService.GetPythonSignatureHelpAsync(
-                    document,
-                    position,
                     CancellationToken.None),
                 _ => throw new InvalidOperationException($"Unsupported language request: {method}")
             };
@@ -1163,25 +1121,30 @@ public sealed partial class VapourSynthWorkspaceView : UserControl, IDisposable
         await pane.SendLanguageResponseAsync(payload);
     }
 
-    private async Task UpdateDiagnosticsAfterDelayAsync(long version, CancellationToken cancellationToken)
+    private async Task UpdateDiagnosticsAfterDelayAsync(
+        long version,
+        VapourSynthEditorPaneView pane,
+        string? filePath,
+        string content,
+        CancellationToken cancellationToken)
     {
         try
         {
-            await Task.Delay(TimeSpan.FromMilliseconds(700), cancellationToken);
+            await Task.Delay(TimeSpan.FromMilliseconds(500), cancellationToken);
 
             var diagnostics = await _languageService.DiagnoseScriptAsync(
-                ViewModel.CurrentFilePath,
-                ViewModel.CurrentContent,
+                filePath,
+                content,
                 cancellationToken);
 
             if (cancellationToken.IsCancellationRequested
                 || version != Interlocked.Read(ref _diagnosticsVersion)
-                || !GetActiveEditorPane().IsEditorReady)
+                || !pane.IsEditorReady)
             {
                 return;
             }
 
-            await GetActiveEditorPane().ApplyDiagnosticsAsync(diagnostics);
+            await pane.ApplyDiagnosticsAsync(diagnostics);
         }
         catch (OperationCanceledException)
         {
@@ -1204,20 +1167,6 @@ public sealed partial class VapourSynthWorkspaceView : UserControl, IDisposable
         _diagnosticsCancellationTokenSource.Cancel();
         _diagnosticsCancellationTokenSource.Dispose();
         _diagnosticsCancellationTokenSource = null;
-    }
-
-    private void UpdateWorkspaceLayout(double availableHeight)
-    {
-        if (availableHeight <= 0)
-        {
-            return;
-        }
-
-        var targetLogHeight = Math.Clamp(Math.Round(availableHeight * 0.16), LogSectionMinHeight, LogSectionMaxHeight);
-        if (Math.Abs(LogRowDefinition.Height.Value - targetLogHeight) > 0.5)
-        {
-            LogRowDefinition.Height = new GridLength(targetLogHeight);
-        }
     }
 
     private async Task RefreshWorkspaceTabsAsync()

@@ -81,8 +81,7 @@ body {
     overflow: hidden;
 }
 
-.monaco-editor .suggest-widget,
-.monaco-editor .monaco-hover {
+.monaco-editor .suggest-widget {
     border-radius: 14px !important;
     box-shadow: var(--shadow) !important;
     overflow: hidden;

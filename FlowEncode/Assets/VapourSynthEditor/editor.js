@@ -190,19 +190,6 @@ function mapPythonCompletionKind(kind) {
     }
 }
 
-function mapLspRange(range, fallbackRange) {
-    if (!range) {
-        return fallbackRange ?? null;
-    }
-
-    return {
-        startLineNumber: Math.max(1, range.startLine ?? fallbackRange?.startLineNumber ?? 1),
-        endLineNumber: Math.max(1, range.endLine ?? fallbackRange?.endLineNumber ?? 1),
-        startColumn: Math.max(1, range.startColumn ?? fallbackRange?.startColumn ?? 1),
-        endColumn: Math.max(1, range.endColumn ?? fallbackRange?.endColumn ?? 1)
-    };
-}
-
 function mapLspCompletionItems(payload, range) {
     return normalizeArray(payload)
         .filter((item) => item && typeof item.label === "string")
@@ -252,87 +239,6 @@ function mergeCompletionSuggestions(...groups) {
     }
 
     return merged;
-}
-
-function mapLspHover(payload, fallbackRange) {
-    const markdown = normalizeText(payload?.markdown).trim();
-    if (!markdown) {
-        return null;
-    }
-
-    return {
-        range: mapLspRange(payload?.range, fallbackRange) ?? fallbackRange,
-        contents: [
-            {
-                value: markdown
-            }
-        ]
-    };
-}
-
-function buildHoverContentKey(content) {
-    if (typeof content?.value === "string") {
-        return `markdown:${content.value}`;
-    }
-
-    return JSON.stringify(content);
-}
-
-function mergeHoverResults(primaryHover, secondaryHover) {
-    if (!primaryHover) {
-        return secondaryHover;
-    }
-
-    if (!secondaryHover) {
-        return primaryHover;
-    }
-
-    const contents = [];
-    const seen = new Set();
-
-    for (const content of [...normalizeArray(primaryHover.contents), ...normalizeArray(secondaryHover.contents)]) {
-        const key = buildHoverContentKey(content);
-        if (seen.has(key)) {
-            continue;
-        }
-
-        seen.add(key);
-        contents.push(content);
-    }
-
-    return {
-        range: primaryHover.range ?? secondaryHover.range,
-        contents
-    };
-}
-
-function mapLspSignatureHelp(payload) {
-    const signatures = normalizeArray(payload?.signatures)
-        .filter((signature) => signature && typeof signature.label === "string")
-        .map((signature) => ({
-            label: signature.label,
-            documentation: normalizeText(signature.documentation) || undefined,
-            parameters: normalizeArray(signature.parameters)
-                .filter((parameter) => parameter && typeof parameter.label === "string")
-                .map((parameter) => ({
-                    label: parameter.label,
-                    documentation: normalizeText(parameter.documentation) || undefined
-                }))
-        }));
-
-    if (signatures.length === 0) {
-        return null;
-    }
-
-    return {
-        value: {
-            activeSignature: Math.max(0, payload?.activeSignature ?? 0),
-            activeParameter: Math.max(0, payload?.activeParameter ?? 0),
-            signatures
-        },
-        dispose() {
-        }
-    };
 }
 
 function normalizeLanguageFeatures(payload) {
@@ -691,10 +597,6 @@ async function executeCommand(command) {
             editorInstance.focus();
             await runAction("editor.action.triggerSuggest");
             break;
-        case "signatureHelp":
-            editorInstance.focus();
-            await runAction("editor.action.triggerParameterHints");
-            break;
         case "focus":
             focusEditor();
             break;
@@ -757,8 +659,6 @@ function defineThemes() {
             "editorSuggestWidget.background": "#f6efe7",
             "editorSuggestWidget.border": "#d7c5b2",
             "editorSuggestWidget.selectedBackground": "#e8d5c4",
-            "editorHoverWidget.background": "#fffaf3",
-            "editorHoverWidget.border": "#d7c5b2",
             "editor.findMatchBackground": "#efb77a70",
             "editor.findMatchHighlightBackground": "#efb77a33",
             "editor.foldBackground": "#b7612410",
@@ -796,8 +696,6 @@ function defineThemes() {
             "editorSuggestWidget.background": "#202a31",
             "editorSuggestWidget.border": "#30414d",
             "editorSuggestWidget.selectedBackground": "#2b3942",
-            "editorHoverWidget.background": "#202a31",
-            "editorHoverWidget.border": "#30414d",
             "editor.findMatchBackground": "#f3b17255",
             "editor.findMatchHighlightBackground": "#f3b1722d",
             "editor.foldBackground": "#ef845110",
@@ -862,9 +760,6 @@ function registerHostCommands() {
     editorInstance.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.Space, () => {
         void executeCommand("suggest");
     });
-    editorInstance.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyMod.Shift | monaco.KeyCode.Space, () => {
-        void executeCommand("signatureHelp");
-    });
 }
 
 function matchesPrefix(value, prefix) {
@@ -925,34 +820,6 @@ function getChainTokenBeforeCursor(model, position) {
     return lineText.slice(index + 1);
 }
 
-function getQualifiedTokenAtPosition(model, position) {
-    const lineText = model.getLineContent(position.lineNumber);
-    let left = position.column - 2;
-    let right = position.column - 1;
-
-    while (left >= 0 && /[\w.]/.test(lineText[left])) {
-        left -= 1;
-    }
-
-    while (right < lineText.length && /[\w.]/.test(lineText[right])) {
-        right += 1;
-    }
-
-    if (right <= left + 1) {
-        return null;
-    }
-
-    return {
-        token: lineText.slice(left + 1, right),
-        range: {
-            startLineNumber: position.lineNumber,
-            endLineNumber: position.lineNumber,
-            startColumn: left + 2,
-            endColumn: right + 1
-        }
-    };
-}
-
 function buildMemberDocumentation(member) {
     const lines = [];
     if (member.documentation) {
@@ -963,22 +830,6 @@ function buildMemberDocumentation(member) {
     }
 
     return lines.join("\n\n");
-}
-
-function buildFunctionDocumentation(functionItem) {
-    const lines = [`**${functionItem.qualifiedName}**`];
-
-    if (functionItem.documentation) {
-        lines.push(functionItem.documentation);
-    }
-
-    if (functionItem.returnType) {
-        lines.push(`Returns: \`${functionItem.returnType}\``);
-    }
-
-    return {
-        value: lines.join("\n\n")
-    };
 }
 
 function createRootMemberSuggestions(prefix, range) {
@@ -1012,7 +863,6 @@ function createNamespaceFunctionSuggestions(namespaceName, prefix, range) {
             label: functionItem.name,
             kind: monaco.languages.CompletionItemKind.Function,
             detail: functionItem.signatureLabel,
-            documentation: buildFunctionDocumentation(functionItem),
             insertText: functionItem.name,
             filterText: functionItem.qualifiedName,
             sortText: `0-${functionItem.name}`,
@@ -1053,162 +903,6 @@ function provideVapourSynthCompletions(model, position) {
     };
 }
 
-function getCallInfo(model, position) {
-    const textBeforeCursor = model.getValueInRange({
-        startLineNumber: 1,
-        startColumn: 1,
-        endLineNumber: position.lineNumber,
-        endColumn: position.column
-    });
-
-    let depth = 0;
-    let activeParameter = 0;
-    let openParenIndex = -1;
-
-    for (let index = textBeforeCursor.length - 1; index >= 0; index -= 1) {
-        const current = textBeforeCursor[index];
-        if (current === ")" || current === "]" || current === "}") {
-            depth += 1;
-            continue;
-        }
-
-        if (current === "(" || current === "[" || current === "{") {
-            if (depth === 0) {
-                if (current !== "(") {
-                    return null;
-                }
-
-                openParenIndex = index;
-                break;
-            }
-
-            depth -= 1;
-            continue;
-        }
-
-        if (current === "," && depth === 0) {
-            activeParameter += 1;
-        }
-    }
-
-    if (openParenIndex < 0) {
-        return null;
-    }
-
-    let end = openParenIndex;
-    let start = openParenIndex - 1;
-    while (start >= 0 && /\s/.test(textBeforeCursor[start])) {
-        start -= 1;
-    }
-    end = start + 1;
-
-    while (start >= 0 && /[\w.]/.test(textBeforeCursor[start])) {
-        start -= 1;
-    }
-
-    const token = textBeforeCursor.slice(start + 1, end);
-    const chain = parseCoreChain(token);
-    if (!chain || chain.normalizedSegments.length < 3) {
-        return null;
-    }
-
-    return {
-        qualifiedName: normalizeQualifiedName(chain.normalizedSegments.slice(0, 3).join(".")),
-        activeParameter
-    };
-}
-
-function provideVapourSynthSignatureHelp(model, position) {
-    if (!languageFeatures.isRuntimeReady) {
-        return null;
-    }
-
-    const callInfo = getCallInfo(model, position);
-    if (!callInfo) {
-        return null;
-    }
-
-    const functionItem = languageFeatureIndex.functionMap.get(callInfo.qualifiedName);
-    if (!functionItem) {
-        return null;
-    }
-
-    return {
-        value: {
-            activeSignature: 0,
-            activeParameter: Math.max(
-                0,
-                Math.min(callInfo.activeParameter, Math.max(functionItem.parameters.length - 1, 0))),
-            signatures: [{
-                label: functionItem.signatureLabel,
-                documentation: buildFunctionDocumentation(functionItem),
-                parameters: functionItem.parameters.map((parameter) => ({
-                    label: parameter.label,
-                    documentation: parameter.documentation || undefined
-                }))
-            }]
-        },
-        dispose() {
-        }
-    };
-}
-
-function provideVapourSynthHover(model, position) {
-    if (!languageFeatures.isRuntimeReady) {
-        return null;
-    }
-
-    const tokenResult = getQualifiedTokenAtPosition(model, position);
-    if (!tokenResult) {
-        return null;
-    }
-
-    const chain = parseCoreChain(tokenResult.token);
-    if (!chain || chain.normalizedSegments[0] !== "core") {
-        return null;
-    }
-
-    if (chain.normalizedSegments.length >= 3) {
-        const functionItem = languageFeatureIndex.functionMap.get(
-            normalizeQualifiedName(chain.normalizedSegments.slice(0, 3).join(".")));
-        if (functionItem) {
-            return {
-                range: tokenResult.range,
-                contents: [
-                    {
-                        value: [
-                            `**${functionItem.signatureLabel}**`,
-                            functionItem.documentation,
-                            functionItem.returnType ? `Returns: \`${functionItem.returnType}\`` : ""
-                        ].filter(Boolean).join("\n\n")
-                    }
-                ]
-            };
-        }
-    }
-
-    if (chain.normalizedSegments.length === 2) {
-        const memberName = chain.normalizedSegments[1];
-        const namespaceItem = languageFeatureIndex.namespaceMap.get(memberName);
-        if (namespaceItem) {
-            return {
-                range: tokenResult.range,
-                contents: [
-                    {
-                        value: [
-                            `**core.${namespaceItem.name}**`,
-                            namespaceItem.displayName,
-                            namespaceItem.identifier ? `\`${namespaceItem.identifier}\`` : ""
-                        ].filter(Boolean).join("\n\n")
-                    }
-                ]
-            };
-        }
-    }
-
-    return null;
-}
-
 async function providePythonCompletions(model, position, context, cancellationToken) {
     const staticSuggestions = provideVapourSynthCompletions(model, position).suggestions;
     let lspSuggestions = [];
@@ -1230,40 +924,6 @@ async function providePythonCompletions(model, position, context, cancellationTo
     };
 }
 
-async function providePythonSignatureHelp(model, position, cancellationToken) {
-    const staticSignatureHelp = provideVapourSynthSignatureHelp(model, position);
-    if (staticSignatureHelp) {
-        return staticSignatureHelp;
-    }
-
-    try {
-        const signatureHelp = await requestLanguageFeature(
-            "signatureHelp",
-            buildLanguageRequestPayload(model, position),
-            cancellationToken);
-
-        return mapLspSignatureHelp(signatureHelp);
-    } catch {
-        return null;
-    }
-}
-
-async function providePythonHover(model, position, cancellationToken) {
-    const staticHover = provideVapourSynthHover(model, position);
-    const fallbackRange = staticHover?.range ?? getWordRange(position);
-
-    try {
-        const hover = await requestLanguageFeature(
-            "hover",
-            buildLanguageRequestPayload(model, position),
-            cancellationToken);
-
-        return mergeHoverResults(staticHover, mapLspHover(hover, fallbackRange));
-    } catch {
-        return staticHover;
-    }
-}
-
 function registerLanguageProviders() {
     monaco.languages.registerCompletionItemProvider("python", {
         triggerCharacters: ["."],
@@ -1272,19 +932,6 @@ function registerLanguageProviders() {
         }
     });
 
-    monaco.languages.registerSignatureHelpProvider("python", {
-        signatureHelpTriggerCharacters: ["(", ","],
-        signatureHelpRetriggerCharacters: [","],
-        provideSignatureHelp(model, position, cancellationToken) {
-            return providePythonSignatureHelp(model, position, cancellationToken);
-        }
-    });
-
-    monaco.languages.registerHoverProvider("python", {
-        provideHover(model, position, cancellationToken) {
-            return providePythonHover(model, position, cancellationToken);
-        }
-    });
 }
 
 function createEditor() {
@@ -1339,7 +986,8 @@ function createEditor() {
         },
         suggestOnTriggerCharacters: true,
         acceptSuggestionOnEnter: "smart",
-        parameterHints: { enabled: true },
+        parameterHints: { enabled: false },
+        renderValidationDecorations: "on",
         contextmenu: true,
         overviewRulerLanes: 0,
         hideCursorInOverviewRuler: true,

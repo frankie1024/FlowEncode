@@ -149,50 +149,6 @@ public sealed class VapourSynthWorkspaceLanguageService : IVapourSynthWorkspaceL
         }
     }
 
-    public async Task<VapourSynthPythonHover?> GetPythonHoverAsync(
-        VapourSynthTextDocumentContext document,
-        VapourSynthTextDocumentPosition position,
-        CancellationToken cancellationToken = default)
-    {
-        ArgumentNullException.ThrowIfNull(document);
-        ArgumentNullException.ThrowIfNull(position);
-
-        await _pythonLspLock.WaitAsync(cancellationToken);
-
-        try
-        {
-            return await ExecutePythonLanguageServerRequestAsync(
-                client => client.GetHoverAsync(document, position, cancellationToken),
-                cancellationToken);
-        }
-        finally
-        {
-            _pythonLspLock.Release();
-        }
-    }
-
-    public async Task<VapourSynthPythonSignatureHelp?> GetPythonSignatureHelpAsync(
-        VapourSynthTextDocumentContext document,
-        VapourSynthTextDocumentPosition position,
-        CancellationToken cancellationToken = default)
-    {
-        ArgumentNullException.ThrowIfNull(document);
-        ArgumentNullException.ThrowIfNull(position);
-
-        await _pythonLspLock.WaitAsync(cancellationToken);
-
-        try
-        {
-            return await ExecutePythonLanguageServerRequestAsync(
-                client => client.GetSignatureHelpAsync(document, position, cancellationToken),
-                cancellationToken);
-        }
-        finally
-        {
-            _pythonLspLock.Release();
-        }
-    }
-
     private async Task<T> RunHelperAsync<T>(
         string helperPath,
         object? inputPayload,

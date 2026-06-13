@@ -24,15 +24,6 @@ public interface IVapourSynthWorkspaceLanguageService
         string? triggerCharacter = null,
         CancellationToken cancellationToken = default);
 
-    Task<VapourSynthPythonHover?> GetPythonHoverAsync(
-        VapourSynthTextDocumentContext document,
-        VapourSynthTextDocumentPosition position,
-        CancellationToken cancellationToken = default);
-
-    Task<VapourSynthPythonSignatureHelp?> GetPythonSignatureHelpAsync(
-        VapourSynthTextDocumentContext document,
-        VapourSynthTextDocumentPosition position,
-        CancellationToken cancellationToken = default);
 }
 
 public sealed record VapourSynthLanguageFeaturesSnapshot(
@@ -106,20 +97,3 @@ public sealed record VapourSynthPythonCompletionItem(
     string FilterText,
     bool IsSnippet);
 
-public sealed record VapourSynthPythonHover(
-    VapourSynthTextRange? Range,
-    string Markdown);
-
-public sealed record VapourSynthPythonSignatureHelp(
-    int ActiveSignature,
-    int ActiveParameter,
-    IReadOnlyList<VapourSynthPythonSignature> Signatures);
-
-public sealed record VapourSynthPythonSignature(
-    string Label,
-    string Documentation,
-    IReadOnlyList<VapourSynthPythonSignatureParameter> Parameters);
-
-public sealed record VapourSynthPythonSignatureParameter(
-    string Label,
-    string Documentation);
