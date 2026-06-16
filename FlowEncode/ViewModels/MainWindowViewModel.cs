@@ -25,6 +25,8 @@ public partial class MainWindowViewModel : CommunityToolkit.Mvvm.ComponentModel.
     private const string AppReleasePageUrl = "https://github.com/frankie1024/FlowEncode/releases";
     private const int MinConcurrentEncodingJobs = 1;
     private const int MaxConcurrentEncodingJobsLimit = 5;
+    private const string TraditionalVideoEncodingModeValue = "traditional";
+    private const string Av1anParallelVideoEncodingModeValue = "av1an-parallel";
     private static readonly TimeSpan InputPathRefreshDelay = TimeSpan.FromMilliseconds(80);
     private static readonly TimeSpan QueueCompletionActionIdleRequirement = TimeSpan.FromMinutes(5);
     private static readonly TimeSpan QueueCompletionActionIdlePollInterval = TimeSpan.FromSeconds(5);
@@ -80,6 +82,7 @@ public partial class MainWindowViewModel : CommunityToolkit.Mvvm.ComponentModel.
     private StringChoiceOption? _selectedTune;
     private StringChoiceOption? _selectedProfileOption;
     private StringChoiceOption? _selectedOutputFormat;
+    private StringChoiceOption? _selectedVideoEncodingMode;
     private StringChoiceOption? _selectedConcurrentEncodingJobOption;
     private StringChoiceOption? _selectedQueueCompletionActionOption;
     private bool _preferSystemEncoders;
@@ -96,10 +99,13 @@ public partial class MainWindowViewModel : CommunityToolkit.Mvvm.ComponentModel.
     private readonly List<EncodingJobItemViewModel> _selectedQueueJobs = [];
     private string _draftAdditionalArguments = string.Empty;
     private string _draftUhdParameters = string.Empty;
+    private bool _useAv1anParallelVideoEncoding;
+    private double _av1anParallelWorkers;
     private double _draftQuality = 18.0;
     private double _draftBitrate = 3500.0;
     private string? _lastAutoOutputPath;
     private bool _isSynchronizingDraft;
+    private bool _isApplyingEncodingModeConstraint;
     private bool _isUpdatingOutputPath;
     private bool _isQueueProcessing;
     private bool _isQueueCompletionActionArmed;
@@ -179,6 +185,7 @@ public partial class MainWindowViewModel : CommunityToolkit.Mvvm.ComponentModel.
         ReplaceItems(AutoCompressionMetricOptions, BuildAutoCompressionMetricOptions());
         ReplaceItems(AutoCompressionInterpolationMethodOptions, BuildAutoCompressionInterpolationMethodOptions());
         ReplaceItems(AutoCompressionProbingStatisticOptions, BuildAutoCompressionProbingStatisticOptions());
+        ReplaceItems(VideoEncodingModeOptions, BuildVideoEncodingModeOptions());
         ReplaceItems(ConcurrentEncodingJobOptions, BuildConcurrentEncodingJobOptions());
         ReplaceItems(QueueCompletionActionOptions, BuildQueueCompletionActionOptions());
 
@@ -189,6 +196,7 @@ public partial class MainWindowViewModel : CommunityToolkit.Mvvm.ComponentModel.
         _selectedAutoCompressionMetricOption = AutoCompressionMetricOptions[0];
         _selectedAutoCompressionInterpolationMethodOption = AutoCompressionInterpolationMethodOptions.FirstOrDefault();
         _selectedAutoCompressionProbingStatisticOption = AutoCompressionProbingStatisticOptions[0];
+        _selectedVideoEncodingMode = VideoEncodingModeOptions[0];
         _selectedConcurrentEncodingJobOption = ConcurrentEncodingJobOptions[0];
         _selectedQueueCompletionActionOption = QueueCompletionActionOptions[0];
         _autoCompressionStatusText = _texts.AutoCompressionIdleStatus;
@@ -224,6 +232,8 @@ public partial class MainWindowViewModel : CommunityToolkit.Mvvm.ComponentModel.
     internal ObservableCollection<StringChoiceOption> AvailableProfiles { get; } = [];
 
     internal ObservableCollection<StringChoiceOption> AvailableOutputFormats { get; } = [];
+
+    internal ObservableCollection<StringChoiceOption> VideoEncodingModeOptions { get; } = [];
 
     internal ObservableCollection<StringChoiceOption> ConcurrentEncodingJobOptions { get; } = [];
 
@@ -516,6 +526,13 @@ public partial class MainWindowViewModel : CommunityToolkit.Mvvm.ComponentModel.
         {
             if (SetProperty(ref _selectedRateControl, value) && !_isSynchronizingDraft)
             {
+                if (!_isApplyingEncodingModeConstraint
+                    && value?.Value != RateControlMode.Crf
+                    && UseAv1anParallelVideoEncoding)
+                {
+                    UseAv1anParallelVideoEncoding = false;
+                }
+
                 OnPropertyChanged(nameof(IsQualityControlVisible));
                 OnPropertyChanged(nameof(IsBitrateControlVisible));
                 OnPropertyChanged(nameof(DraftQualityVisibility));
@@ -660,6 +677,55 @@ public partial class MainWindowViewModel : CommunityToolkit.Mvvm.ComponentModel.
         }
     }
 
+    internal StringChoiceOption? SelectedVideoEncodingMode
+    {
+        get => _selectedVideoEncodingMode;
+        set
+        {
+            if (value is null || !SetProperty(ref _selectedVideoEncodingMode, value) || _isSynchronizingDraft)
+            {
+                return;
+            }
+
+            UseAv1anParallelVideoEncoding = string.Equals(
+                value.Value,
+                Av1anParallelVideoEncodingModeValue,
+                StringComparison.Ordinal);
+        }
+    }
+
+    internal bool UseAv1anParallelVideoEncoding
+    {
+        get => _useAv1anParallelVideoEncoding;
+        set
+        {
+            if (SetProperty(ref _useAv1anParallelVideoEncoding, value) && !_isSynchronizingDraft)
+            {
+                if (value)
+                {
+                    EnsureCrfRateControlForAv1an();
+                }
+
+                SyncSelectedVideoEncodingMode(value);
+                OnPropertyChanged(nameof(Av1anParallelOptionsVisibility));
+                FinalizeDraftChange(syncOutputPath: false, markAsCustomized: true);
+            }
+        }
+    }
+
+    internal double Av1anParallelWorkers
+    {
+        get => _av1anParallelWorkers;
+        set
+        {
+            var normalized = NormalizeBoundedDouble(value, 0, 64);
+            if (SetProperty(ref _av1anParallelWorkers, normalized) && !_isSynchronizingDraft)
+            {
+                FinalizeDraftChange(syncOutputPath: false, markAsCustomized: true);
+            }
+        }
+    }
+
     internal bool PreferSystemEncoders
     {
         get => _preferSystemEncoders;
@@ -783,7 +849,11 @@ public partial class MainWindowViewModel : CommunityToolkit.Mvvm.ComponentModel.
 
     internal Visibility X265UhdVisibility => IsX265Selected ? Visibility.Visible : Visibility.Collapsed;
 
-    internal string DraftConstraintWarningText => GetProfileConstraintError(_activeProfile) ?? string.Empty;
+    internal Visibility Av1anParallelOptionsVisibility => UseAv1anParallelVideoEncoding
+        ? Visibility.Visible
+        : Visibility.Collapsed;
+
+    internal string DraftConstraintWarningText => GetDraftConstraintWarningText();
 
     internal Visibility DraftConstraintWarningVisibility =>
         string.IsNullOrWhiteSpace(DraftConstraintWarningText) ? Visibility.Collapsed : Visibility.Visible;
@@ -2110,7 +2180,11 @@ public partial class MainWindowViewModel : CommunityToolkit.Mvvm.ComponentModel.
             normalizedSource,
             normalizedOutput,
             InputSourceSupport.ResolvePipelineKind(normalizedSource),
-            EncoderArchitecture.X64);
+            EncoderArchitecture.X64,
+            UseAv1anParallelVideoEncoding,
+            UseAv1anParallelVideoEncoding && Av1anParallelWorkers > 0
+                ? (int?)Math.Round(Av1anParallelWorkers, MidpointRounding.AwayFromZero)
+                : null);
 
         RequestValidation.ValidateEncodingJobRequest(request);
         EnsureRequestConstraintsSatisfied(request);
@@ -2163,6 +2237,8 @@ public partial class MainWindowViewModel : CommunityToolkit.Mvvm.ComponentModel.
             && AreSamePath(left.OutputPath, right.OutputPath)
             && left.PipelineKind == right.PipelineKind
             && left.PreferredArchitecture == right.PreferredArchitecture
+            && left.UseAv1anParallelVideoEncoding == right.UseAv1anParallelVideoEncoding
+            && left.Av1anParallelWorkers == right.Av1anParallelWorkers
             && AreSameEncodingParameters(left.Profile, right.Profile);
     }
 
@@ -2279,8 +2355,48 @@ public partial class MainWindowViewModel : CommunityToolkit.Mvvm.ComponentModel.
         return GetArgumentConflictError(profile.Kind, profile.AdditionalArguments, profile.UhdParameters);
     }
 
+    private string GetDraftConstraintWarningText()
+    {
+        if (_activeProfile is null)
+        {
+            return string.Empty;
+        }
+
+        if (UseAv1anParallelVideoEncoding && _activeProfile.RateControl != RateControlMode.Crf)
+        {
+            return Texts.Av1anParallelRequiresCrfError;
+        }
+
+        if (UseAv1anParallelVideoEncoding)
+        {
+            var forbiddenArgument = ParallelVideoAv1anArgumentBuilder.FindForbiddenUserArgument(_activeProfile.AdditionalArguments)
+                ?? ParallelVideoAv1anArgumentBuilder.FindForbiddenUserArgument(_activeProfile.UhdParameters);
+            if (!string.IsNullOrWhiteSpace(forbiddenArgument))
+            {
+                return Texts.Av1anParallelForbiddenArgumentError(forbiddenArgument);
+            }
+        }
+
+        return GetProfileConstraintError(_activeProfile) ?? string.Empty;
+    }
+
     private string? GetRequestConstraintError(EncodingJobRequest request)
     {
+        if (request.UseAv1anParallelVideoEncoding && request.Profile.RateControl != RateControlMode.Crf)
+        {
+            return Texts.Av1anParallelRequiresCrfError;
+        }
+
+        if (request.UseAv1anParallelVideoEncoding)
+        {
+            var forbiddenArgument = ParallelVideoAv1anArgumentBuilder.FindForbiddenUserArgument(request.Profile.AdditionalArguments)
+                ?? ParallelVideoAv1anArgumentBuilder.FindForbiddenUserArgument(request.Profile.UhdParameters);
+            if (!string.IsNullOrWhiteSpace(forbiddenArgument))
+            {
+                return Texts.Av1anParallelForbiddenArgumentError(forbiddenArgument);
+            }
+        }
+
         if (SvtAv1ProfileConstraints.HasTwoPassOverlayConflict(request.Profile))
         {
             return Texts.SvtAv1TwoPassOverlayConflict;
@@ -2751,6 +2867,45 @@ public partial class MainWindowViewModel : CommunityToolkit.Mvvm.ComponentModel.
         }
 
         return fallbackToFirst ? options.FirstOrDefault() : null;
+    }
+
+    private void EnsureCrfRateControlForAv1an()
+    {
+        if (SelectedRateControl?.Value == RateControlMode.Crf)
+        {
+            return;
+        }
+
+        var crfOption = AvailableRateControlModes.FirstOrDefault(option => option.Value == RateControlMode.Crf);
+        if (crfOption is null)
+        {
+            return;
+        }
+
+        _isApplyingEncodingModeConstraint = true;
+        try
+        {
+            SelectedRateControl = crfOption;
+        }
+        finally
+        {
+            _isApplyingEncodingModeConstraint = false;
+        }
+    }
+
+    private void SyncSelectedVideoEncodingMode(bool useAv1anParallelVideoEncoding)
+    {
+        var targetValue = useAv1anParallelVideoEncoding
+            ? Av1anParallelVideoEncodingModeValue
+            : TraditionalVideoEncodingModeValue;
+        var target = FindChoiceOption(VideoEncodingModeOptions, targetValue, fallbackToFirst: true);
+        if (target is null || Equals(_selectedVideoEncodingMode, target))
+        {
+            return;
+        }
+
+        _selectedVideoEncodingMode = target;
+        OnPropertyChanged(nameof(SelectedVideoEncodingMode));
     }
 
     private string GetSanitizedAdditionalArguments()
@@ -3237,6 +3392,10 @@ public partial class MainWindowViewModel : CommunityToolkit.Mvvm.ComponentModel.
         OnPropertyChanged(nameof(IsBitrateControlVisible));
         OnPropertyChanged(nameof(IsX265Selected));
         OnPropertyChanged(nameof(X265UhdVisibility));
+        OnPropertyChanged(nameof(SelectedVideoEncodingMode));
+        OnPropertyChanged(nameof(UseAv1anParallelVideoEncoding));
+        OnPropertyChanged(nameof(Av1anParallelWorkers));
+        OnPropertyChanged(nameof(Av1anParallelOptionsVisibility));
         OnPropertyChanged(nameof(DraftConstraintWarningText));
         OnPropertyChanged(nameof(DraftConstraintWarningVisibility));
         OnPropertyChanged(nameof(DraftQualityVisibility));
@@ -3491,6 +3650,15 @@ public partial class MainWindowViewModel : CommunityToolkit.Mvvm.ComponentModel.
             });
     }
 
+    private IEnumerable<StringChoiceOption> BuildVideoEncodingModeOptions()
+    {
+        return
+        [
+            new StringChoiceOption(TraditionalVideoEncodingModeValue, Texts.TraditionalVideoEncodingMode),
+            new StringChoiceOption(Av1anParallelVideoEncodingModeValue, Texts.Av1anParallelVideoMode)
+        ];
+    }
+
     private IEnumerable<StringChoiceOption> BuildQueueCompletionActionOptions()
     {
         return
@@ -3509,6 +3677,8 @@ public partial class MainWindowViewModel : CommunityToolkit.Mvvm.ComponentModel.
         ReplaceItems(ThemeOptions, BuildThemeOptions());
         _selectedTheme = ThemeOptions.FirstOrDefault(option => option.Value == themePreference) ?? ThemeOptions[0];
         OnPropertyChanged(nameof(SelectedTheme));
+        ReplaceItems(VideoEncodingModeOptions, BuildVideoEncodingModeOptions());
+        SyncSelectedVideoEncodingMode(UseAv1anParallelVideoEncoding);
         ReplaceItems(QueueCompletionActionOptions, BuildQueueCompletionActionOptions());
         SyncSelectedQueueCompletionActionOption(QueueCompletionAction);
 

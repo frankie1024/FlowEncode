@@ -42,6 +42,8 @@ public sealed class OverviewComposerViewModel : ModuleViewModelBase
 
     public ObservableCollection<StringChoiceOption> AvailableOutputFormats => Owner.AvailableOutputFormats;
 
+    public ObservableCollection<StringChoiceOption> VideoEncodingModeOptions => Owner.VideoEncodingModeOptions;
+
     public EncoderOption? SelectedEncoder
     {
         get => Owner.SelectedEncoder;
@@ -76,6 +78,12 @@ public sealed class OverviewComposerViewModel : ModuleViewModelBase
     {
         get => Owner.SelectedOutputFormat;
         set => Owner.SelectedOutputFormat = value;
+    }
+
+    public StringChoiceOption? SelectedVideoEncodingMode
+    {
+        get => Owner.SelectedVideoEncodingMode;
+        set => Owner.SelectedVideoEncodingMode = value;
     }
 
     public string QualityInputLabel => Owner.QualityInputLabel;
@@ -129,6 +137,20 @@ public sealed class OverviewComposerViewModel : ModuleViewModelBase
     }
 
     public Visibility X265UhdVisibility => Owner.X265UhdVisibility;
+
+    public bool UseAv1anParallelVideoEncoding
+    {
+        get => Owner.UseAv1anParallelVideoEncoding;
+        set => Owner.UseAv1anParallelVideoEncoding = value;
+    }
+
+    public double Av1anParallelWorkers
+    {
+        get => Owner.Av1anParallelWorkers;
+        set => Owner.Av1anParallelWorkers = value;
+    }
+
+    public Visibility Av1anParallelOptionsVisibility => Owner.Av1anParallelOptionsVisibility;
 
     public ObservableCollection<SavedTemplate> UserTemplates => Owner.TemplatesModule.Library.UserTemplates;
 

@@ -61,7 +61,7 @@ internal static class JsonlEventParser
             "scene_detect" => AutoCompressionExecutionStage.SceneDetection,
             "chunk_plan" => AutoCompressionExecutionStage.ChunkPlanning,
             "probe" => AutoCompressionExecutionStage.Probing,
-            "encode" or "encode_progress" => AutoCompressionExecutionStage.Encoding,
+            "encode" or "encode_progress" or "encoder_log" => AutoCompressionExecutionStage.Encoding,
             "concat" => AutoCompressionExecutionStage.Concatenating,
             "run_completed" => AutoCompressionExecutionStage.Completed,
             "run_failed" => AutoCompressionExecutionStage.Failed,
@@ -103,12 +103,46 @@ internal static class JsonlEventParser
             "input_probed" => BuildInputProbedLine(parsedEvent.Payload),
             "chunk_plan" => BuildChunkPlanLine(parsedEvent.Payload),
             "encode_progress" => BuildEncodeProgressLine(parsedEvent.Payload),
+            "encoder_log" => BuildEncoderLogDetailLine(parsedEvent.Payload),
             "run_completed" => "run completed",
             "run_failed" => string.IsNullOrWhiteSpace(TryGetFailureMessage(parsedEvent))
                 ? "run failed"
                 : $"run failed: {TryGetFailureMessage(parsedEvent)}",
             _ => parsedEvent.Type
         };
+    }
+
+    public static IReadOnlyList<string> BuildEncoderLogLines(StructuredAv1anEvent parsedEvent)
+    {
+        if (parsedEvent.Type != "encoder_log")
+        {
+            return Array.Empty<string>();
+        }
+
+        var encoder = TryGetString(parsedEvent.Payload, "encoder");
+        var chunkIndex = TryGetInt32(parsedEvent.Payload, "chunk_index", out var parsedChunkIndex)
+            ? parsedChunkIndex.ToString(CultureInfo.InvariantCulture)
+            : "?";
+        var frames = TryGetInt32(parsedEvent.Payload, "frames", out var parsedFrames)
+            ? parsedFrames.ToString(CultureInfo.InvariantCulture)
+            : "?";
+        var stderr = TryGetString(parsedEvent.Payload, "stderr");
+        if (string.IsNullOrWhiteSpace(stderr))
+        {
+            return Array.Empty<string>();
+        }
+
+        var lines = new List<string>
+        {
+            $"--- ENCODER LOG chunk {chunkIndex} ({encoder}, {frames} frames) ---"
+        };
+        lines.AddRange(stderr
+            .Replace("\r\n", "\n", StringComparison.Ordinal)
+            .Replace('\r', '\n')
+            .Split('\n')
+            .Select(static line => line.TrimEnd())
+            .Where(static line => !string.IsNullOrWhiteSpace(line)));
+        return lines;
     }
 
     private static string BuildRunStartedLine(JsonElement payload)
@@ -148,6 +182,17 @@ internal static class JsonlEventParser
         return total > 0
             ? $"encode progress: {done}/{total} chunks{chunkSuffix}"
             : $"encode progress{chunkSuffix}";
+    }
+
+    private static string BuildEncoderLogDetailLine(JsonElement payload)
+    {
+        var encoder = TryGetString(payload, "encoder");
+        var chunkSuffix = TryGetInt32(payload, "chunk_index", out var chunkIndex)
+            ? $"chunk {chunkIndex}"
+            : "chunk";
+        return string.IsNullOrWhiteSpace(encoder)
+            ? $"encoder log captured: {chunkSuffix}"
+            : $"encoder log captured: {chunkSuffix} ({encoder})";
     }
 
     private static bool TryGetInt32(JsonElement payload, string propertyName, out int value)

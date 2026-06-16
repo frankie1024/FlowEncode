@@ -11,6 +11,47 @@ public static class RequestValidation
         ValidateEncodingProfile(request.Profile);
         RequirePath(request.SourcePath, "Encoding source path is required.");
         RequirePath(request.OutputPath, "Encoding output path is required.");
+
+        if (request.UseAv1anParallelVideoEncoding)
+        {
+            ValidateParallelVideoEncodingRequest(CreateParallelVideoEncodingRequest(request));
+        }
+        else if (request.Av1anParallelWorkers is not null)
+        {
+            throw new ArgumentOutOfRangeException(nameof(request.Av1anParallelWorkers), request.Av1anParallelWorkers, "Av1an worker count can only be specified when Av1an parallel video encoding is enabled.");
+        }
+    }
+
+    public static void ValidateParallelVideoEncodingRequest(ParallelVideoEncodingRequest request)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        RequirePath(request.SourcePath, "Parallel video encoding source path is required.");
+        RequirePath(request.OutputPath, "Parallel video encoding output path is required.");
+
+        if (request.EncoderKind is not (EncoderKind.X264 or EncoderKind.X265 or EncoderKind.SvtAv1))
+        {
+            throw new ArgumentOutOfRangeException(nameof(request.EncoderKind), request.EncoderKind, "Parallel video encoding supports only x264, x265, and SVT-AV1.");
+        }
+
+        if (!IsFinite(request.Crf) || request.Crf < 0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(request.Crf), request.Crf, "Parallel video encoding CRF must be a finite non-negative value.");
+        }
+
+        if (request.Workers is <= 0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(request.Workers), request.Workers, "Worker count must be greater than 0 when specified.");
+        }
+
+        if (ContainsLineBreak(request.VideoParameters))
+        {
+            throw new ArgumentException("Video parameters must be a single line.", nameof(request.VideoParameters));
+        }
+
+        if (ContainsLineBreak(request.UhdParameters))
+        {
+            throw new ArgumentException("UHD parameters must be a single line.", nameof(request.UhdParameters));
+        }
     }
 
     public static void ValidateAutoCompressionRequest(AutoCompressionRequest request)
@@ -107,6 +148,35 @@ public static class RequestValidation
         }
     }
 
+    public static ParallelVideoEncodingRequest CreateParallelVideoEncodingRequest(EncodingJobRequest request)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        if (!request.UseAv1anParallelVideoEncoding)
+        {
+            throw new InvalidOperationException("Av1an parallel video encoding is not enabled for this encoding request.");
+        }
+
+        if (request.Profile.RateControl != RateControlMode.Crf)
+        {
+            throw new InvalidOperationException("Av1an parallel video encoding supports only CRF mode.");
+        }
+
+        return new ParallelVideoEncodingRequest(
+            request.JobId,
+            request.SourcePath,
+            request.OutputPath,
+            request.Profile.Kind,
+            request.Profile.Quality,
+            request.Profile.Preset,
+            request.Profile.Tune,
+            request.Profile.Profile,
+            request.Profile.AdditionalArguments,
+            request.Profile.UhdParameters,
+            request.Av1anParallelWorkers,
+            request.PipelineKind,
+            request.PreferredArchitecture);
+    }
+
     private static void RequirePath(string? path, string message)
     {
         if (string.IsNullOrWhiteSpace(path))
@@ -118,5 +188,10 @@ public static class RequestValidation
     private static bool IsFinite(double value)
     {
         return !double.IsNaN(value) && !double.IsInfinity(value);
+    }
+
+    private static bool ContainsLineBreak(string? value)
+    {
+        return value?.Contains('\r') == true || value?.Contains('\n') == true;
     }
 }

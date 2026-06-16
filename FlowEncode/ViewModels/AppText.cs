@@ -82,6 +82,10 @@ public sealed class AppText
     public string RateControlHeader => Pick("码率控制", "Rate Control");
     public string OutputFormatHeader => Pick("输出格式", "Output");
     public string AdditionalArgumentsHeader => Pick("定制压制参数", "Custom Arguments");
+    public string VideoEncodingModeHeader => Pick("压制方式", "Encoding Mode");
+    public string TraditionalVideoEncodingMode => Pick("传统单进程压制", "Traditional single-process encode");
+    public string Av1anParallelVideoMode => Pick("Av1an 分块并行压制", "Av1an chunked parallel encode");
+    public string Av1anParallelWorkersHeader => Pick("Workers（0 = 自动）", "Workers (0 = Auto)");
     public string UhdArgumentsHeader => Pick("x265 UHD / HDR 附加参数", "x265 UHD / HDR Arguments");
     public string UhdArgumentsPlaceholder => Pick(
         "例如：--master-display \"G(13250,34500)B(7500,3000)R(34000,16000)WP(15635,16450)L(10000000,1)\"",
@@ -1458,6 +1462,13 @@ public sealed class AppText
     public string OutputDirectoryInvalidError => Pick("输出目录不能指向现有文件。请改为选择目录。", "The output directory cannot point to an existing file. Choose a folder instead.");
     public string SourceFileMissingError => Pick("未找到源文件。", "The source file was not found.");
     public string SourceOutputPathConflictError => Pick("输出文件不能与源文件相同。请更换输出目录或输出格式。", "The output file must be different from the source. Choose another output folder or output format.");
+    public string Av1anParallelRequiresCrfError => Pick(
+        "Av1an 分块并行模式第一版仅支持 CRF。请切换到 CRF，或关闭该模式。",
+        "Av1an chunked parallel mode currently supports CRF only. Switch to CRF or turn the mode off.");
+    public string Av1anParallelForbiddenArgumentError(string argument) =>
+        IsChinese
+            ? $"Av1an 分块并行模式不支持参数 {argument}；输入、输出和 two-pass/stats 由 Av1an 管理。"
+            : $"Av1an chunked parallel mode does not support argument {argument}; input, output, and two-pass/stats are managed by Av1an.";
     public string AutoCompressionMissingEncoderError => Pick("请先选择自动压制编码器。", "Select an auto-encode encoder first.");
     public string AutoCompressionMissingSourceError => Pick("请先选择自动压制输入源。", "Select an auto-encode source first.");
     public string AutoCompressionMissingOutputError => Pick("请先指定自动压制输出目录。", "Select an auto-encode output directory first.");

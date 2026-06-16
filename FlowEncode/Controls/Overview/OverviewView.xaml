@@ -31,6 +31,7 @@
                             <RowDefinition Height="Auto" />
                             <RowDefinition Height="Auto" />
                             <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
                             <RowDefinition Height="*" />
                             <RowDefinition Height="Auto" />
                         </Grid.RowDefinitions>
@@ -143,7 +144,29 @@
                             <ComboBox x:Name="DraftOutputFormatComboBox" Grid.Column="2" Header="{Binding Texts.OutputFormatHeader}" DisplayMemberPath="Label" ItemsSource="{Binding AvailableOutputFormats}" SelectedItem="{Binding SelectedOutputFormat, Mode=TwoWay}" />
                         </Grid>
 
-                        <Border x:Name="DraftRateValuePanel" Grid.Row="6" Padding="{StaticResource AppInsetPanelPadding}" Background="{ThemeResource CardAltBrush}" CornerRadius="{StaticResource AppCardCornerRadius}">
+                        <Grid x:Name="DraftEncodingModeGrid" Grid.Row="6" ColumnSpacing="{StaticResource AppSpacingM}" RowSpacing="{StaticResource AppSpacingM}">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="220" />
+                            </Grid.ColumnDefinitions>
+                            <ComboBox
+                                x:Name="DraftVideoEncodingModeComboBox"
+                                Header="{Binding Texts.VideoEncodingModeHeader}"
+                                DisplayMemberPath="Label"
+                                ItemsSource="{Binding VideoEncodingModeOptions}"
+                                SelectedItem="{Binding SelectedVideoEncodingMode, Mode=TwoWay}" />
+                            <NumberBox
+                                Grid.Column="1"
+                                Header="{Binding Texts.Av1anParallelWorkersHeader}"
+                                Minimum="0"
+                                Maximum="64"
+                                SmallChange="1"
+                                SpinButtonPlacementMode="Inline"
+                                Value="{Binding Av1anParallelWorkers, Mode=TwoWay}"
+                                Visibility="{Binding Av1anParallelOptionsVisibility}" />
+                        </Grid>
+
+                        <Border x:Name="DraftRateValuePanel" Grid.Row="7" Padding="{StaticResource AppInsetPanelPadding}" Background="{ThemeResource CardAltBrush}" CornerRadius="{StaticResource AppCardCornerRadius}">
                             <Grid x:Name="DraftRateValueGrid" ColumnSpacing="{StaticResource AppSpacingL}" RowSpacing="{StaticResource AppSpacingM}" VerticalAlignment="Center">
                                 <Grid.RowDefinitions>
                                     <RowDefinition Height="Auto" />
@@ -170,7 +193,7 @@
                             </Grid>
                         </Border>
 
-                        <Grid x:Name="OverviewAdvancedSectionGrid" Grid.Row="7" ColumnSpacing="{StaticResource AppSpacingL}" RowSpacing="{StaticResource AppSpacingM}" VerticalAlignment="Stretch">
+                        <Grid x:Name="OverviewAdvancedSectionGrid" Grid.Row="8" ColumnSpacing="{StaticResource AppSpacingL}" RowSpacing="{StaticResource AppSpacingM}" VerticalAlignment="Stretch">
                             <Grid.RowDefinitions>
                                 <RowDefinition Height="Auto" />
                                 <RowDefinition Height="*" />
@@ -246,7 +269,7 @@
                             </StackPanel>
                         </Grid>
 
-                        <ComboBox x:Name="SavedTemplatesQuickSelect" Grid.Row="8" Visibility="Collapsed" DisplayMemberPath="Name" ItemsSource="{Binding UserTemplates}" SelectionChanged="SavedTemplatesQuickSelect_SelectionChanged" />
+                        <ComboBox x:Name="SavedTemplatesQuickSelect" Grid.Row="9" Visibility="Collapsed" DisplayMemberPath="Name" ItemsSource="{Binding UserTemplates}" SelectionChanged="SavedTemplatesQuickSelect_SelectionChanged" />
                     </Grid>
                 </Border>
 

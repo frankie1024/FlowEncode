@@ -6,4 +6,6 @@ public sealed record EncodingJobRequest(
     string SourcePath,
     string OutputPath,
     InputPipelineKind PipelineKind,
-    EncoderArchitecture PreferredArchitecture);
+    EncoderArchitecture PreferredArchitecture,
+    bool UseAv1anParallelVideoEncoding = false,
+    int? Av1anParallelWorkers = null);

@@ -63,4 +63,72 @@ public sealed class JsonlEventParserTests
         Assert.AreEqual("chunk plan: 50 chunks", detail);
         Assert.AreEqual(AutoCompressionExecutionStage.ChunkPlanning, JsonlEventParser.MapStage(parsedEvent!.Type));
     }
+
+    [TestMethod]
+    public void BuildEncoderLogLines_WithEncoderLogEvent_ReturnsChunkLogBlock()
+    {
+        const string line = """
+            {"type":"encoder_log","ts":"2026-06-16T06:40:00Z","chunk_index":3,"encoder":"x264","frames":120,"stderr":"x264 [info]: frame I:1    Avg QP:12.00\nencoded 120 frames, 45.00 fps, 5000.00 kb/s\n"}
+            """;
+
+        JsonlEventParser.TryParse(line, out var parsedEvent);
+        var detail = JsonlEventParser.BuildDetailLine(parsedEvent!);
+        var lines = JsonlEventParser.BuildEncoderLogLines(parsedEvent!);
+
+        Assert.AreEqual("encoder log captured: chunk 3 (x264)", detail);
+        Assert.AreEqual(AutoCompressionExecutionStage.Encoding, JsonlEventParser.MapStage(parsedEvent!.Type));
+        CollectionAssert.AreEqual(
+            new[]
+            {
+                "--- ENCODER LOG chunk 3 (x264, 120 frames) ---",
+                "x264 [info]: frame I:1    Avg QP:12.00",
+                "encoded 120 frames, 45.00 fps, 5000.00 kb/s"
+            },
+            lines.ToArray());
+    }
+
+    [TestMethod]
+    public void BuildEncoderLogLines_WithX265EncoderLogEvent_ReturnsChunkLogBlock()
+    {
+        const string line = """
+            {"type":"encoder_log","ts":"2026-06-16T06:40:00Z","chunk_index":4,"encoder":"x265","frames":90,"stderr":"x265 [info]: frame I:      1, Avg QP:18.00\nencoded 90 frames in 2.00s (45.00 fps), 4200.00 kb/s\n"}
+            """;
+
+        JsonlEventParser.TryParse(line, out var parsedEvent);
+        var detail = JsonlEventParser.BuildDetailLine(parsedEvent!);
+        var lines = JsonlEventParser.BuildEncoderLogLines(parsedEvent!);
+
+        Assert.AreEqual("encoder log captured: chunk 4 (x265)", detail);
+        CollectionAssert.AreEqual(
+            new[]
+            {
+                "--- ENCODER LOG chunk 4 (x265, 90 frames) ---",
+                "x265 [info]: frame I:      1, Avg QP:18.00",
+                "encoded 90 frames in 2.00s (45.00 fps), 4200.00 kb/s"
+            },
+            lines.ToArray());
+    }
+
+    [TestMethod]
+    public void BuildEncoderLogLines_WithSvtAv1EncoderLogEvent_ReturnsChunkLogBlock()
+    {
+        const string line = """
+            {"type":"encoder_log","ts":"2026-06-16T06:40:00Z","chunk_index":5,"encoder":"svt-av1","frames":72,"stderr":"Encoding frame 72 45.00 fps\nSUMMARY --------------------------------- Channel 1\nTotal Frames\t\t\t72\n"}
+            """;
+
+        JsonlEventParser.TryParse(line, out var parsedEvent);
+        var detail = JsonlEventParser.BuildDetailLine(parsedEvent!);
+        var lines = JsonlEventParser.BuildEncoderLogLines(parsedEvent!);
+
+        Assert.AreEqual("encoder log captured: chunk 5 (svt-av1)", detail);
+        CollectionAssert.AreEqual(
+            new[]
+            {
+                "--- ENCODER LOG chunk 5 (svt-av1, 72 frames) ---",
+                "Encoding frame 72 45.00 fps",
+                "SUMMARY --------------------------------- Channel 1",
+                "Total Frames\t\t\t72"
+            },
+            lines.ToArray());
+    }
 }

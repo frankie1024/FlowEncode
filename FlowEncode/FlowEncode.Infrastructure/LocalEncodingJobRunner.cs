@@ -14,6 +14,7 @@ public sealed class LocalEncodingJobRunner : IEncodingJobRunner
     private readonly EncodingCommandBuilder _commandBuilder;
     private readonly EncodingJobLogWriter _logWriter;
     private readonly SourceVideoInfoProbe _sourceInfoProbe;
+    private readonly ParallelVideoEncodingAv1anRunner _parallelVideoAv1anRunner;
     private readonly IEncoderDiscoveryService _discoveryService;
     private readonly IAppSettingsService _settingsService;
     private readonly LocalAppPaths _appPaths;
@@ -29,12 +30,18 @@ public sealed class LocalEncodingJobRunner : IEncodingJobRunner
         _commandBuilder = new EncodingCommandBuilder(_toolLocator);
         _logWriter = new EncodingJobLogWriter(paths, WriteDiagnostic);
         _sourceInfoProbe = new SourceVideoInfoProbe(_toolLocator);
+        _parallelVideoAv1anRunner = new ParallelVideoEncodingAv1anRunner(paths, settingsService);
         _discoveryService = discoveryService;
         _settingsService = settingsService;
     }
 
     public string BuildDisplayCommand(EncodingJobRequest request)
     {
+        if (request.UseAv1anParallelVideoEncoding)
+        {
+            return _parallelVideoAv1anRunner.BuildDisplayCommand(request);
+        }
+
         var encoderPath = ResolveEncoderPath(request);
         return BuildPlan(
             request,
@@ -49,6 +56,8 @@ public sealed class LocalEncodingJobRunner : IEncodingJobRunner
         {
             execution.Terminate();
         }
+
+        _parallelVideoAv1anRunner.Abort(jobId);
     }
 
     public async Task<EncodingJobResult> RunAsync(
@@ -56,6 +65,11 @@ public sealed class LocalEncodingJobRunner : IEncodingJobRunner
         IProgress<EncodingJobProgress>? progress = null,
         CancellationToken cancellationToken = default)
     {
+        if (request.UseAv1anParallelVideoEncoding)
+        {
+            return await _parallelVideoAv1anRunner.RunAsync(request, progress, cancellationToken);
+        }
+
         var language = GetLanguage();
         var encoderPath = ResolveEncoderPath(request);
         var stagedOutputPath = CreateStagedOutputPath(request);
