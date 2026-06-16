@@ -55,3 +55,4 @@ tmp/
 *.pyc
 *.pyo
 __pycache__/
+/docs/av1an-parallel-crf-video-plan.md
