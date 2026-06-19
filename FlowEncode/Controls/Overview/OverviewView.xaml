@@ -152,12 +152,17 @@
                             <ComboBox
                                 x:Name="DraftVideoEncodingModeComboBox"
                                 Header="{Binding Texts.VideoEncodingModeHeader}"
+                                AutomationProperties.Name="{Binding Texts.VideoEncodingModeHeader}"
+                                AutomationProperties.AutomationId="DraftVideoEncodingModeComboBox"
                                 DisplayMemberPath="Label"
                                 ItemsSource="{Binding VideoEncodingModeOptions}"
                                 SelectedItem="{Binding SelectedVideoEncodingMode, Mode=TwoWay}" />
                             <NumberBox
+                                x:Name="DraftAv1anParallelWorkersNumberBox"
                                 Grid.Column="1"
                                 Header="{Binding Texts.Av1anParallelWorkersHeader}"
+                                AutomationProperties.Name="{Binding Texts.Av1anParallelWorkersHeader}"
+                                AutomationProperties.AutomationId="DraftAv1anParallelWorkersNumberBox"
                                 Minimum="0"
                                 Maximum="64"
                                 SmallChange="1"

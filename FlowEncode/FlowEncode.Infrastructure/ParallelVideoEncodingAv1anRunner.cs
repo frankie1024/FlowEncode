@@ -2,6 +2,7 @@ using System.Collections.Concurrent;
 using System.Diagnostics;
 using System.Globalization;
 using System.Text;
+using System.Text.Json;
 using FlowEncode.Application;
 using FlowEncode.Domain;
 
@@ -37,7 +38,8 @@ internal sealed class ParallelVideoEncodingAv1anRunner
         var tempDirectory = GetTempDirectory(request);
         var sourceInfo = ProbeSourceInfo(
             request,
-            includeSourceMetadata: parallelRequest.EncoderKind == EncoderKind.SvtAv1,
+            includeSourceMetadata: true,
+            required: false,
             cancellationToken: CancellationToken.None);
         return ParallelVideoAv1anArgumentBuilder
             .BuildCommand(parallelRequest, av1anPath, tempDirectory, request.OutputPath, sourceInfo)
@@ -81,6 +83,7 @@ internal sealed class ParallelVideoEncodingAv1anRunner
         var sourceInfo = ProbeSourceInfo(
             request,
             includeSourceMetadata: true,
+            required: RequiresSourceMetadata(parallelRequest),
             cancellationToken);
         var displayCommand = ParallelVideoAv1anArgumentBuilder.BuildCommand(
             parallelRequest,
@@ -427,16 +430,47 @@ internal sealed class ParallelVideoEncodingAv1anRunner
     private SourceVideoInfo? ProbeSourceInfo(
         EncodingJobRequest request,
         bool includeSourceMetadata,
+        bool required,
         CancellationToken cancellationToken)
     {
-        return includeSourceMetadata
-            ? _sourceInfoProbe.Probe(
+        if (!includeSourceMetadata)
+        {
+            return null;
+        }
+
+        try
+        {
+            var sourceInfo = _sourceInfoProbe.Probe(
                 request.SourcePath,
                 request.PipelineKind,
                 cancellationToken: cancellationToken,
-                allowCached: true)
-            : null;
+                allowCached: true);
+
+            if (sourceInfo is null && required)
+            {
+                throw new InvalidOperationException(T(
+                    GetLanguage(),
+                    "SVT-AV1 requires detectable source metadata. Make sure the current input can be recognized by ffprobe or vspipe.",
+                    "SVT-AV1 需要可探测的源信息。请确保当前输入可被 ffprobe / vspipe 正常识别。"));
+            }
+
+            return sourceInfo;
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch (Exception ex) when (!required && IsOptionalSourceMetadataFailure(ex))
+        {
+            return null;
+        }
     }
+
+    private static bool IsOptionalSourceMetadataFailure(Exception ex) =>
+        ex is InvalidOperationException or JsonException;
+
+    private static bool RequiresSourceMetadata(ParallelVideoEncodingRequest request) =>
+        request.EncoderKind == EncoderKind.SvtAv1 && request.PipelineKind != InputPipelineKind.RawYuvFile;
 
     private static string GetTempDirectory(EncodingJobRequest request)
     {

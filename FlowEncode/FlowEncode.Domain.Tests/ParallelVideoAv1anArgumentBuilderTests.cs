@@ -78,6 +78,34 @@ public sealed class ParallelVideoAv1anArgumentBuilderTests
     }
 
     [TestMethod]
+    public void BuildCommand_WhenSvtAv1SourceHasColorMetadata_IncludesVideoMetadataParameters()
+    {
+        var request = CreateRequest(EncoderKind.SvtAv1, crf: 30.0, preset: "6");
+        var sourceInfo = new SourceVideoInfo(
+            3840,
+            2160,
+            2400,
+            10,
+            24000,
+            1001,
+            "yuv420p10le",
+            "tv",
+            "bt2020",
+            "smpte2084",
+            "bt2020nc",
+            "left");
+
+        var command = ParallelVideoAv1anArgumentBuilder.BuildCommand(request, "av1an.exe", "temp", "out.mkv", sourceInfo);
+
+        var videoParams = GetArgumentValue(command.Arguments, "--video-params");
+        StringAssert.Contains(videoParams, "--color-range 0");
+        StringAssert.Contains(videoParams, "--color-primaries 9");
+        StringAssert.Contains(videoParams, "--transfer-characteristics 16");
+        StringAssert.Contains(videoParams, "--matrix-coefficients 9");
+        StringAssert.Contains(videoParams, "--chroma-sample-position left");
+    }
+
+    [TestMethod]
     public void BuildCommand_WhenWorkersAreNull_DoesNotIncludeWorkers()
     {
         var request = CreateRequest(EncoderKind.X264, workers: null);
