@@ -69,7 +69,12 @@ public sealed class VapourSynthWorkspaceService : IVapourSynthWorkspaceService, 
         }
 
         cancellationToken.ThrowIfCancellationRequested();
-        await File.WriteAllTextAsync(filePath, content ?? string.Empty, new UTF8Encoding(false), cancellationToken);
+        await PersistentFileWriter.WriteAllTextAsync(
+            filePath,
+            content ?? string.Empty,
+            new UTF8Encoding(encoderShouldEmitUTF8Identifier: false),
+            cancellationToken,
+            WriteDiagnostic);
         return new VapourSynthWorkspaceDocument(filePath, content ?? string.Empty);
     }
 

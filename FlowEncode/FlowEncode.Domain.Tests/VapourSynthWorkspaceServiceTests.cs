@@ -50,6 +50,49 @@ public sealed class VapourSynthWorkspaceServiceTests
     }
 
     [TestMethod]
+    public async Task SaveDocumentAsync_ReplacesDocumentAtomicallyAndAllowsEmptyContent()
+    {
+        var paths = CreatePaths();
+        using var service = new VapourSynthWorkspaceService(paths);
+        var documentPath = Path.Combine(_workspaceRoot!, "scripts", "sample.vpy");
+        Directory.CreateDirectory(Path.GetDirectoryName(documentPath)!);
+        await File.WriteAllTextAsync(documentPath, "old content");
+
+        var saved = await service.SaveDocumentAsync(documentPath, string.Empty);
+
+        Assert.AreEqual(string.Empty, saved.Content);
+        Assert.AreEqual(string.Empty, await File.ReadAllTextAsync(documentPath));
+        AssertNoTemporaryFiles(documentPath);
+    }
+
+    [TestMethod]
+    public async Task SaveDocumentAsync_WhenDocumentIsLocked_PreservesExistingContent()
+    {
+        var paths = CreatePaths();
+        using var service = new VapourSynthWorkspaceService(paths);
+        var documentPath = Path.Combine(_workspaceRoot!, "locked.vpy");
+        await File.WriteAllTextAsync(documentPath, "old content");
+
+        Exception? exception = null;
+        using (File.Open(documentPath, FileMode.Open, FileAccess.Read, FileShare.None))
+        {
+            try
+            {
+                await service.SaveDocumentAsync(documentPath, "new content");
+            }
+            catch (Exception ex)
+            {
+                exception = ex;
+            }
+        }
+
+        Assert.IsNotNull(exception);
+        Assert.IsTrue(exception is IOException or UnauthorizedAccessException);
+        Assert.AreEqual("old content", await File.ReadAllTextAsync(documentPath));
+        AssertNoTemporaryFiles(documentPath);
+    }
+
+    [TestMethod]
     public async Task SaveSessionAsync_WhenExistingSessionFileIsLocked_PreservesExistingSession()
     {
         var paths = CreatePaths();

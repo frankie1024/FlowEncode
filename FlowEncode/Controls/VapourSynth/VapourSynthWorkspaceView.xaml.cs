@@ -23,7 +23,8 @@ public sealed partial class VapourSynthWorkspaceView : UserControl, IDisposable
 {
     internal static readonly JsonSerializerOptions BridgeJsonOptions = new()
     {
-        PropertyNamingPolicy = JsonNamingPolicy.CamelCase
+        PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
+        PropertyNameCaseInsensitive = true
     };
     private readonly TaskCompletionSource<bool> _workspaceInitializedCompletionSource = new(TaskCreationOptions.RunContinuationsAsynchronously);
     private readonly IVapourSynthWorkspaceLanguageService _languageService;
@@ -197,8 +198,8 @@ public sealed partial class VapourSynthWorkspaceView : UserControl, IDisposable
         {
             ViewModel.SetWorkspaceStatus(static texts => texts.VapourSynthEditorReadyStatus);
             await pane.ApplyThemeAsync(ActualTheme);
-            await LoadLanguageFeaturesAsync(pane);
             await PushDocumentToEditorAsync(pane);
+            await LoadLanguageFeaturesAsync(pane);
             if (ReferenceEquals(pane, GetActiveEditorPane()))
             {
                 await FocusEditorAsync();
@@ -215,51 +216,47 @@ public sealed partial class VapourSynthWorkspaceView : UserControl, IDisposable
 
     private void EditorPane_BufferChanged(object? sender, VapourSynthEditorPaneSnapshot snapshot)
     {
-        if (sender is not VapourSynthEditorPaneView pane)
+        if (sender is not VapourSynthEditorPaneView pane
+            || !TryResolveBoundTab(pane, snapshot.Binding, out var tab))
         {
             return;
         }
 
-        ViewModel.ActivatePane(pane.PaneKind);
-        ViewModel.ApplyEditorBuffer(snapshot.Text, snapshot.Line, snapshot.Column, snapshot.LineCount, snapshot.CharCount);
-        SelectActiveTabViewItem();
+        ViewModel.ApplyEditorBuffer(tab, snapshot.Text, snapshot.Line, snapshot.Column, snapshot.LineCount, snapshot.CharCount);
         ScheduleDiagnostics(pane);
     }
 
     private void EditorPane_CursorChanged(object? sender, VapourSynthEditorPaneSnapshot snapshot)
     {
-        if (sender is not VapourSynthEditorPaneView pane)
+        if (sender is not VapourSynthEditorPaneView pane
+            || !TryResolveBoundTab(pane, snapshot.Binding, out var tab))
         {
             return;
         }
 
-        ViewModel.ActivatePane(pane.PaneKind);
-        ViewModel.ApplyCursorState(snapshot.Line, snapshot.Column, snapshot.LineCount, snapshot.CharCount);
-        SelectActiveTabViewItem();
+        ViewModel.ApplyCursorState(tab, snapshot.Line, snapshot.Column, snapshot.LineCount, snapshot.CharCount);
     }
 
-    private async void EditorPane_HostCommandRequested(object? sender, string command)
+    private async void EditorPane_HostCommandRequested(object? sender, VapourSynthEditorHostCommandRequest request)
     {
-        if (sender is VapourSynthEditorPaneView pane)
+        if (sender is not VapourSynthEditorPaneView pane
+            || !TryResolveBoundTab(pane, request.Binding, out var tab))
         {
-            ViewModel.ActivatePane(pane.PaneKind);
+            return;
         }
 
-        await RunUiActionAsync(() => HandleHostCommandAsync(command));
+        await RunUiActionAsync(() => HandleHostCommandAsync(request.Command, pane, tab));
     }
 
     private async void EditorPane_LanguageRequestReceived(object? sender, JsonElement root)
     {
-        if (sender is not VapourSynthEditorPaneView pane)
+        if (sender is not VapourSynthEditorPaneView pane
+            || !TryResolveBoundTab(pane, GetBinding(root), out _))
         {
             return;
         }
 
-        await RunUiActionAsync(async () =>
-        {
-            ViewModel.ActivatePane(pane.PaneKind);
-            await HandleLanguageRequestAsync(pane, root);
-        });
+        await RunUiActionAsync(() => HandleLanguageRequestAsync(pane, root));
     }
 
     private void EditorPane_BridgeFailed(object? sender, string message)
@@ -267,27 +264,30 @@ public sealed partial class VapourSynthWorkspaceView : UserControl, IDisposable
         ViewModel.SetWorkspaceStatus(texts => texts.VapourSynthEditorBridgeFailedStatus(message));
     }
 
-    private async Task HandleHostCommandAsync(string command)
+    private async Task HandleHostCommandAsync(
+        string command,
+        VapourSynthEditorPaneView pane,
+        VapourSynthWorkspaceTabViewModel tab)
     {
         switch (command)
         {
             case "new":
-                await StartNewDocumentAsync();
+                await StartNewDocumentAsync(pane);
                 break;
             case "open":
-                await OpenDocumentAsync();
+                await OpenDocumentAsync(pane);
                 break;
             case "save":
-                await SaveCurrentDocumentAsync();
+                await SaveDocumentAsync(pane, tab);
                 break;
             case "saveAs":
-                await SaveCurrentDocumentAsAsync();
+                await SaveDocumentAsAsync(pane, tab);
                 break;
             case "preview":
-                await ShowPreviewDeferredAsync();
+                await ShowPreviewDeferredAsync(pane, tab);
                 break;
             case "encode":
-                await StartEncodeAsync();
+                await StartEncodeAsync(pane, tab);
                 break;
         }
     }
@@ -604,27 +604,34 @@ public sealed partial class VapourSynthWorkspaceView : UserControl, IDisposable
 
     private async Task StartEncodeAsync()
     {
-        // If the editor became ready but the initial document hasn't been pushed yet
-        // (race: F9 pressed between editor "ready" and PushDocumentToEditorAsync),
-        // push the document first so we don't capture and save empty editor content.
-        var activePane = GetActiveEditorPane();
-        if (activePane.IsEditorReady && !activePane.HasDocumentBeenPushed)
+        if (!TryGetActiveEditorContext(out var pane, out var tab))
         {
-            await PushDocumentToEditorAsync(activePane);
+            return;
         }
 
-        await CaptureActiveEditorStateAsync();
+        await StartEncodeAsync(pane, tab);
+    }
 
-        var sourcePath = ViewModel.CurrentFilePath;
-        if (string.IsNullOrWhiteSpace(sourcePath) || ViewModel.HasUnsavedChanges)
+    private async Task StartEncodeAsync(
+        VapourSynthEditorPaneView pane,
+        VapourSynthWorkspaceTabViewModel tab)
+    {
+        await CaptureEditorStateAsync(pane);
+        if (!ViewModel.Tabs.Contains(tab))
         {
-            if (!await SaveCurrentDocumentAsync(captureEditorState: false))
+            return;
+        }
+
+        var sourcePath = tab.CurrentFilePath;
+        if (string.IsNullOrWhiteSpace(sourcePath) || tab.HasUnsavedChanges)
+        {
+            if (!await SaveDocumentAsync(pane, tab, captureEditorState: false))
             {
                 return;
             }
         }
 
-        sourcePath = ViewModel.CurrentFilePath;
+        sourcePath = tab.CurrentFilePath;
         if (string.IsNullOrWhiteSpace(sourcePath))
         {
             return;
@@ -661,7 +668,12 @@ public sealed partial class VapourSynthWorkspaceView : UserControl, IDisposable
 
     private async Task StartNewDocumentAsync()
     {
-        await CaptureActiveEditorStateAsync();
+        await StartNewDocumentAsync(GetActiveEditorPane());
+    }
+
+    private async Task StartNewDocumentAsync(VapourSynthEditorPaneView pane)
+    {
+        await CaptureEditorStateAsync(pane);
         await RunWithWorkspaceTabSelectionSuppressedAsync(async () =>
         {
             await ViewModel.CreateNewTabAsync();
@@ -671,13 +683,18 @@ public sealed partial class VapourSynthWorkspaceView : UserControl, IDisposable
 
     private async Task OpenDocumentAsync()
     {
+        await OpenDocumentAsync(GetActiveEditorPane());
+    }
+
+    private async Task OpenDocumentAsync(VapourSynthEditorPaneView pane)
+    {
         var filePath = PickOpenFilePath();
         if (string.IsNullOrWhiteSpace(filePath))
         {
             return;
         }
 
-        await CaptureActiveEditorStateAsync();
+        await CaptureEditorStateAsync(pane);
         await RunWithWorkspaceTabSelectionSuppressedAsync(async () =>
         {
             await ViewModel.OpenDocumentAsync(filePath);
@@ -687,44 +704,91 @@ public sealed partial class VapourSynthWorkspaceView : UserControl, IDisposable
 
     private async Task<bool> SaveCurrentDocumentAsync(bool captureEditorState = true)
     {
+        if (!TryGetActiveEditorContext(out var pane, out var tab))
+        {
+            return false;
+        }
+
+        return await SaveDocumentAsync(pane, tab, captureEditorState);
+    }
+
+    private async Task<bool> SaveDocumentAsync(
+        VapourSynthEditorPaneView pane,
+        VapourSynthWorkspaceTabViewModel tab,
+        bool captureEditorState = true)
+    {
         if (captureEditorState)
         {
-            await CaptureActiveEditorStateAsync();
+            await CaptureEditorStateAsync(pane);
         }
 
-        if (string.IsNullOrWhiteSpace(ViewModel.CurrentFilePath))
+        if (!ViewModel.Tabs.Contains(tab))
         {
-            return await SaveCurrentDocumentAsAsync(captureEditorState: false);
+            return false;
         }
 
-        await ViewModel.SaveAsync();
-        await FocusEditorAsync();
+        if (string.IsNullOrWhiteSpace(tab.CurrentFilePath))
+        {
+            return await SaveDocumentAsAsync(pane, tab, captureEditorState: false);
+        }
+
+        await ViewModel.SaveTabAsync(tab);
+        await FocusEditorIfStillBoundAsync(pane, tab);
         return true;
     }
 
     private async Task<bool> SaveCurrentDocumentAsAsync(bool captureEditorState = true)
     {
-        if (captureEditorState)
+        if (!TryGetActiveEditorContext(out var pane, out var tab))
         {
-            await CaptureActiveEditorStateAsync();
+            return false;
         }
 
-        var filePath = PickSaveFilePath();
+        return await SaveDocumentAsAsync(pane, tab, captureEditorState);
+    }
+
+    private async Task<bool> SaveDocumentAsAsync(
+        VapourSynthEditorPaneView pane,
+        VapourSynthWorkspaceTabViewModel tab,
+        bool captureEditorState = true)
+    {
+        if (captureEditorState)
+        {
+            await CaptureEditorStateAsync(pane);
+        }
+
+        if (!ViewModel.Tabs.Contains(tab))
+        {
+            return false;
+        }
+
+        var filePath = PickSaveFilePath(tab);
         if (string.IsNullOrWhiteSpace(filePath))
         {
             return false;
         }
 
-        await ViewModel.SaveAsAsync(filePath);
-        await FocusEditorAsync();
+        await ViewModel.SaveTabAsAsync(tab, filePath);
+        await FocusEditorIfStillBoundAsync(pane, tab);
         return true;
     }
 
     private async Task ShowPreviewDeferredAsync()
     {
-        await CaptureActiveEditorStateAsync();
-        var previewTab = ViewModel.ActiveTab;
-        if (previewTab is null)
+        if (!TryGetActiveEditorContext(out var pane, out var tab))
+        {
+            return;
+        }
+
+        await ShowPreviewDeferredAsync(pane, tab);
+    }
+
+    private async Task ShowPreviewDeferredAsync(
+        VapourSynthEditorPaneView pane,
+        VapourSynthWorkspaceTabViewModel previewTab)
+    {
+        await CaptureEditorStateAsync(pane);
+        if (!ViewModel.Tabs.Contains(previewTab))
         {
             return;
         }
@@ -747,7 +811,7 @@ public sealed partial class VapourSynthWorkspaceView : UserControl, IDisposable
         }
 
         ViewModel.SetWorkspaceStatus(previewTab, static texts => texts.VapourSynthPreviewEvaluationFailedStatus);
-        await FocusEditorAsync();
+        await FocusEditorIfStillBoundAsync(pane, previewTab);
     }
 
     public void UpdatePreviewPresentation(AppLanguage language, AppThemePreference themePreference)
@@ -898,27 +962,24 @@ public sealed partial class VapourSynthWorkspaceView : UserControl, IDisposable
 
     private async Task CaptureActiveEditorStateAsync()
     {
-        await CaptureEditorStateAsync(GetActiveEditorPane(), preserveActivePane: true);
+        await CaptureEditorStateAsync(GetActiveEditorPane());
     }
 
     private async Task CaptureVisibleEditorStatesAsync()
     {
-        var activePane = ViewModel.ActivePane;
-        await CaptureEditorStateAsync(LeftEditorPane, preserveActivePane: false);
+        await CaptureEditorStateAsync(LeftEditorPane);
 
         if (ViewModel.IsCompareMode && ViewModel.RightTab is not null)
         {
-            await CaptureEditorStateAsync(RightEditorPane, preserveActivePane: false);
+            await CaptureEditorStateAsync(RightEditorPane);
         }
-
-        ViewModel.ActivatePane(activePane);
     }
 
-    private async Task CaptureEditorStateAsync(VapourSynthEditorPaneView pane, bool preserveActivePane)
+    private async Task<bool> CaptureEditorStateAsync(VapourSynthEditorPaneView pane)
     {
         if (!pane.IsEditorReady)
         {
-            return;
+            return false;
         }
 
         try
@@ -926,32 +987,33 @@ public sealed partial class VapourSynthWorkspaceView : UserControl, IDisposable
             var snapshot = await pane.CaptureStateAsync();
             if (snapshot is null)
             {
-                return;
+                return false;
             }
 
-            var previousPane = ViewModel.ActivePane;
-            ApplyEditorSnapshot(pane, snapshot);
-
-            if (preserveActivePane)
-            {
-                ViewModel.ActivatePane(previousPane);
-            }
+            return ApplyEditorSnapshot(pane, snapshot);
         }
         catch (Exception ex)
         {
             ViewModel.SetWorkspaceStatus(texts => texts.VapourSynthEditorBridgeFailedStatus(ex.Message));
+            return false;
         }
     }
 
-    private void ApplyEditorSnapshot(VapourSynthEditorPaneView pane, VapourSynthEditorPaneSnapshot snapshot)
+    private bool ApplyEditorSnapshot(VapourSynthEditorPaneView pane, VapourSynthEditorPaneSnapshot snapshot)
     {
-        ViewModel.ActivatePane(pane.PaneKind);
+        if (!TryResolveBoundTab(pane, snapshot.Binding, out var tab))
+        {
+            return false;
+        }
+
         ViewModel.ApplyEditorBuffer(
+            tab,
             snapshot.Text,
             snapshot.Line,
             snapshot.Column,
             snapshot.LineCount,
             snapshot.CharCount);
+        return true;
     }
 
     private static bool HasEditorTextChanged(
@@ -1009,8 +1071,31 @@ public sealed partial class VapourSynthWorkspaceView : UserControl, IDisposable
             return;
         }
 
-        await pane.LoadDocumentAsync(tab.CurrentContent, tab.CurrentFilePath);
-        pane.HasDocumentBeenPushed = true;
+        var binding = pane.BeginDocumentLoad(tab.Id);
+        try
+        {
+            var acknowledgedBinding = await pane.LoadDocumentAsync(
+                tab.CurrentContent,
+                tab.CurrentFilePath,
+                binding);
+            if (acknowledgedBinding is null)
+            {
+                pane.FailDocumentLoad(binding, "Editor did not confirm the document load.");
+                return;
+            }
+
+            if (!ViewModel.Tabs.Contains(tab)
+                || !ReferenceEquals(tab, ViewModel.GetPaneTab(pane.PaneKind))
+                || !pane.TryConfirmDocumentLoad(binding, acknowledgedBinding))
+            {
+                return;
+            }
+        }
+        catch (Exception ex)
+        {
+            pane.FailDocumentLoad(binding, ex.Message);
+            throw;
+        }
 
         if (ReferenceEquals(pane, GetActiveEditorPane()))
         {
@@ -1023,21 +1108,45 @@ public sealed partial class VapourSynthWorkspaceView : UserControl, IDisposable
         await GetActiveEditorPane().FocusEditorAsync();
     }
 
+    private async Task FocusEditorIfStillBoundAsync(
+        VapourSynthEditorPaneView pane,
+        VapourSynthWorkspaceTabViewModel tab)
+    {
+        if (ReferenceEquals(tab, ViewModel.GetPaneTab(pane.PaneKind))
+            && pane.ConfirmedBinding is { } binding
+            && string.Equals(binding.TabId, tab.Id, StringComparison.Ordinal))
+        {
+            await pane.FocusEditorAsync();
+        }
+    }
+
     public async Task InsertTextIntoEditorAsync(string text, bool onNewLine = false)
     {
-        await GetActiveEditorPane().InsertTextAsync(text, onNewLine);
-        await FocusEditorAsync();
+        if (TryGetActiveEditorContext(out var pane, out var tab)
+            && IsPaneBoundToTab(pane, tab))
+        {
+            await pane.InsertTextAsync(text, onNewLine);
+            await pane.FocusEditorAsync();
+        }
     }
 
     public async Task InsertSnippetIntoEditorAsync(string snippet, bool onNewLine = false)
     {
-        await GetActiveEditorPane().InsertSnippetAsync(snippet, onNewLine);
-        await FocusEditorAsync();
+        if (TryGetActiveEditorContext(out var pane, out var tab)
+            && IsPaneBoundToTab(pane, tab))
+        {
+            await pane.InsertSnippetAsync(snippet, onNewLine);
+            await pane.FocusEditorAsync();
+        }
     }
 
     private async Task ExecuteEditorCommandAsync(string command)
     {
-        await GetActiveEditorPane().ExecuteEditorCommandAsync(command);
+        if (TryGetActiveEditorContext(out var pane, out var tab)
+            && IsPaneBoundToTab(pane, tab))
+        {
+            await pane.ExecuteEditorCommandAsync(command);
+        }
     }
 
     private void ScheduleDiagnostics(VapourSynthEditorPaneView? pane = null)
@@ -1048,8 +1157,8 @@ public sealed partial class VapourSynthWorkspaceView : UserControl, IDisposable
             return;
         }
 
-        var tab = ViewModel.GetPaneTab(targetPane.PaneKind);
-        if (tab is null)
+        var binding = targetPane.ConfirmedBinding;
+        if (!TryResolveBoundTab(targetPane, binding, out var tab))
         {
             return;
         }
@@ -1060,6 +1169,7 @@ public sealed partial class VapourSynthWorkspaceView : UserControl, IDisposable
         _ = UpdateDiagnosticsAfterDelayAsync(
             version,
             targetPane,
+            binding!,
             tab.CurrentFilePath,
             tab.CurrentContent,
             _diagnosticsCancellationTokenSource.Token);
@@ -1068,7 +1178,9 @@ public sealed partial class VapourSynthWorkspaceView : UserControl, IDisposable
     private async Task HandleLanguageRequestAsync(VapourSynthEditorPaneView pane, JsonElement root)
     {
         var requestId = GetString(root, "requestId");
-        if (string.IsNullOrWhiteSpace(requestId))
+        var binding = GetBinding(root);
+        if (string.IsNullOrWhiteSpace(requestId)
+            || !TryResolveBoundTab(pane, binding, out _))
         {
             return;
         }
@@ -1093,7 +1205,7 @@ public sealed partial class VapourSynthWorkspaceView : UserControl, IDisposable
                 _ => throw new InvalidOperationException($"Unsupported language request: {method}")
             };
 
-            await SendLanguageResponseAsync(pane, new
+            await SendLanguageResponseAsync(pane, binding!, new
             {
                 requestId,
                 success = true,
@@ -1102,7 +1214,7 @@ public sealed partial class VapourSynthWorkspaceView : UserControl, IDisposable
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
-            await SendLanguageResponseAsync(pane, new
+            await SendLanguageResponseAsync(pane, binding!, new
             {
                 requestId,
                 success = false,
@@ -1111,9 +1223,12 @@ public sealed partial class VapourSynthWorkspaceView : UserControl, IDisposable
         }
     }
 
-    private async Task SendLanguageResponseAsync(VapourSynthEditorPaneView pane, object payload)
+    private async Task SendLanguageResponseAsync(
+        VapourSynthEditorPaneView pane,
+        VapourSynthEditorDocumentBinding binding,
+        object payload)
     {
-        if (!pane.IsEditorReady || _isDisposed)
+        if (_isDisposed || !TryResolveBoundTab(pane, binding, out _))
         {
             return;
         }
@@ -1124,6 +1239,7 @@ public sealed partial class VapourSynthWorkspaceView : UserControl, IDisposable
     private async Task UpdateDiagnosticsAfterDelayAsync(
         long version,
         VapourSynthEditorPaneView pane,
+        VapourSynthEditorDocumentBinding binding,
         string? filePath,
         string content,
         CancellationToken cancellationToken)
@@ -1139,7 +1255,7 @@ public sealed partial class VapourSynthWorkspaceView : UserControl, IDisposable
 
             if (cancellationToken.IsCancellationRequested
                 || version != Interlocked.Read(ref _diagnosticsVersion)
-                || !pane.IsEditorReady)
+                || !TryResolveBoundTab(pane, binding, out _))
             {
                 return;
             }
@@ -1235,16 +1351,57 @@ public sealed partial class VapourSynthWorkspaceView : UserControl, IDisposable
             : LeftEditorPane;
     }
 
+    private bool TryGetActiveEditorContext(
+        out VapourSynthEditorPaneView pane,
+        out VapourSynthWorkspaceTabViewModel tab)
+    {
+        pane = GetActiveEditorPane();
+        tab = ViewModel.GetPaneTab(pane.PaneKind)!;
+        return tab is not null && ViewModel.Tabs.Contains(tab);
+    }
+
+    private bool TryResolveBoundTab(
+        VapourSynthEditorPaneView pane,
+        VapourSynthEditorDocumentBinding? binding,
+        out VapourSynthWorkspaceTabViewModel tab)
+    {
+        tab = null!;
+        if (!pane.IsDocumentBindingConfirmed(binding))
+        {
+            return false;
+        }
+
+        var candidate = ViewModel.Tabs.FirstOrDefault(item =>
+            string.Equals(item.Id, binding!.TabId, StringComparison.Ordinal));
+        if (candidate is null
+            || !ReferenceEquals(candidate, ViewModel.GetPaneTab(pane.PaneKind)))
+        {
+            return false;
+        }
+
+        tab = candidate;
+        return true;
+    }
+
+    private static bool IsPaneBoundToTab(
+        VapourSynthEditorPaneView pane,
+        VapourSynthWorkspaceTabViewModel tab)
+    {
+        return pane.ConfirmedBinding is { } binding
+            && pane.IsDocumentBindingConfirmed(binding)
+            && string.Equals(binding.TabId, tab.Id, StringComparison.Ordinal);
+    }
+
     private async Task<bool> ConfirmTabCloseAsync(VapourSynthWorkspaceTabViewModel tab)
     {
+        if (!await CaptureTabEditorStateAsync(tab))
+        {
+            return false;
+        }
+
         if (!tab.HasUnsavedChanges)
         {
             return true;
-        }
-
-        if (ReferenceEquals(tab, ViewModel.ActiveTab))
-        {
-            await CaptureActiveEditorStateAsync();
         }
 
         var choice = await ShowUnsavedChangesDialogAsync(this.XamlRoot);
@@ -1256,25 +1413,29 @@ public sealed partial class VapourSynthWorkspaceView : UserControl, IDisposable
         };
     }
 
+    private async Task<bool> CaptureTabEditorStateAsync(VapourSynthWorkspaceTabViewModel tab)
+    {
+        if (IsPaneBoundToTab(LeftEditorPane, tab)
+            && !await CaptureEditorStateAsync(LeftEditorPane))
+        {
+            return false;
+        }
+
+        if (ViewModel.IsCompareMode
+            && IsPaneBoundToTab(RightEditorPane, tab)
+            && !await CaptureEditorStateAsync(RightEditorPane))
+        {
+            return false;
+        }
+
+        return true;
+    }
+
     private async Task<bool> SaveTabAsync(VapourSynthWorkspaceTabViewModel tab)
     {
         if (string.IsNullOrWhiteSpace(tab.CurrentFilePath))
         {
-            var previousTab = ViewModel.ActiveTab;
-            RunWithWorkspaceTabSelectionSuppressed(() =>
-            {
-                ViewModel.ActivateTab(tab);
-                SelectActiveTabViewItem();
-            });
-            var filePath = PickSaveFilePath();
-            if (previousTab is not null && !ReferenceEquals(previousTab, tab))
-            {
-                RunWithWorkspaceTabSelectionSuppressed(() =>
-                {
-                    ViewModel.ActivateTab(previousTab);
-                    SelectActiveTabViewItem();
-                });
-            }
+            var filePath = PickSaveFilePath(tab);
 
             if (string.IsNullOrWhiteSpace(filePath))
             {
@@ -1282,11 +1443,11 @@ public sealed partial class VapourSynthWorkspaceView : UserControl, IDisposable
             }
 
             await ViewModel.SaveTabAsAsync(tab, filePath);
-            return true;
+            return !tab.HasUnsavedChanges;
         }
 
         await ViewModel.SaveTabAsync(tab);
-        return true;
+        return !tab.HasUnsavedChanges;
     }
 
     private async Task<bool> SaveDirtyTabsAsync()
@@ -1313,19 +1474,21 @@ public sealed partial class VapourSynthWorkspaceView : UserControl, IDisposable
             new NativeFileDialogHelper.FileDialogFilter(ViewModel.Texts.VapourSynthPythonFileTypeDescription, "*.py"));
     }
 
-    private string? PickSaveFilePath()
+    private string? PickSaveFilePath(VapourSynthWorkspaceTabViewModel tab)
     {
-        var suggestedExtension = string.Equals(Path.GetExtension(ViewModel.CurrentFilePath), ".py", StringComparison.OrdinalIgnoreCase)
+        ArgumentNullException.ThrowIfNull(tab);
+        var currentFilePath = tab.CurrentFilePath;
+        var suggestedExtension = string.Equals(Path.GetExtension(currentFilePath), ".py", StringComparison.OrdinalIgnoreCase)
             ? ".py"
             : ".vpy";
-        var suggestedName = string.IsNullOrWhiteSpace(ViewModel.CurrentFilePath)
+        var suggestedName = string.IsNullOrWhiteSpace(currentFilePath)
             ? Path.GetFileNameWithoutExtension(ViewModel.Texts.VapourSynthUntitledDocument)
-            : Path.GetFileNameWithoutExtension(ViewModel.CurrentFilePath);
+            : Path.GetFileNameWithoutExtension(currentFilePath);
 
         var result = WindowInteractionHelper.PickSaveFilePath(
             GetWindowHandle(),
             ViewModel.Texts.SaveAsButton,
-            ViewModel.CurrentFilePath ?? string.Empty,
+            currentFilePath ?? string.Empty,
             suggestedName,
             suggestedExtension,
             new NativeFileDialogHelper.FileDialogFilter(ViewModel.Texts.VapourSynthFileTypeDescription, "*.vpy"),
@@ -1390,6 +1553,25 @@ public sealed partial class VapourSynthWorkspaceView : UserControl, IDisposable
         return element.TryGetProperty(propertyName, out var property)
             ? property.GetString() ?? string.Empty
             : string.Empty;
+    }
+
+    private static VapourSynthEditorDocumentBinding? GetBinding(JsonElement element)
+    {
+        if (!element.TryGetProperty("binding", out var property)
+            || property.ValueKind != JsonValueKind.Object)
+        {
+            return null;
+        }
+
+        try
+        {
+            var binding = property.Deserialize<VapourSynthEditorDocumentBinding>(BridgeJsonOptions);
+            return VapourSynthEditorBindingState.IsValid(binding) ? binding : null;
+        }
+        catch (JsonException)
+        {
+            return null;
+        }
     }
 
     private static int GetInt(JsonElement element, string propertyName, int fallback)

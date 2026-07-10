@@ -542,26 +542,39 @@ public sealed class VapourSynthWorkspaceViewModel : ObservableObject
         ScheduleSessionSave();
     }
 
-    public void ApplyEditorBuffer(string content, int line, int column, int lineCount, int charCount)
+    public void ApplyEditorBuffer(
+        VapourSynthWorkspaceTabViewModel tab,
+        string content,
+        int line,
+        int column,
+        int lineCount,
+        int charCount)
     {
-        if (ActiveTab is null)
+        ArgumentNullException.ThrowIfNull(tab);
+        if (!_tabs.Contains(tab))
         {
             return;
         }
 
-        ActiveTab.ApplyEditorBuffer(content, line, column, lineCount, charCount);
+        tab.ApplyEditorBuffer(content, line, column, lineCount, charCount);
         RefreshActiveTabBindings();
         ScheduleSessionSave();
     }
 
-    public void ApplyCursorState(int line, int column, int lineCount, int charCount)
+    public void ApplyCursorState(
+        VapourSynthWorkspaceTabViewModel tab,
+        int line,
+        int column,
+        int lineCount,
+        int charCount)
     {
-        if (ActiveTab is null)
+        ArgumentNullException.ThrowIfNull(tab);
+        if (!_tabs.Contains(tab))
         {
             return;
         }
 
-        ActiveTab.ApplyCursorState(line, column, lineCount, charCount);
+        tab.ApplyCursorState(line, column, lineCount, charCount);
         RefreshActiveTabBindings();
     }
 

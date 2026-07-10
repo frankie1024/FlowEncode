@@ -10,6 +10,7 @@ let cursorTimer = 0;
 let pendingDocumentText = "";
 let pendingDocumentFilePath = "";
 let currentDocumentPath = "";
+let currentDocumentBinding = null;
 let hostTheme = "";
 let languageFeatures = createEmptyLanguageFeatures();
 let languageFeatureIndex = buildLanguageFeatureIndex(languageFeatures);
@@ -27,7 +28,10 @@ function createEmptyLanguageFeatures() {
 
 function postMessage(payload) {
     if (window.chrome?.webview) {
-        window.chrome.webview.postMessage(payload);
+        window.chrome.webview.postMessage({
+            ...payload,
+            binding: currentDocumentBinding
+        });
     }
 }
 
@@ -37,6 +41,24 @@ function normalizeText(text) {
 
 function normalizeArray(value) {
     return Array.isArray(value) ? value : [];
+}
+
+function normalizeDocumentBinding(value) {
+    if (!value
+        || typeof value.paneId !== "string"
+        || value.paneId.length === 0
+        || typeof value.tabId !== "string"
+        || value.tabId.length === 0
+        || !Number.isSafeInteger(value.loadGeneration)
+        || value.loadGeneration <= 0) {
+        return null;
+    }
+
+    return Object.freeze({
+        paneId: value.paneId,
+        tabId: value.tabId,
+        loadGeneration: value.loadGeneration
+    });
 }
 
 function createCanceledError(message) {
@@ -369,7 +391,8 @@ function buildState() {
             line: 1,
             column: 1,
             lineCount: 1,
-            charCount: 0
+            charCount: 0,
+            binding: currentDocumentBinding
         };
     }
 
@@ -381,7 +404,8 @@ function buildState() {
         line: position.lineNumber,
         column: position.column,
         lineCount: editorModel.getLineCount(),
-        charCount: text.length
+        charCount: text.length,
+        binding: currentDocumentBinding
     };
 }
 
@@ -427,22 +451,34 @@ function clearDiagnostics() {
 
 function loadDocument(payload, options) {
     const shouldBroadcastState = options?.broadcastState !== false;
-    pendingDocumentText = normalizeText(payload?.text);
-    pendingDocumentFilePath = normalizeText(payload?.filePath);
-    currentDocumentPath = pendingDocumentFilePath;
-    cancelPendingLanguageRequests("Document changed.");
-
-    if (!editorModel || !editorInstance || typeof monaco === "undefined") {
-        return;
+    const nextBinding = normalizeDocumentBinding(payload?.binding);
+    if (payload?.binding != null && !nextBinding) {
+        return { loaded: false, binding: null };
     }
 
+    if (!editorModel || !editorInstance || typeof monaco === "undefined") {
+        return { loaded: false, binding: null };
+    }
+
+    window.clearTimeout(bufferTimer);
+    window.clearTimeout(cursorTimer);
+    pendingDocumentText = normalizeText(payload?.text);
+    pendingDocumentFilePath = normalizeText(payload?.filePath);
+    cancelPendingLanguageRequests("Document changed.");
+
     suppressModelEvents = true;
-    editorModel.setValue(pendingDocumentText);
-    editorModel.setEOL(monaco.editor.EndOfLineSequence.LF);
-    editorInstance.setScrollPosition({ scrollTop: 0, scrollLeft: 0 });
-    editorInstance.setPosition({ lineNumber: 1, column: 1 });
-    editorInstance.revealPositionInCenter({ lineNumber: 1, column: 1 });
-    suppressModelEvents = false;
+    try {
+        editorModel.setValue(pendingDocumentText);
+        editorModel.setEOL(monaco.editor.EndOfLineSequence.LF);
+        editorInstance.setScrollPosition({ scrollTop: 0, scrollLeft: 0 });
+        editorInstance.setPosition({ lineNumber: 1, column: 1 });
+        editorInstance.revealPositionInCenter({ lineNumber: 1, column: 1 });
+    } finally {
+        suppressModelEvents = false;
+    }
+
+    currentDocumentPath = pendingDocumentFilePath;
+    currentDocumentBinding = nextBinding;
 
     clearDiagnostics();
     if (shouldBroadcastState) {
@@ -450,6 +486,7 @@ function loadDocument(payload, options) {
         queueCursorBroadcast();
     }
     focusEditor();
+    return { loaded: true, binding: currentDocumentBinding };
 }
 
 function buildInsertionRange(target) {

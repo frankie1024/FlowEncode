@@ -14,6 +14,7 @@ public sealed class VapourSynthWorkspaceTabViewModel : ObservableObject
 {
     private const int MaxPreviewLogLines = 500;
     private readonly IVapourSynthWorkspaceService _workspaceService;
+    private readonly VapourSynthDocumentSaveCoordinator _saveCoordinator;
     private readonly Queue<string> _previewLogLines = [];
     private AppText _texts;
     private string _id = Guid.NewGuid().ToString("N");
@@ -37,6 +38,7 @@ public sealed class VapourSynthWorkspaceTabViewModel : ObservableObject
         IAppSettingsService settingsService)
     {
         _workspaceService = workspaceService;
+        _saveCoordinator = new VapourSynthDocumentSaveCoordinator(workspaceService);
         _texts = new AppText(settingsService.Load().Language);
         _currentContent = string.Empty;
         _savedContent = string.Empty;
@@ -190,19 +192,13 @@ public sealed class VapourSynthWorkspaceTabViewModel : ObservableObject
 
     public async Task SaveAsync()
     {
-        if (string.IsNullOrWhiteSpace(_currentFilePath))
-        {
-            throw new InvalidOperationException("Current document has no file path.");
-        }
-
-        await SaveAsAsync(_currentFilePath);
+        await SaveCoreAsync(null);
     }
 
     public async Task SaveAsAsync(string filePath)
     {
-        var document = await _workspaceService.SaveDocumentAsync(filePath, RestorePreferredLineEndings(_currentContent));
-        ApplyDocumentState(document.FilePath, document.Content, document.Content, false);
-        SetWorkspaceStatus(texts => texts.VapourSynthSavedStatus(filePath));
+        ArgumentException.ThrowIfNullOrWhiteSpace(filePath);
+        await SaveCoreAsync(filePath);
     }
 
     public void ApplyEditorBuffer(string content, int line, int column, int lineCount, int charCount)
@@ -387,6 +383,45 @@ public sealed class VapourSynthWorkspaceTabViewModel : ObservableObject
 
         OnPropertyChanged(nameof(CurrentFilePath));
         OnPropertyChanged(nameof(CurrentContent));
+        OnPropertyChanged(nameof(TabTitle));
+        OnPropertyChanged(nameof(DocumentPathText));
+        OnPropertyChanged(nameof(EditorStatusText));
+        OnPropertyChanged(nameof(DirtyBadgeVisibility));
+        OnPropertyChanged(nameof(CanReload));
+    }
+
+    private async Task SaveCoreAsync(string? requestedFilePath)
+    {
+        await _saveCoordinator.SaveAsync(
+            () =>
+            {
+                var filePath = requestedFilePath ?? _currentFilePath;
+                if (string.IsNullOrWhiteSpace(filePath))
+                {
+                    throw new InvalidOperationException("Current document has no file path.");
+                }
+
+                return new VapourSynthDocumentSaveRequest(
+                    filePath,
+                    RestorePreferredLineEndings(_currentContent));
+            },
+            result =>
+            {
+                ApplySavedDocumentState(result.Document);
+                SetWorkspaceStatus(texts => texts.VapourSynthSavedStatus(result.Request.FilePath));
+            });
+    }
+
+    private void ApplySavedDocumentState(VapourSynthWorkspaceDocument document)
+    {
+        var savedContent = NormalizeLineEndings(document.Content);
+        _currentFilePath = string.IsNullOrWhiteSpace(document.FilePath) ? null : document.FilePath;
+        _savedContent = savedContent;
+        _preferredLineEnding = DetectLineEnding(document.Content);
+        _forceDirtyUntilSave = false;
+        _isDirty = !string.Equals(_currentContent, savedContent, StringComparison.Ordinal);
+
+        OnPropertyChanged(nameof(CurrentFilePath));
         OnPropertyChanged(nameof(TabTitle));
         OnPropertyChanged(nameof(DocumentPathText));
         OnPropertyChanged(nameof(EditorStatusText));

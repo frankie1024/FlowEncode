@@ -3,6 +3,7 @@ using System.IO;
 using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
+using FlowEncode.Application;
 using FlowEncode.ViewModels;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
@@ -15,6 +16,7 @@ public sealed partial class VapourSynthEditorPaneView : UserControl, IDisposable
 {
     private static readonly Uri EditorHostUri = new("https://vapoursynth-editor/index.html");
     private readonly SemaphoreSlim _initializationLock = new(1, 1);
+    private readonly VapourSynthEditorBindingState _bindingState = new();
     private CancellationTokenSource? _readyTimeoutCancellationTokenSource;
     private bool _isCoreInitialized;
     private bool _isDisposed;
@@ -35,13 +37,7 @@ public sealed partial class VapourSynthEditorPaneView : UserControl, IDisposable
 
     public bool IsEditorReady { get; private set; }
 
-    /// <summary>
-    /// Indicates whether the initial document has been pushed to the editor after it became ready.
-    /// This is false between the editor's "ready" signal and the completion of the first
-    /// <see cref="LoadDocumentAsync"/> call. Used to prevent saving empty editor content
-    /// when F9 is pressed before the document has been loaded.
-    /// </summary>
-    public bool HasDocumentBeenPushed { get; internal set; }
+    public VapourSynthEditorDocumentBinding? ConfirmedBinding => _bindingState.ConfirmedBinding;
 
     public event EventHandler? EditorReady;
 
@@ -53,7 +49,7 @@ public sealed partial class VapourSynthEditorPaneView : UserControl, IDisposable
 
     public event EventHandler<VapourSynthEditorPaneSnapshot>? CursorChanged;
 
-    public event EventHandler<string>? HostCommandRequested;
+    public event EventHandler<VapourSynthEditorHostCommandRequest>? HostCommandRequested;
 
     public event EventHandler<JsonElement>? LanguageRequestReceived;
 
@@ -68,7 +64,7 @@ public sealed partial class VapourSynthEditorPaneView : UserControl, IDisposable
         try
         {
             IsEditorReady = false;
-            HasDocumentBeenPushed = false;
+            _bindingState.Invalidate();
             ShowEditorOverlay(showRetryButton: false, showProgress: true);
 
             if (!_isCoreInitialized)
@@ -122,20 +118,76 @@ public sealed partial class VapourSynthEditorPaneView : UserControl, IDisposable
         return CreateSnapshot(document.RootElement);
     }
 
-    public async Task LoadDocumentAsync(string text, string? filePath)
+    public VapourSynthEditorDocumentBinding BeginDocumentLoad(string tabId)
     {
         if (!IsEditorReady)
         {
-            return;
+            throw new InvalidOperationException("Editor is not ready.");
+        }
+
+        var binding = _bindingState.BeginLoad(tabId);
+        ShowEditorOverlay(showRetryButton: false, showProgress: true);
+        return binding;
+    }
+
+    public async Task<VapourSynthEditorDocumentBinding?> LoadDocumentAsync(
+        string text,
+        string? filePath,
+        VapourSynthEditorDocumentBinding binding)
+    {
+        ArgumentNullException.ThrowIfNull(binding);
+
+        if (!IsEditorReady)
+        {
+            return null;
         }
 
         var payload = JsonSerializer.Serialize(new
         {
             text,
-            filePath
-        });
+            filePath,
+            binding
+        }, VapourSynthWorkspaceView.BridgeJsonOptions);
 
-        await EditorWebView.ExecuteScriptAsync($"window.vsWorkspaceHost.loadDocument({payload}, {{ broadcastState: false }});");
+        var scriptResult = await EditorWebView.ExecuteScriptAsync(
+            $"window.vsWorkspaceHost.loadDocument({payload}, {{ broadcastState: false }});");
+        var result = JsonSerializer.Deserialize<VapourSynthEditorDocumentLoadResult>(
+            scriptResult,
+            VapourSynthWorkspaceView.BridgeJsonOptions);
+        return result is { Loaded: true } ? result.Binding : null;
+    }
+
+    public bool TryConfirmDocumentLoad(
+        VapourSynthEditorDocumentBinding expectedBinding,
+        VapourSynthEditorDocumentBinding? acknowledgedBinding)
+    {
+        if (!_bindingState.TryConfirm(expectedBinding, acknowledgedBinding))
+        {
+            return false;
+        }
+
+        EditorOverlay.Visibility = Visibility.Collapsed;
+        EditorWebView.Visibility = Visibility.Visible;
+        return true;
+    }
+
+    public bool IsDocumentBindingConfirmed(VapourSynthEditorDocumentBinding? binding)
+    {
+        return IsEditorReady && _bindingState.IsConfirmed(binding);
+    }
+
+    public void FailDocumentLoad(VapourSynthEditorDocumentBinding binding, string message)
+    {
+        ArgumentNullException.ThrowIfNull(binding);
+
+        if (!_bindingState.IsPending(binding))
+        {
+            return;
+        }
+
+        _bindingState.Invalidate();
+        ShowEditorOverlay(showRetryButton: true, showProgress: false);
+        LoadFailed?.Invoke(this, message);
     }
 
     public async Task LoadLanguageFeaturesAsync(object snapshot)
@@ -251,6 +303,7 @@ public sealed partial class VapourSynthEditorPaneView : UserControl, IDisposable
 
         _isDisposed = true;
         CancelEditorReadyTimeout();
+        _bindingState.Invalidate();
 
         if (_isCoreInitialized && EditorWebView.CoreWebView2 is not null)
         {
@@ -303,6 +356,7 @@ public sealed partial class VapourSynthEditorPaneView : UserControl, IDisposable
 
         CancelEditorReadyTimeout();
         IsEditorReady = false;
+        _bindingState.Invalidate();
         ShowEditorOverlay(showRetryButton: true, showProgress: false);
         LoadFailed?.Invoke(this, args.WebErrorStatus.ToString());
     }
@@ -327,7 +381,11 @@ public sealed partial class VapourSynthEditorPaneView : UserControl, IDisposable
                     CursorChanged?.Invoke(this, CreateSnapshot(root));
                     break;
                 case "hostCommand":
-                    HostCommandRequested?.Invoke(this, GetString(root, "command"));
+                    HostCommandRequested?.Invoke(
+                        this,
+                        new VapourSynthEditorHostCommandRequest(
+                            GetString(root, "command"),
+                            GetBinding(root)));
                     break;
                 case "languageRequest":
                     LanguageRequestReceived?.Invoke(this, root.Clone());
@@ -347,8 +405,6 @@ public sealed partial class VapourSynthEditorPaneView : UserControl, IDisposable
     {
         IsEditorReady = true;
         CancelEditorReadyTimeout();
-        EditorOverlay.Visibility = Visibility.Collapsed;
-        EditorWebView.Visibility = Visibility.Visible;
         EditorReady?.Invoke(this, EventArgs.Empty);
     }
 
@@ -425,7 +481,28 @@ public sealed partial class VapourSynthEditorPaneView : UserControl, IDisposable
             GetInt(root, "line", 1),
             GetInt(root, "column", 1),
             GetInt(root, "lineCount", 1),
-            GetInt(root, "charCount", 0));
+            GetInt(root, "charCount", 0),
+            GetBinding(root));
+    }
+
+    private static VapourSynthEditorDocumentBinding? GetBinding(JsonElement element)
+    {
+        if (!element.TryGetProperty("binding", out var property)
+            || property.ValueKind != JsonValueKind.Object)
+        {
+            return null;
+        }
+
+        try
+        {
+            var binding = property.Deserialize<VapourSynthEditorDocumentBinding>(
+                VapourSynthWorkspaceView.BridgeJsonOptions);
+            return VapourSynthEditorBindingState.IsValid(binding) ? binding : null;
+        }
+        catch (JsonException)
+        {
+            return null;
+        }
     }
 
     private static string GetString(JsonElement element, string propertyName)
@@ -448,4 +525,13 @@ public sealed record VapourSynthEditorPaneSnapshot(
     int Line,
     int Column,
     int LineCount,
-    int CharCount);
+    int CharCount,
+    VapourSynthEditorDocumentBinding? Binding);
+
+public sealed record VapourSynthEditorHostCommandRequest(
+    string Command,
+    VapourSynthEditorDocumentBinding? Binding);
+
+internal sealed record VapourSynthEditorDocumentLoadResult(
+    bool Loaded,
+    VapourSynthEditorDocumentBinding? Binding);
