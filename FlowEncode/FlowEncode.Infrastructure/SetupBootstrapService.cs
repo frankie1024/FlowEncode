@@ -681,7 +681,27 @@ public sealed class SetupBootstrapService : ISetupBootstrapService, IDisposable
         var pythonPath = await ResolveCompatiblePythonAsync(cancellationToken);
         var completed = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
-        ReportProgress(progress, SetupDependencyKind.VsPluginBundle, 10, $"Running vsrepo install {string.Join(" ", VsrepoPackageNames)}...");
+        await EnsureVsrepoArchiveExtractorAsync(pythonPath, progress, cancellationToken);
+        await EnsureVsrepoUserSiteDirectoryAsync(pythonPath, cancellationToken);
+        ReportProgress(progress, SetupDependencyKind.VsPluginBundle, 5, "Updating vsrepo package definitions...");
+        try
+        {
+            await RunProcessAsync(
+                pythonPath,
+                ["-m", "vsrepo.vsrepo", "-t", GetVsrepoTarget(), "update"],
+                cancellationToken,
+                timeoutMs: 120_000,
+                onOutput: line => ReportProgress(progress, SetupDependencyKind.VsPluginBundle, 10, line),
+                onError: line => ReportProgress(progress, SetupDependencyKind.VsPluginBundle, 10, line));
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            throw new InvalidOperationException(
+                "Unable to update vsrepo package definitions. Check the network connection and try again.",
+                ex);
+        }
+
+        ReportProgress(progress, SetupDependencyKind.VsPluginBundle, 20, $"Running vsrepo install {string.Join(" ", VsrepoPackageNames)}...");
         await RunProcessAsync(
             pythonPath,
             ["-m", "vsrepo.vsrepo", "-t", GetVsrepoTarget(), "install", .. VsrepoPackageNames],
@@ -696,11 +716,11 @@ public sealed class SetupBootstrapService : ISetupBootstrapService, IDisposable
                         continue;
                     }
 
-                    var percent = 10 + (completed.Count * 80.0 / VsrepoPackageNames.Count);
+                    var percent = 20 + (completed.Count * 70.0 / VsrepoPackageNames.Count);
                     ReportProgress(progress, SetupDependencyKind.VsPluginBundle, percent, line);
                 }
             },
-            onError: line => ReportProgress(progress, SetupDependencyKind.VsPluginBundle, 20, line));
+            onError: line => ReportProgress(progress, SetupDependencyKind.VsPluginBundle, 30, line));
 
         ReportProgress(progress, SetupDependencyKind.VsPluginBundle, 100, "VS plugin bundle is ready.");
     }
@@ -787,6 +807,7 @@ public sealed class SetupBootstrapService : ISetupBootstrapService, IDisposable
         var pythonPath = await ResolvePreferredPythonAsync(cancellationToken);
         var completed = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
+        await EnsureVsrepoUserSiteDirectoryAsync(pythonPath, cancellationToken);
         ReportProgress(progress, SetupDependencyKind.VsPluginBundle, 10, "Removing VS plugin bundle...");
         await RunProcessAsync(
             pythonPath,
@@ -1318,6 +1339,7 @@ public sealed class SetupBootstrapService : ISetupBootstrapService, IDisposable
 
         try
         {
+            await EnsureVsrepoUserSiteDirectoryAsync(pythonPath, cancellationToken);
             if (refreshPackageDefinitions)
             {
                 await TryUpdateVsrepoPackageDefinitionsAsync(pythonPath, cancellationToken);
@@ -1347,6 +1369,7 @@ public sealed class SetupBootstrapService : ISetupBootstrapService, IDisposable
     {
         try
         {
+            await EnsureVsrepoUserSiteDirectoryAsync(pythonPath, cancellationToken);
             await RunProcessAsync(
                 pythonPath,
                 ["-m", "vsrepo.vsrepo", "-t", GetVsrepoTarget(), "update"],
@@ -1362,6 +1385,105 @@ public sealed class SetupBootstrapService : ISetupBootstrapService, IDisposable
                 AppDiagnosticSeverity.Warning,
                 exception: ex);
         }
+    }
+
+    private async Task EnsureVsrepoUserSiteDirectoryAsync(
+        string pythonPath,
+        CancellationToken cancellationToken)
+    {
+        const string script = "import os, site\nos.makedirs(site.getusersitepackages(), exist_ok=True)";
+        await RunProcessAsync(
+            pythonPath,
+            ["-c", script],
+            cancellationToken,
+            timeoutMs: 20_000);
+    }
+
+    private async Task EnsureVsrepoArchiveExtractorAsync(
+        string pythonPath,
+        IProgress<SetupInstallProgress>? progress,
+        CancellationToken cancellationToken)
+    {
+        var vsrepoDirectory = await GetVsrepoPackageDirectoryAsync(pythonPath, cancellationToken);
+        var bundledExtractorPath = Path.Combine(vsrepoDirectory, "7z.exe");
+        if (File.Exists(bundledExtractorPath))
+        {
+            return;
+        }
+
+        var extractorPath = Find7ZipExecutablePath();
+        if (string.IsNullOrWhiteSpace(extractorPath))
+        {
+            ReportProgress(progress, SetupDependencyKind.VsPluginBundle, 2, "Installing 7-Zip prerequisite...");
+            try
+            {
+                await RunProcessAsync(
+                    "winget.exe",
+                    ["install", "--id", "7zip.7zip", "--exact", "--source", "winget", "--accept-source-agreements", "--accept-package-agreements"],
+                    cancellationToken,
+                    timeoutMs: 600_000,
+                    onOutput: line => ReportProgress(progress, SetupDependencyKind.VsPluginBundle, 2, line),
+                    onError: line => ReportProgress(progress, SetupDependencyKind.VsPluginBundle, 2, line));
+            }
+            catch (Exception ex) when (ex is not OperationCanceledException)
+            {
+                throw new InvalidOperationException(
+                    "VS plugin installation requires 7-Zip. FlowEncode could not install it automatically.",
+                    ex);
+            }
+
+            extractorPath = Find7ZipExecutablePath();
+        }
+
+        if (string.IsNullOrWhiteSpace(extractorPath))
+        {
+            throw new InvalidOperationException(
+                "VS plugin installation requires 7-Zip. Install 7-Zip and try again.");
+        }
+
+        File.Copy(extractorPath, bundledExtractorPath, overwrite: true);
+        var extractorLibraryPath = Path.Combine(Path.GetDirectoryName(extractorPath)!, "7z.dll");
+        if (File.Exists(extractorLibraryPath))
+        {
+            File.Copy(extractorLibraryPath, Path.Combine(vsrepoDirectory, "7z.dll"), overwrite: true);
+        }
+    }
+
+    private async Task<string> GetVsrepoPackageDirectoryAsync(
+        string pythonPath,
+        CancellationToken cancellationToken)
+    {
+        const string script = "import os, vsrepo\nprint(os.path.dirname(vsrepo.__file__))";
+        var result = await RunProcessAsync(
+            pythonPath,
+            ["-c", script],
+            cancellationToken,
+            timeoutMs: 20_000);
+        var directoryPath = FirstMeaningfulLine(result.Output);
+        if (string.IsNullOrWhiteSpace(directoryPath) || !Directory.Exists(directoryPath))
+        {
+            throw new InvalidOperationException("The installed vsrepo package directory could not be located.");
+        }
+
+        return directoryPath;
+    }
+
+    private static string? Find7ZipExecutablePath()
+    {
+        var registryPath = Registry.GetValue(@"HKEY_LOCAL_MACHINE\SOFTWARE\7-Zip", "Path", null) as string;
+        var candidates = new[]
+        {
+            registryPath,
+            Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles), "7-Zip", "7z.exe"),
+            Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFilesX86), "7-Zip", "7z.exe"),
+            Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Programs", "7-Zip", "7z.exe")
+        }
+        .Where(static path => !string.IsNullOrWhiteSpace(path))
+        .Select(static path => path!.EndsWith("7z.exe", StringComparison.OrdinalIgnoreCase)
+            ? path
+            : Path.Combine(path, "7z.exe"));
+
+        return candidates.FirstOrDefault(File.Exists);
     }
 
     private static IReadOnlyDictionary<string, VsrepoInstalledPackage> ParseVsrepoInstalledPackages(string output)
