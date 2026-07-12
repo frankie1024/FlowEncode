@@ -91,10 +91,12 @@ public sealed partial class MainWindow : Window, ISettingsViewHost, IShellNaviga
         _shellSectionDefinitions = BuildShellSectionDefinitions();
         _shellSections = new MainWindowShellSectionController(ShellContentHost, CreateShellSectionControl, OnShellSectionLoaded);
         SetupGuideOverlay.Host = this;
+        UpdateSettingsNavigationItem();
 
         RootLayout.DataContext = ViewModel;
         RootLayout.ActualThemeChanged += RootLayout_ActualThemeChanged;
         RootLayout.SizeChanged += RootLayout_SizeChanged;
+        ShellContentHost.SizeChanged += ShellContentHost_SizeChanged;
         InitializeShellSections();
         _uiSettings.ColorValuesChanged += UiSettings_ColorValuesChanged;
 
@@ -183,6 +185,7 @@ public sealed partial class MainWindow : Window, ISettingsViewHost, IShellNaviga
             UpdateAdaptiveLayout(RootLayout.ActualWidth);
             await Task.Yield();
             await ViewModel.InitializeAsync();
+            UpdateSettingsNavigationItem();
             await ShowRecoveredSettingsNoticeIfNeededAsync();
             await ShowRecoveredWorkspaceNoticeIfNeededAsync();
             ApplyTheme(ViewModel.SettingsModule.CurrentThemePreference);
@@ -220,12 +223,13 @@ public sealed partial class MainWindow : Window, ISettingsViewHost, IShellNaviga
     {
         var normalizedTag = MainShellSections.Normalize(tag);
         var control = _shellSections.EnsureControl(normalizedTag);
+        var contentWidth = ResolveShellContentWidth(RootLayout.ActualWidth);
         ApplyAdaptiveLayoutToSection(
             normalizedTag,
-            RootLayout.ActualWidth,
-            CreateShellContentPadding(RootLayout.ActualWidth),
-            RootLayout.ActualWidth < 1000,
-            RootLayout.ActualWidth < 700);
+            contentWidth,
+            CreateShellContentPadding(contentWidth),
+            contentWidth < 1000,
+            contentWidth < 700);
         return control;
     }
 
@@ -503,7 +507,9 @@ public sealed partial class MainWindow : Window, ISettingsViewHost, IShellNaviga
     {
         try
         {
-            var tag = args.SelectedItemContainer?.Tag?.ToString()
+            var tag = args.IsSettingsSelected
+                ? MainShellSections.Settings
+                : args.SelectedItemContainer?.Tag?.ToString()
                 ?? (ShellNavigationView.SelectedItem as NavigationViewItem)?.Tag?.ToString()
                 ?? MainShellSections.Dashboard;
             await NavigateToShellSectionAsync(tag);
@@ -519,8 +525,14 @@ public sealed partial class MainWindow : Window, ISettingsViewHost, IShellNaviga
         UpdateAdaptiveLayout(e.NewSize.Width);
     }
 
-    private void UpdateAdaptiveLayout(double width)
+    private void ShellContentHost_SizeChanged(object sender, SizeChangedEventArgs e)
     {
+        UpdateAdaptiveLayout(e.NewSize.Width);
+    }
+
+    private void UpdateAdaptiveLayout(double fallbackWidth)
+    {
+        var width = ResolveShellContentWidth(fallbackWidth);
         if (width <= 0)
         {
             return;
@@ -536,6 +548,13 @@ public sealed partial class MainWindow : Window, ISettingsViewHost, IShellNaviga
         }
 
         SetupGuideOverlay.RefreshLayout();
+    }
+
+    private double ResolveShellContentWidth(double fallbackWidth)
+    {
+        return ShellContentHost.ActualWidth > 0
+            ? ShellContentHost.ActualWidth
+            : fallbackWidth;
     }
 
     private static Thickness CreateShellContentPadding(double width)
@@ -758,9 +777,26 @@ public sealed partial class MainWindow : Window, ISettingsViewHost, IShellNaviga
 
     private NavigationViewItem? FindNavigationItem(string tag)
     {
+        if (string.Equals(tag, MainShellSections.Settings, StringComparison.Ordinal))
+        {
+            return ShellNavigationView.SettingsItem as NavigationViewItem;
+        }
+
         return ShellNavigationView.MenuItems
             .OfType<NavigationViewItem>()
             .FirstOrDefault(item => string.Equals(item.Tag?.ToString(), tag, StringComparison.Ordinal));
+    }
+
+    private void UpdateSettingsNavigationItem()
+    {
+        if (ShellNavigationView.SettingsItem is not NavigationViewItem settingsItem)
+        {
+            return;
+        }
+
+        settingsItem.Content = ViewModel.Texts.NavSettings;
+        settingsItem.Tag = MainShellSections.Settings;
+        Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(settingsItem, ViewModel.Texts.NavSettings);
     }
 
     private void ReleaseRecreatableSectionsExcept(string activeTag)
@@ -1212,6 +1248,7 @@ public sealed partial class MainWindow : Window, ISettingsViewHost, IShellNaviga
             }
 
             ApplyTheme(ViewModel.SettingsModule.CurrentThemePreference);
+            UpdateSettingsNavigationItem();
             ApplyVapourSynthWorkspacePresentationIfLoaded();
 
             if (refreshTemplateLibrary)
@@ -1486,6 +1523,7 @@ public sealed partial class MainWindow : Window, ISettingsViewHost, IShellNaviga
         Activated -= MainWindow_Activated;
         RootLayout.ActualThemeChanged -= RootLayout_ActualThemeChanged;
         RootLayout.SizeChanged -= RootLayout_SizeChanged;
+        ShellContentHost.SizeChanged -= ShellContentHost_SizeChanged;
         _uiSettings.ColorValuesChanged -= UiSettings_ColorValuesChanged;
         AppWindow.Closing -= AppWindow_Closing;
         ReleaseWindowIcons();

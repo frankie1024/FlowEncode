@@ -34,7 +34,7 @@
             Grid.Row="1"
             AlwaysShowHeader="False"
             IsBackButtonVisible="Collapsed"
-            IsSettingsVisible="False"
+            IsSettingsVisible="True"
             OpenPaneLength="240"
             SelectionChanged="ShellNavigationView_SelectionChanged">
             <NavigationView.MenuItems>
@@ -45,7 +45,6 @@
                 <NavigationViewItem AutomationProperties.Name="{x:Bind ViewModel.Texts.NavTemplates, Mode=OneWay}" Content="{x:Bind ViewModel.Texts.NavTemplates, Mode=OneWay}" Icon="AllApps" Tag="templates" />
                 <NavigationViewItem AutomationProperties.Name="{x:Bind ViewModel.Texts.NavAudioProcessing, Mode=OneWay}" Content="{x:Bind ViewModel.Texts.NavAudioProcessing, Mode=OneWay}" Icon="Audio" Tag="audio-process" />
                 <NavigationViewItem AutomationProperties.Name="{x:Bind ViewModel.Texts.NavAutoCompression, Mode=OneWay}" Content="{x:Bind ViewModel.Texts.NavAutoCompression, Mode=OneWay}" Icon="Play" Tag="auto-compress" />
-                <NavigationViewItem AutomationProperties.Name="{x:Bind ViewModel.Texts.NavSettings, Mode=OneWay}" Content="{x:Bind ViewModel.Texts.NavSettings, Mode=OneWay}" Icon="Setting" Tag="settings" />
             </NavigationView.MenuItems>
 
             <Grid x:Name="ShellContentHost" />

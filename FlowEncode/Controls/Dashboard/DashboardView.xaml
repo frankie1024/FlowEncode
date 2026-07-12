@@ -8,12 +8,10 @@
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
     mc:Ignorable="d">
     <UserControl.Resources>
-        <SolidColorBrush x:Key="ButtonRevealBackground" Color="{ThemeResource ThemeColorCard}" />
-        <SolidColorBrush x:Key="ButtonRevealBackgroundPointerOver" Color="{ThemeResource ThemeColorCardAlt}" />
-        <SolidColorBrush x:Key="ButtonRevealBackgroundPressed" Color="{ThemeResource ThemeColorHeroSecondary}" />
-        <SolidColorBrush x:Key="ButtonRevealBorderBrush" Color="{ThemeResource ThemeColorBorderSubtle}" />
-        <SolidColorBrush x:Key="ButtonRevealBorderBrushPointerOver" Color="{ThemeResource ThemeColorBorderSubtle}" />
-        <SolidColorBrush x:Key="ButtonRevealBorderBrushPressed" Color="{ThemeResource ThemeColorBorderSubtle}" />
+        <SolidColorBrush x:Key="ButtonBackgroundPointerOver" Color="{ThemeResource ThemeColorCardAlt}" />
+        <SolidColorBrush x:Key="ButtonBackgroundPressed" Color="{ThemeResource ThemeColorHeroSecondary}" />
+        <SolidColorBrush x:Key="ButtonBorderBrushPointerOver" Color="{ThemeResource ThemeColorBorderSubtle}" />
+        <SolidColorBrush x:Key="ButtonBorderBrushPressed" Color="{ThemeResource ThemeColorBorderSubtle}" />
         <SolidColorBrush x:Key="ButtonForeground" Color="{ThemeResource ThemeColorTextPrimary}" />
         <SolidColorBrush x:Key="ButtonForegroundPointerOver" Color="{ThemeResource ThemeColorTextPrimary}" />
         <SolidColorBrush x:Key="ButtonForegroundPressed" Color="{ThemeResource ThemeColorTextPrimary}" />
@@ -36,7 +34,7 @@
             <Setter Property="IsHitTestVisible" Value="False" />
         </Style>
 
-        <Style x:Key="DashboardCardButtonStyle" TargetType="Button" BasedOn="{StaticResource ButtonRevealStyle}">
+        <Style x:Key="DashboardCardButtonStyle" TargetType="Button" BasedOn="{StaticResource DefaultButtonStyle}">
             <Setter Property="Background" Value="{ThemeResource CardBrush}" />
             <Setter Property="Foreground" Value="{ThemeResource TextFillColorPrimaryBrush}" />
             <Setter Property="BorderBrush" Value="{ThemeResource ThemeBorderHeroBrush}" />
@@ -47,6 +45,64 @@
             <Setter Property="UseSystemFocusVisuals" Value="True" />
             <Setter Property="HorizontalContentAlignment" Value="Stretch" />
             <Setter Property="VerticalContentAlignment" Value="Stretch" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border
+                            x:Name="CardRoot"
+                            Background="{TemplateBinding Background}"
+                            BorderBrush="{TemplateBinding BorderBrush}"
+                            BorderThickness="{TemplateBinding BorderThickness}"
+                            CornerRadius="{StaticResource AppCardCornerRadius}">
+                            <VisualStateManager.VisualStateGroups>
+                                <VisualStateGroup x:Name="CommonStates">
+                                    <VisualState x:Name="Normal">
+                                        <Storyboard>
+                                            <PointerUpThemeAnimation Storyboard.TargetName="CardRoot" />
+                                        </Storyboard>
+                                    </VisualState>
+                                    <VisualState x:Name="PointerOver">
+                                        <VisualState.Setters>
+                                            <Setter Target="CardRoot.Background" Value="{ThemeResource ButtonBackgroundPointerOver}" />
+                                            <Setter Target="CardRoot.BorderBrush" Value="{ThemeResource ButtonBorderBrushPointerOver}" />
+                                            <Setter Target="CardContent.Foreground" Value="{ThemeResource ButtonForegroundPointerOver}" />
+                                        </VisualState.Setters>
+                                        <Storyboard>
+                                            <PointerUpThemeAnimation Storyboard.TargetName="CardRoot" />
+                                        </Storyboard>
+                                    </VisualState>
+                                    <VisualState x:Name="Pressed">
+                                        <VisualState.Setters>
+                                            <Setter Target="CardRoot.Background" Value="{ThemeResource ButtonBackgroundPressed}" />
+                                            <Setter Target="CardRoot.BorderBrush" Value="{ThemeResource ButtonBorderBrushPressed}" />
+                                            <Setter Target="CardContent.Foreground" Value="{ThemeResource ButtonForegroundPressed}" />
+                                        </VisualState.Setters>
+                                        <Storyboard>
+                                            <PointerDownThemeAnimation Storyboard.TargetName="CardRoot" />
+                                        </Storyboard>
+                                    </VisualState>
+                                    <VisualState x:Name="Disabled">
+                                        <VisualState.Setters>
+                                            <Setter Target="CardRoot.Background" Value="{ThemeResource ButtonBackgroundDisabled}" />
+                                            <Setter Target="CardRoot.BorderBrush" Value="{ThemeResource ButtonBorderBrushDisabled}" />
+                                            <Setter Target="CardContent.Foreground" Value="{ThemeResource ButtonForegroundDisabled}" />
+                                        </VisualState.Setters>
+                                    </VisualState>
+                                </VisualStateGroup>
+                            </VisualStateManager.VisualStateGroups>
+                            <ContentPresenter
+                                x:Name="CardContent"
+                                Padding="{TemplateBinding Padding}"
+                                HorizontalContentAlignment="{TemplateBinding HorizontalContentAlignment}"
+                                VerticalContentAlignment="{TemplateBinding VerticalContentAlignment}"
+                                Content="{TemplateBinding Content}"
+                                ContentTemplate="{TemplateBinding ContentTemplate}"
+                                ContentTransitions="{TemplateBinding ContentTransitions}"
+                                Foreground="{TemplateBinding Foreground}" />
+                        </Border>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
             <Setter Property="ContentTransitions">
                 <Setter.Value>
                     <TransitionCollection>
