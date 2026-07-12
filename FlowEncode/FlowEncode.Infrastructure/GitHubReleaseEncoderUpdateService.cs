@@ -72,7 +72,10 @@ public sealed class GitHubReleaseEncoderUpdateService : IEncoderUpdateService, I
         return packages;
     }
 
-    public async Task<string> InstallUpdateAsync(EncoderUpdatePackage package, CancellationToken cancellationToken = default)
+    public async Task<string> InstallUpdateAsync(
+        EncoderUpdatePackage package,
+        CancellationToken cancellationToken = default,
+        IProgress<PackageDownloadProgress>? downloadProgress = null)
     {
         if (string.IsNullOrWhiteSpace(package.Sha256))
         {
@@ -84,7 +87,12 @@ public sealed class GitHubReleaseEncoderUpdateService : IEncoderUpdateService, I
 
         try
         {
-            await DownloadAsync(package.DownloadUrl, downloadPath, cancellationToken);
+            await ResumablePackageDownloader.DownloadAsync(
+                _downloadHttpClient,
+                package.DownloadUrl,
+                downloadPath,
+                downloadProgress,
+                cancellationToken);
             await PackageIntegrityVerifier.VerifySha256Async(
                 downloadPath,
                 package.Sha256,
@@ -358,16 +366,6 @@ public sealed class GitHubReleaseEncoderUpdateService : IEncoderUpdateService, I
             resolvedNotes,
             sha256,
             isAutomatic);
-    }
-
-    private async Task DownloadAsync(string url, string filePath, CancellationToken cancellationToken)
-    {
-        Directory.CreateDirectory(Path.GetDirectoryName(filePath)!);
-        await using var target = File.Open(filePath, FileMode.Create, FileAccess.Write, FileShare.None);
-        using var response = await _downloadHttpClient.GetAsync(url, HttpCompletionOption.ResponseHeadersRead, cancellationToken);
-        response.EnsureSuccessStatusCode();
-        await using var stream = await response.Content.ReadAsStreamAsync(cancellationToken);
-        await stream.CopyToAsync(target, cancellationToken);
     }
 
     private static string ResolveGitHubReleaseLabel(GitHubRelease release, string? assetName = null)

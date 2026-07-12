@@ -737,7 +737,10 @@ public sealed class SetupBootstrapService : ISetupBootstrapService, IDisposable
             ?? throw new InvalidOperationException($"No automatic package was found for {encoderKind.ToDisplayName()}.");
 
         ReportProgress(progress, dependencyKind, 35, $"Installing {package.ReleaseName}...");
-        await _encoderUpdateService.InstallUpdateAsync(package, cancellationToken);
+        var downloadProgress = new Progress<PackageDownloadProgress>(download =>
+            ReportPackageDownloadProgress(progress, dependencyKind, package.ReleaseName, download));
+        await _encoderUpdateService.InstallUpdateAsync(package, cancellationToken, downloadProgress);
+        ReportProgress(progress, dependencyKind, 92, "Verifying and deploying encoder files...");
         ReportProgress(progress, dependencyKind, 100, $"{encoderKind.ToDisplayName()} is ready.");
     }
 
@@ -756,7 +759,10 @@ public sealed class SetupBootstrapService : ISetupBootstrapService, IDisposable
                     : $"No automatic package was found for {toolKind.ToDisplayName()}.");
 
         ReportProgress(progress, dependencyKind, 35, $"Installing {package.ReleaseName}...");
-        await _externalToolService.InstallUpdateAsync(package, cancellationToken);
+        var downloadProgress = new Progress<PackageDownloadProgress>(download =>
+            ReportPackageDownloadProgress(progress, dependencyKind, package.ReleaseName, download));
+        await _externalToolService.InstallUpdateAsync(package, cancellationToken, downloadProgress);
+        ReportProgress(progress, dependencyKind, 92, "Verifying and deploying tool files...");
         ReportProgress(progress, dependencyKind, 100, $"{toolKind.ToDisplayName()} is ready.");
     }
 
@@ -1780,6 +1786,29 @@ public sealed class SetupBootstrapService : ISetupBootstrapService, IDisposable
             CultureInfo.InvariantCulture,
             DateTimeStyles.None,
             out buildDate);
+    }
+
+    private static void ReportPackageDownloadProgress(
+        IProgress<SetupInstallProgress>? progress,
+        SetupDependencyKind kind,
+        string packageName,
+        PackageDownloadProgress download)
+    {
+        var downloadedMegabytes = download.BytesReceived / 1024d / 1024d;
+        if (download.TotalBytes is not > 0)
+        {
+            ReportProgress(progress, kind, 35, $"Downloading {packageName}... {downloadedMegabytes:F1} MB");
+            return;
+        }
+
+        var totalMegabytes = download.TotalBytes.Value / 1024d / 1024d;
+        var ratio = Math.Clamp(download.BytesReceived / (double)download.TotalBytes.Value, 0, 1);
+        var percent = 35 + (ratio * 55);
+        ReportProgress(
+            progress,
+            kind,
+            percent,
+            $"Downloading {packageName}... {downloadedMegabytes:F1}/{totalMegabytes:F1} MB");
     }
 
     private static double MapPipProgress(string line, double finishPercent)

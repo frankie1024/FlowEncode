@@ -163,7 +163,10 @@ public sealed class LocalExternalToolService : IExternalToolService, IDisposable
         return packages;
     }
 
-    public async Task<string> InstallUpdateAsync(ExternalToolUpdatePackage package, CancellationToken cancellationToken = default)
+    public async Task<string> InstallUpdateAsync(
+        ExternalToolUpdatePackage package,
+        CancellationToken cancellationToken = default,
+        IProgress<PackageDownloadProgress>? downloadProgress = null)
     {
         if (string.IsNullOrWhiteSpace(package.Sha256))
         {
@@ -175,7 +178,12 @@ public sealed class LocalExternalToolService : IExternalToolService, IDisposable
 
         try
         {
-            await DownloadAsync(package.DownloadUrl, downloadPath, cancellationToken);
+            await ResumablePackageDownloader.DownloadAsync(
+                _downloadHttpClient,
+                package.DownloadUrl,
+                downloadPath,
+                downloadProgress,
+                cancellationToken);
         await PackageIntegrityVerifier.VerifySha256Async(
             downloadPath,
             package.Sha256,
@@ -533,16 +541,6 @@ public sealed class LocalExternalToolService : IExternalToolService, IDisposable
         {
             throw new InvalidOperationException($"压缩包包含非法路径：{entryName}");
         }
-    }
-
-    private async Task DownloadAsync(string url, string filePath, CancellationToken cancellationToken)
-    {
-        Directory.CreateDirectory(Path.GetDirectoryName(filePath)!);
-        await using var target = File.Open(filePath, FileMode.Create, FileAccess.Write, FileShare.None);
-        using var response = await _downloadHttpClient.GetAsync(url, HttpCompletionOption.ResponseHeadersRead, cancellationToken);
-        response.EnsureSuccessStatusCode();
-        await using var stream = await response.Content.ReadAsStreamAsync(cancellationToken);
-        await stream.CopyToAsync(target, cancellationToken);
     }
 
     private string GetLocalToolPath(ExternalToolKind kind)

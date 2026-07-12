@@ -15,7 +15,10 @@ public interface IExternalToolService
 
     Task<IReadOnlyList<ExternalToolUpdatePackage>> GetAvailableUpdatesAsync(CancellationToken cancellationToken = default);
 
-    Task<string> InstallUpdateAsync(ExternalToolUpdatePackage package, CancellationToken cancellationToken = default);
+    Task<string> InstallUpdateAsync(
+        ExternalToolUpdatePackage package,
+        CancellationToken cancellationToken = default,
+        IProgress<PackageDownloadProgress>? downloadProgress = null);
 
     Task RemoveManagedBinaryAsync(
         ExternalToolKind kind,
