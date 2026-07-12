@@ -13,7 +13,7 @@
         <MicaBackdrop Kind="BaseAlt" />
     </Window.SystemBackdrop>
 
-    <Grid x:Name="RootLayout" AllowDrop="True" Background="{ThemeResource WindowBackgroundBrush}" DragOver="RootLayout_DragOver" DragLeave="RootLayout_DragLeave" Drop="RootLayout_Drop">
+    <Grid x:Name="RootLayout" AllowDrop="True" Background="Transparent" DragOver="RootLayout_DragOver" DragLeave="RootLayout_DragLeave" Drop="RootLayout_Drop">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
             <RowDefinition Height="*" />
