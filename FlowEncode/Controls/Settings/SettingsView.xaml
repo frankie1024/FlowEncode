@@ -11,7 +11,7 @@
     mc:Ignorable="d">
     <ScrollViewer x:Name="SettingsScrollViewer" VerticalScrollBarVisibility="Auto">
         <StackPanel x:Name="ContentStack" Padding="{StaticResource AppPagePadding}" Spacing="{StaticResource AppSpacingL}">
-            <Border Padding="{StaticResource AppCardPadding}" Background="{ThemeResource CardBrush}" BorderBrush="{ThemeResource CardBorderBrush}" BorderThickness="{StaticResource AppCardBorderThickness}" CornerRadius="{StaticResource AppLargeCornerRadius}" Shadow="{StaticResource CardShadow}" Translation="0,0,8" DataContext="{Binding General}">
+            <Border Padding="{StaticResource AppCardPadding}" Background="{ThemeResource CardBrush}" BorderBrush="{ThemeResource CardBorderBrush}" BorderThickness="{StaticResource AppCardBorderThickness}" CornerRadius="{StaticResource AppLargeCornerRadius}" DataContext="{Binding General}">
                 <Grid x:Name="SettingsOverviewGrid" ColumnSpacing="{StaticResource AppSpacingXXL}" RowSpacing="{StaticResource AppSpacingL}">
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto" />
@@ -97,7 +97,7 @@
                 </Grid>
             </Border>
 
-            <Border Padding="{StaticResource AppCardPadding}" Background="{ThemeResource CardBrush}" BorderBrush="{ThemeResource CardBorderBrush}" BorderThickness="{StaticResource AppCardBorderThickness}" CornerRadius="{StaticResource AppLargeCornerRadius}" Shadow="{StaticResource CardShadow}" Translation="0,0,8" DataContext="{Binding Dependencies}">
+            <Border Padding="{StaticResource AppCardPadding}" Background="{ThemeResource CardBrush}" BorderBrush="{ThemeResource CardBorderBrush}" BorderThickness="{StaticResource AppCardBorderThickness}" CornerRadius="{StaticResource AppLargeCornerRadius}" DataContext="{Binding Dependencies}">
                 <StackPanel Spacing="{StaticResource AppSpacingM}">
                     <Grid ColumnSpacing="{StaticResource AppSpacingL}">
                         <Grid.ColumnDefinitions>

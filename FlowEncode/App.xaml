@@ -63,7 +63,6 @@
             <x:Double x:Key="AppSmallFontSize">12</x:Double>
 
             <!-- Shadow (Fluent Design elevation) -->
-            <ThemeShadow x:Key="CardShadow" />
             <ThemeShadow x:Key="HeroShadow" />
             <ThemeShadow x:Key="ElevatedShadow" />
 

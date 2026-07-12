@@ -41,7 +41,6 @@
             <Setter Property="BorderThickness" Value="{StaticResource AppCardBorderThickness}" />
             <Setter Property="CornerRadius" Value="{StaticResource AppCardCornerRadius}" />
             <Setter Property="Padding" Value="{StaticResource AppCardPadding}" />
-            <Setter Property="Shadow" Value="{StaticResource CardShadow}" />
             <Setter Property="UseSystemFocusVisuals" Value="True" />
             <Setter Property="HorizontalContentAlignment" Value="Stretch" />
             <Setter Property="VerticalContentAlignment" Value="Stretch" />

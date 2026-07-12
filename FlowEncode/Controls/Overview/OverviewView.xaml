@@ -21,7 +21,7 @@
                     <ColumnDefinition x:Name="OverviewSecondaryColumn" Width="1.15*" />
                 </Grid.ColumnDefinitions>
 
-                <Border x:Name="OverviewComposerPanel" Grid.Row="0" Grid.Column="0" Padding="{StaticResource AppCardPadding}" Background="{ThemeResource CardBrush}" BorderBrush="{ThemeResource CardBorderBrush}" BorderThickness="{StaticResource AppCardBorderThickness}" CornerRadius="{StaticResource AppLargeCornerRadius}" Shadow="{StaticResource CardShadow}" Translation="0,0,8" VerticalAlignment="Stretch" DataContext="{Binding Composer}">
+                <Border x:Name="OverviewComposerPanel" Grid.Row="0" Grid.Column="0" Padding="{StaticResource AppCardPadding}" Background="{ThemeResource CardBrush}" BorderBrush="{ThemeResource CardBorderBrush}" BorderThickness="{StaticResource AppCardBorderThickness}" CornerRadius="{StaticResource AppLargeCornerRadius}" VerticalAlignment="Stretch" DataContext="{Binding Composer}">
                     <Grid RowSpacing="{StaticResource AppSpacingM}">
                         <Grid.RowDefinitions>
                             <RowDefinition Height="Auto" />
@@ -278,7 +278,7 @@
                     </Grid>
                 </Border>
 
-                <Border x:Name="OverviewQueuePanel" Grid.Row="0" Grid.Column="1" Padding="{StaticResource AppCardPadding}" Background="{ThemeResource CardBrush}" BorderBrush="{ThemeResource CardBorderBrush}" BorderThickness="{StaticResource AppCardBorderThickness}" CornerRadius="{StaticResource AppLargeCornerRadius}" Shadow="{StaticResource CardShadow}" Translation="0,0,8" VerticalAlignment="Top" DataContext="{Binding Queue}">
+                <Border x:Name="OverviewQueuePanel" Grid.Row="0" Grid.Column="1" Padding="{StaticResource AppCardPadding}" Background="{ThemeResource CardBrush}" BorderBrush="{ThemeResource CardBorderBrush}" BorderThickness="{StaticResource AppCardBorderThickness}" CornerRadius="{StaticResource AppLargeCornerRadius}" VerticalAlignment="Top" DataContext="{Binding Queue}">
                     <Grid RowSpacing="{StaticResource AppSpacingM}">
                         <Grid.RowDefinitions>
                             <RowDefinition Height="Auto" />
