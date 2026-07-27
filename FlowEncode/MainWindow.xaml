@@ -34,6 +34,7 @@
             Grid.Row="1"
             AlwaysShowHeader="False"
             IsBackButtonVisible="Collapsed"
+            IsEnabled="{x:Bind ViewModel.IsWorkspaceRootChangeIdle, Mode=OneWay}"
             IsSettingsVisible="True"
             OpenPaneLength="240"
             SelectionChanged="ShellNavigationView_SelectionChanged">
@@ -95,6 +96,7 @@
             DataContext="{x:Bind ViewModel.SetupGuideModule, Mode=OneWay}"
             Grid.Row="1"
             Canvas.ZIndex="20"
+            IsEnabled="{x:Bind ViewModel.IsWorkspaceRootChangeIdle, Mode=OneWay}"
             Visibility="{x:Bind ViewModel.SetupGuideModule.SetupGuideVisibility, Mode=OneWay}" />
     </Grid>
 </Window>

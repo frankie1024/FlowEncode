@@ -36,11 +36,16 @@ public sealed class VapourSynthPreviewService : IVapourSynthPreviewService
     private IVapourSynthPreviewHostSession? _hostSession;
     private string? _activeSessionPath;
     private int _commandCounter;
+    private int _sessionOpenRequestCount;
+    private int _activeSessionState;
     private int _disposeStarted;
     private bool _stderrTracebackActive;
     private bool _disposed;
 
     public event EventHandler<VapourSynthPreviewLogEventArgs>? LogEmitted;
+
+    public bool HasActiveSession => Volatile.Read(ref _sessionOpenRequestCount) > 0
+        || Volatile.Read(ref _activeSessionState) != 0;
 
     public VapourSynthPreviewService(
         IToolProbeService toolProbeService,
@@ -70,6 +75,22 @@ public sealed class VapourSynthPreviewService : IVapourSynthPreviewService
     {
         ArgumentNullException.ThrowIfNull(request);
 
+        Interlocked.Increment(ref _sessionOpenRequestCount);
+
+        try
+        {
+            return await OpenSessionCoreAsync(request, cancellationToken);
+        }
+        finally
+        {
+            Interlocked.Decrement(ref _sessionOpenRequestCount);
+        }
+    }
+
+    private async Task<VapourSynthPreviewSessionInfo> OpenSessionCoreAsync(
+        VapourSynthPreviewOpenRequest request,
+        CancellationToken cancellationToken)
+    {
         await _stateLock.WaitAsync(cancellationToken);
 
         try
@@ -126,6 +147,7 @@ public sealed class VapourSynthPreviewService : IVapourSynthPreviewService
             }
 
             _frameTransportSession = _frameTransportFactory.CreateSession(GetMaximumFrameByteSize(outputs));
+            Volatile.Write(ref _activeSessionState, 1);
             return new VapourSynthPreviewSessionInfo(outputs);
         }
         catch (Exception)
@@ -361,6 +383,7 @@ public sealed class VapourSynthPreviewService : IVapourSynthPreviewService
         }
 
         _hostSession = null;
+        Volatile.Write(ref _activeSessionState, 0);
         _frameTransportSession?.Dispose();
         _frameTransportSession = null;
         _commandCounter = 0;

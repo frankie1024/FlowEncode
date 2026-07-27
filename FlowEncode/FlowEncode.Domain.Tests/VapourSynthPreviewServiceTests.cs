@@ -15,6 +15,7 @@ public sealed class VapourSynthPreviewServiceTests
     public async Task OpenSessionAsync_WhenReadyResponseReceived_ReturnsSortedOutputs()
     {
         using var context = CreateContext();
+        Assert.IsFalse(context.Service.HasActiveSession);
         context.Session.EnqueueResponse(CreateReadyResponseJson(
             (1, "Output B", 1280, 720, 200),
             (0, "Output A", 1920, 1080, 100)));
@@ -24,6 +25,11 @@ public sealed class VapourSynthPreviewServiceTests
         CollectionAssert.AreEqual(new[] { 0, 1 }, result.Outputs.Select(static output => output.Index).ToArray());
         Assert.AreEqual("Output A", result.Outputs[0].Name);
         Assert.AreEqual("Output B", result.Outputs[1].Name);
+        Assert.IsTrue(context.Service.HasActiveSession);
+
+        await context.Service.CloseSessionAsync();
+
+        Assert.IsFalse(context.Service.HasActiveSession);
     }
 
     [TestMethod]

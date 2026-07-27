@@ -480,8 +480,8 @@ public sealed class AppText
         "大体积运行内容会落到这里，包括 downloads、tools、encoders，以及 Templates 模板目录。轻量设置、日志和首启引导缓存仍保留在 %LocalAppData%\\FlowEncode\\data。",
         "Large runtime content lives here, including downloads, tools, encoders, and the Templates folder. Lightweight settings, logs, and setup-guide cache stay under %LocalAppData%\\FlowEncode\\data.");
     public string WorkspaceDirectoryRestartHint => Pick(
-        "修改工作目录后需要重启程序，新目录才会正式接管后续下载和托管依赖。",
-        "Restart the app after changing the workspace folder so future downloads and managed dependencies switch to the new location.");
+        "修改工作目录后会立即切换，后续下载和托管依赖将使用新目录。",
+        "Changing the workspace folder takes effect immediately; future downloads and managed dependencies use the new location.");
     public string SetupGuideButton => Pick("首启引导", "Setup Guide");
     public string SetupGuideTitle => Pick("首次启动环境引导", "First-run Environment Guide");
     public string SetupGuideDescription => Pick(
@@ -631,10 +631,13 @@ public sealed class AppText
     public string InitializationStatus => Pick("开发环境验证通过，已切换到 WinUI 3 开发流。", "Environment verified. WinUI 3 workflow is ready.");
     public string SettingsSavedStatus => Pick("设置已保存。", "Settings saved.");
     public string WorkspaceDirectoryPreparingStatus => Pick("正在准备新的工作目录...", "Preparing the new workspace folder...");
-    public string WorkspaceDirectorySavedStatus => Pick("工作目录已保存，重启后生效。", "Workspace folder saved. Restart the app to apply it.");
+    public string WorkspaceDirectorySavedStatus => Pick("工作目录已切换并立即生效。", "Workspace folder switched and is now active.");
     public string WorkspaceDirectoryChangeBlockedMessage => Pick(
-        "当前仍有进行中的任务或依赖操作。请先停止这些动作，再调整工作目录。",
-        "A job or dependency operation is still running. Stop it before changing the workspace folder.");
+        "当前存在排队或运行中的任务、预览、扫描、刷新、下载或依赖操作。请先完成、关闭、取消或清空这些操作，再调整工作目录。",
+        "A queued or running job, preview, scan, refresh, download, or dependency operation is active. Finish, close, cancel, or clear it before changing the workspace folder.");
+    public string WorkspaceDirectoryChangeInProgressMessage => Pick(
+        "正在切换工作目录，请等待切换和环境刷新完成后再启动任务。",
+        "The workspace folder is being switched. Wait for the switch and environment refresh to finish before starting a job.");
     public string WorkspaceDirectoryInvalidLocationMessage => Pick(
         "工作目录不能放在安装目录或 Program Files 下。请选择一个普通可写目录。",
         "The workspace folder cannot live inside the install directory or Program Files. Choose a normal writable folder instead.");

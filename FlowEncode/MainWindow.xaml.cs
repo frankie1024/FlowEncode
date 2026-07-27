@@ -1240,6 +1240,7 @@ public sealed partial class MainWindow : Window, ISettingsViewHost, IShellNaviga
 
         try
         {
+            var previousWorkspaceRootPath = ViewModel.AppRootPath;
             var error = ViewModel.SaveSettings();
             if (!string.IsNullOrWhiteSpace(error))
             {
@@ -1251,7 +1252,18 @@ public sealed partial class MainWindow : Window, ISettingsViewHost, IShellNaviga
             UpdateSettingsNavigationItem();
             ApplyVapourSynthWorkspacePresentationIfLoaded();
 
-            if (refreshTemplateLibrary)
+            var workspaceRootChanged = !string.Equals(
+                previousWorkspaceRootPath,
+                ViewModel.AppRootPath,
+                StringComparison.OrdinalIgnoreCase);
+            if (workspaceRootChanged)
+            {
+                await ViewModel.RefreshAsync(
+                    ViewModel.Texts.WorkspaceDirectorySavedStatus,
+                    includeUpdates: false);
+                TemplatesPanel?.RestoreCurrentTemplateSelection();
+            }
+            else if (refreshTemplateLibrary)
             {
                 ViewModel.RefreshTemplateLibraryView();
                 TemplatesPanel?.RestoreCurrentTemplateSelection();

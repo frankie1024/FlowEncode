@@ -202,8 +202,8 @@ public partial class MainWindowViewModel
     internal bool IsBluRayDiscScanning => _isBluRayDiscScanning;
     internal bool IsBluRayPlaylistLoading => _isBluRayPlaylistLoading;
     internal bool IsBluRayDemuxRunning => _isBluRayDemuxRunning;
-    internal bool CanScanBluRayDisc => !_isBluRayDiscScanning && !_isBluRayPlaylistLoading && !_isBluRayDemuxRunning && SelectedBluRayDemuxBackend is not null && !string.IsNullOrWhiteSpace(BluRayDemuxSourcePath) && GetSelectedBluRayToolState() == ReadinessState.Ready;
-    internal bool CanStartBluRayDemux => !_isBluRayDiscScanning && !_isBluRayPlaylistLoading && !_isBluRayDemuxRunning && SelectedBluRayDemuxBackend is not null && SelectedBluRayPlaylist is not null && BluRayTracks.Any(static track => track.IsSelected) && !string.IsNullOrWhiteSpace(BluRayDemuxSourcePath) && !string.IsNullOrWhiteSpace(BluRayDemuxOutputPath) && GetSelectedBluRayToolState() == ReadinessState.Ready;
+    internal bool CanScanBluRayDisc => !_isChangingWorkspaceRoot && !_isBluRayDiscScanning && !_isBluRayPlaylistLoading && !_isBluRayDemuxRunning && SelectedBluRayDemuxBackend is not null && !string.IsNullOrWhiteSpace(BluRayDemuxSourcePath) && GetSelectedBluRayToolState() == ReadinessState.Ready;
+    internal bool CanStartBluRayDemux => !_isChangingWorkspaceRoot && !_isBluRayDiscScanning && !_isBluRayPlaylistLoading && !_isBluRayDemuxRunning && SelectedBluRayDemuxBackend is not null && SelectedBluRayPlaylist is not null && BluRayTracks.Any(static track => track.IsSelected) && !string.IsNullOrWhiteSpace(BluRayDemuxSourcePath) && !string.IsNullOrWhiteSpace(BluRayDemuxOutputPath) && GetSelectedBluRayToolState() == ReadinessState.Ready;
     internal bool CanCancelBluRayDemux => _isBluRayDemuxRunning;
     internal bool CanClearBluRayDemuxTask => !_isBluRayDemuxRunning && (!string.IsNullOrWhiteSpace(BluRayDemuxSourcePath) || !string.IsNullOrWhiteSpace(BluRayDemuxOutputPath) || !string.IsNullOrWhiteSpace(BluRayDemuxCommandLine) || !string.IsNullOrWhiteSpace(BluRayDemuxLog) || BluRayPlaylists.Count > 0 || BluRayTracks.Count > 0 || !string.Equals(BluRayDemuxStatusText, Texts.BluRayDemuxIdleStatus, StringComparison.Ordinal));
     internal bool CanSelectAllBluRayTracks => BluRayTracks.Count > 0;
@@ -257,7 +257,7 @@ public partial class MainWindowViewModel
 
     internal async Task ScanBluRayDiscAsync()
     {
-        if (_isBluRayDiscScanning || _isBluRayPlaylistLoading || _isBluRayDemuxRunning)
+        if (_isChangingWorkspaceRoot || _isBluRayDiscScanning || _isBluRayPlaylistLoading || _isBluRayDemuxRunning)
         {
             return;
         }
@@ -304,7 +304,7 @@ public partial class MainWindowViewModel
 
     internal async Task LoadSelectedBluRayPlaylistAsync()
     {
-        if (_isBluRayDiscScanning || SelectedBluRayPlaylist is null)
+        if (_isChangingWorkspaceRoot || _isBluRayDiscScanning || SelectedBluRayPlaylist is null)
         {
             return;
         }
@@ -368,6 +368,11 @@ public partial class MainWindowViewModel
 
     internal async Task<string?> StartBluRayDemuxAsync()
     {
+        if (_isChangingWorkspaceRoot)
+        {
+            return Texts.WorkspaceDirectoryChangeInProgressMessage;
+        }
+
         if (_isBluRayDemuxRunning)
         {
             return Texts.BluRayDemuxAlreadyRunningError;

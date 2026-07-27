@@ -270,7 +270,8 @@ public partial class MainWindowViewModel
     internal bool IsAudioProcessingRunning => _isAudioProcessingRunning;
 
     internal bool CanStartAudioProcessing =>
-        !_isAudioProcessingRunning
+        !_isChangingWorkspaceRoot
+        && !_isAudioProcessingRunning
         && SelectedAudioWorkflow is not null
         && !string.IsNullOrWhiteSpace(AudioProcessingSourcePath)
         && !string.IsNullOrWhiteSpace(AudioProcessingOutputPath)
@@ -436,6 +437,11 @@ public partial class MainWindowViewModel
 
     internal async Task<string?> StartAudioProcessingAsync()
     {
+        if (_isChangingWorkspaceRoot)
+        {
+            return Texts.WorkspaceDirectoryChangeInProgressMessage;
+        }
+
         if (_isAudioProcessingRunning)
         {
             return Texts.AudioProcessingAlreadyRunningError;

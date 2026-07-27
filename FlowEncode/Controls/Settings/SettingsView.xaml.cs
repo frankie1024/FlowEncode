@@ -184,10 +184,21 @@ public sealed partial class SettingsView : UserControl
                 return;
             }
 
-            await Host.PersistSettingsAsync(refreshTemplateLibrary: false);
+            var persisted = await Host.PersistSettingsAsync(refreshTemplateLibrary: true);
+            if (!persisted)
+            {
+                generalViewModel.CancelPreparedWorkspaceRootChange();
+                return;
+            }
+
+            if (DependenciesViewModel is not null)
+            {
+                await DependenciesViewModel.RefreshSetupGuideAsync();
+            }
         }
         catch (Exception ex)
         {
+            GeneralViewModel?.CancelPreparedWorkspaceRootChange();
             SetupDependencyInteractionHelper.TryWriteDiagnostic(nameof(SettingsView), $"Failed to browse workspace folder. {ex.GetType().Name}: {ex.Message}");
             await ShowGeneralMessageAsync(generalViewModel.Texts.ErrorSaveSettingsFailedTitle, ex.Message);
         }

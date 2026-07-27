@@ -66,4 +66,9 @@ public sealed class SettingsGeneralViewModel : ModuleViewModelBase
     {
         return Owner.PrepareWorkspaceRootChangeAsync(proposedWorkspaceRootPath);
     }
+
+    public void CancelPreparedWorkspaceRootChange()
+    {
+        Owner.CancelPreparedWorkspaceRootChange();
+    }
 }

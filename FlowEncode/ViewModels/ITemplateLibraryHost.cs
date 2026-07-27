@@ -13,6 +13,10 @@ public interface ITemplateLibraryHost
 
     AppText Texts { get; }
 
+    bool TryBeginTemplateLibraryMutation();
+
+    void EndTemplateLibraryMutation();
+
     Task ApplyUserTemplateToDraftAsync(SavedTemplate template);
 
     void ApplySavedTemplateToDraft(SavedTemplate savedTemplate);

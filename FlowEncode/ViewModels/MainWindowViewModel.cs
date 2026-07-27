@@ -48,8 +48,10 @@ public partial class MainWindowViewModel : CommunityToolkit.Mvvm.ComponentModel.
     private readonly IEnvironmentReadinessService _environmentReadinessService;
     private readonly ISetupBootstrapService _setupBootstrapService;
     private readonly IAppUpdateService _appUpdateService;
+    private readonly IVapourSynthPreviewService _vapourSynthPreviewService;
 
     private readonly LocalAppPaths _appPaths;
+    private readonly object _workspaceOperationGate = new();
 
     private EncodingProfile? _activeProfile;
     private EnvironmentReadinessReport? _environmentReadinessReport;
@@ -57,6 +59,9 @@ public partial class MainWindowViewModel : CommunityToolkit.Mvvm.ComponentModel.
     private bool _isRefreshingCatalog;
     private bool _isCheckingUpdates;
     private bool _isDownloadingAppUpdateInstaller;
+    private bool _isChangingWorkspaceRoot;
+    private int _templateLibraryMutationCount;
+    private int _initialVsPluginDependencyRefreshCount;
     private int? _appUpdateDownloadProgressPercent;
     private AppText _texts = new(AppLanguage.Chinese);
     private string _statusText;
@@ -92,7 +97,7 @@ public partial class MainWindowViewModel : CommunityToolkit.Mvvm.ComponentModel.
     private IReadOnlyDictionary<string, string> _manualToolPaths = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
     private bool _hasRunInitialVsPluginDependencyUpdate;
     private string _workspaceRootPath = string.Empty;
-    private string _savedWorkspaceRootPath = string.Empty;
+    private string? _preparedWorkspaceRootPath;
     private AppUpdateCheckResult? _lastAppUpdateResult;
     private string? _lastAppUpdateErrorMessage;
     private EncodingJobItemViewModel? _selectedJob;
@@ -139,7 +144,8 @@ public partial class MainWindowViewModel : CommunityToolkit.Mvvm.ComponentModel.
         IEncoderDiscoveryService encoderDiscoveryService,
         IEnvironmentReadinessService environmentReadinessService,
         ISetupBootstrapService setupBootstrapService,
-        IAppUpdateService appUpdateService)
+        IAppUpdateService appUpdateService,
+        IVapourSynthPreviewService vapourSynthPreviewService)
     {
         _toolchainService = toolchainService;
         _profileLibraryService = profileLibraryService;
@@ -160,6 +166,7 @@ public partial class MainWindowViewModel : CommunityToolkit.Mvvm.ComponentModel.
         _environmentReadinessService = environmentReadinessService;
         _setupBootstrapService = setupBootstrapService;
         _appUpdateService = appUpdateService;
+        _vapourSynthPreviewService = vapourSynthPreviewService;
 
         _statusText = _texts.QueuePreparing;
         _previewTitle = _texts.InitialPreviewTitle;
@@ -239,12 +246,17 @@ public partial class MainWindowViewModel : CommunityToolkit.Mvvm.ComponentModel.
 
     internal ObservableCollection<StringChoiceOption> QueueCompletionActionOptions { get; } = [];
 
-    internal bool IsBusy => _isRefreshingCatalog
+    internal bool IsBusy => _isChangingWorkspaceRoot
+        || _isRefreshingCatalog
         || _isCheckingUpdates
         || _isDownloadingAppUpdateInstaller
         || SetupGuideModule.IsSetupGuideInstallRunning
         || SetupGuideModule.IsRefreshingSetupGuide
         || SetupGuideModule.IsCheckingSetupDependencyUpdates;
+
+    internal bool IsWorkspaceRootChangeInProgress => _isChangingWorkspaceRoot;
+
+    internal bool IsWorkspaceRootChangeIdle => !_isChangingWorkspaceRoot;
 
     internal bool IsCheckingAppUpdates => _isCheckingUpdates;
 
@@ -280,7 +292,9 @@ public partial class MainWindowViewModel : CommunityToolkit.Mvvm.ComponentModel.
                     : Symbol.Link
                 : Symbol.Refresh;
 
-    internal bool CanExecuteAppUpdateAction => !IsCheckingAppUpdates && !IsDownloadingAppUpdateInstaller;
+    internal bool CanExecuteAppUpdateAction => !_isChangingWorkspaceRoot
+        && !IsCheckingAppUpdates
+        && !IsDownloadingAppUpdateInstaller;
 
     internal Visibility AppUpdateProgressVisibility => IsAppUpdateActionInProgress
         ? Visibility.Visible
@@ -877,7 +891,8 @@ public partial class MainWindowViewModel : CommunityToolkit.Mvvm.ComponentModel.
         : BuildDraftOutputPreviewText();
 
     internal bool CanQueueJob =>
-        _activeProfile is not null
+        !_isChangingWorkspaceRoot
+        && _activeProfile is not null
         && !string.IsNullOrWhiteSpace(SourcePath)
         && !string.IsNullOrWhiteSpace(OutputPath);
 
@@ -1072,7 +1087,7 @@ public partial class MainWindowViewModel : CommunityToolkit.Mvvm.ComponentModel.
         bool includeUpdates = false,
         bool refreshEnvironmentReadiness = true)
     {
-        if (_isRefreshingCatalog)
+        if (_isRefreshingCatalog || _isChangingWorkspaceRoot)
         {
             return;
         }
@@ -1148,7 +1163,7 @@ public partial class MainWindowViewModel : CommunityToolkit.Mvvm.ComponentModel.
 
     internal async Task<AppUpdateCheckResult?> RefreshAvailableUpdatesAsync(bool reportStatus = true)
     {
-        if (_isCheckingUpdates)
+        if (_isCheckingUpdates || _isChangingWorkspaceRoot)
         {
             return null;
         }
@@ -1192,7 +1207,7 @@ public partial class MainWindowViewModel : CommunityToolkit.Mvvm.ComponentModel.
 
     internal async Task<string?> DownloadLatestAppInstallerAsync(bool reportStatus = true)
     {
-        if (_isCheckingUpdates || _isDownloadingAppUpdateInstaller)
+        if (_isCheckingUpdates || _isDownloadingAppUpdateInstaller || _isChangingWorkspaceRoot)
         {
             return null;
         }
@@ -1264,15 +1279,13 @@ public partial class MainWindowViewModel : CommunityToolkit.Mvvm.ComponentModel.
 
     internal string? SaveSettings(bool updateStatusText = true)
     {
+        var completesWorkspaceRootChange = _isChangingWorkspaceRoot;
+        var previousWorkspaceRootPath = _appPaths.RootPath;
         try
         {
             var workspaceRootPathToSave = string.IsNullOrWhiteSpace(WorkspaceRootPath)
                 ? _appPaths.RootPath
                 : WorkspaceRootPath;
-            var workspaceRootChanged = !string.Equals(
-                workspaceRootPathToSave,
-                _savedWorkspaceRootPath,
-                StringComparison.OrdinalIgnoreCase);
             var currentSettings = _settingsService.Load();
             var settings = RequestValidation.NormalizeAppSettings(new AppSettings(
                 PreferSystemEncoders,
@@ -1288,15 +1301,38 @@ public partial class MainWindowViewModel : CommunityToolkit.Mvvm.ComponentModel.
                 currentSettings.PreviewScalingAlgorithm,
                 currentSettings.LastFileDialogDirectory));
 
-            _settingsService.Save(settings);
+            var workspaceRootActivated = !string.IsNullOrWhiteSpace(_preparedWorkspaceRootPath)
+                && string.Equals(
+                    workspaceRootPathToSave,
+                    _preparedWorkspaceRootPath,
+                    StringComparison.OrdinalIgnoreCase);
+            if (workspaceRootActivated)
+            {
+                _appPaths.ActivateWorkspaceRootPath(workspaceRootPathToSave);
+            }
+
+            try
+            {
+                _settingsService.Save(settings);
+            }
+            catch
+            {
+                if (workspaceRootActivated)
+                {
+                    _appPaths.ActivateWorkspaceRootPath(previousWorkspaceRootPath);
+                }
+
+                throw;
+            }
+
+            _preparedWorkspaceRootPath = null;
+
             _encoderDiscoveryService.InvalidateCache();
             _toolProbeService.InvalidateCache();
-            _savedWorkspaceRootPath = workspaceRootPathToSave;
             WorkspaceRootPath = workspaceRootPathToSave;
             if (updateStatusText)
             {
-                StatusText = workspaceRootChanged
-                    && !string.Equals(workspaceRootPathToSave, _appPaths.RootPath, StringComparison.OrdinalIgnoreCase)
+                StatusText = workspaceRootActivated
                     ? Texts.WorkspaceDirectorySavedStatus
                     : Texts.SettingsSavedStatus;
             }
@@ -1305,8 +1341,22 @@ public partial class MainWindowViewModel : CommunityToolkit.Mvvm.ComponentModel.
         }
         catch (Exception ex)
         {
+            if (completesWorkspaceRootChange)
+            {
+                _preparedWorkspaceRootPath = null;
+                WorkspaceRootPath = _appPaths.RootPath;
+                ResumeWorkspaceRootDependentBackgroundWork();
+            }
+
             WriteDiagnostic($"SaveSettings failed. {ex.GetType().Name}: {ex.Message}");
             return ex.Message;
+        }
+        finally
+        {
+            if (completesWorkspaceRootChange)
+            {
+                SetWorkspaceRootChangeInProgress(false);
+            }
         }
     }
 
@@ -1360,6 +1410,11 @@ public partial class MainWindowViewModel : CommunityToolkit.Mvvm.ComponentModel.
 
     internal Task<string?> QueueCurrentJobAsync(bool startImmediately = false, QueueJobPreflightResult? preflight = null)
     {
+        if (_isChangingWorkspaceRoot)
+        {
+            return Task.FromResult<string?>(Texts.WorkspaceDirectoryChangeInProgressMessage);
+        }
+
         try
         {
             var hasRunningJob = GetRunningEncodingJobCount() >= GetMaxConcurrentEncodingJobCount();
@@ -1498,6 +1553,11 @@ public partial class MainWindowViewModel : CommunityToolkit.Mvvm.ComponentModel.
 
     internal string? StartSelectedJobsNow()
     {
+        if (_isChangingWorkspaceRoot)
+        {
+            return Texts.WorkspaceDirectoryChangeInProgressMessage;
+        }
+
         var selectedJobs = NormalizeSelectedQueueJobs(_selectedQueueJobs).ToList();
         if (selectedJobs.Count == 0)
         {
@@ -1620,6 +1680,11 @@ public partial class MainWindowViewModel : CommunityToolkit.Mvvm.ComponentModel.
 
     internal Task<string?> RestartJobAsync(EncodingJobItemViewModel? job)
     {
+        if (_isChangingWorkspaceRoot)
+        {
+            return Task.FromResult<string?>(Texts.WorkspaceDirectoryChangeInProgressMessage);
+        }
+
         if (job is null)
         {
             return Task.FromResult<string?>(Texts.Pick("未找到要重启的任务。", "The job to restart was not found."));
@@ -1684,6 +1749,11 @@ public partial class MainWindowViewModel : CommunityToolkit.Mvvm.ComponentModel.
 
     internal string? StartJobNow(EncodingJobItemViewModel? job)
     {
+        if (_isChangingWorkspaceRoot)
+        {
+            return Texts.WorkspaceDirectoryChangeInProgressMessage;
+        }
+
         if (job is null)
         {
             return Texts.StartJobMissingError;
@@ -1707,7 +1777,7 @@ public partial class MainWindowViewModel : CommunityToolkit.Mvvm.ComponentModel.
 
     private Task ProcessQueueAsync()
     {
-        if (_isQueueProcessing || _isShuttingDown)
+        if (_isQueueProcessing || _isShuttingDown || _isChangingWorkspaceRoot)
         {
             return Task.CompletedTask;
         }
@@ -1718,7 +1788,7 @@ public partial class MainWindowViewModel : CommunityToolkit.Mvvm.ComponentModel.
         {
             while (true)
             {
-                if (_isShuttingDown)
+                if (_isShuttingDown || _isChangingWorkspaceRoot)
                 {
                     break;
                 }
@@ -1951,7 +2021,7 @@ public partial class MainWindowViewModel : CommunityToolkit.Mvvm.ComponentModel.
 
     private async Task RunJobAsync(EncodingJobItemViewModel job)
     {
-        if (job.State != EncodingJobState.Queued || _isShuttingDown)
+        if (job.State != EncodingJobState.Queued || _isShuttingDown || _isChangingWorkspaceRoot)
         {
             return;
         }
@@ -2969,7 +3039,6 @@ public partial class MainWindowViewModel : CommunityToolkit.Mvvm.ComponentModel.
         AutoCheckUpdatesOnStartup = settings.AutoCheckUpdatesOnStartup;
         MaxConcurrentEncodingJobs = settings.MaxConcurrentEncodingJobs;
         QueueCompletionAction = settings.QueueCompletionAction;
-        _savedWorkspaceRootPath = configuredWorkspaceRootPath;
         WorkspaceRootPath = configuredWorkspaceRootPath;
         _hasCompletedSetupGuide = settings.HasSeenSetupGuide;
         _manualToolPaths = new Dictionary<string, string>(settings.EffectiveManualToolPaths, StringComparer.OrdinalIgnoreCase);
@@ -2989,6 +3058,7 @@ public partial class MainWindowViewModel : CommunityToolkit.Mvvm.ComponentModel.
         SaveSettings(updateStatusText: false);
 
         var readiness = _environmentReadinessReport;
+        Interlocked.Increment(ref _initialVsPluginDependencyRefreshCount);
         _ = Task.Run(async () =>
         {
             try
@@ -2998,6 +3068,10 @@ public partial class MainWindowViewModel : CommunityToolkit.Mvvm.ComponentModel.
             catch (Exception ex)
             {
                 WriteDiagnostic($"Initial VS plugin dependency refresh failed. {ex.GetType().Name}: {ex.Message}");
+            }
+            finally
+            {
+                Interlocked.Decrement(ref _initialVsPluginDependencyRefreshCount);
             }
         });
     }
@@ -3009,15 +3083,7 @@ public partial class MainWindowViewModel : CommunityToolkit.Mvvm.ComponentModel.
 
     internal async Task<string?> PrepareWorkspaceRootChangeAsync(string proposedWorkspaceRootPath)
     {
-        if (HasRunningJobs
-            || IsAutoCompressionRunning
-            || IsAudioProcessingRunning
-            || IsBluRayDemuxRunning
-            || _isCheckingUpdates
-            || _isDownloadingAppUpdateInstaller
-            || SetupGuideModule.IsSetupGuideInstallRunning
-            || SetupGuideModule.IsRefreshingSetupGuide
-            || SetupGuideModule.IsCheckingSetupDependencyUpdates)
+        if (_isChangingWorkspaceRoot || HasWorkspaceRootChangeBlockingWork())
         {
             return Texts.WorkspaceDirectoryChangeBlockedMessage;
         }
@@ -3038,28 +3104,136 @@ public partial class MainWindowViewModel : CommunityToolkit.Mvvm.ComponentModel.
             return Texts.WorkspaceDirectoryInvalidLocationMessage;
         }
 
-        if (string.Equals(normalizedWorkspaceRootPath, WorkspaceRootPath, StringComparison.OrdinalIgnoreCase))
+        if (string.Equals(normalizedWorkspaceRootPath, _appPaths.RootPath, StringComparison.OrdinalIgnoreCase))
         {
             WorkspaceRootPath = normalizedWorkspaceRootPath;
+            _preparedWorkspaceRootPath = null;
             return null;
         }
 
+        if (!TryBeginWorkspaceRootChange())
+        {
+            return Texts.WorkspaceDirectoryChangeBlockedMessage;
+        }
+
+        CancelWorkspaceRootDependentBackgroundWork();
         StatusText = Texts.WorkspaceDirectoryPreparingStatus;
 
         try
         {
             await Task.Run(() => _appPaths.PrepareWorkspaceRootChange(normalizedWorkspaceRootPath));
             WorkspaceRootPath = normalizedWorkspaceRootPath;
+            _preparedWorkspaceRootPath = normalizedWorkspaceRootPath;
             return null;
         }
         catch (WorkspaceRootConflictException ex)
         {
+            SetWorkspaceRootChangeInProgress(false);
+            ResumeWorkspaceRootDependentBackgroundWork();
             return Texts.WorkspaceDirectoryConflictMessage(ex.RelativePath);
         }
         catch (Exception ex)
         {
+            SetWorkspaceRootChangeInProgress(false);
+            ResumeWorkspaceRootDependentBackgroundWork();
             return ex.Message;
         }
+    }
+
+    internal void CancelPreparedWorkspaceRootChange()
+    {
+        if (!_isChangingWorkspaceRoot)
+        {
+            return;
+        }
+
+        _preparedWorkspaceRootPath = null;
+        WorkspaceRootPath = _appPaths.RootPath;
+        SetWorkspaceRootChangeInProgress(false);
+        ResumeWorkspaceRootDependentBackgroundWork();
+    }
+
+    private bool TryBeginWorkspaceRootChange()
+    {
+        lock (_workspaceOperationGate)
+        {
+            if (_isChangingWorkspaceRoot || HasWorkspaceRootChangeBlockingWork())
+            {
+                return false;
+            }
+
+            SetWorkspaceRootChangeInProgress(true);
+            return true;
+        }
+    }
+
+    private bool HasWorkspaceRootChangeBlockingWork()
+    {
+        return HasPendingQueueWork()
+            || IsAutoCompressionRunning
+            || IsAudioProcessingRunning
+            || IsBluRayDiscScanning
+            || IsBluRayPlaylistLoading
+            || IsBluRayDemuxRunning
+            || _isRefreshingCatalog
+            || _isCheckingUpdates
+            || _isDownloadingAppUpdateInstaller
+            || _vapourSynthPreviewService.HasActiveSession
+            || Volatile.Read(ref _templateLibraryMutationCount) > 0
+            || Volatile.Read(ref _initialVsPluginDependencyRefreshCount) > 0
+            || SetupGuideModule.IsSetupGuideInstallRunning
+            || SetupGuideModule.IsRefreshingSetupGuide
+            || SetupGuideModule.IsCheckingSetupDependencyUpdates;
+    }
+
+    private void CancelWorkspaceRootDependentBackgroundWork()
+    {
+        CancelPendingPreviewRefresh();
+        CancelPendingDraftInputRefresh();
+        SetDraftInputRefreshPending(false);
+        CancelPendingAutoCompressionInputRefresh();
+        SetAutoCompressionInputRefreshPending(false);
+        CancelPendingAudioProcessingInputRefresh();
+        SetAudioProcessingInputRefreshPending(false);
+        CancelAudioSourceProbeForPendingInputRefresh();
+        _isAudioSourceInfoLoading = false;
+        OnPropertyChanged(nameof(AudioSourceInfoText));
+        OnPropertyChanged(nameof(AudioWorkflowRecommendation));
+        CancelPendingBluRayDemuxInputRefresh();
+        SetBluRayDemuxInputRefreshPending(false);
+        DisposeBluRayProbeCancellation();
+        Interlocked.Increment(ref _bluRayPlaylistLoadVersion);
+    }
+
+    private void ResumeWorkspaceRootDependentBackgroundWork()
+    {
+        ScheduleDraftInputRefresh();
+        ScheduleAutoCompressionInputRefresh();
+        ScheduleAudioProcessingInputRefresh(probeSource: true);
+        ScheduleBluRayDemuxInputRefresh(resetScanState: false);
+    }
+
+    private void SetWorkspaceRootChangeInProgress(bool isChanging)
+    {
+        lock (_workspaceOperationGate)
+        {
+            if (_isChangingWorkspaceRoot == isChanging)
+            {
+                return;
+            }
+
+            _isChangingWorkspaceRoot = isChanging;
+        }
+
+        OnPropertyChanged(nameof(IsWorkspaceRootChangeInProgress));
+        OnPropertyChanged(nameof(IsWorkspaceRootChangeIdle));
+        OnPropertyChanged(nameof(IsBusy));
+        OnPropertyChanged(nameof(CanQueueJob));
+        OnPropertyChanged(nameof(CanStartAutoCompression));
+        OnPropertyChanged(nameof(CanStartAudioProcessing));
+        OnPropertyChanged(nameof(CanScanBluRayDisc));
+        OnPropertyChanged(nameof(CanStartBluRayDemux));
+        RaiseAppUpdatePropertyChanges();
     }
 
     private void SchedulePreviewRefresh()

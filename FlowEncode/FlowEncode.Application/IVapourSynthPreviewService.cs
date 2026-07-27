@@ -9,6 +9,8 @@ public interface IVapourSynthPreviewService : IDisposable
 {
     event EventHandler<VapourSynthPreviewLogEventArgs>? LogEmitted;
 
+    bool HasActiveSession { get; }
+
     Task<VapourSynthPreviewSessionInfo> OpenSessionAsync(
         VapourSynthPreviewOpenRequest request,
         CancellationToken cancellationToken = default);

@@ -206,43 +206,59 @@ public sealed class TemplateLibraryViewModel : CommunityToolkit.Mvvm.ComponentMo
             throw new InvalidOperationException(Texts.PinnedTemplateLockedMessage);
         }
 
-        await _profileLibraryService.DeleteTemplateAsync(templateId);
-        ReplaceItems(UserTemplates, await _profileLibraryService.GetUserTemplatesAsync());
-        RefreshTemplateLibraryItems();
-
-        if (string.Equals(_editingTemplateId, templateId, StringComparison.OrdinalIgnoreCase))
+        BeginWorkspaceMutation();
+        try
         {
-            _host.BeginNewTemplateDraft();
-        }
+            await _profileLibraryService.DeleteTemplateAsync(templateId);
+            ReplaceItems(UserTemplates, await _profileLibraryService.GetUserTemplatesAsync());
+            RefreshTemplateLibraryItems();
 
-        _host.RaiseSummaryPropertyChanges();
-        _host.StatusText = Texts.UserTemplateDeletedStatus;
+            if (string.Equals(_editingTemplateId, templateId, StringComparison.OrdinalIgnoreCase))
+            {
+                _host.BeginNewTemplateDraft();
+            }
+
+            _host.RaiseSummaryPropertyChanges();
+            _host.StatusText = Texts.UserTemplateDeletedStatus;
+        }
+        finally
+        {
+            _host.EndTemplateLibraryMutation();
+        }
     }
 
     public async Task<SavedTemplate> SetTemplatePinnedAsync(string templateId, bool isPinned)
     {
-        var template = FindUserTemplateById(templateId);
-        if (template is null)
+        BeginWorkspaceMutation();
+        try
         {
+            var template = FindUserTemplateById(templateId);
+            if (template is null)
+            {
+                ReplaceItems(UserTemplates, await _profileLibraryService.GetUserTemplatesAsync());
+                RefreshTemplateLibraryItems();
+                template = FindUserTemplateById(templateId);
+            }
+
+            if (template is null)
+            {
+                throw new InvalidOperationException(Texts.TemplateMissingMessage);
+            }
+
+            var updatedTemplate = await _profileLibraryService.SetTemplatePinnedAsync(template.Id, isPinned);
             ReplaceItems(UserTemplates, await _profileLibraryService.GetUserTemplatesAsync());
             RefreshTemplateLibraryItems();
-            template = FindUserTemplateById(templateId);
+            RaiseTemplateLockPropertyChanges();
+            _host.RaiseSummaryPropertyChanges();
+            _host.StatusText = isPinned
+                ? Texts.TemplatePinnedStatus(updatedTemplate.Name)
+                : Texts.TemplateUnpinnedStatus(updatedTemplate.Name);
+            return updatedTemplate;
         }
-
-        if (template is null)
+        finally
         {
-            throw new InvalidOperationException(Texts.TemplateMissingMessage);
+            _host.EndTemplateLibraryMutation();
         }
-
-        var updatedTemplate = await _profileLibraryService.SetTemplatePinnedAsync(template.Id, isPinned);
-        ReplaceItems(UserTemplates, await _profileLibraryService.GetUserTemplatesAsync());
-        RefreshTemplateLibraryItems();
-        RaiseTemplateLockPropertyChanges();
-        _host.RaiseSummaryPropertyChanges();
-        _host.StatusText = isPinned
-            ? Texts.TemplatePinnedStatus(updatedTemplate.Name)
-            : Texts.TemplateUnpinnedStatus(updatedTemplate.Name);
-        return updatedTemplate;
     }
 
     internal void CaptureTemplateEditingBaseline(
@@ -322,26 +338,42 @@ public sealed class TemplateLibraryViewModel : CommunityToolkit.Mvvm.ComponentMo
         bool isPinned,
         string statusText)
     {
-        var savedTemplate = await _profileLibraryService.SaveTemplateAsync(
-            templateName,
-            templateNotes,
-            profile,
-            templateId,
-            isPinned);
+        BeginWorkspaceMutation();
+        try
+        {
+            var savedTemplate = await _profileLibraryService.SaveTemplateAsync(
+                templateName,
+                templateNotes,
+                profile,
+                templateId,
+                isPinned);
 
-        ReplaceItems(UserTemplates, await _profileLibraryService.GetUserTemplatesAsync());
-        RefreshTemplateLibraryItems();
-        CaptureTemplateEditingBaseline(
-            savedTemplate.Id,
-            $"user:{savedTemplate.Id}",
-            savedTemplate.Name,
-            savedTemplate.Notes,
-            savedTemplate.Profile);
+            ReplaceItems(UserTemplates, await _profileLibraryService.GetUserTemplatesAsync());
+            RefreshTemplateLibraryItems();
+            CaptureTemplateEditingBaseline(
+                savedTemplate.Id,
+                $"user:{savedTemplate.Id}",
+                savedTemplate.Name,
+                savedTemplate.Notes,
+                savedTemplate.Profile);
 
-        _host.ApplySavedTemplateToDraft(savedTemplate);
-        _host.RaiseSummaryPropertyChanges();
-        _host.StatusText = statusText;
-        return savedTemplate;
+            _host.ApplySavedTemplateToDraft(savedTemplate);
+            _host.RaiseSummaryPropertyChanges();
+            _host.StatusText = statusText;
+            return savedTemplate;
+        }
+        finally
+        {
+            _host.EndTemplateLibraryMutation();
+        }
+    }
+
+    private void BeginWorkspaceMutation()
+    {
+        if (!_host.TryBeginTemplateLibraryMutation())
+        {
+            throw new InvalidOperationException(Texts.WorkspaceDirectoryChangeInProgressMessage);
+        }
     }
 
     private bool MatchesTemplateEditingBaseline()

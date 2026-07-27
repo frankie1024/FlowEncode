@@ -19,6 +19,28 @@ public partial class MainWindowViewModel : ITemplateLibraryHost
 
     AppText ITemplateLibraryHost.Texts => Texts;
 
+    bool ITemplateLibraryHost.TryBeginTemplateLibraryMutation()
+    {
+        lock (_workspaceOperationGate)
+        {
+            if (_isChangingWorkspaceRoot)
+            {
+                return false;
+            }
+
+            _templateLibraryMutationCount++;
+            return true;
+        }
+    }
+
+    void ITemplateLibraryHost.EndTemplateLibraryMutation()
+    {
+        lock (_workspaceOperationGate)
+        {
+            _templateLibraryMutationCount--;
+        }
+    }
+
     async Task ITemplateLibraryHost.ApplyUserTemplateToDraftAsync(SavedTemplate template)
     {
         ApplyProfileToDraft(

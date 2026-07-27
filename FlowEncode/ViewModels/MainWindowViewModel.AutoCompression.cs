@@ -349,7 +349,8 @@ public partial class MainWindowViewModel
     internal bool IsAutoCompressionRunning => _isAutoCompressionRunning;
 
     internal bool CanStartAutoCompression =>
-        !_isAutoCompressionRunning
+        !_isChangingWorkspaceRoot
+        && !_isAutoCompressionRunning
         && SelectedAutoEncoder is not null
         && !string.IsNullOrWhiteSpace(AutoCompressionSourcePath)
         && !string.IsNullOrWhiteSpace(AutoCompressionOutputPath);
@@ -431,6 +432,11 @@ public partial class MainWindowViewModel
 
     internal async Task<string?> StartAutoCompressionAsync()
     {
+        if (_isChangingWorkspaceRoot)
+        {
+            return Texts.WorkspaceDirectoryChangeInProgressMessage;
+        }
+
         if (_isAutoCompressionRunning)
         {
             return Texts.AutoCompressionAlreadyRunningError;

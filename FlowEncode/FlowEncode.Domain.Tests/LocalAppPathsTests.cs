@@ -147,6 +147,34 @@ public sealed class LocalAppPathsTests
         Assert.AreEqual("template", File.ReadAllText(copiedTemplatePath));
     }
 
+    [TestMethod]
+    public void ActivateWorkspaceRootPath_SwitchesAllWorkspaceDerivedPathsImmediately()
+    {
+        var paths = CreatePaths("source-workspace");
+        var targetWorkspacePath = Path.Combine(_testRoot!, "target-workspace");
+        var originalRootPath = paths.RootPath;
+
+        paths.PrepareWorkspaceRootChange(targetWorkspacePath);
+
+        Assert.AreEqual(originalRootPath, paths.RootPath);
+        Assert.AreEqual(Path.Combine(originalRootPath, "downloads"), paths.DownloadsRootPath);
+        Assert.AreEqual(Path.Combine(originalRootPath, "encoders"), paths.ToolsetRootPath);
+        Assert.AreEqual(Path.Combine(originalRootPath, "tools"), paths.ToolsRootPath);
+        Assert.AreEqual(Path.Combine(originalRootPath, "Templates"), paths.WorkspaceTemplatesRootPath);
+
+        paths.ActivateWorkspaceRootPath(targetWorkspacePath);
+
+        var normalizedTargetPath = Path.GetFullPath(targetWorkspacePath);
+        Assert.AreEqual(normalizedTargetPath, paths.RootPath);
+        Assert.AreEqual(normalizedTargetPath, paths.WorkspaceRootPath);
+        Assert.AreEqual(normalizedTargetPath, paths.ConfiguredWorkspaceRootPath);
+        Assert.AreEqual(Path.Combine(normalizedTargetPath, "downloads"), paths.DownloadsRootPath);
+        Assert.AreEqual(Path.Combine(normalizedTargetPath, "encoders"), paths.ToolsetRootPath);
+        Assert.AreEqual(Path.Combine(normalizedTargetPath, "encoders"), paths.ToolDataRootPath);
+        Assert.AreEqual(Path.Combine(normalizedTargetPath, "tools"), paths.ToolsRootPath);
+        Assert.AreEqual(Path.Combine(normalizedTargetPath, "Templates"), paths.WorkspaceTemplatesRootPath);
+    }
+
     private LocalAppPaths CreatePaths(string workspaceFolderName)
     {
         var workspaceRootPath = Path.Combine(_testRoot!, workspaceFolderName);

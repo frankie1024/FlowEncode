@@ -8,6 +8,8 @@ public sealed class LocalAppPaths
     private const string AppFolderName = "FlowEncode";
     private const string WorkspaceRootPathPropertyName = "workspaceRootPath";
     private readonly object _startupWorkspaceRecoveryGate = new();
+    private readonly object _workspaceRootChangeGate = new();
+    private WorkspacePathSet _workspacePaths = null!;
     private WorkspaceRootRecoveryInfo? _startupWorkspaceRecoveryInfo;
 
     public LocalAppPaths()
@@ -34,42 +36,33 @@ public sealed class LocalAppPaths
         SetupGuideCachePath = Path.Combine(SettingsRootPath, "setup-guide-cache.json");
 
         var configuredWorkspaceRootPath = ReadConfiguredWorkspaceRootPath(localApplicationDataPath);
-        RootPath = ResolveStartupWorkspaceRootPath(
+        var workspaceRootPath = ResolveStartupWorkspaceRootPath(
             configuredWorkspaceRootPath,
             localApplicationDataPath,
             InstallRootPath,
             startupFallbackWorkspaceRootCandidates,
             out var resolvedConfiguredWorkspaceRootPath,
             out var startupWorkspaceRecoveryInfo);
-        WorkspaceRootPath = RootPath;
+        _workspacePaths = CreateWorkspacePathSet(workspaceRootPath);
         ConfiguredWorkspaceRootPath = resolvedConfiguredWorkspaceRootPath;
         _startupWorkspaceRecoveryInfo = startupWorkspaceRecoveryInfo;
-        DownloadsRootPath = Path.Combine(RootPath, "downloads");
-        ToolDataRootPath = Path.Combine(RootPath, "encoders");
-        ToolsetRootPath = ToolDataRootPath;
-        ToolsRootPath = Path.Combine(RootPath, "tools");
-        WorkspaceTemplatesRootPath = Path.Combine(RootPath, "Templates");
 
         Directory.CreateDirectory(DataRootPath);
         Directory.CreateDirectory(SettingsRootPath);
         Directory.CreateDirectory(LocalizationRootPath);
         Directory.CreateDirectory(LogsRootPath);
-        Directory.CreateDirectory(RootPath);
-        Directory.CreateDirectory(DownloadsRootPath);
-        Directory.CreateDirectory(ToolsetRootPath);
-        Directory.CreateDirectory(ToolsRootPath);
-        Directory.CreateDirectory(WorkspaceTemplatesRootPath);
+        EnsureWorkspaceDirectories(_workspacePaths);
     }
 
     public string LocalStateRootPath { get; }
 
     public string InstallRootPath { get; }
 
-    public string RootPath { get; }
+    public string RootPath => CurrentWorkspacePaths.RootPath;
 
-    public string WorkspaceRootPath { get; }
+    public string WorkspaceRootPath => CurrentWorkspacePaths.RootPath;
 
-    public string ConfiguredWorkspaceRootPath { get; }
+    public string ConfiguredWorkspaceRootPath { get; private set; }
 
     public string DataRootPath { get; }
 
@@ -79,19 +72,21 @@ public sealed class LocalAppPaths
 
     public string LogsRootPath { get; }
 
-    public string ToolDataRootPath { get; }
+    public string ToolDataRootPath => CurrentWorkspacePaths.ToolsetRootPath;
 
-    public string ToolsetRootPath { get; }
+    public string ToolsetRootPath => CurrentWorkspacePaths.ToolsetRootPath;
 
-    public string DownloadsRootPath { get; }
+    public string DownloadsRootPath => CurrentWorkspacePaths.DownloadsRootPath;
 
-    public string ToolsRootPath { get; }
+    public string ToolsRootPath => CurrentWorkspacePaths.ToolsRootPath;
 
-    public string WorkspaceTemplatesRootPath { get; }
+    public string WorkspaceTemplatesRootPath => CurrentWorkspacePaths.WorkspaceTemplatesRootPath;
 
     public string SettingsPath { get; }
 
     public string SetupGuideCachePath { get; }
+
+    private WorkspacePathSet CurrentWorkspacePaths => Volatile.Read(ref _workspacePaths);
 
     public WorkspaceRootRecoveryInfo? ConsumeStartupWorkspaceRecoveryInfo()
     {
@@ -155,6 +150,44 @@ public sealed class LocalAppPaths
         CopyDirectoryContentsIfCompatible(ToolDataRootPath, Path.Combine(targetWorkspaceRootPath, "encoders"), "encoders");
         CopyDirectoryContentsIfCompatible(ToolsRootPath, Path.Combine(targetWorkspaceRootPath, "tools"), "tools");
         CopyDirectoryContentsIfCompatible(WorkspaceTemplatesRootPath, Path.Combine(targetWorkspaceRootPath, "Templates"), "Templates");
+    }
+
+    public void ActivateWorkspaceRootPath(string configuredWorkspaceRootPath)
+    {
+        var targetWorkspaceRootPath = NormalizeWorkspaceRootPath(configuredWorkspaceRootPath);
+        if (IsWorkspaceRootInsideInstallRoot(targetWorkspaceRootPath)
+            || IsWorkspaceRootInsideProgramFiles(targetWorkspaceRootPath))
+        {
+            throw new InvalidOperationException("The workspace folder cannot be inside the install directory or Program Files.");
+        }
+
+        lock (_workspaceRootChangeGate)
+        {
+            var workspacePaths = CreateWorkspacePathSet(targetWorkspaceRootPath);
+            EnsureWorkspaceDirectories(workspacePaths);
+            ConfiguredWorkspaceRootPath = targetWorkspaceRootPath;
+            Volatile.Write(ref _workspacePaths, workspacePaths);
+        }
+    }
+
+    private static WorkspacePathSet CreateWorkspacePathSet(string rootPath)
+    {
+        var normalizedRootPath = Path.GetFullPath(rootPath);
+        return new WorkspacePathSet(
+            normalizedRootPath,
+            Path.Combine(normalizedRootPath, "downloads"),
+            Path.Combine(normalizedRootPath, "encoders"),
+            Path.Combine(normalizedRootPath, "tools"),
+            Path.Combine(normalizedRootPath, "Templates"));
+    }
+
+    private static void EnsureWorkspaceDirectories(WorkspacePathSet workspacePaths)
+    {
+        Directory.CreateDirectory(workspacePaths.RootPath);
+        Directory.CreateDirectory(workspacePaths.DownloadsRootPath);
+        Directory.CreateDirectory(workspacePaths.ToolsetRootPath);
+        Directory.CreateDirectory(workspacePaths.ToolsRootPath);
+        Directory.CreateDirectory(workspacePaths.WorkspaceTemplatesRootPath);
     }
 
     private static void ValidateWorkspaceRootCopy(string sourceRootPath, string targetRootPath, string targetRootRelativePath)
@@ -645,6 +678,13 @@ public sealed class LocalAppPaths
             _ => throw new ArgumentOutOfRangeException(nameof(kind), kind, null)
         };
     }
+
+    private sealed record WorkspacePathSet(
+        string RootPath,
+        string DownloadsRootPath,
+        string ToolsetRootPath,
+        string ToolsRootPath,
+        string WorkspaceTemplatesRootPath);
 }
 
 public sealed record WorkspaceRootRecoveryInfo(
