@@ -114,6 +114,7 @@ public sealed class CliAudioProcessingRunner : IAudioProcessingRunner
         var deePath = await ResolveToolPathAsync(RegisteredToolKind.Dee, cancellationToken);
         var ffmpegPath = await ResolveToolPathAsync(RegisteredToolKind.Ffmpeg, cancellationToken);
         var ffprobePath = await ResolveToolPathAsync(RegisteredToolKind.Ffprobe, cancellationToken);
+        using var deewConfigLease = await DeewConfigCompatibilityLease.AcquireAsync(deewPath, cancellationToken);
 
         var outputDirectory = string.IsNullOrWhiteSpace(runPlan.ExecutionRequest.OutputPath)
             ? Environment.CurrentDirectory

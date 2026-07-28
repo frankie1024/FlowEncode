@@ -4,6 +4,7 @@ using FlowEncode.Infrastructure;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using System.Collections.Concurrent;
 using System.Diagnostics;
+using System.Text;
 
 namespace FlowEncode.Domain.Tests;
 
@@ -81,6 +82,30 @@ public sealed class CliAudioProcessingRunnerTests
         StringAssert.Contains(command, "deew.exe");
         StringAssert.Contains(command, "-np");
         StringAssert.Contains(command, "-o");
+    }
+
+    [TestMethod]
+    public void DisableDeewLogo_PreservesConfigBytesAndComments()
+    {
+        var source = Encoding.UTF8.GetBytes(
+            "# deew config\r\nlogo = 10 # selected logo\r\npath = 'D:\\\u5de5\\\u5177'\r\n");
+
+        var modified = DeewConfigCompatibilityLease.DisableLogoForTesting(source);
+
+        Assert.IsNotNull(modified);
+        Assert.AreEqual(
+            "# deew config\r\nlogo = 0 # selected logo\r\npath = 'D:\\\u5de5\\\u5177'\r\n",
+            Encoding.UTF8.GetString(modified));
+    }
+
+    [TestMethod]
+    public void DisableDeewLogo_WhenAlreadyDisabled_DoesNotRewriteConfig()
+    {
+        var source = Encoding.UTF8.GetBytes("logo = 0\n");
+
+        var modified = DeewConfigCompatibilityLease.DisableLogoForTesting(source);
+
+        Assert.IsNull(modified);
     }
 
     [TestMethod]
