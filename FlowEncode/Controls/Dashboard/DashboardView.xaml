@@ -128,7 +128,6 @@
 
                     <StackPanel x:Name="DashboardHeaderPanel" HorizontalAlignment="Left" Spacing="{StaticResource AppSpacingXS}" VerticalAlignment="Center">
                         <TextBlock x:Name="DashboardHeaderTitle" HorizontalAlignment="Left" FontFamily="{StaticResource AppDisplayFont}" FontSize="{StaticResource AppDisplayFontSize}" FontWeight="SemiBold" Text="FlowEncode" TextWrapping="WrapWholeWords" />
-                        <TextBlock HorizontalAlignment="Left" MaxWidth="760" Foreground="{ThemeResource SubtleTextBrush}" Text="{Binding Texts.DashboardDescription}" TextWrapping="WrapWholeWords" />
                     </StackPanel>
 
                     <Border x:Name="DashboardHeroIconFrame" Grid.Column="1" Width="136" Height="136" Padding="0" Background="Transparent" BorderThickness="0" CornerRadius="0">

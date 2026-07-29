@@ -25,9 +25,6 @@ public sealed class AppText
     public string NavBluRayDemux => Pick("解复用", "Demux");
     public string NavVapourSynthWorkspace => "VapourSynth";
     public string DashboardTitle => Pick("工作台", "Dashboard");
-    public string DashboardDescription => Pick(
-        "按流程快速进入对应模块：解复用、VapourSynth 脚本编辑与预览、视频压制、模板库、音频转码、自动压制与设置。",
-        "Jump straight into each workflow: demux, VapourSynth scripting and preview, video encode, templates, audio transcode, auto encode, and settings.");
     public string DashboardDemuxCardDescription => Pick(
         "扫描蓝光目录，选择播放列表与轨道，导出视频、音频和字幕。",
         "Scan a Blu-ray folder, choose a playlist and tracks, then export video, audio, and subtitles.");
