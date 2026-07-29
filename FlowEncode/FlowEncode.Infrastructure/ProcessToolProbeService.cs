@@ -892,11 +892,16 @@ public sealed class ProcessToolProbeService : IToolProbeService
                 seen);
         }
 
-        foreach (var architecture in Enum.GetValues<EncoderArchitecture>())
+        const EncoderArchitecture architecture = EncoderArchitecture.X64;
+        foreach (var path in new[]
+                 {
+                     _paths.GetBinaryPath(encoderKind, architecture),
+                     _paths.GetLegacyBinaryPath(encoderKind, architecture)
+                 }.Distinct(StringComparer.OrdinalIgnoreCase))
         {
             AppendCandidateFingerprintIfNew(
                 builder,
-                _paths.GetBinaryPath(encoderKind, architecture),
+                path,
                 ToolDetectionSource.LocalToolset,
                 architecture.ToString(),
                 seen);
@@ -1072,12 +1077,23 @@ public sealed class ProcessToolProbeService : IToolProbeService
 
         if (definition.SearchLocations.HasFlag(ToolSearchLocation.LocalToolsRoot))
         {
+            var localRoots = definition.Kind switch
+            {
+                RegisteredToolKind.Ffmpeg or RegisteredToolKind.Ffprobe =>
+                    new[] { _paths.GetManagedExternalToolDirectory(ExternalToolKind.Ffmpeg), _paths.ToolsRootPath },
+                RegisteredToolKind.Av1an =>
+                    new[] { _paths.GetManagedExternalToolDirectory(ExternalToolKind.Av1an), _paths.ToolsRootPath },
+                _ => new[] { _paths.ToolsRootPath }
+            };
             foreach (var fileName in definition.ExecutableNames)
             {
-                var candidatePath = Path.Combine(_paths.ToolsRootPath, fileName);
-                if (File.Exists(candidatePath) && seen.Add(candidatePath))
+                foreach (var localRoot in localRoots)
                 {
-                    yield return new ToolCandidate(candidatePath, ToolDetectionSource.LocalTools, "tools");
+                    var candidatePath = Path.Combine(localRoot, fileName);
+                    if (File.Exists(candidatePath) && seen.Add(candidatePath))
+                    {
+                        yield return new ToolCandidate(candidatePath, ToolDetectionSource.LocalTools, "tools");
+                    }
                 }
             }
         }

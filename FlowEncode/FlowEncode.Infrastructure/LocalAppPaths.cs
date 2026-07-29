@@ -1,4 +1,5 @@
 using FlowEncode.Domain;
+using System.Diagnostics;
 using System.Text.Json;
 
 namespace FlowEncode.Infrastructure;
@@ -34,6 +35,7 @@ public sealed class LocalAppPaths
         LogsRootPath = Path.Combine(DataRootPath, "logs");
         SettingsPath = Path.Combine(SettingsRootPath, "settings.json");
         SetupGuideCachePath = Path.Combine(SettingsRootPath, "setup-guide-cache.json");
+        EnvironmentOwnershipPath = Path.Combine(SettingsRootPath, "environment-ownership.json");
 
         var configuredWorkspaceRootPath = ReadConfiguredWorkspaceRootPath(localApplicationDataPath);
         var workspaceRootPath = ResolveStartupWorkspaceRootPath(
@@ -52,6 +54,7 @@ public sealed class LocalAppPaths
         Directory.CreateDirectory(LocalizationRootPath);
         Directory.CreateDirectory(LogsRootPath);
         EnsureWorkspaceDirectories(_workspacePaths);
+        MigrateLegacyEncoderBinaryNames(_workspacePaths);
     }
 
     public string LocalStateRootPath { get; }
@@ -85,6 +88,21 @@ public sealed class LocalAppPaths
     public string SettingsPath { get; }
 
     public string SetupGuideCachePath { get; }
+
+    public string EnvironmentOwnershipPath { get; }
+
+    public string GetManagedExternalToolDirectory(ExternalToolKind kind)
+    {
+        return Path.Combine(ToolsRootPath, kind switch
+        {
+            ExternalToolKind.Ffmpeg => "ffmpeg",
+            ExternalToolKind.Av1an => "av1an",
+            _ => throw new ArgumentOutOfRangeException(nameof(kind), kind, null)
+        });
+    }
+
+    public string GetManagedExternalToolPath(ExternalToolKind kind)
+        => Path.Combine(GetManagedExternalToolDirectory(kind), kind.ToExpectedExecutableName());
 
     private WorkspacePathSet CurrentWorkspacePaths => Volatile.Read(ref _workspacePaths);
 
@@ -165,6 +183,7 @@ public sealed class LocalAppPaths
         {
             var workspacePaths = CreateWorkspacePathSet(targetWorkspaceRootPath);
             EnsureWorkspaceDirectories(workspacePaths);
+            MigrateLegacyEncoderBinaryNames(workspacePaths);
             ConfiguredWorkspaceRootPath = targetWorkspaceRootPath;
             Volatile.Write(ref _workspacePaths, workspacePaths);
         }
@@ -668,15 +687,92 @@ public sealed class LocalAppPaths
 
     public static string GetExpectedFileName(EncoderKind kind, EncoderArchitecture architecture)
     {
-        var arch = architecture == EncoderArchitecture.X64 ? "x64" : "x86";
+        _ = architecture;
 
         return kind switch
         {
-            EncoderKind.X264 => $"x264_{arch}.exe",
-            EncoderKind.X265 => $"x265_{arch}.exe",
-            EncoderKind.SvtAv1 => $"SvtAv1EncApp_{arch}.exe",
+            EncoderKind.X264 => "x264.exe",
+            EncoderKind.X265 => "x265.exe",
+            EncoderKind.SvtAv1 => "SvtAv1EncApp.exe",
             _ => throw new ArgumentOutOfRangeException(nameof(kind), kind, null)
         };
+    }
+
+    internal string GetInstalledBinaryPath(EncoderKind kind, EncoderArchitecture architecture)
+    {
+        var canonicalPath = GetBinaryPath(kind, architecture);
+        var legacyPath = GetLegacyBinaryPath(kind, architecture);
+        if (!File.Exists(canonicalPath))
+        {
+            return File.Exists(legacyPath) ? legacyPath : canonicalPath;
+        }
+
+        if (!File.Exists(legacyPath))
+        {
+            return canonicalPath;
+        }
+
+        return File.GetLastWriteTimeUtc(legacyPath) > File.GetLastWriteTimeUtc(canonicalPath)
+            ? legacyPath
+            : canonicalPath;
+    }
+
+    internal string GetLegacyBinaryPath(EncoderKind kind, EncoderArchitecture architecture)
+    {
+        var architectureSuffix = architecture == EncoderArchitecture.X64 ? "x64" : "x86";
+        var fileName = kind switch
+        {
+            EncoderKind.X264 => $"x264_{architectureSuffix}.exe",
+            EncoderKind.X265 => $"x265_{architectureSuffix}.exe",
+            EncoderKind.SvtAv1 => $"SvtAv1EncApp_{architectureSuffix}.exe",
+            _ => throw new ArgumentOutOfRangeException(nameof(kind), kind, null)
+        };
+
+        return Path.Combine(GetBinaryDirectory(kind, architecture), fileName);
+    }
+
+    private static void MigrateLegacyEncoderBinaryNames(WorkspacePathSet workspacePaths)
+    {
+        foreach (var kind in Enum.GetValues<EncoderKind>())
+        {
+            foreach (var architecture in Enum.GetValues<EncoderArchitecture>())
+            {
+                var encoderFolder = kind.ToShortName();
+                var architectureFolder = architecture == EncoderArchitecture.X64 ? "x64" : "x86";
+                var directory = Path.Combine(workspacePaths.ToolsetRootPath, encoderFolder, architectureFolder);
+                var canonicalPath = Path.Combine(directory, GetExpectedFileName(kind, architecture));
+                var architectureSuffix = architecture == EncoderArchitecture.X64 ? "x64" : "x86";
+                var legacyFileName = kind switch
+                {
+                    EncoderKind.X264 => $"x264_{architectureSuffix}.exe",
+                    EncoderKind.X265 => $"x265_{architectureSuffix}.exe",
+                    EncoderKind.SvtAv1 => $"SvtAv1EncApp_{architectureSuffix}.exe",
+                    _ => throw new ArgumentOutOfRangeException(nameof(kind), kind, null)
+                };
+                var legacyPath = Path.Combine(directory, legacyFileName);
+                if (!File.Exists(legacyPath))
+                {
+                    continue;
+                }
+
+                try
+                {
+                    if (!File.Exists(canonicalPath)
+                        || File.GetLastWriteTimeUtc(legacyPath) > File.GetLastWriteTimeUtc(canonicalPath))
+                    {
+                        File.Move(legacyPath, canonicalPath, overwrite: true);
+                    }
+                    else
+                    {
+                        File.Delete(legacyPath);
+                    }
+                }
+                catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+                {
+                    Debug.WriteLine($"Failed to migrate legacy encoder binary '{legacyPath}' to '{canonicalPath}'. {ex}");
+                }
+            }
+        }
     }
 
     private sealed record WorkspacePathSet(

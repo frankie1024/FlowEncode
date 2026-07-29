@@ -545,6 +545,10 @@ public sealed class AppText
         IsChinese
             ? $"{dependencyLabel} 当前使用手动固定路径。继续更新会取消手动固定，并改用程序自动安装/更新的版本。是否继续？"
             : $"{dependencyLabel} currently uses a manually pinned path. Continuing will clear the manual pin and use the app-managed updated version. Continue?";
+    public string ManualToolPinnedUpdateBlocked(string dependencyLabel) =>
+        IsChinese
+            ? $"{dependencyLabel} 当前使用手动固定路径。请先确认取消固定，再执行自动更新。"
+            : $"{dependencyLabel} currently uses a manually pinned path. Confirm clearing the pin before running the automatic update.";
     public string ImportButton => Pick("导入", "Import");
     public string ExportButton => Pick("导出", "Export");
     public string InstallButton => Pick("安装", "Install");

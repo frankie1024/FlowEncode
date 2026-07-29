@@ -200,6 +200,8 @@ internal sealed class ExternalToolLocator
 
     private IEnumerable<string> GetSearchRoots()
     {
+        yield return _paths.GetManagedExternalToolDirectory(ExternalToolKind.Ffmpeg);
+        yield return _paths.GetManagedExternalToolDirectory(ExternalToolKind.Av1an);
         yield return _paths.ToolsRootPath;
 
         var path = Environment.GetEnvironmentVariable("PATH");

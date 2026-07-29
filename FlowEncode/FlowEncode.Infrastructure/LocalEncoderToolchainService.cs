@@ -40,6 +40,11 @@ public sealed class LocalEncoderToolchainService : IEncoderToolchainService
     {
         cancellationToken.ThrowIfCancellationRequested();
 
+        if (architecture != EncoderArchitecture.X64)
+        {
+            throw new InvalidOperationException("FlowEncode only manages x64 encoder binaries.");
+        }
+
         if (string.IsNullOrWhiteSpace(sourcePath))
         {
             throw new ArgumentException("Source path is required.", nameof(sourcePath));
@@ -50,13 +55,43 @@ public sealed class LocalEncoderToolchainService : IEncoderToolchainService
             throw new FileNotFoundException("The selected encoder binary was not found.", sourcePath);
         }
 
-        var targetPath = _paths.GetBinaryPath(kind, architecture);
-        var targetDirectory = Path.GetDirectoryName(targetPath) ?? _paths.ToolsetRootPath;
-        Directory.CreateDirectory(targetDirectory);
+        var sourceDirectory = Path.GetDirectoryName(sourcePath)
+            ?? throw new InvalidOperationException("The encoder source directory could not be resolved.");
+        var stagingDirectory = Path.Combine(_paths.DownloadsRootPath, $"import-{kind.ToShortName()}-{Guid.NewGuid():N}");
+        try
+        {
+            Directory.CreateDirectory(stagingDirectory);
+            foreach (var filePath in Directory.EnumerateFiles(sourceDirectory, "*", SearchOption.TopDirectoryOnly))
+            {
+                await using var sourceStream = File.Open(filePath, FileMode.Open, FileAccess.Read, FileShare.Read);
+                await using var targetStream = File.Open(
+                    Path.Combine(stagingDirectory, Path.GetFileName(filePath)),
+                    FileMode.Create,
+                    FileAccess.Write,
+                    FileShare.None);
+                await sourceStream.CopyToAsync(targetStream, cancellationToken);
+            }
 
-        await using var sourceStream = File.Open(sourcePath, FileMode.Open, FileAccess.Read, FileShare.Read);
-        await using var targetStream = File.Open(targetPath, FileMode.Create, FileAccess.Write, FileShare.None);
-        await sourceStream.CopyToAsync(targetStream, cancellationToken);
+            var selectedStagedPath = Path.Combine(stagingDirectory, Path.GetFileName(sourcePath));
+            var canonicalStagedPath = Path.Combine(stagingDirectory, GetCanonicalExecutableName(kind));
+            if (!string.Equals(selectedStagedPath, canonicalStagedPath, StringComparison.OrdinalIgnoreCase))
+            {
+                File.Move(selectedStagedPath, canonicalStagedPath, overwrite: true);
+            }
+
+            ManagedDirectoryInstaller.ReplaceDirectoryContents(
+                stagingDirectory,
+                _paths.GetBinaryDirectory(kind, architecture),
+                stagedDirectory => ValidateStagedEncoder(stagedDirectory, kind, architecture, expectedVersion: null));
+        }
+        finally
+        {
+            if (Directory.Exists(stagingDirectory))
+            {
+                Directory.Delete(stagingDirectory, recursive: true);
+            }
+        }
+
         InvalidateProbeCaches();
     }
 
@@ -70,13 +105,19 @@ public sealed class LocalEncoderToolchainService : IEncoderToolchainService
 
             foreach (var architecture in Enum.GetValues<EncoderArchitecture>())
             {
-                var path = _paths.GetBinaryPath(kind, architecture);
-                if (File.Exists(path))
+                foreach (var path in new[]
+                         {
+                             _paths.GetBinaryPath(kind, architecture),
+                             _paths.GetLegacyBinaryPath(kind, architecture)
+                         }.Distinct(StringComparer.OrdinalIgnoreCase))
                 {
-                    File.Delete(path);
+                    if (File.Exists(path))
+                    {
+                        File.Delete(path);
+                    }
                 }
 
-                TryDeleteDirectoryIfEmpty(Path.GetDirectoryName(path));
+                TryDeleteDirectoryIfEmpty(_paths.GetBinaryDirectory(kind, architecture));
             }
 
             TryDeleteDirectoryIfEmpty(Path.Combine(_paths.ToolsetRootPath, kind.ToShortName()));
@@ -85,6 +126,62 @@ public sealed class LocalEncoderToolchainService : IEncoderToolchainService
     }
 
     public string GetToolsetRootPath() => _paths.ToolsetRootPath;
+
+    internal static void ValidateStagedEncoder(
+        string stagedDirectory,
+        EncoderKind kind,
+        EncoderArchitecture architecture,
+        string? expectedVersion)
+    {
+        var executablePath = Path.Combine(stagedDirectory, GetCanonicalExecutableName(kind));
+        if (!File.Exists(executablePath))
+        {
+            throw new FileNotFoundException($"The staged {kind.ToDisplayName()} executable is missing.", executablePath);
+        }
+
+        var detectedArchitecture = EncoderBinaryProbe.DetectArchitecture(executablePath);
+        if (detectedArchitecture != architecture)
+        {
+            throw new InvalidOperationException(
+                $"The staged {kind.ToDisplayName()} executable is {detectedArchitecture}, expected {architecture}.");
+        }
+
+        var detectedVersion = EncoderBinaryProbe.ProbeVersion(executablePath, kind);
+        if (detectedVersion.Contains("probe failed", StringComparison.OrdinalIgnoreCase)
+            || detectedVersion.Contains("probe timed out", StringComparison.OrdinalIgnoreCase)
+            || detectedVersion.Contains("version string unavailable", StringComparison.OrdinalIgnoreCase))
+        {
+            throw new InvalidOperationException($"The staged {kind.ToDisplayName()} executable could not be launched: {detectedVersion}");
+        }
+
+        if (!string.IsNullOrWhiteSpace(expectedVersion)
+            && OperatingSystem.IsWindows()
+            && !SetupBootstrapService.IsInstalledVersionVerified(
+                kind switch
+                {
+                    EncoderKind.X264 => SetupDependencyKind.X264,
+                    EncoderKind.X265 => SetupDependencyKind.X265,
+                    EncoderKind.SvtAv1 => SetupDependencyKind.SvtAv1,
+                    _ => throw new ArgumentOutOfRangeException(nameof(kind), kind, null)
+                },
+                detectedVersion,
+                expectedVersion))
+        {
+            throw new InvalidOperationException(
+                $"The staged {kind.ToDisplayName()} version could not be verified. Detected: {detectedVersion}; expected: {expectedVersion}.");
+        }
+    }
+
+    private static string GetCanonicalExecutableName(EncoderKind kind)
+    {
+        return kind switch
+        {
+            EncoderKind.X264 => "x264.exe",
+            EncoderKind.X265 => "x265.exe",
+            EncoderKind.SvtAv1 => "SvtAv1EncApp.exe",
+            _ => throw new ArgumentOutOfRangeException(nameof(kind), kind, null)
+        };
+    }
 
     private static void TryDeleteDirectoryIfEmpty(string? directory)
     {
@@ -114,11 +211,10 @@ public sealed class LocalEncoderToolchainService : IEncoderToolchainService
             .Where(candidate => candidate.Kind == capability.Kind)
             .ToList();
 
-        var binaries = new[]
-        {
-            ProbeBinary(capability.Kind, EncoderArchitecture.X86),
-            ProbeBinary(capability.Kind, EncoderArchitecture.X64)
-        };
+            var binaries = new[]
+            {
+                ProbeBinary(capability.Kind, EncoderArchitecture.X64)
+            };
 
         var installedCount = binaries.Count(static binary => binary.Exists);
         var statusHeadline = systemCandidates.Count > 0
@@ -127,8 +223,7 @@ public sealed class LocalEncoderToolchainService : IEncoderToolchainService
         {
             0 when capability.IsOptional => "可选编码器未安装",
             0 => "尚未导入本地编码器",
-            1 => "已检测到 1 个本地二进制",
-            _ => "x86 / x64 工具链均已就绪"
+            _ => "x64 编码器已就绪"
         };
 
         var statusDetails = systemCandidates.Count > 0
@@ -145,10 +240,10 @@ public sealed class LocalEncoderToolchainService : IEncoderToolchainService
 
     private EncoderBinaryLocation ProbeBinary(EncoderKind kind, EncoderArchitecture architecture)
     {
-        var path = _paths.GetBinaryPath(kind, architecture);
+        var path = _paths.GetInstalledBinaryPath(kind, architecture);
         var expectedFileName = LocalAppPaths.GetExpectedFileName(kind, architecture);
         var exists = File.Exists(path);
-        var canExecute = architecture == EncoderArchitecture.X86 || Environment.Is64BitOperatingSystem;
+        var canExecute = Environment.Is64BitOperatingSystem;
 
         string detectedVersion;
         string statusLabel;

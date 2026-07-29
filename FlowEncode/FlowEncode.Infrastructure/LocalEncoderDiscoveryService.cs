@@ -151,15 +151,11 @@ public sealed class LocalEncoderDiscoveryService : IEncoderDiscoveryService
 
     private IEnumerable<DiscoveredEncoderBinary> GetLocalCandidates(EncoderKind kind)
     {
-        foreach (var architecture in Enum.GetValues<EncoderArchitecture>())
+        const EncoderArchitecture architecture = EncoderArchitecture.X64;
+        var path = _paths.GetInstalledBinaryPath(kind, architecture);
+        if (File.Exists(path))
         {
-            var path = _paths.GetBinaryPath(kind, architecture);
-            if (!File.Exists(path))
-            {
-                continue;
-            }
-
-                yield return CreateCandidate(kind, path, EncoderBinarySource.LocalToolset, "encoders");
+            yield return CreateCandidate(kind, path, EncoderBinarySource.LocalToolset, "encoders");
         }
     }
 

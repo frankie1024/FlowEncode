@@ -41,6 +41,7 @@ public sealed class LocalExternalToolService : IExternalToolService, IDisposable
         _paths = paths;
         _apiHttpClient = httpClientFactory.CreateClient(FlowEncodeHttpClientProfile.Api);
         _downloadHttpClient = httpClientFactory.CreateClient(FlowEncodeHttpClientProfile.Download);
+        MigrateLegacyManagedFiles();
     }
 
     public IReadOnlyList<DiscoveredExternalToolBinary> DiscoverSystemBinaries()
@@ -112,35 +113,44 @@ public sealed class LocalExternalToolService : IExternalToolService, IDisposable
             throw new FileNotFoundException("The selected tool binary was not found.", sourcePath);
         }
 
-        Directory.CreateDirectory(_paths.ToolsRootPath);
         var sourceDirectory = Path.GetDirectoryName(sourcePath) ?? string.Empty;
-
-        switch (kind)
+        var stagingDirectory = Path.Combine(_paths.DownloadsRootPath, $"import-{kind.ToString().ToLowerInvariant()}-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(stagingDirectory);
+        try
         {
-            case ExternalToolKind.Av1an:
+            switch (kind)
             {
-                var targetPath = GetLocalToolPath(ExternalToolKind.Av1an);
-                await CopyFileAsync(sourcePath, targetPath, cancellationToken);
-                return;
-            }
-            case ExternalToolKind.Ffmpeg:
-            {
-                var targetPath = GetLocalToolPath(ExternalToolKind.Ffmpeg);
-                await CopyFileAsync(sourcePath, targetPath, cancellationToken);
-
-                await CopySiblingIfExistsAsync(sourceDirectory, "ffprobe.exe", cancellationToken);
-                await CopySiblingIfExistsAsync(sourceDirectory, "ffplay.exe", cancellationToken);
-
-                foreach (var dllPath in Directory.EnumerateFiles(sourceDirectory, "*.dll", SearchOption.TopDirectoryOnly))
+                case ExternalToolKind.Av1an:
+                    await CopyFileAsync(sourcePath, Path.Combine(stagingDirectory, "av1an.exe"), cancellationToken);
+                    break;
+                case ExternalToolKind.Ffmpeg:
                 {
-                    var targetDllPath = Path.Combine(_paths.ToolsRootPath, Path.GetFileName(dllPath));
-                    await CopyFileAsync(dllPath, targetDllPath, cancellationToken);
-                }
+                    await CopyFileAsync(sourcePath, Path.Combine(stagingDirectory, "ffmpeg.exe"), cancellationToken);
+                    foreach (var fileName in new[] { "ffprobe.exe", "ffplay.exe" })
+                    {
+                        var siblingPath = Path.Combine(sourceDirectory, fileName);
+                        if (File.Exists(siblingPath))
+                        {
+                            await CopyFileAsync(siblingPath, Path.Combine(stagingDirectory, fileName), cancellationToken);
+                        }
+                    }
 
-                return;
+                    foreach (var dllPath in GetFfmpegRuntimeLibraryPaths(sourcePath))
+                    {
+                        await CopyFileAsync(dllPath, Path.Combine(stagingDirectory, Path.GetFileName(dllPath)), cancellationToken);
+                    }
+
+                    break;
+                }
+                default:
+                    throw new ArgumentOutOfRangeException(nameof(kind), kind, null);
             }
-            default:
-                throw new ArgumentOutOfRangeException(nameof(kind), kind, null);
+
+            InstallManagedDirectory(stagingDirectory, kind, expectedVersion: null);
+        }
+        finally
+        {
+            DeleteDirectoryQuietly(stagingDirectory);
         }
     }
 
@@ -192,9 +202,12 @@ public sealed class LocalExternalToolService : IExternalToolService, IDisposable
 
             if (downloadPath.EndsWith(".exe", StringComparison.OrdinalIgnoreCase))
             {
-                var targetPath = GetLocalToolPath(package.Kind);
-                await CopyFileAsync(downloadPath, targetPath, cancellationToken);
-                return targetPath;
+                Directory.CreateDirectory(extractRoot);
+                await CopyFileAsync(
+                    downloadPath,
+                    Path.Combine(extractRoot, package.Kind.ToExpectedExecutableName()),
+                    cancellationToken);
+                return InstallManagedDirectory(extractRoot, package.Kind, package.ReleaseName);
             }
 
             Directory.CreateDirectory(extractRoot);
@@ -202,8 +215,8 @@ public sealed class LocalExternalToolService : IExternalToolService, IDisposable
 
             var result = package.Kind switch
             {
-                ExternalToolKind.Av1an => await InstallAv1anFromExtractedAsync(extractRoot, cancellationToken),
-                ExternalToolKind.Ffmpeg => await InstallFfmpegFromExtractedAsync(extractRoot, cancellationToken),
+                ExternalToolKind.Av1an => InstallAv1anFromExtracted(extractRoot, package.ReleaseName),
+                ExternalToolKind.Ffmpeg => InstallFfmpegFromExtracted(extractRoot, package.ReleaseName),
                 _ => throw new ArgumentOutOfRangeException()
             };
 
@@ -235,43 +248,10 @@ public sealed class LocalExternalToolService : IExternalToolService, IDisposable
         {
             cancellationToken.ThrowIfCancellationRequested();
 
-            switch (kind)
+            var managedDirectory = _paths.GetManagedExternalToolDirectory(kind);
+            if (Directory.Exists(managedDirectory))
             {
-                case ExternalToolKind.Av1an:
-                    DeleteIfExists(GetLocalToolPath(ExternalToolKind.Av1an));
-                    break;
-
-                case ExternalToolKind.Ffmpeg:
-                    DeleteIfExists(Path.Combine(_paths.ToolsRootPath, "ffmpeg.exe"));
-                    DeleteIfExists(Path.Combine(_paths.ToolsRootPath, "ffmpeg64.exe"));
-                    DeleteIfExists(Path.Combine(_paths.ToolsRootPath, "ffprobe.exe"));
-                    DeleteIfExists(Path.Combine(_paths.ToolsRootPath, "ffplay.exe"));
-
-                    if (Directory.Exists(_paths.ToolsRootPath))
-                    {
-                        foreach (var pattern in new[]
-                                 {
-                                     "avcodec-*.dll",
-                                     "avdevice-*.dll",
-                                     "avfilter-*.dll",
-                                     "avformat-*.dll",
-                                     "avutil-*.dll",
-                                     "postproc-*.dll",
-                                     "swresample-*.dll",
-                                     "swscale-*.dll"
-                                 })
-                        {
-                            foreach (var path in Directory.EnumerateFiles(_paths.ToolsRootPath, pattern, SearchOption.TopDirectoryOnly))
-                            {
-                                DeleteIfExists(path);
-                            }
-                        }
-                    }
-
-                    break;
-
-                default:
-                    throw new ArgumentOutOfRangeException(nameof(kind), kind, null);
+                Directory.Delete(managedDirectory, recursive: true);
             }
         }, cancellationToken);
     }
@@ -289,11 +269,126 @@ public sealed class LocalExternalToolService : IExternalToolService, IDisposable
         AppDiagnosticsLog.Write(_paths, nameof(LocalExternalToolService), message);
     }
 
-    private static void DeleteIfExists(string path)
+    private void MigrateLegacyManagedFiles()
     {
-        if (File.Exists(path))
+        TryMigrateLegacyManagedFiles(ExternalToolKind.Av1an, ["av1an.exe"]);
+
+        var ffmpegFiles = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
         {
-            File.Delete(path);
+            "ffmpeg.exe",
+            "ffmpeg64.exe",
+            "ffprobe.exe",
+            "ffplay.exe"
+        };
+        var legacyFfmpegPath = new[]
+        {
+            Path.Combine(_paths.ToolsRootPath, "ffmpeg.exe"),
+            Path.Combine(_paths.ToolsRootPath, "ffmpeg64.exe")
+        }.FirstOrDefault(File.Exists);
+        if (!string.IsNullOrWhiteSpace(legacyFfmpegPath))
+        {
+            foreach (var dllPath in GetFfmpegRuntimeLibraryPaths(legacyFfmpegPath))
+            {
+                ffmpegFiles.Add(Path.GetFileName(dllPath));
+            }
+        }
+
+        TryMigrateLegacyManagedFiles(ExternalToolKind.Ffmpeg, ffmpegFiles);
+    }
+
+    private void TryMigrateLegacyManagedFiles(ExternalToolKind kind, IEnumerable<string> fileNames)
+    {
+        var targetDirectory = _paths.GetManagedExternalToolDirectory(kind);
+        if (Directory.Exists(targetDirectory))
+        {
+            return;
+        }
+
+        var sourcePaths = fileNames
+            .Select(fileName => Path.Combine(_paths.ToolsRootPath, fileName))
+            .Where(File.Exists)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+        if (sourcePaths.Length == 0)
+        {
+            return;
+        }
+
+        var stagingDirectory = Path.Combine(_paths.DownloadsRootPath, $"migrate-{kind.ToString().ToLowerInvariant()}-{Guid.NewGuid():N}");
+        try
+        {
+            Directory.CreateDirectory(stagingDirectory);
+            foreach (var sourcePath in sourcePaths)
+            {
+                var destinationName = kind == ExternalToolKind.Ffmpeg
+                    && Path.GetFileName(sourcePath).Equals("ffmpeg64.exe", StringComparison.OrdinalIgnoreCase)
+                        ? "ffmpeg.exe"
+                        : Path.GetFileName(sourcePath);
+                File.Copy(sourcePath, Path.Combine(stagingDirectory, destinationName), overwrite: true);
+            }
+
+            InstallManagedDirectory(stagingDirectory, kind, expectedVersion: null);
+            foreach (var sourcePath in sourcePaths)
+            {
+                File.Delete(sourcePath);
+            }
+        }
+        catch (Exception ex)
+        {
+            WriteDiagnostic($"Failed to migrate legacy {kind.ToDisplayName()} files. {ex.GetType().Name}: {ex.Message}");
+        }
+        finally
+        {
+            DeleteDirectoryQuietly(stagingDirectory);
+        }
+    }
+
+    internal static IReadOnlyList<string> GetFfmpegRuntimeLibraryPaths(string ffmpegPath)
+    {
+        if (!File.Exists(ffmpegPath))
+        {
+            return [];
+        }
+
+        try
+        {
+            var output = RunValidationProbe(ffmpegPath, "-version");
+            var sourceDirectory = Path.GetDirectoryName(ffmpegPath)!;
+            return GetFfmpegRuntimeLibraryFileNames(output)
+                .Select(fileName => Path.Combine(sourceDirectory, fileName))
+                .Where(File.Exists)
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToArray();
+        }
+        catch
+        {
+            return [];
+        }
+    }
+
+    internal static IReadOnlyList<string> GetFfmpegRuntimeLibraryFileNames(string versionOutput)
+    {
+        return Regex.Matches(
+                versionOutput ?? string.Empty,
+                @"lib(?<name>avcodec|avdevice|avfilter|avformat|avutil|postproc|swresample|swscale)\s+(?<major>\d+)\.",
+                RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)
+            .Select(match => $"{match.Groups["name"].Value.ToLowerInvariant()}-{match.Groups["major"].Value}.dll")
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+    }
+
+    private static void DeleteDirectoryQuietly(string directoryPath)
+    {
+        try
+        {
+            if (Directory.Exists(directoryPath))
+            {
+                Directory.Delete(directoryPath, recursive: true);
+            }
+        }
+        catch (Exception ex)
+        {
+            Debug.WriteLine($"Failed to delete directory '{directoryPath}'. {ex}");
         }
     }
 
@@ -415,7 +510,7 @@ public sealed class LocalExternalToolService : IExternalToolService, IDisposable
             isAutomatic);
     }
 
-    private async Task<string> InstallAv1anFromExtractedAsync(string extractRoot, CancellationToken cancellationToken)
+    private string InstallAv1anFromExtracted(string extractRoot, string expectedVersion)
     {
         var av1anPath = Directory
             .EnumerateFiles(extractRoot, "av1an.exe", SearchOption.AllDirectories)
@@ -426,12 +521,12 @@ public sealed class LocalExternalToolService : IExternalToolService, IDisposable
             throw new FileNotFoundException("压缩包内未找到 av1an.exe。");
         }
 
-        var targetPath = GetLocalToolPath(ExternalToolKind.Av1an);
-        await CopyFileAsync(av1anPath, targetPath, cancellationToken);
-        return targetPath;
+        var sourceDirectory = Path.GetDirectoryName(av1anPath)
+            ?? throw new InvalidOperationException("Unable to resolve the av1an.exe directory.");
+        return InstallManagedDirectory(sourceDirectory, ExternalToolKind.Av1an, expectedVersion);
     }
 
-    private async Task<string> InstallFfmpegFromExtractedAsync(string extractRoot, CancellationToken cancellationToken)
+    private string InstallFfmpegFromExtracted(string extractRoot, string expectedVersion)
     {
         var ffmpegPath = Directory
             .EnumerateFiles(extractRoot, "ffmpeg.exe", SearchOption.AllDirectories)
@@ -444,14 +539,96 @@ public sealed class LocalExternalToolService : IExternalToolService, IDisposable
         var sourceDirectory = Path.GetDirectoryName(ffmpegPath)
             ?? throw new InvalidOperationException("无法解析 ffmpeg.exe 所在目录。");
 
-        foreach (var file in Directory.EnumerateFiles(sourceDirectory, "*", SearchOption.TopDirectoryOnly))
+        return InstallManagedDirectory(sourceDirectory, ExternalToolKind.Ffmpeg, expectedVersion);
+    }
+
+    private string InstallManagedDirectory(
+        string sourceDirectory,
+        ExternalToolKind kind,
+        string? expectedVersion)
+    {
+        var targetDirectory = _paths.GetManagedExternalToolDirectory(kind);
+        ManagedDirectoryInstaller.ReplaceDirectoryContents(
+            sourceDirectory,
+            targetDirectory,
+            stagedDirectory => ValidateStagedToolDirectory(stagedDirectory, kind, expectedVersion));
+        return GetLocalToolPath(kind);
+    }
+
+    private static void ValidateStagedToolDirectory(
+        string stagedDirectory,
+        ExternalToolKind kind,
+        string? expectedVersion)
+    {
+        var executablePath = Path.Combine(stagedDirectory, kind.ToExpectedExecutableName());
+        if (!File.Exists(executablePath))
         {
-            var destination = Path.Combine(_paths.ToolsRootPath, Path.GetFileName(file));
-            await CopyFileAsync(file, destination, cancellationToken);
+            throw new FileNotFoundException($"The staged {kind.ToDisplayName()} executable is missing.", executablePath);
         }
 
-        return GetLocalToolPath(ExternalToolKind.Ffmpeg);
+        var versionResult = RunValidationProbe(
+            executablePath,
+            kind == ExternalToolKind.Ffmpeg ? "-version" : "--version");
+        if (!string.IsNullOrWhiteSpace(expectedVersion))
+        {
+            var dependencyKind = kind == ExternalToolKind.Ffmpeg
+                ? SetupDependencyKind.FfmpegBundle
+                : SetupDependencyKind.Av1an;
+            var detectedVersion = FirstMeaningfulLine(versionResult);
+            if (!OperatingSystem.IsWindows()
+                || !SetupBootstrapService.IsInstalledVersionVerified(dependencyKind, detectedVersion, expectedVersion))
+            {
+                throw new InvalidOperationException(
+                    $"The staged {kind.ToDisplayName()} version could not be verified. Detected: {detectedVersion}; expected: {expectedVersion}.");
+            }
+        }
+
+        if (kind == ExternalToolKind.Ffmpeg)
+        {
+            var ffprobePath = Path.Combine(stagedDirectory, "ffprobe.exe");
+            if (!File.Exists(ffprobePath))
+            {
+                throw new FileNotFoundException("The staged FFmpeg bundle does not contain ffprobe.exe.", ffprobePath);
+            }
+
+            _ = RunValidationProbe(ffprobePath, "-version");
+        }
+        else
+        {
+            _ = RunValidationProbe(executablePath, "--protocol-version");
+        }
     }
+
+    private static string RunValidationProbe(string executablePath, string arguments)
+    {
+        using var _ = ErrorDialogSuppression.Enter();
+        var result = ProcessProbeRunner.Run(
+            new ProcessStartInfo
+            {
+                FileName = executablePath,
+                Arguments = arguments,
+                UseShellExecute = false,
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+                CreateNoWindow = true,
+                WorkingDirectory = Path.GetDirectoryName(executablePath) ?? string.Empty
+            },
+            TimeSpan.FromSeconds(20),
+            $"Validation timed out for {Path.GetFileName(executablePath)}.");
+        if (result.ExitCode != 0)
+        {
+            throw new InvalidOperationException(
+                $"Validation failed for {Path.GetFileName(executablePath)} with exit code {result.ExitCode}: "
+                + FirstMeaningfulLine(string.Concat(result.StandardOutput, Environment.NewLine, result.StandardError)));
+        }
+
+        return string.Concat(result.StandardOutput, Environment.NewLine, result.StandardError).Trim();
+    }
+
+    private static string FirstMeaningfulLine(string value)
+        => value.Split(['\r', '\n'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .FirstOrDefault(static line => !string.IsNullOrWhiteSpace(line))
+            ?? string.Empty;
 
     private static async Task CopyFileAsync(string sourcePath, string targetPath, CancellationToken cancellationToken)
     {
@@ -464,23 +641,6 @@ public sealed class LocalExternalToolService : IExternalToolService, IDisposable
         await using var source = File.Open(sourcePath, FileMode.Open, FileAccess.Read, FileShare.Read);
         await using var target = File.Open(targetPath, FileMode.Create, FileAccess.Write, FileShare.None);
         await source.CopyToAsync(target, cancellationToken);
-    }
-
-    private async Task CopySiblingIfExistsAsync(string sourceDirectory, string fileName, CancellationToken cancellationToken)
-    {
-        if (string.IsNullOrWhiteSpace(sourceDirectory))
-        {
-            return;
-        }
-
-        var sourcePath = Path.Combine(sourceDirectory, fileName);
-        if (!File.Exists(sourcePath))
-        {
-            return;
-        }
-
-        var targetPath = Path.Combine(_paths.ToolsRootPath, fileName);
-        await CopyFileAsync(sourcePath, targetPath, cancellationToken);
     }
 
     private static void ExtractArchive(string archivePath, string extractRoot)
@@ -545,7 +705,7 @@ public sealed class LocalExternalToolService : IExternalToolService, IDisposable
 
     private string GetLocalToolPath(ExternalToolKind kind)
     {
-        return Path.Combine(_paths.ToolsRootPath, kind.ToExpectedExecutableName());
+        return _paths.GetManagedExternalToolPath(kind);
     }
 
     private DiscoveredExternalToolBinary CreateCandidate(

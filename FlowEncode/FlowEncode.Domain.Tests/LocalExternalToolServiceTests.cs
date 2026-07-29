@@ -77,4 +77,24 @@ public sealed class LocalExternalToolServiceTests
     {
         Assert.IsFalse(LocalExternalToolService.ContainsUnstableReleaseMarker(value));
     }
+
+    [TestMethod]
+    public void GetFfmpegRuntimeLibraryFileNames_UsesReportedMajorVersionsOnly()
+    {
+        const string output = """
+            ffmpeg version N-123
+            libavutil      61.  3.100 / 61.  3.100
+            libavcodec     63.  5.100 / 63.  5.100
+            libavformat    63.  2.100 / 63.  2.100
+            libswresample   7.  1.100 /  7.  1.100
+            """;
+
+        var names = LocalExternalToolService.GetFfmpegRuntimeLibraryFileNames(output);
+
+        CollectionAssert.AreEquivalent(
+            new[] { "avutil-61.dll", "avcodec-63.dll", "avformat-63.dll", "swresample-7.dll" },
+            names.ToArray());
+        Assert.IsFalse(names.Contains("avcodec-54.dll", StringComparer.OrdinalIgnoreCase));
+        Assert.IsFalse(names.Contains("avutil-52.dll", StringComparer.OrdinalIgnoreCase));
+    }
 }

@@ -49,6 +49,7 @@ public partial class MainWindowViewModel : CommunityToolkit.Mvvm.ComponentModel.
     private readonly ISetupBootstrapService _setupBootstrapService;
     private readonly IAppUpdateService _appUpdateService;
     private readonly IVapourSynthPreviewService _vapourSynthPreviewService;
+    private readonly CliEnvironmentIntegrationService _cliEnvironmentIntegrationService;
 
     private readonly LocalAppPaths _appPaths;
     private readonly object _workspaceOperationGate = new();
@@ -145,7 +146,8 @@ public partial class MainWindowViewModel : CommunityToolkit.Mvvm.ComponentModel.
         IEnvironmentReadinessService environmentReadinessService,
         ISetupBootstrapService setupBootstrapService,
         IAppUpdateService appUpdateService,
-        IVapourSynthPreviewService vapourSynthPreviewService)
+        IVapourSynthPreviewService vapourSynthPreviewService,
+        CliEnvironmentIntegrationService cliEnvironmentIntegrationService)
     {
         _toolchainService = toolchainService;
         _profileLibraryService = profileLibraryService;
@@ -167,6 +169,7 @@ public partial class MainWindowViewModel : CommunityToolkit.Mvvm.ComponentModel.
         _setupBootstrapService = setupBootstrapService;
         _appUpdateService = appUpdateService;
         _vapourSynthPreviewService = vapourSynthPreviewService;
+        _cliEnvironmentIntegrationService = cliEnvironmentIntegrationService;
 
         _statusText = _texts.QueuePreparing;
         _previewTitle = _texts.InitialPreviewTitle;
@@ -1306,20 +1309,23 @@ public partial class MainWindowViewModel : CommunityToolkit.Mvvm.ComponentModel.
                     workspaceRootPathToSave,
                     _preparedWorkspaceRootPath,
                     StringComparison.OrdinalIgnoreCase);
-            if (workspaceRootActivated)
-            {
-                _appPaths.ActivateWorkspaceRootPath(workspaceRootPathToSave);
-            }
-
             try
             {
+                if (workspaceRootActivated)
+                {
+                    _appPaths.ActivateWorkspaceRootPath(workspaceRootPathToSave);
+                    _cliEnvironmentIntegrationService.Synchronize();
+                }
+
                 _settingsService.Save(settings);
             }
             catch
             {
-                if (workspaceRootActivated)
+                if (workspaceRootActivated
+                    && !string.Equals(_appPaths.RootPath, previousWorkspaceRootPath, StringComparison.OrdinalIgnoreCase))
                 {
                     _appPaths.ActivateWorkspaceRootPath(previousWorkspaceRootPath);
+                    _cliEnvironmentIntegrationService.Synchronize();
                 }
 
                 throw;

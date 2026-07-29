@@ -77,6 +77,15 @@ public partial class App : Microsoft.UI.Xaml.Application
 
         var launchActivation = GetService<AppLaunchActivation>();
         launchActivation.SetRequestedVapourSynthFilePath(ResolveRequestedVapourSynthFilePath());
+        try
+        {
+            GetService<CliEnvironmentIntegrationService>().Synchronize();
+        }
+        catch (Exception ex)
+        {
+            TryWriteAppExceptionDiagnostic("Synchronize CLI environment", ex, AppDiagnosticSeverity.Warning);
+        }
+
         _window = GetService<MainWindow>();
         _window.Closed += MainWindow_Closed;
 
@@ -112,6 +121,7 @@ public partial class App : Microsoft.UI.Xaml.Application
         services.AddSingleton<IQueueCompletionActionService, WindowsQueueCompletionActionService>();
         services.AddSingleton<ISystemIdleService, WindowsSystemIdleService>();
         services.AddSingleton<ISetupGuideCacheService, LocalSetupGuideCacheService>();
+        services.AddSingleton<CliEnvironmentIntegrationService>();
         services.AddSingleton<IToolRegistryService, DefaultToolRegistryService>();
         services.AddSingleton<IToolProbeService, ProcessToolProbeService>();
         services.AddSingleton<IEnvironmentReadinessService, EnvironmentReadinessService>();

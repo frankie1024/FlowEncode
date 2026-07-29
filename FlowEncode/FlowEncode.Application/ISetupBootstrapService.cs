@@ -26,4 +26,6 @@ public interface ISetupBootstrapService
         SetupDependencyKind kind,
         IProgress<SetupInstallProgress>? progress = null,
         CancellationToken cancellationToken = default);
+
+    bool CanUninstall(SetupDependencyKind kind);
 }

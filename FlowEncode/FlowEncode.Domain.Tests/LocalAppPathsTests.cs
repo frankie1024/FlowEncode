@@ -175,6 +175,71 @@ public sealed class LocalAppPathsTests
         Assert.AreEqual(Path.Combine(normalizedTargetPath, "Templates"), paths.WorkspaceTemplatesRootPath);
     }
 
+    [TestMethod]
+    public void GetExpectedFileName_UsesUpstreamExecutableNames()
+    {
+        Assert.AreEqual("x264.exe", LocalAppPaths.GetExpectedFileName(EncoderKind.X264, EncoderArchitecture.X64));
+        Assert.AreEqual("x265.exe", LocalAppPaths.GetExpectedFileName(EncoderKind.X265, EncoderArchitecture.X64));
+        Assert.AreEqual("SvtAv1EncApp.exe", LocalAppPaths.GetExpectedFileName(EncoderKind.SvtAv1, EncoderArchitecture.X64));
+    }
+
+    [TestMethod]
+    public void Constructor_MigratesLegacyEncoderBinaryToUpstreamName()
+    {
+        var workspaceRootPath = Path.Combine(_testRoot!, "workspace");
+        var localApplicationDataPath = Path.Combine(_testRoot!, "local-state");
+        var installRootPath = Path.Combine(_testRoot!, "install-root");
+        var encoderDirectory = Path.Combine(workspaceRootPath, "encoders", "x264", "x64");
+        var legacyPath = Path.Combine(encoderDirectory, "x264_x64.exe");
+        Directory.CreateDirectory(encoderDirectory);
+        Directory.CreateDirectory(installRootPath);
+        File.WriteAllText(legacyPath, "legacy-binary");
+        WriteSettings(localApplicationDataPath, workspaceRootPath);
+
+        var paths = new LocalAppPaths(localApplicationDataPath, installRootPath);
+
+        var canonicalPath = paths.GetBinaryPath(EncoderKind.X264, EncoderArchitecture.X64);
+        Assert.AreEqual("x264.exe", Path.GetFileName(canonicalPath));
+        Assert.AreEqual("legacy-binary", File.ReadAllText(canonicalPath));
+        Assert.IsFalse(File.Exists(legacyPath));
+    }
+
+    [TestMethod]
+    public void Constructor_WhenLegacyEncoderIsNewer_ReplacesStaleCanonicalBinary()
+    {
+        var workspaceRootPath = Path.Combine(_testRoot!, "workspace");
+        var localApplicationDataPath = Path.Combine(_testRoot!, "local-state");
+        var installRootPath = Path.Combine(_testRoot!, "install-root");
+        var encoderDirectory = Path.Combine(workspaceRootPath, "encoders", "x265", "x64");
+        var canonicalPath = Path.Combine(encoderDirectory, "x265.exe");
+        var legacyPath = Path.Combine(encoderDirectory, "x265_x64.exe");
+        Directory.CreateDirectory(encoderDirectory);
+        Directory.CreateDirectory(installRootPath);
+        File.WriteAllText(canonicalPath, "stale-canonical");
+        File.WriteAllText(legacyPath, "newer-manual-import");
+        File.SetLastWriteTimeUtc(canonicalPath, DateTime.UtcNow.AddMinutes(-2));
+        File.SetLastWriteTimeUtc(legacyPath, DateTime.UtcNow.AddMinutes(-1));
+        WriteSettings(localApplicationDataPath, workspaceRootPath);
+
+        _ = new LocalAppPaths(localApplicationDataPath, installRootPath);
+
+        Assert.AreEqual("newer-manual-import", File.ReadAllText(canonicalPath));
+        Assert.IsFalse(File.Exists(legacyPath));
+    }
+
+    [TestMethod]
+    public void ManagedExternalToolPaths_UseDedicatedStableDirectories()
+    {
+        var paths = CreatePaths("managed-tools");
+
+        Assert.AreEqual(
+            Path.Combine(paths.ToolsRootPath, "ffmpeg", "ffmpeg.exe"),
+            paths.GetManagedExternalToolPath(ExternalToolKind.Ffmpeg));
+        Assert.AreEqual(
+            Path.Combine(paths.ToolsRootPath, "av1an", "av1an.exe"),
+            paths.GetManagedExternalToolPath(ExternalToolKind.Av1an));
+    }
+
     private LocalAppPaths CreatePaths(string workspaceFolderName)
     {
         var workspaceRootPath = Path.Combine(_testRoot!, workspaceFolderName);

@@ -323,6 +323,11 @@ public sealed class SetupGuideViewModel : ObservableObject, ISetupDependencyModu
             return Texts.InstallAlreadyRunning;
         }
 
+        if (HasManualPinnedSetupDependency(kind) && !RequiresSetupDependencyManualImport(kind))
+        {
+            return Texts.ManualToolPinnedUpdateBlocked(GetSetupDependencyTitle(kind));
+        }
+
         _isSetupGuideInstallRunning = true;
         _host.NotifyBusyChanged();
         item.BeginOperation();
@@ -775,7 +780,7 @@ public sealed class SetupGuideViewModel : ObservableObject, ISetupDependencyModu
                 0,
                 Texts.Pick("Python", "Python"),
                 Texts.Pick("首个必须项。后续所有 Python 侧安装动作都依赖这里。", "The first required step. All Python-side installs depend on this card."),
-                Texts.Pick("默认目标固定为官方 Windows x64 的 Python 3.12.10。只要存在任意 3.12.x，就视为已安装。", "The default target is the official Windows x64 Python 3.12.10. Any 3.12.x install counts as ready."),
+                Texts.Pick("自动选择 Python 官方当前受支持的 Windows x64 安装器；Python 3.12 或更新的 x64 版本均可使用。", "FlowEncode selects a currently supported official Windows x64 installer. Python 3.12 or newer x64 is supported."),
                 [BuildSetupDependencyItem(SetupDependencyKind.Python312)]),
             CreateCard(
                 1,
@@ -1022,7 +1027,7 @@ public sealed class SetupGuideViewModel : ObservableObject, ISetupDependencyModu
         var isManualPinned = HasManualPinnedSetupDependency(kind);
         var statusText = BuildSetupStatusText(kind, status);
         var warningText = BuildSetupWarningText(kind, status, isInstalled, canUninstall, hasUpdateAvailable, isManualPinned);
-        var primaryActionText = GetSetupPrimaryActionText(kind, isInstalled, hasUpdateAvailable);
+        var primaryActionText = GetSetupPrimaryActionText(kind, status, isInstalled, hasUpdateAvailable);
 
         return new SetupGuideDependencyItemViewModel(
             kind,
@@ -1034,7 +1039,7 @@ public sealed class SetupGuideViewModel : ObservableObject, ISetupDependencyModu
             string.IsNullOrWhiteSpace(status.InstalledVersion)
                 ? string.Empty
                 : Texts.Pick($"已装：{status.InstalledVersion}", $"Installed: {status.InstalledVersion}"),
-            string.IsNullOrWhiteSpace(status.LatestVersion)
+            kind == SetupDependencyKind.VsPluginBundle || string.IsNullOrWhiteSpace(status.LatestVersion)
                 ? string.Empty
                 : Texts.Pick($"最新：{status.LatestVersion}", $"Latest: {status.LatestVersion}"),
             warningText,
@@ -1060,23 +1065,40 @@ public sealed class SetupGuideViewModel : ObservableObject, ISetupDependencyModu
     private SetupDependencyStatus BuildFallbackSetupStatus(SetupDependencyKind kind)
     {
         var python = GetToolResult(RegisteredToolKind.Python);
-        var pythonReady = python.State == ReadinessState.Ready && python.DetectedVersion.Contains("3.12", StringComparison.OrdinalIgnoreCase);
+        var pip = GetToolResult(RegisteredToolKind.Pip);
+        var detectedPythonVersion = ExtractComparableSetupVersion(python.DetectedVersion);
+        var compatiblePythonReady = python.State == ReadinessState.Ready
+            && detectedPythonVersion is not null
+            && detectedPythonVersion >= new Version(3, 12)
+            && python.DetectedVersion.Contains("x64", StringComparison.OrdinalIgnoreCase);
+        var pythonReady = compatiblePythonReady && pip.State == ReadinessState.Ready;
+        var pythonState = pythonReady
+            ? ReadinessState.Ready
+            : compatiblePythonReady && pip.State == ReadinessState.Misconfigured
+                ? ReadinessState.Misconfigured
+                : compatiblePythonReady
+                    ? ReadinessState.Partial
+                    : python.State == ReadinessState.Ready ? ReadinessState.Partial : python.State;
 
         return kind switch
         {
             SetupDependencyKind.Python312 => new SetupDependencyStatus(
                 kind,
-                pythonReady ? ReadinessState.Ready : python.State == ReadinessState.Ready ? ReadinessState.Partial : python.State,
+                pythonState,
                 python.DetectedVersion,
-                pythonReady ? string.Empty : "3.12.10",
+                string.Empty,
                 false,
                 python.ExecutablePath,
                 python.ReleaseUrl,
                 true,
                 true,
-                BuildToolProbeDetail(python)),
-            SetupDependencyKind.VapourSynth => BuildFallbackToolStatus(kind, RegisteredToolKind.Vspipe, pythonReady),
-            SetupDependencyKind.Vsrepo => BuildFallbackToolStatus(kind, RegisteredToolKind.Vsrepo, pythonReady),
+                string.Join(Environment.NewLine, [BuildToolProbeDetail(python), $"pip: {BuildToolProbeDetail(pip)}"])),
+            SetupDependencyKind.VapourSynth => BuildFallbackToolStatus(kind, RegisteredToolKind.Vspipe, compatiblePythonReady),
+            SetupDependencyKind.Vsrepo => BuildFallbackCompositeToolStatus(
+                kind,
+                GetToolResult(RegisteredToolKind.Vsrepo),
+                GetToolResult(RegisteredToolKind.VsrepoCli),
+                compatiblePythonReady),
             SetupDependencyKind.VsPluginBundle => new SetupDependencyStatus(
                 kind,
                 GetCapabilityReadiness(EnvironmentCapabilityKind.VapourSynthPluginStack).State,
@@ -1086,10 +1108,10 @@ public sealed class SetupGuideViewModel : ObservableObject, ISetupDependencyModu
                 string.Empty,
                 GetToolResult(RegisteredToolKind.Vsrepo).ReleaseUrl,
                 true,
-                pythonReady,
+                compatiblePythonReady,
                 string.Join(Environment.NewLine, GetCapabilityReadiness(EnvironmentCapabilityKind.VapourSynthPluginStack).Requirements.Select(BuildRequirementDetail))),
-            SetupDependencyKind.Awsmfunc => BuildFallbackToolStatus(kind, RegisteredToolKind.PythonModuleAwsmfunc, pythonReady),
-            SetupDependencyKind.Vsjetpack => BuildFallbackToolStatus(kind, RegisteredToolKind.PythonModuleVsjetpack, pythonReady),
+            SetupDependencyKind.Awsmfunc => BuildFallbackToolStatus(kind, RegisteredToolKind.PythonModuleAwsmfunc, compatiblePythonReady),
+            SetupDependencyKind.Vsjetpack => BuildFallbackToolStatus(kind, RegisteredToolKind.PythonModuleVsjetpack, compatiblePythonReady),
             SetupDependencyKind.FfmpegBundle => new SetupDependencyStatus(
                 kind,
                 ResolveCompositeSetupState(GetToolResult(RegisteredToolKind.Ffmpeg), GetToolResult(RegisteredToolKind.Ffprobe)),
@@ -1257,15 +1279,15 @@ public sealed class SetupGuideViewModel : ObservableObject, ISetupDependencyModu
         if (status.State == ReadinessState.Ready)
         {
             return Texts.Pick(
-                "已检测到 Python 3.12 x64，可继续安装 VapourSynth 和后续 Python 侧依赖。",
-                "Python 3.12 x64 was detected. You can continue with VapourSynth and the remaining Python-side dependencies.");
+                "已检测到受支持的 Python x64，可继续安装 VapourSynth 和后续 Python 侧依赖。",
+                "A supported Python x64 runtime was detected. You can continue with VapourSynth and the remaining Python-side dependencies.");
         }
 
         if (status.State == ReadinessState.Partial)
         {
             return Texts.Pick(
-                "检测到了更高版本的 Python x64，可继续安装 VapourSynth 和后续 Python 侧依赖；内置安装器仍提供 3.12.10。",
-                "A newer Python x64 version was detected. You can continue with VapourSynth and the remaining Python-side dependencies; the built-in installer still provides 3.12.10.");
+                "检测到 Python，但其架构或版本不满足当前环境要求。",
+                "Python was detected, but its architecture or version does not meet the current environment requirements.");
         }
 
         if (!string.IsNullOrWhiteSpace(status.InstalledVersion))
@@ -1325,22 +1347,40 @@ public sealed class SetupGuideViewModel : ObservableObject, ISetupDependencyModu
         if (kind == SetupDependencyKind.Python312 && status.State == ReadinessState.Partial)
         {
             warnings.Add(Texts.Pick(
-                "检测到更高版本的 Python x64。可以保持现状继续后续步骤，也可以并行安装 3.12.10。",
-                "A newer Python x64 version was detected. You can keep it and continue, or install 3.12.10 in parallel."));
+                "当前 Python 不满足完整环境要求，可使用自动安装修复或更新。",
+                "The current Python runtime does not satisfy the complete environment requirements. Use automatic install to repair or update it."));
         }
 
-        if (hasUpdateAvailable && !string.IsNullOrWhiteSpace(status.LatestVersion))
+        if (hasUpdateAvailable && kind == SetupDependencyKind.VsPluginBundle)
+        {
+            warnings.Add(Texts.Pick(
+                "检测到可用的 VS 插件更新，版本明细见下方。",
+                "VS plugin updates are available. See the version details below."));
+        }
+        else if (hasUpdateAvailable && !string.IsNullOrWhiteSpace(status.LatestVersion))
         {
             warnings.Add(Texts.Pick(
                 $"检测到可用新版本：{status.LatestVersion}",
                 $"A newer version is available: {status.LatestVersion}"));
         }
 
-        if (status.IsInstallSupported && !status.IsInstallEnabled)
+        if (status.IsInstallSupported
+            && !status.IsInstallEnabled
+            && kind is SetupDependencyKind.VapourSynth
+                or SetupDependencyKind.Vsrepo
+                or SetupDependencyKind.VsPluginBundle
+                or SetupDependencyKind.Awsmfunc
+                or SetupDependencyKind.Vsjetpack)
         {
             warnings.Add(Texts.Pick(
                 "自动安装按钮已保留，但需要先准备 Python 3.12 x64 或更新的 x64 版本。",
                 "The install button is kept visible, but Python 3.12 x64 or a newer x64 version must be ready first."));
+        }
+        else if (status.IsInstallSupported && !status.IsInstallEnabled)
+        {
+            warnings.Add(Texts.Pick(
+                "当前未找到带完整性校验的自动安装包，请稍后重新检查更新或打开发布页手动安装。",
+                "No integrity-verified automatic package is currently available. Check again later or install manually from the release page."));
         }
 
         if (isInstalled && !canUninstall && HasLocalManagedUninstallScope(kind))
@@ -1353,14 +1393,18 @@ public sealed class SetupGuideViewModel : ObservableObject, ISetupDependencyModu
 
     private string GetSetupPrimaryActionText(
         SetupDependencyKind kind,
+        SetupDependencyStatus status,
         bool isInstalled,
         bool hasUpdateAvailable)
     {
         if (kind == SetupDependencyKind.Python312)
         {
+            var targetVersion = string.IsNullOrWhiteSpace(status.LatestVersion)
+                ? string.Empty
+                : $" {status.LatestVersion}";
             return isInstalled
-                ? Texts.Pick("更新 3.12.10", "Update 3.12.10")
-                : Texts.Pick("安装 3.12.10", "Install 3.12.10");
+                ? Texts.Pick($"更新{targetVersion}", $"Update{targetVersion}")
+                : Texts.Pick($"安装{targetVersion}", $"Install{targetVersion}");
         }
 
         if (RequiresSetupDependencyManualImport(kind))
@@ -1385,7 +1429,7 @@ public sealed class SetupGuideViewModel : ObservableObject, ISetupDependencyModu
 
         if (isInstalled)
         {
-            return true;
+            return !status.IsInstallSupported || status.IsInstallEnabled;
         }
 
         return kind == SetupDependencyKind.Python312 || status.IsInstallEnabled;
@@ -1535,17 +1579,17 @@ public sealed class SetupGuideViewModel : ObservableObject, ISetupDependencyModu
 
         return kind switch
         {
-            SetupDependencyKind.Python312 => true,
+            SetupDependencyKind.Python312 => _setupBootstrapService.CanUninstall(kind),
             SetupDependencyKind.VapourSynth or
             SetupDependencyKind.Vsrepo or
             SetupDependencyKind.VsPluginBundle or
             SetupDependencyKind.Awsmfunc or
-            SetupDependencyKind.Vsjetpack => true,
+            SetupDependencyKind.Vsjetpack => _setupBootstrapService.CanUninstall(kind),
             SetupDependencyKind.X264 => HasManagedEncoderBinary(EncoderKind.X264),
             SetupDependencyKind.X265 => HasManagedEncoderBinary(EncoderKind.X265),
             SetupDependencyKind.SvtAv1 => HasManagedEncoderBinary(EncoderKind.SvtAv1),
-            SetupDependencyKind.FfmpegBundle => HasManagedToolBinary("ffmpeg.exe"),
-            SetupDependencyKind.Av1an => HasManagedToolBinary("av1an.exe"),
+            SetupDependencyKind.FfmpegBundle => HasManagedToolBinary(ExternalToolKind.Ffmpeg),
+            SetupDependencyKind.Av1an => HasManagedToolBinary(ExternalToolKind.Av1an),
             SetupDependencyKind.Avs2PipeMod or
             SetupDependencyKind.DgDemux or
             SetupDependencyKind.Eac3To or
@@ -1571,16 +1615,43 @@ public sealed class SetupGuideViewModel : ObservableObject, ISetupDependencyModu
             or SetupDependencyKind.OpusExt;
     }
 
-    private bool HasManagedToolBinary(string fileName)
+    private bool HasManagedToolBinary(ExternalToolKind kind)
     {
-        return File.Exists(Path.Combine(_appPaths.ToolsRootPath, fileName));
+        return File.Exists(_appPaths.GetManagedExternalToolPath(kind));
+    }
+
+    private SetupDependencyStatus BuildFallbackCompositeToolStatus(
+        SetupDependencyKind dependencyKind,
+        ToolProbeResult moduleProbe,
+        ToolProbeResult cliProbe,
+        bool isInstallEnabled)
+    {
+        var state = moduleProbe.State == ReadinessState.Ready && cliProbe.State == ReadinessState.Ready
+            ? ReadinessState.Ready
+            : moduleProbe.State == ReadinessState.Misconfigured || cliProbe.State == ReadinessState.Misconfigured
+                ? ReadinessState.Misconfigured
+                : moduleProbe.State == ReadinessState.Ready || cliProbe.State == ReadinessState.Ready
+                    ? ReadinessState.Partial
+                    : ReadinessState.Missing;
+        return new SetupDependencyStatus(
+            dependencyKind,
+            state,
+            moduleProbe.State == ReadinessState.Ready ? moduleProbe.DetectedVersion : string.Empty,
+            string.Empty,
+            false,
+            string.IsNullOrWhiteSpace(cliProbe.ExecutablePath) ? moduleProbe.ExecutablePath : cliProbe.ExecutablePath,
+            moduleProbe.ReleaseUrl,
+            true,
+            isInstallEnabled,
+            string.Join(Environment.NewLine, [
+                $"module: {BuildToolProbeDetail(moduleProbe)}",
+                $"CLI: {BuildToolProbeDetail(cliProbe)}"
+            ]));
     }
 
     private bool HasManagedEncoderBinary(EncoderKind kind)
     {
-        return Enum.GetValues<EncoderArchitecture>()
-            .Select(architecture => _appPaths.GetBinaryPath(kind, architecture))
-            .Any(File.Exists);
+        return File.Exists(_appPaths.GetInstalledBinaryPath(kind, EncoderArchitecture.X64));
     }
 
     private bool IsPathInsideAppRoot(string path)
@@ -1635,12 +1706,7 @@ public sealed class SetupGuideViewModel : ObservableObject, ISetupDependencyModu
         }
 
         var targetPath = GetManualSetupDependencyTargetPath(kind);
-        var targetDirectory = Path.GetDirectoryName(targetPath) ?? _appPaths.ToolsRootPath;
-        Directory.CreateDirectory(targetDirectory);
-
-        await using var sourceStream = File.Open(sourcePath, FileMode.Open, FileAccess.Read, FileShare.Read);
-        await using var targetStream = File.Open(targetPath, FileMode.Create, FileAccess.Write, FileShare.None);
-        await sourceStream.CopyToAsync(targetStream);
+        await ManagedFileInstaller.ReplaceFileAsync(sourcePath, targetPath);
     }
 
     private string GetManualSetupDependencyTargetPath(SetupDependencyKind kind)

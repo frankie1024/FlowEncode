@@ -122,27 +122,20 @@ public sealed class GitHubReleaseEncoderUpdateService : IEncoderUpdateService, I
             var sourceDirectory = Path.GetDirectoryName(extractedExe)!;
             var targetDirectory = _paths.GetBinaryDirectory(package.Kind, package.Architecture);
             var expectedBinaryPath = _paths.GetBinaryPath(package.Kind, package.Architecture);
-            var expectedBinaryName = Path.GetFileName(expectedBinaryPath);
 
             cancellationToken.ThrowIfCancellationRequested();
-            ManagedDirectoryInstaller.ReplaceDirectoryContents(sourceDirectory, targetDirectory, stagingDirectory =>
-            {
-                var stagedBinaryPath = Path.Combine(stagingDirectory, executableName);
-                if (!File.Exists(stagedBinaryPath))
-                {
-                    throw new FileNotFoundException($"压缩包内未找到 {executableName}。");
-                }
-
-                var stagedExpectedBinaryPath = Path.Combine(stagingDirectory, expectedBinaryName);
-                if (!string.Equals(stagedBinaryPath, stagedExpectedBinaryPath, StringComparison.OrdinalIgnoreCase))
-                {
-                    File.Copy(stagedBinaryPath, stagedExpectedBinaryPath, true);
-                }
-            });
+            ManagedDirectoryInstaller.ReplaceDirectoryContents(
+                sourceDirectory,
+                targetDirectory,
+                stagedDirectory => LocalEncoderToolchainService.ValidateStagedEncoder(
+                    stagedDirectory,
+                    package.Kind,
+                    package.Architecture,
+                    package.ReleaseName));
 
             if (!File.Exists(expectedBinaryPath))
             {
-                throw new FileNotFoundException($"安装完成后未找到 {expectedBinaryName}。", expectedBinaryPath);
+                throw new FileNotFoundException($"安装完成后未找到 {executableName}。", expectedBinaryPath);
             }
 
             return expectedBinaryPath;

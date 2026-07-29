@@ -4,7 +4,6 @@ internal static class PythonRuntimeCompatibility
 {
     public static readonly Version MinimumSupportedVersion = new(3, 12);
     public static readonly IReadOnlyList<string> EnvironmentVariableNames = ["FLOWENCODE_PYTHON", "PYTHON_PATH", "PYTHON_EXE", "PYTHON"];
-    private static readonly Lazy<IReadOnlyList<PythonRuntimeProbe>> CompatiblePythonRuntimes = new(BuildCompatiblePythonRuntimes);
 
     public static bool IsSupportedVersion(Version version)
     {
@@ -53,8 +52,7 @@ internal static class PythonRuntimeCompatibility
         }
 
         return candidates
-            .OrderByDescending(static item => IsTargetMinor(item.Version))
-            .ThenByDescending(static item => item.Version)
+            .OrderByDescending(static item => item.Version)
             .Select(static item => item.Path)
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .ToArray();
@@ -78,7 +76,7 @@ internal static class PythonRuntimeCompatibility
 
     public static IEnumerable<string> EnumerateCompatiblePythonExecutablePaths()
     {
-        return CompatiblePythonRuntimes.Value.Select(static item => item.ExecutablePath);
+        return BuildCompatiblePythonRuntimes().Select(static item => item.ExecutablePath);
     }
 
     public static IReadOnlyList<string> EnumeratePythonRuntimeDirectories(string pythonExecutablePath)
@@ -165,8 +163,7 @@ internal static class PythonRuntimeCompatibility
         }
 
         return results
-            .OrderByDescending(static item => IsTargetMinor(item.Version))
-            .ThenByDescending(static item => item.Version)
+            .OrderByDescending(static item => item.Version)
             .ToArray();
     }
 

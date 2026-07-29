@@ -31,6 +31,11 @@ internal static class EncoderBinaryProbe
                 Environment.NewLine,
                 result.StandardError).Trim();
 
+            if (result.ExitCode != 0)
+            {
+                return $"Present (version probe failed with exit code {result.ExitCode})";
+            }
+
             if (string.IsNullOrWhiteSpace(output))
             {
                 return "Present (version string unavailable)";
