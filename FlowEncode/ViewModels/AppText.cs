@@ -119,6 +119,8 @@ public sealed class AppText
     public string QueueTaskColumn => Pick("任务", "Job");
     public string QueueCodecCrfColumn => Pick("编码 / CRF", "Codec / CRF");
     public string QueueStatusColumn => Pick("状态", "Status");
+    public string QueueOverviewTitle => Pick("队列概览", "Queue Overview");
+    public string SelectedTaskDetailsTitle => Pick("选中任务详情", "Selected Task Details");
     public string QueueProgressColumn => Pick("进度", "Progress");
     public string EmptyQueue => Pick("暂无任务", "No Jobs");
     public string AutoCompressionTitle => Pick("自动压制", "Auto Encode");

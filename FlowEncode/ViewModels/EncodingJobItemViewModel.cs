@@ -7,6 +7,7 @@ using System.Text;
 using System.Threading;
 using FlowEncode.Domain;
 using CommunityToolkit.Mvvm.ComponentModel;
+using Microsoft.UI.Xaml;
 
 namespace FlowEncode.ViewModels;
 
@@ -110,6 +111,7 @@ public sealed class EncodingJobItemViewModel : ObservableObject
                 OnPropertyChanged(nameof(ProgressPercentLabel));
                 OnPropertyChanged(nameof(ProgressTelemetryPrimaryLine));
                 OnPropertyChanged(nameof(ProgressTelemetrySecondaryLine));
+                OnPropertyChanged(nameof(ActiveJobAccentVisibility));
             }
         }
     }
@@ -332,6 +334,10 @@ public sealed class EncodingJobItemViewModel : ObservableObject
     public bool IsProgressIndeterminate => State == EncodingJobState.Running
         && !ProgressFraction.HasValue
         && !CurrentFrame.HasValue;
+
+    public Visibility ActiveJobAccentVisibility => State == EncodingJobState.Running
+        ? Visibility.Visible
+        : Visibility.Collapsed;
 
     public string StateLabel => State switch
     {
