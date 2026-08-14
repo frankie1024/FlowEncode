@@ -1,5 +1,6 @@
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Media;
+using FlowEncode.Controls.Shared;
 
 namespace FlowEncode.ViewModels;
 
@@ -21,6 +22,8 @@ public sealed class AutoCompressionStatusViewModel : ModuleViewModelBase
     public Brush AutoCompressionProgressFillBrush => Owner.AutoCompressionProgressFillBrush;
 
     public string AutoCompressionStatusText => Owner.AutoCompressionStatusText;
+
+    public TaskPresentationState AutoCompressionPresentationState => Owner.AutoCompressionPresentationState;
 
     public double AutoCompressionProgressPercent => Owner.AutoCompressionProgressPercent;
 

@@ -46,6 +46,8 @@ public partial class MainWindowViewModel
     private CancellationTokenSource? _audioProcessingCancellationTokenSource;
     private Guid? _activeAudioProcessingJobId;
     private EncodingJobState? _audioProcessingDisplayState;
+    private TaskPresentationState _audioProcessingPresentationState;
+    private bool _isAudioProcessingCancellationRequested;
     private AudioProcessingMode? _activeAudioProcessingMode;
     private AudioSourceInfo? _audioSourceInfo;
     private bool _isAudioSourceInfoLoading;
@@ -279,7 +281,7 @@ public partial class MainWindowViewModel
         && GetSelectedAudioCapabilityState() == ReadinessState.Ready
         && string.IsNullOrWhiteSpace(ValidateAudioProcessingConfiguration(requireSourceExists: false, out _));
 
-    internal bool CanCancelAudioProcessing => _isAudioProcessingRunning;
+    internal bool CanCancelAudioProcessing => _isAudioProcessingRunning && !_isAudioProcessingCancellationRequested;
 
     internal bool CanClearAudioProcessingTask =>
         !_isAudioProcessingRunning
@@ -336,14 +338,7 @@ public partial class MainWindowViewModel
 
     internal Brush AudioProcessingProgressFillBrush => ResolveAudioProcessingProgressFillBrush(_audioProcessingDisplayState);
 
-    internal TaskPresentationState AudioProcessingPresentationState => _audioProcessingDisplayState switch
-    {
-        EncodingJobState.Running => TaskPresentationState.Running,
-        EncodingJobState.Completed => TaskPresentationState.Completed,
-        EncodingJobState.Failed => TaskPresentationState.Failed,
-        EncodingJobState.Cancelled => TaskPresentationState.Cancelled,
-        _ => TaskPresentationState.Idle
-    };
+    internal TaskPresentationState AudioProcessingPresentationState => _audioProcessingPresentationState;
 
     internal string AudioProcessingSuggestedOutputExtension => GetAudioProcessingSuggestedExtension();
 
@@ -457,6 +452,7 @@ public partial class MainWindowViewModel
             return Texts.AudioProcessingAlreadyRunningError;
         }
 
+        SetAudioProcessingPresentationState(TaskPresentationState.Validating);
         AudioProcessingResult result;
         var workflowLabel = Texts.AudioWorkflowLabel(SelectedAudioWorkflow?.Value ?? AudioProcessingMode.Ddp);
 
@@ -477,8 +473,8 @@ public partial class MainWindowViewModel
             AudioProcessingStatusText = Texts.AudioProcessingStartingStatus(Path.GetFileName(request.SourcePath), workflowLabel);
             StatusText = AudioProcessingStatusText;
 
-            SetAudioProcessingRunningState(true, request.JobId);
             _audioProcessingCancellationTokenSource = new CancellationTokenSource();
+            SetAudioProcessingRunningState(true, request.JobId);
 
             var progress = new Progress<AudioProcessingProgress>(ApplyAudioProcessingProgress);
             result = await _audioProcessingRunner.RunAsync(
@@ -559,11 +555,14 @@ public partial class MainWindowViewModel
 
     internal void CancelAudioProcessing()
     {
-        if (!_isAudioProcessingRunning)
+        if (!_isAudioProcessingRunning || _isAudioProcessingCancellationRequested)
         {
             return;
         }
 
+        _isAudioProcessingCancellationRequested = true;
+        OnPropertyChanged(nameof(CanCancelAudioProcessing));
+        SetAudioProcessingPresentationState(TaskPresentationState.Canceling);
         var workflowLabel = Texts.AudioWorkflowLabel(_activeAudioProcessingMode ?? SelectedAudioWorkflow?.Value ?? AudioProcessingMode.Ddp);
         AudioProcessingStatusText = Texts.AudioProcessingCancellingStatus(workflowLabel);
         StatusText = AudioProcessingStatusText;
@@ -1327,7 +1326,11 @@ public partial class MainWindowViewModel
             return;
         }
 
-        SetAudioProcessingDisplayState(progress.State);
+        var isStaleRunningUpdate = _isAudioProcessingCancellationRequested && progress.State == EncodingJobState.Running;
+        if (!isStaleRunningUpdate)
+        {
+            SetAudioProcessingDisplayState(progress.State);
+        }
 
         if (progress.State == EncodingJobState.Completed)
         {
@@ -1347,7 +1350,7 @@ public partial class MainWindowViewModel
             AudioProcessingProgressIsIndeterminate = true;
         }
 
-        if (!string.IsNullOrWhiteSpace(progress.Summary))
+        if (!isStaleRunningUpdate && !string.IsNullOrWhiteSpace(progress.Summary))
         {
             AudioProcessingStatusText = progress.Summary;
         }
@@ -1572,7 +1575,14 @@ public partial class MainWindowViewModel
         }
 
         _audioProcessingDisplayState = state;
-        OnPropertyChanged(nameof(AudioProcessingPresentationState));
+        SetAudioProcessingPresentationState(state switch
+        {
+            EncodingJobState.Running => TaskPresentationState.Running,
+            EncodingJobState.Completed => TaskPresentationState.Completed,
+            EncodingJobState.Failed => TaskPresentationState.Failed,
+            EncodingJobState.Cancelled => TaskPresentationState.Cancelled,
+            _ => TaskPresentationState.Idle
+        });
         OnPropertyChanged(nameof(AudioProcessingStatusPanelBorderBrush));
         OnPropertyChanged(nameof(AudioProcessingProgressTrackBrush));
         OnPropertyChanged(nameof(AudioProcessingProgressBorderBrush));
@@ -1626,6 +1636,7 @@ public partial class MainWindowViewModel
 
         _isAudioProcessingRunning = isRunning;
         _activeAudioProcessingJobId = activeJobId;
+        _isAudioProcessingCancellationRequested = false;
         OnPropertyChanged(nameof(IsAudioProcessingRunning));
         OnPropertyChanged(nameof(HasRunningAppWork));
         OnPropertyChanged(nameof(CanStartAudioProcessing));
@@ -1647,6 +1658,17 @@ public partial class MainWindowViewModel
         {
             TryScheduleQueueCompletionActionAfterSuccessfulQueueDrain();
         }
+    }
+
+    private void SetAudioProcessingPresentationState(TaskPresentationState state)
+    {
+        if (_audioProcessingPresentationState == state)
+        {
+            return;
+        }
+
+        _audioProcessingPresentationState = state;
+        OnPropertyChanged(nameof(AudioProcessingPresentationState));
     }
 
     private void SetAudioProcessingTelemetry(AudioProcessingTelemetry? telemetry)

@@ -5,6 +5,7 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using FlowEncode.Application;
+using FlowEncode.Controls.Shared;
 using FlowEncode.Domain;
 using FlowEncode.Infrastructure;
 using Microsoft.UI.Xaml;
@@ -37,6 +38,8 @@ public partial class MainWindowViewModel
     private CancellationTokenSource? _autoCompressionCancellationTokenSource;
     private Guid? _activeAutoCompressionJobId;
     private EncodingJobState? _autoCompressionDisplayState;
+    private TaskPresentationState _autoCompressionPresentationState;
+    private bool _isAutoCompressionCancellationRequested;
     private readonly List<string> _autoCompressionLogStageLines = [];
     private string _autoCompressionLiveLogLine = string.Empty;
     private CancellationTokenSource? _autoCompressionInputRefreshCancellationTokenSource;
@@ -355,7 +358,9 @@ public partial class MainWindowViewModel
         && !string.IsNullOrWhiteSpace(AutoCompressionSourcePath)
         && !string.IsNullOrWhiteSpace(AutoCompressionOutputPath);
 
-    internal bool CanCancelAutoCompression => _isAutoCompressionRunning;
+    internal bool CanCancelAutoCompression => _isAutoCompressionRunning && !_isAutoCompressionCancellationRequested;
+
+    internal TaskPresentationState AutoCompressionPresentationState => _autoCompressionPresentationState;
 
     internal string AutoCompressionProgressLabel =>
         AutoCompressionProgressIsIndeterminate && _isAutoCompressionRunning
@@ -442,6 +447,7 @@ public partial class MainWindowViewModel
             return Texts.AutoCompressionAlreadyRunningError;
         }
 
+        SetAutoCompressionPresentationState(TaskPresentationState.Validating);
         AutoCompressionResult result;
         string sourceFileName;
 
@@ -459,9 +465,8 @@ public partial class MainWindowViewModel
             AutoCompressionStatusText = Texts.AutoCompressionStartingStatus(sourceFileName);
             StatusText = Texts.AutoCompressionStartingStatus(sourceFileName);
 
-            SetAutoCompressionRunningState(true, request.JobId);
-
             _autoCompressionCancellationTokenSource = new CancellationTokenSource();
+            SetAutoCompressionRunningState(true, request.JobId);
 
             var progress = new Progress<AutoCompressionProgress>(ApplyAutoCompressionProgress);
             result = await _autoCompressionRunner.RunAsync(
@@ -527,11 +532,14 @@ public partial class MainWindowViewModel
 
     internal void CancelAutoCompression()
     {
-        if (!_isAutoCompressionRunning)
+        if (!_isAutoCompressionRunning || _isAutoCompressionCancellationRequested)
         {
             return;
         }
 
+        _isAutoCompressionCancellationRequested = true;
+        OnPropertyChanged(nameof(CanCancelAutoCompression));
+        SetAutoCompressionPresentationState(TaskPresentationState.Canceling);
         AutoCompressionStatusText = Texts.AutoCompressionCancellingStatus;
         StatusText = Texts.AutoCompressionCancellingStatus;
 
@@ -826,7 +834,11 @@ public partial class MainWindowViewModel
             return;
         }
 
-        SetAutoCompressionDisplayState(progress.State);
+        var isStaleRunningUpdate = _isAutoCompressionCancellationRequested && progress.State == EncodingJobState.Running;
+        if (!isStaleRunningUpdate)
+        {
+            SetAutoCompressionDisplayState(progress.State);
+        }
 
         if (progress.State == EncodingJobState.Completed)
         {
@@ -846,7 +858,7 @@ public partial class MainWindowViewModel
             AutoCompressionProgressIsIndeterminate = true;
         }
 
-        if (!string.IsNullOrWhiteSpace(progress.Summary))
+        if (!isStaleRunningUpdate && !string.IsNullOrWhiteSpace(progress.Summary))
         {
             AutoCompressionStatusText = progress.Summary;
         }
@@ -933,6 +945,7 @@ public partial class MainWindowViewModel
 
         _isAutoCompressionRunning = isRunning;
         _activeAutoCompressionJobId = activeJobId;
+        _isAutoCompressionCancellationRequested = false;
         OnPropertyChanged(nameof(IsAutoCompressionRunning));
         OnPropertyChanged(nameof(HasRunningAppWork));
         OnPropertyChanged(nameof(CanStartAutoCompression));
@@ -961,10 +974,29 @@ public partial class MainWindowViewModel
         }
 
         _autoCompressionDisplayState = state;
+        SetAutoCompressionPresentationState(state switch
+        {
+            EncodingJobState.Running => TaskPresentationState.Running,
+            EncodingJobState.Completed => TaskPresentationState.Completed,
+            EncodingJobState.Failed => TaskPresentationState.Failed,
+            EncodingJobState.Cancelled => TaskPresentationState.Cancelled,
+            _ => TaskPresentationState.Idle
+        });
         OnPropertyChanged(nameof(AutoCompressionStatusPanelBorderBrush));
         OnPropertyChanged(nameof(AutoCompressionProgressTrackBrush));
         OnPropertyChanged(nameof(AutoCompressionProgressBorderBrush));
         OnPropertyChanged(nameof(AutoCompressionProgressFillBrush));
+    }
+
+    private void SetAutoCompressionPresentationState(TaskPresentationState state)
+    {
+        if (_autoCompressionPresentationState == state)
+        {
+            return;
+        }
+
+        _autoCompressionPresentationState = state;
+        OnPropertyChanged(nameof(AutoCompressionPresentationState));
     }
 
     private void ClampAutoCompressionProgressForTerminalState(EncodingJobState state)

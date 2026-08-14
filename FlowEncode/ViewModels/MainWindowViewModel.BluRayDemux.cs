@@ -8,6 +8,7 @@ using System.Linq;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
+using FlowEncode.Controls.Shared;
 using FlowEncode.Domain;
 using Microsoft.UI;
 using Microsoft.UI.Xaml;
@@ -39,6 +40,8 @@ public partial class MainWindowViewModel
     private string? _lastBluRayOutputPath;
     private Guid? _activeBluRayDemuxJobId;
     private EncodingJobState? _bluRayDemuxDisplayState;
+    private TaskPresentationState _bluRayDemuxPresentationState;
+    private bool _isBluRayDemuxCancellationRequested;
     private CancellationTokenSource? _bluRayProbeCancellationTokenSource;
     private CancellationTokenSource? _bluRayDemuxCancellationTokenSource;
     private CancellationTokenSource? _bluRayDemuxInputRefreshCancellationTokenSource;
@@ -204,7 +207,9 @@ public partial class MainWindowViewModel
     internal bool IsBluRayDemuxRunning => _isBluRayDemuxRunning;
     internal bool CanScanBluRayDisc => !_isChangingWorkspaceRoot && !_isBluRayDiscScanning && !_isBluRayPlaylistLoading && !_isBluRayDemuxRunning && SelectedBluRayDemuxBackend is not null && !string.IsNullOrWhiteSpace(BluRayDemuxSourcePath) && GetSelectedBluRayToolState() == ReadinessState.Ready;
     internal bool CanStartBluRayDemux => !_isChangingWorkspaceRoot && !_isBluRayDiscScanning && !_isBluRayPlaylistLoading && !_isBluRayDemuxRunning && SelectedBluRayDemuxBackend is not null && SelectedBluRayPlaylist is not null && BluRayTracks.Any(static track => track.IsSelected) && !string.IsNullOrWhiteSpace(BluRayDemuxSourcePath) && !string.IsNullOrWhiteSpace(BluRayDemuxOutputPath) && GetSelectedBluRayToolState() == ReadinessState.Ready;
-    internal bool CanCancelBluRayDemux => _isBluRayDemuxRunning;
+    internal bool CanCancelBluRayDemux => _isBluRayDemuxRunning && !_isBluRayDemuxCancellationRequested;
+
+    internal TaskPresentationState BluRayDemuxPresentationState => _bluRayDemuxPresentationState;
     internal bool CanClearBluRayDemuxTask => !_isBluRayDemuxRunning && (!string.IsNullOrWhiteSpace(BluRayDemuxSourcePath) || !string.IsNullOrWhiteSpace(BluRayDemuxOutputPath) || !string.IsNullOrWhiteSpace(BluRayDemuxCommandLine) || !string.IsNullOrWhiteSpace(BluRayDemuxLog) || BluRayPlaylists.Count > 0 || BluRayTracks.Count > 0 || !string.Equals(BluRayDemuxStatusText, Texts.BluRayDemuxIdleStatus, StringComparison.Ordinal));
     internal bool CanSelectAllBluRayTracks => BluRayTracks.Count > 0;
     internal bool CanInvertBluRayTrackSelection => BluRayTracks.Count > 0;
@@ -378,6 +383,7 @@ public partial class MainWindowViewModel
             return Texts.BluRayDemuxAlreadyRunningError;
         }
 
+        SetBluRayDemuxPresentationState(TaskPresentationState.Validating);
         BluRayDemuxRequest request;
         BluRayDemuxResult result;
         var backendLabel = Texts.BluRayBackendLabel(SelectedBluRayDemuxBackend?.Value ?? BluRayDemuxBackend.DgDemux);
@@ -392,8 +398,8 @@ public partial class MainWindowViewModel
             BluRayDemuxCommandLine = _bluRayDemuxRunner.BuildDisplayCommand(request);
             BluRayDemuxStatusText = Texts.BluRayDemuxStartingStatus(backendLabel, request.Playlist.DisplayName);
             StatusText = BluRayDemuxStatusText;
-            SetBluRayDemuxRunningState(true, request.JobId);
             _bluRayDemuxCancellationTokenSource = new CancellationTokenSource();
+            SetBluRayDemuxRunningState(true, request.JobId);
             result = await _bluRayDemuxRunner.RunAsync(request, new Progress<BluRayDemuxProgress>(ApplyBluRayDemuxProgress), _bluRayDemuxCancellationTokenSource.Token);
         }
         catch (OperationCanceledException) when (_bluRayDemuxCancellationTokenSource?.IsCancellationRequested == true)
@@ -450,11 +456,14 @@ public partial class MainWindowViewModel
 
     internal void CancelBluRayDemux()
     {
-        if (!_isBluRayDemuxRunning)
+        if (!_isBluRayDemuxRunning || _isBluRayDemuxCancellationRequested)
         {
             return;
         }
 
+        _isBluRayDemuxCancellationRequested = true;
+        OnPropertyChanged(nameof(CanCancelBluRayDemux));
+        SetBluRayDemuxPresentationState(TaskPresentationState.Canceling);
         var backendLabel = Texts.BluRayBackendLabel(SelectedBluRayDemuxBackend?.Value ?? BluRayDemuxBackend.DgDemux);
         BluRayDemuxStatusText = Texts.BluRayDemuxCancellingStatus(backendLabel);
         StatusText = BluRayDemuxStatusText;
@@ -1100,8 +1109,9 @@ public partial class MainWindowViewModel
             BluRayDemuxProgressIsIndeterminate = true;
         }
 
+        var isStaleRunningUpdate = _isBluRayDemuxCancellationRequested && update.State == EncodingJobState.Running;
         var summary = ResolveBluRayDemuxRunningSummary(update);
-        if (!string.IsNullOrWhiteSpace(summary))
+        if (!isStaleRunningUpdate && !string.IsNullOrWhiteSpace(summary))
         {
             BluRayDemuxStatusText = summary;
             StatusText = summary;
@@ -1309,6 +1319,7 @@ public partial class MainWindowViewModel
 
         _isBluRayDemuxRunning = isRunning;
         _activeBluRayDemuxJobId = jobId;
+        _isBluRayDemuxCancellationRequested = false;
         OnPropertyChanged(nameof(IsBluRayDemuxRunning));
         OnPropertyChanged(nameof(HasRunningAppWork));
         RaiseBluRayDemuxInputPropertyChanges();
@@ -1332,10 +1343,29 @@ public partial class MainWindowViewModel
         }
 
         _bluRayDemuxDisplayState = state;
+        SetBluRayDemuxPresentationState(state switch
+        {
+            EncodingJobState.Running => TaskPresentationState.Running,
+            EncodingJobState.Completed => TaskPresentationState.Completed,
+            EncodingJobState.Failed => TaskPresentationState.Failed,
+            EncodingJobState.Cancelled => TaskPresentationState.Cancelled,
+            _ => TaskPresentationState.Idle
+        });
         OnPropertyChanged(nameof(BluRayDemuxStatusPanelBorderBrush));
         OnPropertyChanged(nameof(BluRayDemuxProgressTrackBrush));
         OnPropertyChanged(nameof(BluRayDemuxProgressBorderBrush));
         OnPropertyChanged(nameof(BluRayDemuxProgressFillBrush));
+    }
+
+    private void SetBluRayDemuxPresentationState(TaskPresentationState state)
+    {
+        if (_bluRayDemuxPresentationState == state)
+        {
+            return;
+        }
+
+        _bluRayDemuxPresentationState = state;
+        OnPropertyChanged(nameof(BluRayDemuxPresentationState));
     }
 
     private void ClampBluRayDemuxProgressForTerminalState(EncodingJobState state)
