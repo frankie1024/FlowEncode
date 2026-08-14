@@ -587,27 +587,7 @@ public sealed partial class MainWindow : Window, ISettingsViewHost, IShellNaviga
 
     private bool AreShellTransitionsEnabled()
     {
-        try
-        {
-            if (new AccessibilitySettings().HighContrast)
-            {
-                return false;
-            }
-        }
-        catch (Exception ex)
-        {
-            TryWriteWindowException("Inspect HighContrast state for shell transitions", ex, AppDiagnosticSeverity.Warning);
-        }
-
-        try
-        {
-            return _uiSettings.AnimationsEnabled;
-        }
-        catch (Exception ex)
-        {
-            TryWriteWindowException("Inspect animation state for shell transitions", ex, AppDiagnosticSeverity.Warning);
-            return true;
-        }
+        return UiMotionPolicy.ArePlatformTransitionsEnabled();
     }
 
     private void ApplyAdaptiveLayoutToSection(

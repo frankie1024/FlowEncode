@@ -6,7 +6,6 @@ using Microsoft.UI.Xaml.Input;
 using Microsoft.UI.Xaml.Media;
 using Microsoft.UI.Xaml.Media.Animation;
 using Windows.Foundation;
-using Windows.UI.ViewManagement;
 
 namespace FlowEncode.Controls.Shared;
 
@@ -15,7 +14,6 @@ public sealed partial class AnimatedExpander : UserControl
     // Expand/collapse duration and easing come from the shared Motion tokens (App.xaml).
     // Before UI-01 this was a literal 220ms constant; MotionEmphasis is 240ms.
     private static readonly TimeSpan FallbackExpandCollapseMilliseconds = TimeSpan.FromMilliseconds(240);
-    private readonly UISettings _uiSettings = new();
     private Storyboard? _currentStoryboard;
     private RotateTransform? _chevronRotateTransform;
     private RectangleGeometry? _contentClipGeometry;
@@ -220,7 +218,7 @@ public sealed partial class AnimatedExpander : UserControl
 
     private bool ShouldAnimate()
     {
-        return _uiSettings.AnimationsEnabled;
+        return UiMotionPolicy.AreCustomAnimationsEnabled();
     }
 
     private void ApplyImmediateState(bool isExpanded)

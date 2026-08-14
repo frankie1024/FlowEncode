@@ -7,13 +7,11 @@ using Microsoft.UI.Xaml.Controls.Primitives;
 using Microsoft.UI.Xaml.Input;
 using Microsoft.UI.Xaml.Media;
 using Microsoft.UI.Xaml.Media.Animation;
-using Windows.UI.ViewManagement;
 
 namespace FlowEncode.Controls.Shared;
 
 public static class UiMotion
 {
-    private static readonly UISettings UiSettings = new();
     private static readonly ConditionalWeakTable<DependencyObject, Dictionary<string, Storyboard>> ActiveAnimations = new();
     private static readonly ConditionalWeakTable<FrameworkElement, HoverLiftState> HoverLiftStates = new();
     private static readonly ConditionalWeakTable<FrameworkElement, VisibilityState> VisibilityStates = new();
@@ -64,7 +62,7 @@ public static class UiMotion
     public static bool GetAnimateListEntrance(DependencyObject obj) => (bool)obj.GetValue(AnimateListEntranceProperty);
     public static void SetAnimateListEntrance(DependencyObject obj, bool value) => obj.SetValue(AnimateListEntranceProperty, value);
 
-    private static bool AnimationsEnabled => UiSettings.AnimationsEnabled;
+    private static bool AnimationsEnabled => UiMotionPolicy.AreCustomAnimationsEnabled();
 
     public static void PlayEntrance(FrameworkElement element, double offsetY)
     {
