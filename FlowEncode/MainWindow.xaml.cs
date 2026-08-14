@@ -43,6 +43,7 @@ public sealed partial class MainWindow : Window, ISettingsViewHost, IShellNaviga
     private readonly IAppDiagnostics _diagnostics;
     private readonly SemaphoreSlim _externalVapourSynthOpenLock = new(1, 1);
     private readonly TaskCompletionSource<bool> _windowReadyCompletionSource = new(TaskCreationOptions.RunContinuationsAsynchronously);
+    private readonly object _shellNavigationSync = new();
     private readonly Dictionary<string, MainWindowShellSectionDefinition> _shellSectionDefinitions;
     private readonly MainWindowShellSectionController _shellSections;
     private readonly UISettings _uiSettings = new();
@@ -52,9 +53,12 @@ public sealed partial class MainWindow : Window, ISettingsViewHost, IShellNaviga
     private bool _isWindowReady;
     private bool _hasCompletedInitialization;
     private bool _isPersistingSettings;
+    private bool _isShellNavigationDrainActive;
     private bool _isCloseConfirmationInProgress;
     private bool _isShutdownConfirmed;
     private bool _closeCleanupCompleted;
+    private string? _pendingShellSectionTag;
+    private Task _shellNavigationDrainTask = Task.CompletedTask;
     private IntPtr _windowLargeIconHandle;
     private IntPtr _windowSmallIconHandle;
     private const int ShowWindowRestore = 9;
@@ -725,6 +729,49 @@ public sealed partial class MainWindow : Window, ISettingsViewHost, IShellNaviga
     private async Task NavigateToShellSectionAsync(string tag)
     {
         var normalizedTag = MainShellSections.Normalize(tag);
+        Task navigationTask;
+
+        lock (_shellNavigationSync)
+        {
+            _pendingShellSectionTag = normalizedTag;
+            if (_isShellNavigationDrainActive)
+            {
+                navigationTask = _shellNavigationDrainTask;
+            }
+            else
+            {
+                _isShellNavigationDrainActive = true;
+                _shellNavigationDrainTask = DrainShellNavigationAsync();
+                navigationTask = _shellNavigationDrainTask;
+            }
+        }
+
+        await navigationTask;
+    }
+
+    private async Task DrainShellNavigationAsync()
+    {
+        while (true)
+        {
+            string? nextTag;
+            lock (_shellNavigationSync)
+            {
+                nextTag = _pendingShellSectionTag;
+                _pendingShellSectionTag = null;
+                if (string.IsNullOrWhiteSpace(nextTag))
+                {
+                    _isShellNavigationDrainActive = false;
+                    _shellNavigationDrainTask = Task.CompletedTask;
+                    return;
+                }
+            }
+
+            await NavigateToShellSectionCoreAsync(nextTag);
+        }
+    }
+
+    private async Task NavigateToShellSectionCoreAsync(string normalizedTag)
+    {
         var previousTag = _activeShellSectionTag;
         var wasMaterialized = _shellSections.IsMaterialized(normalizedTag);
         var transitionKind = ResolveShellSectionTransition(previousTag, normalizedTag);
@@ -737,6 +784,11 @@ public sealed partial class MainWindow : Window, ISettingsViewHost, IShellNaviga
             await definition.OnActivated(normalizedTag, this);
         }
 
+        if (HasPendingShellNavigationOverride(normalizedTag))
+        {
+            return;
+        }
+
         if (!wasMaterialized || !_shellSections.IsMaterialized(normalizedTag))
         {
             var materialized = await WaitForShellSectionMaterializedAsync(normalizedTag);
@@ -746,6 +798,11 @@ public sealed partial class MainWindow : Window, ISettingsViewHost, IShellNaviga
             }
         }
 
+        if (HasPendingShellNavigationOverride(normalizedTag))
+        {
+            return;
+        }
+
         if (!string.Equals(previousTag, normalizedTag, StringComparison.Ordinal)
             && !string.Equals(_activeShellSectionTag, normalizedTag, StringComparison.Ordinal))
         {
@@ -753,6 +810,15 @@ public sealed partial class MainWindow : Window, ISettingsViewHost, IShellNaviga
         }
 
         UpdateAdaptiveLayout(RootLayout.ActualWidth);
+    }
+
+    private bool HasPendingShellNavigationOverride(string normalizedTag)
+    {
+        lock (_shellNavigationSync)
+        {
+            return !string.IsNullOrWhiteSpace(_pendingShellSectionTag)
+                && !string.Equals(_pendingShellSectionTag, normalizedTag, StringComparison.Ordinal);
+        }
     }
 
     private NavigationViewItem? FindNavigationItem(string tag)

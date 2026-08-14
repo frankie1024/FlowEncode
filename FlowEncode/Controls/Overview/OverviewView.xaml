@@ -380,7 +380,7 @@
                             </Grid>
                         </Border>
 
-                        <Border Grid.Row="2" Padding="{StaticResource AppInsetPanelPadding}" Background="{ThemeResource CardAltBrush}" CornerRadius="{StaticResource AppCardCornerRadius}">
+                        <Border Grid.Row="2" Padding="{StaticResource AppInsetPanelPadding}" Background="{ThemeResource CardAltBrush}" BorderBrush="{ThemeResource ThemeBorderElevatedBrush}" BorderThickness="{StaticResource AppCardBorderThickness}" CornerRadius="{StaticResource AppCardCornerRadius}" shared:UiElevation.Level="E2">
                             <Grid RowSpacing="{StaticResource AppSpacingM}">
                                 <Grid.RowDefinitions>
                                     <RowDefinition Height="Auto" />

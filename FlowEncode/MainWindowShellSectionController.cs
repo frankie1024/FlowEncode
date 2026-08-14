@@ -101,6 +101,18 @@ internal sealed class MainWindowShellSectionController
             .FirstOrDefault(entry => ReferenceEquals(entry.Value, previousControl))
             .Key;
 
+        if (ReferenceEquals(previousControl, activeControl))
+        {
+            activeControl.Transitions = null;
+            return;
+        }
+
+        activeControl.Transitions = BuildTransitions(previousTag, normalizedTag, transitionKind);
+        if (!_host.Children.Contains(activeControl))
+        {
+            _host.Children.Add(activeControl);
+        }
+
         foreach (var sectionEntry in _controls)
         {
             sectionEntry.Value.Visibility = string.Equals(sectionEntry.Key, normalizedTag, StringComparison.Ordinal)
@@ -108,21 +120,9 @@ internal sealed class MainWindowShellSectionController
                 : Visibility.Collapsed;
         }
 
-        if (ReferenceEquals(previousControl, activeControl))
-        {
-            activeControl.Transitions = null;
-            return;
-        }
-
-        if (previousControl is not null)
+        if (previousControl is not null && _host.Children.Contains(previousControl))
         {
             _host.Children.Remove(previousControl);
-        }
-
-        activeControl.Transitions = BuildTransitions(previousTag, normalizedTag, transitionKind);
-        if (!_host.Children.Contains(activeControl))
-        {
-            _host.Children.Add(activeControl);
         }
     }
 

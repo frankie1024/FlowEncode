@@ -29,7 +29,7 @@
                             <ListView x:Name="TemplateLibraryList" ItemsSource="{Binding TemplateLibraryItems}" SelectionChanged="TemplateLibraryList_SelectionChanged" SelectionMode="Single">
                                 <ListView.ItemTemplate>
                                     <DataTemplate x:DataType="vm:TemplateLibraryItemViewModel">
-                                        <Border Margin="{StaticResource AppBottomSpacingM}" Padding="{StaticResource AppInsetPanelPadding}" Background="{ThemeResource TemplateUserCardBrush}" BorderBrush="{ThemeResource TemplateUserBorderBrush}" BorderThickness="{StaticResource AppCardBorderThickness}" CornerRadius="{StaticResource AppCardCornerRadius}">
+                                        <Border Margin="{StaticResource AppBottomSpacingM}" Padding="{StaticResource AppInsetPanelPadding}" Background="{ThemeResource TemplateUserCardBrush}" BorderBrush="{ThemeResource ThemeBorderElevatedBrush}" BorderThickness="{StaticResource AppCardBorderThickness}" CornerRadius="{StaticResource AppCardCornerRadius}" shared:UiElevation.Level="E1" shared:UiElevation.HoverLevel="E2">
                                             <Grid ColumnSpacing="{StaticResource AppSpacingM}">
                                                 <Grid.ColumnDefinitions>
                                                     <ColumnDefinition Width="*" />
