@@ -31,6 +31,14 @@
                     <Border Grid.Row="0" Padding="{StaticResource AppCardPadding}" Background="{ThemeResource CardBrush}" BorderBrush="{ThemeResource CardBorderBrush}" BorderThickness="{StaticResource AppCardBorderThickness}" CornerRadius="{StaticResource AppLargeCornerRadius}">
                         <StackPanel Spacing="{StaticResource AppSpacingM}">
                             <TextBlock FontFamily="{StaticResource AppDisplayFont}" FontSize="{StaticResource AppSectionTitleFontSize}" FontWeight="SemiBold" Text="{Binding Texts.BluRayDemuxTitle}" />
+                            <Grid ColumnSpacing="{StaticResource AppSpacingS}">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+                                <ProgressRing Width="18" Height="18" IsActive="{Binding IsBluRayDiscScanning}" Visibility="{Binding BluRayDiscScanProgressVisibility}" />
+                                <TextBlock Grid.Column="1" FontWeight="SemiBold" Text="{Binding Texts.BluRayDemuxScanStepTitle}" VerticalAlignment="Center" />
+                            </Grid>
 
                             <Grid x:Name="BluRaySourcePathGrid" ColumnSpacing="{StaticResource AppSpacingM}" RowSpacing="{StaticResource AppSpacingM}">
                                 <Grid.RowDefinitions>
@@ -132,7 +140,7 @@
                                 <ColumnDefinition Width="*" />
                                 <ColumnDefinition x:Name="BluRayTrackHeaderActionColumn" Width="Auto" />
                             </Grid.ColumnDefinitions>
-                            <TextBlock FontFamily="{StaticResource AppDisplayFont}" FontSize="{StaticResource AppBodyLargeFontSize}" FontWeight="SemiBold" Text="{Binding Texts.BluRayTracksTitle}" />
+                            <TextBlock FontFamily="{StaticResource AppDisplayFont}" FontSize="{StaticResource AppBodyLargeFontSize}" FontWeight="SemiBold" Text="{Binding Texts.BluRayDemuxExportStepTitle}" />
                             <StackPanel x:Name="BluRayTrackSelectionActionsPanel" Grid.Column="1" Orientation="Horizontal" Spacing="{StaticResource AppSpacingS}" HorizontalAlignment="Right" VerticalAlignment="Center">
                                 <Button AutomationProperties.Name="{Binding Texts.BluRaySelectAllTracksButton}" Click="SelectAllBluRayTracksButton_Click" IsEnabled="{Binding CanSelectAllBluRayTracks}" ToolTipService.ToolTip="{Binding Texts.BluRaySelectAllTracksButton}">
                                     <StackPanel Orientation="Horizontal" Spacing="{StaticResource AppCommandIconTextSpacing}">
@@ -172,54 +180,44 @@
                             </ListView.ItemTemplate>
                         </ListView>
 
-                        <Grid x:Name="BluRayDemuxActionGrid" ColumnSpacing="{StaticResource AppSpacingM}" RowSpacing="{StaticResource AppSpacingM}">
-                            <Grid.RowDefinitions>
-                                <RowDefinition Height="Auto" />
-                                <RowDefinition Height="Auto" />
-                                <RowDefinition Height="Auto" />
-                            </Grid.RowDefinitions>
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition x:Name="BluRayDemuxActionStartColumn" Width="*" />
-                                <ColumnDefinition x:Name="BluRayDemuxActionCancelColumn" Width="*" />
-                                <ColumnDefinition x:Name="BluRayDemuxActionClearColumn" Width="*" />
-                            </Grid.ColumnDefinitions>
-                            <Button x:Name="StartBluRayDemuxButton" FontWeight="SemiBold" HorizontalAlignment="Stretch" AutomationProperties.Name="{Binding Texts.BluRayDemuxStartButton}" Click="StartBluRayDemuxButton_Click" IsEnabled="{Binding CanStartBluRayDemux}" Style="{StaticResource AccentActionButtonStyle}" ToolTipService.ToolTip="{Binding Texts.BluRayDemuxStartButton}">
-                                <StackPanel Orientation="Horizontal" Spacing="{StaticResource AppCommandIconTextSpacing}">
-                                    <SymbolIcon Symbol="Play" />
-                                    <TextBlock Text="{Binding Texts.BluRayDemuxStartButton}" />
-                                </StackPanel>
-                            </Button>
-                            <Button x:Name="CancelBluRayDemuxButton" Grid.Column="1" Style="{StaticResource StandardButtonStyle}" FontWeight="SemiBold" HorizontalAlignment="Stretch" AutomationProperties.Name="{Binding Texts.BluRayDemuxCancelButton}" Click="CancelBluRayDemuxButton_Click" IsEnabled="{Binding CanCancelBluRayDemux}" ToolTipService.ToolTip="{Binding Texts.BluRayDemuxCancelButton}">
-                                <StackPanel Orientation="Horizontal" Spacing="{StaticResource AppCommandIconTextSpacing}">
-                                    <SymbolIcon Symbol="Cancel" />
-                                    <TextBlock Text="{Binding Texts.BluRayDemuxCancelButton}" />
-                                </StackPanel>
-                            </Button>
-                            <Button x:Name="ClearBluRayDemuxButton" Grid.Column="2" Style="{StaticResource StandardButtonStyle}" FontWeight="SemiBold" HorizontalAlignment="Stretch" AutomationProperties.Name="{Binding Texts.BluRayDemuxClearButton}" Click="ClearBluRayDemuxButton_Click" IsEnabled="{Binding CanClearBluRayDemuxTask}" ToolTipService.ToolTip="{Binding Texts.BluRayDemuxClearButton}">
-                                <StackPanel Orientation="Horizontal" Spacing="{StaticResource AppCommandIconTextSpacing}">
-                                    <SymbolIcon Symbol="Delete" />
-                                    <TextBlock Text="{Binding Texts.BluRayDemuxClearButton}" />
-                                </StackPanel>
-                            </Button>
-                        </Grid>
+                        <shared:TaskActionBar x:Name="BluRayDemuxActionBar">
+                            <shared:TaskActionBar.PrimaryContent>
+                                <Button x:Name="StartBluRayDemuxButton" FontWeight="SemiBold" HorizontalAlignment="Stretch" AutomationProperties.Name="{Binding Texts.BluRayDemuxStartButton}" Click="StartBluRayDemuxButton_Click" IsEnabled="{Binding CanStartBluRayDemux}" Style="{StaticResource AccentActionButtonStyle}" ToolTipService.ToolTip="{Binding Texts.BluRayDemuxStartButton}">
+                                    <StackPanel Orientation="Horizontal" Spacing="{StaticResource AppCommandIconTextSpacing}">
+                                        <SymbolIcon Symbol="Play" />
+                                        <TextBlock Text="{Binding Texts.BluRayDemuxStartButton}" />
+                                    </StackPanel>
+                                </Button>
+                            </shared:TaskActionBar.PrimaryContent>
+                            <shared:TaskActionBar.SecondaryContent>
+                                <Button x:Name="CancelBluRayDemuxButton" Style="{StaticResource StandardButtonStyle}" FontWeight="SemiBold" HorizontalAlignment="Stretch" AutomationProperties.Name="{Binding Texts.BluRayDemuxCancelButton}" Click="CancelBluRayDemuxButton_Click" IsEnabled="{Binding CanCancelBluRayDemux}" ToolTipService.ToolTip="{Binding Texts.BluRayDemuxCancelButton}">
+                                    <StackPanel Orientation="Horizontal" Spacing="{StaticResource AppCommandIconTextSpacing}">
+                                        <SymbolIcon Symbol="Cancel" />
+                                        <TextBlock Text="{Binding Texts.BluRayDemuxCancelButton}" />
+                                    </StackPanel>
+                                </Button>
+                            </shared:TaskActionBar.SecondaryContent>
+                            <shared:TaskActionBar.TertiaryContent>
+                                <Button x:Name="ClearBluRayDemuxButton" Style="{StaticResource StandardButtonStyle}" FontWeight="SemiBold" HorizontalAlignment="Stretch" AutomationProperties.Name="{Binding Texts.BluRayDemuxClearButton}" Click="ClearBluRayDemuxButton_Click" IsEnabled="{Binding CanClearBluRayDemuxTask}" ToolTipService.ToolTip="{Binding Texts.BluRayDemuxClearButton}">
+                                    <StackPanel Orientation="Horizontal" Spacing="{StaticResource AppCommandIconTextSpacing}">
+                                        <SymbolIcon Symbol="Delete" />
+                                        <TextBlock Text="{Binding Texts.BluRayDemuxClearButton}" />
+                                    </StackPanel>
+                                </Button>
+                            </shared:TaskActionBar.TertiaryContent>
+                        </shared:TaskActionBar>
 
-                        <Border Padding="{StaticResource AppInsetPanelPadding}" Background="{ThemeResource CardAltBrush}" CornerRadius="{StaticResource AppCardCornerRadius}">
-                            <StackPanel Spacing="{StaticResource AppSpacingS}">
-                                <TextBlock FontWeight="SemiBold" Text="{Binding Texts.BluRayDemuxStatusTitle}" />
-                                <Border Padding="0" Background="{Binding BluRayDemuxProgressTrackBrush}" BorderBrush="{Binding BluRayDemuxProgressBorderBrush}" BorderThickness="{StaticResource AppCardBorderThickness}" CornerRadius="{StaticResource AppCardCornerRadius}">
-                                    <Grid Height="72">
-                                        <Rectangle RadiusX="8" RadiusY="8" Fill="{Binding BluRayDemuxProgressFillBrush}" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" RenderTransformOrigin="0,0.5">
-                                            <Rectangle.RenderTransform>
-                                                <ScaleTransform ScaleX="{Binding BluRayDemuxProgressValue}" />
-                                            </Rectangle.RenderTransform>
-                                        </Rectangle>
-                                        <Border Margin="1" Background="{ThemeResource AppProgressOverlayBrush}" CornerRadius="{StaticResource AppCardCornerRadius}" />
-                                        <TextBlock FontFamily="{StaticResource AppMonoFont}" FontSize="{StaticResource AppSubsectionTitleFontSize}" FontWeight="SemiBold" HorizontalAlignment="Center" VerticalAlignment="Center" Foreground="{ThemeResource TextFillColorPrimaryBrush}" Text="{Binding BluRayDemuxProgressPercentText}" TextAlignment="Center" />
-                                    </Grid>
-                                </Border>
-                                <TextBlock FontFamily="{StaticResource AppMonoFont}" Foreground="{ThemeResource SubtleTextBrush}" Text="{Binding BluRayDemuxProgressSecondaryText}" TextWrapping="WrapWholeWords" Visibility="{Binding BluRayDemuxProgressSecondaryVisibility}" />
-                            </StackPanel>
-                        </Border>
+                        <shared:TaskStatusPanel
+                            PresentationState="{Binding BluRayDemuxPresentationState}"
+                            ProgressBorderBrush="{Binding BluRayDemuxProgressBorderBrush}"
+                            ProgressFillBrush="{Binding BluRayDemuxProgressFillBrush}"
+                            ProgressText="{Binding BluRayDemuxProgressPercentText}"
+                            ProgressTrackBrush="{Binding BluRayDemuxProgressTrackBrush}"
+                            ProgressValue="{Binding BluRayDemuxProgressValue}"
+                            SecondaryText="{Binding BluRayDemuxProgressSecondaryText}"
+                            SecondaryVisibility="{Binding BluRayDemuxProgressSecondaryVisibility}"
+                            StatusText="{Binding BluRayDemuxStatusText}"
+                            Title="{Binding Texts.BluRayDemuxStatusTitle}" />
 
                         <shared:CommandPreviewBox
                             Header="{Binding Texts.BluRayDemuxCommandTitle}"

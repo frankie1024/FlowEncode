@@ -203,6 +203,7 @@ public partial class MainWindowViewModel
     internal string BluRayPlaylistSummaryText => string.IsNullOrWhiteSpace(_bluRayPlaylistSummaryText) ? Texts.BluRayPlaylistSummaryPlaceholder : _bluRayPlaylistSummaryText;
     internal string BluRaySelectedTrackSummary => Texts.BluRayTrackSelectionSummary(BluRayTracks.Count(static track => track.IsSelected), BluRayTracks.Count);
     internal bool IsBluRayDiscScanning => _isBluRayDiscScanning;
+    internal Visibility BluRayDiscScanProgressVisibility => _isBluRayDiscScanning ? Visibility.Visible : Visibility.Collapsed;
     internal bool IsBluRayPlaylistLoading => _isBluRayPlaylistLoading;
     internal bool IsBluRayDemuxRunning => _isBluRayDemuxRunning;
     internal bool CanScanBluRayDisc => !_isChangingWorkspaceRoot && !_isBluRayDiscScanning && !_isBluRayPlaylistLoading && !_isBluRayDemuxRunning && SelectedBluRayDemuxBackend is not null && !string.IsNullOrWhiteSpace(BluRayDemuxSourcePath) && GetSelectedBluRayToolState() == ReadinessState.Ready;
@@ -217,7 +218,7 @@ public partial class MainWindowViewModel
     internal double BluRayDemuxProgressValue => BluRayDemuxProgressPercent / 100.0;
     internal string BluRayDemuxProgressPercentText => BluRayDemuxProgressIsIndeterminate && _isBluRayDemuxRunning && BluRayDemuxProgressPercent <= 0 ? "--" : $"{BluRayDemuxProgressPercent:0.#}%";
     internal string BluRayDemuxProgressSecondaryText => !string.IsNullOrWhiteSpace(_bluRayDemuxLastLogLine) ? _bluRayDemuxLastLogLine : BluRayDemuxStatusText;
-    internal Visibility BluRayDemuxProgressSecondaryVisibility => string.IsNullOrWhiteSpace(BluRayDemuxProgressSecondaryText) ? Visibility.Collapsed : Visibility.Visible;
+    internal Visibility BluRayDemuxProgressSecondaryVisibility => string.IsNullOrWhiteSpace(_bluRayDemuxLastLogLine) ? Visibility.Collapsed : Visibility.Visible;
     internal Brush BluRayDemuxStatusPanelBorderBrush => ResolveTaskStatusPanelBorderBrush(_bluRayDemuxDisplayState);
     internal Brush BluRayDemuxProgressTrackBrush => ResolveBluRayDemuxProgressTrackBrush(_bluRayDemuxDisplayState);
     internal Brush BluRayDemuxProgressBorderBrush => ResolveBluRayDemuxProgressBorderBrush(_bluRayDemuxDisplayState);
@@ -1293,6 +1294,7 @@ public partial class MainWindowViewModel
 
         _isBluRayDiscScanning = value;
         OnPropertyChanged(nameof(IsBluRayDiscScanning));
+        OnPropertyChanged(nameof(BluRayDiscScanProgressVisibility));
         RaiseBluRayDemuxInputPropertyChanges();
         RaiseDashboardCardActivityPropertyChanges();
     }

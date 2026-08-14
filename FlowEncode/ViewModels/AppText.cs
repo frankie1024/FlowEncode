@@ -172,6 +172,8 @@ public sealed class AppText
     public string AudioProcessingDdpWarmupHint => Pick("ffmpeg 处理中，请稍后...", "FFmpeg is preparing the source. Please wait...");
     public string AudioProcessingProgressIndeterminateHint => Pick("当前阶段暂无法稳定计算百分比，任务仍在执行。", "This stage has no reliable percentage yet. The task is still running.");
     public string AutoCompressionMetricHeader => "Target Metric";
+    public string BluRayDemuxScanStepTitle => Pick("1. 扫描与播放列表", "1. Scan and playlists");
+    public string BluRayDemuxExportStepTitle => Pick("2. 选择轨道与导出", "2. Choose tracks and export");
     public string AutoCompressionTargetVmafHeader => "Target Score";
     public string AutoCompressionProbesHeader => "Probes";
     public string AutoCompressionWorkersHeader => "Workers (0 = Auto)";

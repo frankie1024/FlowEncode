@@ -3,6 +3,7 @@ using System.Collections.ObjectModel;
 using System.Linq;
 using System.Threading.Tasks;
 using FlowEncode.Domain;
+using Microsoft.UI.Xaml;
 
 namespace FlowEncode.ViewModels;
 
@@ -44,6 +45,10 @@ public sealed class BluRayDemuxDiscViewModel : ModuleViewModelBase
     }
 
     public bool CanScanBluRayDisc => Owner.CanScanBluRayDisc;
+
+    public bool IsBluRayDiscScanning => Owner.IsBluRayDiscScanning;
+
+    public Visibility BluRayDiscScanProgressVisibility => Owner.BluRayDiscScanProgressVisibility;
 
     public string BluRayDiscSummaryText => Owner.BluRayDiscSummaryText;
 

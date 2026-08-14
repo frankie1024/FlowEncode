@@ -53,7 +53,7 @@ public sealed partial class BluRayDemuxView : UserControl
         BluRaySourcePathGrid.RowSpacing = 0;
         ConfigureTwoItemGrid(BluRayBackendActionGrid, BluRayBackendActionColumn, ScanBluRayButton, compactForms, GridLength.Auto);
         ConfigureTwoItemGrid(BluRayTrackHeaderGrid, BluRayTrackHeaderActionColumn, BluRayTrackSelectionActionsPanel, compactForms, GridLength.Auto);
-        ConfigureThreeItemGrid(BluRayDemuxActionGrid, BluRayDemuxActionCancelColumn, BluRayDemuxActionClearColumn, CancelBluRayDemuxButton, ClearBluRayDemuxButton, compactForms);
+        BluRayDemuxActionBar.IsStacked = compactForms;
         ApplyScrollableRegions(stackedWorkspace);
         ScheduleWorkspaceHeightRefresh();
     }
@@ -277,20 +277,4 @@ public sealed partial class BluRayDemuxView : UserControl
         Grid.SetColumn(secondItem, stacked ? 0 : 1);
     }
 
-    private static void ConfigureThreeItemGrid(
-        Grid grid,
-        ColumnDefinition secondColumn,
-        ColumnDefinition thirdColumn,
-        FrameworkElement secondItem,
-        FrameworkElement thirdItem,
-        bool stacked)
-    {
-        grid.ColumnSpacing = stacked ? 0 : UiTokens.SpacingM;
-        secondColumn.Width = stacked ? new GridLength(0) : new GridLength(1, GridUnitType.Star);
-        thirdColumn.Width = stacked ? new GridLength(0) : new GridLength(1, GridUnitType.Star);
-        Grid.SetRow(secondItem, stacked ? 1 : 0);
-        Grid.SetColumn(secondItem, stacked ? 0 : 1);
-        Grid.SetRow(thirdItem, stacked ? 2 : 0);
-        Grid.SetColumn(thirdItem, stacked ? 0 : 2);
-    }
 }
