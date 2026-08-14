@@ -10,18 +10,9 @@
     mc:Ignorable="d">
     <ScrollViewer VerticalScrollBarVisibility="Auto">
         <StackPanel x:Name="ContentStack" Padding="{StaticResource AppPagePadding}" Spacing="{StaticResource AppSpacingL}">
-            <Grid x:Name="WorkspaceGrid" ColumnSpacing="{StaticResource AppSpacingL}" RowSpacing="{StaticResource AppSpacingL}">
-                <Grid.RowDefinitions>
-                    <RowDefinition x:Name="WorkspacePrimaryRow" Height="Auto" />
-                    <RowDefinition x:Name="WorkspaceSecondaryRow" Height="0" />
-                </Grid.RowDefinitions>
-                <Grid.ColumnDefinitions>
-                    <ColumnDefinition x:Name="PrimaryColumn" Width="0.95*" />
-                    <ColumnDefinition x:Name="SecondaryColumn" Width="1.05*" />
-                </Grid.ColumnDefinitions>
-
-                <Border x:Name="PrimaryPanel" Padding="{StaticResource AppCardPadding}" Background="{ThemeResource CardBrush}" BorderBrush="{ThemeResource CardBorderBrush}" BorderThickness="{StaticResource AppCardBorderThickness}" CornerRadius="{StaticResource AppLargeCornerRadius}" VerticalAlignment="Top" DataContext="{Binding Form}">
-                    <StackPanel Spacing="{StaticResource AppSpacingM}">
+            <Border Padding="{StaticResource AppCardPadding}" Background="{ThemeResource CardBrush}" BorderBrush="{ThemeResource CardBorderBrush}" BorderThickness="{StaticResource AppCardBorderThickness}" CornerRadius="{StaticResource AppLargeCornerRadius}">
+                <StackPanel Spacing="{StaticResource AppSpacingM}">
+                    <StackPanel Spacing="{StaticResource AppSpacingM}" DataContext="{Binding Form}">
                         <TextBlock FontFamily="{StaticResource AppDisplayFont}" FontSize="{StaticResource AppSectionTitleFontSize}" FontWeight="SemiBold" Text="{Binding Texts.AudioProcessingTitle}" />
 
                         <Grid x:Name="AudioSourcePathGrid" ColumnSpacing="{StaticResource AppSpacingM}" RowSpacing="{StaticResource AppSpacingM}">
@@ -60,30 +51,26 @@
                                     <TextBlock Text="{Binding AudioProcessingOutputBrowseButtonText}" />
                                 </StackPanel>
                             </Button>
-                            <TextBlock Grid.Row="1" Grid.ColumnSpan="2" FontFamily="{StaticResource AppMonoFont}" Foreground="{ThemeResource SubtleTextBrush}" Text="{Binding AudioProcessingOutputPreviewText}" TextWrapping="Wrap" />
+                            <TextBlock x:Name="AudioOutputPreviewTextBlock" Grid.Row="1" Grid.ColumnSpan="2" FontFamily="{StaticResource AppMonoFont}" Foreground="{ThemeResource SubtleTextBrush}" Text="{Binding AudioProcessingOutputPreviewText}" TextWrapping="Wrap" />
                         </Grid>
 
-                        <Grid x:Name="AudioProcessingOptionsGrid" RowSpacing="{StaticResource AppSpacingM}">
+                        <Grid x:Name="AudioProcessingOptionsGrid" ColumnSpacing="{StaticResource AppSpacingM}" RowSpacing="{StaticResource AppSpacingM}">
                             <Grid.RowDefinitions>
                                 <RowDefinition Height="Auto" />
                                 <RowDefinition Height="Auto" />
                                 <RowDefinition Height="Auto" />
-                                <RowDefinition Height="Auto" />
-                                <RowDefinition Height="Auto" />
                             </Grid.RowDefinitions>
-                            <ComboBox x:Name="AudioWorkflowComboBox" Header="{Binding Texts.AudioWorkflowHeader}" DisplayMemberPath="Label" ItemsSource="{Binding AudioWorkflowOptions}" SelectedItem="{Binding SelectedAudioWorkflow, Mode=TwoWay}" />
-                            <ComboBox x:Name="AudioEac3ToOutputFormatComboBox" Grid.Row="1" Header="{Binding Texts.AudioEac3ToOutputFormatHeader}" DisplayMemberPath="Label" ItemsSource="{Binding AudioEac3ToOutputFormatOptions}" SelectedItem="{Binding SelectedAudioEac3ToOutputFormat, Mode=TwoWay}" Visibility="{Binding AudioEac3ToOptionsVisibility}" shared:UiMotion.AnimateOnVisible="True" />
-                            <TextBox x:Name="AudioEac3ToAdditionalArgumentsTextBox" Grid.Row="2" Header="{Binding Texts.AudioEac3ToAdditionalArgumentsHeader}" PlaceholderText="{Binding Texts.AudioEac3ToAdditionalArgumentsPlaceholder}" Text="{Binding AudioProcessingAdditionalArguments, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Visibility="{Binding AudioEac3ToOptionsVisibility}" shared:UiMotion.AnimateOnVisible="True" />
-                            <ComboBox x:Name="AudioOpusBitrateComboBox" Grid.Row="3" Header="{Binding Texts.AudioOpusBitrateHeader}" DisplayMemberPath="Label" ItemsSource="{Binding AudioOpusBitrateOptions}" SelectedItem="{Binding SelectedAudioOpusBitrate, Mode=TwoWay}" Visibility="{Binding AudioOpusOptionsVisibility}" shared:UiMotion.AnimateOnVisible="True" />
-                            <ToggleSwitch x:Name="AudioOpusMappingFamilyToggle" Grid.Row="4" Header="{Binding Texts.AudioOpusMappingFamilyHeader}" IsOn="{Binding AudioOpusUseMappingFamily1, Mode=TwoWay}" OnContent="{Binding Texts.ToggleOnLabel}" OffContent="{Binding Texts.ToggleOffLabel}" ToolTipService.ToolTip="{Binding Texts.AudioOpusMappingFamilyTooltip}" Visibility="{Binding AudioOpusOptionsVisibility}" shared:UiMotion.AnimateOnVisible="True" />
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition x:Name="AudioWorkflowColumn" Width="*" />
+                                <ColumnDefinition x:Name="AudioSecondaryOptionColumn" Width="*" />
+                                <ColumnDefinition x:Name="AudioTertiaryOptionColumn" Width="*" />
+                            </Grid.ColumnDefinitions>
+                            <ComboBox x:Name="AudioWorkflowComboBox" Header="{Binding Texts.AudioWorkflowHeader}" DisplayMemberPath="Label" HorizontalAlignment="Stretch" ItemsSource="{Binding AudioWorkflowOptions}" SelectedItem="{Binding SelectedAudioWorkflow, Mode=TwoWay}" />
+                            <ComboBox x:Name="AudioEac3ToOutputFormatComboBox" Grid.Column="1" Header="{Binding Texts.AudioEac3ToOutputFormatHeader}" DisplayMemberPath="Label" HorizontalAlignment="Stretch" ItemsSource="{Binding AudioEac3ToOutputFormatOptions}" SelectedItem="{Binding SelectedAudioEac3ToOutputFormat, Mode=TwoWay}" Visibility="{Binding AudioEac3ToOptionsVisibility}" shared:UiMotion.AnimateOnVisible="True" />
+                            <TextBox x:Name="AudioEac3ToAdditionalArgumentsTextBox" Grid.Column="2" Header="{Binding Texts.AudioEac3ToAdditionalArgumentsHeader}" PlaceholderText="{Binding Texts.AudioEac3ToAdditionalArgumentsPlaceholder}" Text="{Binding AudioProcessingAdditionalArguments, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Visibility="{Binding AudioEac3ToOptionsVisibility}" shared:UiMotion.AnimateOnVisible="True" />
+                            <ComboBox x:Name="AudioOpusBitrateComboBox" Grid.Column="1" Header="{Binding Texts.AudioOpusBitrateHeader}" DisplayMemberPath="Label" HorizontalAlignment="Stretch" ItemsSource="{Binding AudioOpusBitrateOptions}" SelectedItem="{Binding SelectedAudioOpusBitrate, Mode=TwoWay}" Visibility="{Binding AudioOpusOptionsVisibility}" shared:UiMotion.AnimateOnVisible="True" />
+                            <ToggleSwitch x:Name="AudioOpusMappingFamilyToggle" Grid.Column="2" Header="{Binding Texts.AudioOpusMappingFamilyHeader}" IsOn="{Binding AudioOpusUseMappingFamily1, Mode=TwoWay}" OnContent="{Binding Texts.ToggleOnLabel}" OffContent="{Binding Texts.ToggleOffLabel}" ToolTipService.ToolTip="{Binding Texts.AudioOpusMappingFamilyTooltip}" Visibility="{Binding AudioOpusOptionsVisibility}" shared:UiMotion.AnimateOnVisible="True" />
                         </Grid>
-
-                        <Border Padding="{StaticResource AppInsetPanelPadding}" Background="{ThemeResource CardAltBrush}" CornerRadius="{StaticResource AppCardCornerRadius}">
-                            <StackPanel Spacing="{StaticResource AppSpacingS}">
-                                <TextBlock FontWeight="SemiBold" Text="{Binding Texts.EnvironmentSectionTitle}" />
-                                <TextBlock FontFamily="{StaticResource AppMonoFont}" Text="{Binding AudioCapabilitySummary}" TextWrapping="WrapWholeWords" />
-                            </StackPanel>
-                        </Border>
 
                         <Grid x:Name="AudioProcessingActionGrid" ColumnSpacing="{StaticResource AppSpacingM}" RowSpacing="{StaticResource AppSpacingM}">
                             <Grid.RowDefinitions>
@@ -116,14 +103,18 @@
                             </Button>
                         </Grid>
                     </StackPanel>
-                </Border>
 
-                <Border x:Name="SecondaryPanel" Grid.Column="1" Padding="{StaticResource AppCardPadding}" Background="{ThemeResource CardBrush}" BorderBrush="{ThemeResource CardBorderBrush}" BorderThickness="{StaticResource AppCardBorderThickness}" CornerRadius="{StaticResource AppLargeCornerRadius}" VerticalAlignment="Top" DataContext="{Binding Status}">
-                    <StackPanel Spacing="{StaticResource AppSpacingM}">
+                    <StackPanel Spacing="{StaticResource AppSpacingM}" DataContext="{Binding Status}">
                         <Border Padding="{StaticResource AppInsetPanelPadding}" Background="{ThemeResource CardAltBrush}" CornerRadius="{StaticResource AppCardCornerRadius}">
                             <StackPanel Spacing="{StaticResource AppSpacingS}">
-                                <TextBlock FontWeight="SemiBold" Text="{Binding Texts.AudioProcessingStatusTitle}" />
-                                <TextBlock FontFamily="{StaticResource AppMonoFont}" Text="{Binding AudioProcessingStatusText}" TextWrapping="WrapWholeWords" />
+                                <Grid ColumnSpacing="{StaticResource AppSpacingS}">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="Auto" />
+                                        <ColumnDefinition Width="*" />
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock FontFamily="{StaticResource AppDisplayFont}" FontSize="{StaticResource AppBodyLargeFontSize}" FontWeight="SemiBold" Text="{Binding Texts.AudioProcessingStatusTitle}" />
+                                    <TextBlock Grid.Column="1" FontFamily="{StaticResource AppMonoFont}" Foreground="{ThemeResource SubtleTextBrush}" Text="{Binding AudioProcessingStatusText}" TextTrimming="CharacterEllipsis" TextWrapping="NoWrap" VerticalAlignment="Center" />
+                                </Grid>
                                 <Border Padding="0" Background="{Binding AudioProcessingProgressTrackBrush}" BorderBrush="{Binding AudioProcessingProgressBorderBrush}" BorderThickness="{StaticResource AppCardBorderThickness}" CornerRadius="{StaticResource AppCardCornerRadius}">
                                     <Grid Height="72">
                                         <Rectangle RadiusX="8" RadiusY="8" Fill="{Binding AudioProcessingProgressFillBrush}" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" RenderTransformOrigin="0,0.5">
@@ -155,8 +146,8 @@
                             </shared:AnimatedExpander.BodyContent>
                         </shared:AnimatedExpander>
                     </StackPanel>
-                </Border>
-            </Grid>
+                </StackPanel>
+            </Border>
         </StackPanel>
     </ScrollViewer>
 </UserControl>

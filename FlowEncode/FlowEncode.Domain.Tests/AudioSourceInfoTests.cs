@@ -55,6 +55,20 @@ public sealed class AudioSourceInfoTests
         Assert.AreEqual(24, info.BitDepth);
     }
 
+    [TestMethod]
+    public void HasSurround51Or71Channels_ReturnsTrueForSixAndEightChannels()
+    {
+        Assert.IsTrue(CreateInfo("flac", channels: 6).HasSurround51Or71Channels());
+        Assert.IsTrue(CreateInfo("flac", channels: 8).HasSurround51Or71Channels());
+    }
+
+    [TestMethod]
+    public void HasSurround51Or71Channels_ReturnsFalseForOtherChannelCounts()
+    {
+        Assert.IsFalse(CreateInfo("flac", channels: 2).HasSurround51Or71Channels());
+        Assert.IsFalse(CreateInfo("flac", channels: 10).HasSurround51Or71Channels());
+    }
+
     private static AudioSourceInfo CreateInfo(string codecName, string profileName = "", int channels = 2, int? bitDepth = 24)
     {
         return new AudioSourceInfo(codecName, profileName, channels, string.Empty, 48000, bitDepth, null);

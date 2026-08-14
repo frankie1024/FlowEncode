@@ -157,8 +157,8 @@ public sealed class AppText
     public string AudioOpusBitrateHeader => Pick("Opus 码率", "Opus Bitrate");
     public string AudioOpusMappingFamilyHeader => Pick("环绕映射", "Surround Mapping");
     public string AudioOpusMappingFamilyTooltip => Pick(
-        "环绕声（5.1/7.1）建议开启，可获得正确的声道映射。立体声无需开启。不兼容的布局会自动回退。",
-        "Recommended for surround (5.1/7.1) content for correct channel mapping. Not needed for stereo. Incompatible layouts fall back automatically.");
+        "开启：使用正确的环绕声道映射。关闭：保持标准映射。立体声保持关闭，5.1/7.1 建议开启。",
+        "On: use correct surround channel mapping. Off: keep standard mapping. Leave stereo off; enable for 5.1/7.1.");
     public string AudioChannelProfileHeader => Pick("声道布局", "Channel Layout");
     public string AudioProcessingStartButton => Pick("开始音频处理", "Start Audio");
     public string AudioProcessingCancelButton => Pick("取消音频处理", "Cancel Audio");

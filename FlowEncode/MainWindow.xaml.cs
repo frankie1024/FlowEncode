@@ -277,7 +277,7 @@ public sealed partial class MainWindow : Window, ISettingsViewHost, IShellNaviga
             [MainShellSections.AudioProcessing] = new(
                 ShellSectionLifetime.Recreatable,
                 () => CreateSectionView<AudioProcessingView>(ViewModel.AudioProcessingModule),
-                static (control, _, contentPadding, stackedWorkspace, compactForms) => ((AudioProcessingView)control).ApplyLayout(stackedWorkspace, compactForms, contentPadding)),
+                static (control, width, contentPadding, _, compactForms) => ((AudioProcessingView)control).ApplyLayout(compactForms, width, contentPadding)),
             [MainShellSections.AutoCompression] = new(
                 ShellSectionLifetime.Recreatable,
                 () => CreateSectionView<AutoCompressionView>(ViewModel.AutoCompressionModule),

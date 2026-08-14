@@ -12,8 +12,6 @@ namespace FlowEncode.Controls.AudioProcessing;
 public sealed partial class AudioProcessingView : UserControl
 {
     private bool _interactionsInitialized;
-    private bool _isStackedWorkspaceLayout;
-    private bool _isUpdatingWorkspaceHeight;
 
     private AudioProcessingViewModel? ViewModel => DataContext as AudioProcessingViewModel;
     private AudioProcessingFormViewModel? FormViewModel => ViewModel?.Form;
@@ -24,30 +22,15 @@ public sealed partial class AudioProcessingView : UserControl
         Loaded += AudioProcessingView_Loaded;
     }
 
-    public void ApplyLayout(bool stackedWorkspace, bool compactForms, Thickness contentPadding)
+    public void ApplyLayout(bool compactForms, double width, Thickness contentPadding)
     {
-        _isStackedWorkspaceLayout = stackedWorkspace;
         ContentStack.Padding = contentPadding;
-        WorkspaceGrid.ColumnSpacing = stackedWorkspace ? 0 : UiTokens.SpacingL;
-        WorkspaceGrid.RowSpacing = stackedWorkspace ? UiTokens.SpacingL : 0;
-        PrimaryColumn.Width = new GridLength(stackedWorkspace ? 1 : 0.95, GridUnitType.Star);
-        SecondaryColumn.Width = stackedWorkspace
-            ? new GridLength(0)
-            : new GridLength(1.05, GridUnitType.Star);
-        WorkspacePrimaryRow.Height = GridLength.Auto;
-        WorkspaceSecondaryRow.Height = stackedWorkspace ? GridLength.Auto : new GridLength(0);
-
-        Grid.SetRow(PrimaryPanel, 0);
-        Grid.SetColumn(PrimaryPanel, 0);
-        Grid.SetColumnSpan(PrimaryPanel, 1);
-        Grid.SetRow(SecondaryPanel, stackedWorkspace ? 1 : 0);
-        Grid.SetColumn(SecondaryPanel, stackedWorkspace ? 0 : 1);
-        Grid.SetColumnSpan(SecondaryPanel, stackedWorkspace ? 2 : 1);
-
-        ConfigureTwoItemGrid(AudioSourcePathGrid, AudioSourcePathActionColumn, AudioSourceBrowseButton, compactForms, GridLength.Auto);
-        ConfigureTwoItemGrid(AudioOutputPathGrid, AudioOutputPathActionColumn, AudioOutputBrowseButton, compactForms, GridLength.Auto);
+        const bool stackPathActions = false;
+        ConfigureTwoItemGrid(AudioSourcePathGrid, AudioSourcePathActionColumn, AudioSourceBrowseButton, stackPathActions, GridLength.Auto);
+        ConfigureTwoItemGrid(AudioOutputPathGrid, AudioOutputPathActionColumn, AudioOutputBrowseButton, stackPathActions, GridLength.Auto);
+        ConfigureOutputPathGrid();
         ConfigureThreeItemGrid(AudioProcessingActionGrid, AudioProcessingCancelColumn, AudioProcessingDeleteColumn, CancelAudioProcessingButton, DeleteAudioProcessingButton, compactForms);
-        ScheduleWorkspaceHeightRefresh();
+        ConfigureAudioOptionsGrid(width >= 900 ? 3 : 1);
     }
 
     private void AudioProcessingView_Loaded(object sender, RoutedEventArgs e)
@@ -60,21 +43,6 @@ public sealed partial class AudioProcessingView : UserControl
         _interactionsInitialized = true;
         AudioSourcePathTextBox.AddHandler(UIElement.DoubleTappedEvent, new DoubleTappedEventHandler(AudioSourcePathTextBox_DoubleTapped), true);
         AudioOutputPathTextBox.AddHandler(UIElement.DoubleTappedEvent, new DoubleTappedEventHandler(AudioOutputPathTextBox_DoubleTapped), true);
-        PrimaryPanel.SizeChanged += WorkspacePanel_SizeChanged;
-        SecondaryPanel.SizeChanged += WorkspacePanel_SizeChanged;
-        AudioCommandPreviewBox.SizeChanged += WorkspacePanel_SizeChanged;
-        AudioLogExpander.SizeChanged += WorkspacePanel_SizeChanged;
-        ScheduleWorkspaceHeightRefresh();
-    }
-
-    private void WorkspacePanel_SizeChanged(object sender, SizeChangedEventArgs e)
-    {
-        if (_isUpdatingWorkspaceHeight)
-        {
-            return;
-        }
-
-        ScheduleWorkspaceHeightRefresh();
     }
 
     private async void BrowseAudioSourceButton_Click(object sender, RoutedEventArgs e)
@@ -220,54 +188,6 @@ public sealed partial class AudioProcessingView : UserControl
         FormViewModel?.ClearAudioProcessingTask();
     }
 
-    private void ScheduleWorkspaceHeightRefresh()
-    {
-        DispatcherQueue.TryEnqueue(UpdateWorkspaceHeight);
-    }
-
-    private void UpdateWorkspaceHeight()
-    {
-        if (_isUpdatingWorkspaceHeight)
-        {
-            return;
-        }
-
-        if (_isStackedWorkspaceLayout || Visibility != Visibility.Visible)
-        {
-            ClearWorkspaceHeight();
-            return;
-        }
-
-        _isUpdatingWorkspaceHeight = true;
-
-        try
-        {
-            PrimaryPanel.Height = double.NaN;
-            SecondaryPanel.Height = double.NaN;
-            UpdateLayout();
-
-            var targetHeight = Math.Max(PrimaryPanel.ActualHeight, SecondaryPanel.ActualHeight);
-            if (targetHeight <= 0)
-            {
-                return;
-            }
-
-            targetHeight = Math.Ceiling(targetHeight);
-            PrimaryPanel.Height = targetHeight;
-            SecondaryPanel.Height = targetHeight;
-        }
-        finally
-        {
-            _isUpdatingWorkspaceHeight = false;
-        }
-    }
-
-    private void ClearWorkspaceHeight()
-    {
-        PrimaryPanel.Height = double.NaN;
-        SecondaryPanel.Height = double.NaN;
-    }
-
     private static void ConfigureTwoItemGrid(
         Grid grid,
         ColumnDefinition secondColumn,
@@ -276,9 +196,19 @@ public sealed partial class AudioProcessingView : UserControl
         GridLength expandedSecondColumnWidth)
     {
         grid.ColumnSpacing = stacked ? 0 : UiTokens.SpacingM;
+        grid.RowSpacing = stacked ? UiTokens.SpacingS : 0;
         secondColumn.Width = stacked ? new GridLength(0) : expandedSecondColumnWidth;
+        secondItem.HorizontalAlignment = stacked ? HorizontalAlignment.Stretch : HorizontalAlignment.Right;
         Grid.SetRow(secondItem, stacked ? 1 : 0);
         Grid.SetColumn(secondItem, stacked ? 0 : 1);
+    }
+
+    private void ConfigureOutputPathGrid()
+    {
+        AudioOutputPathGrid.RowSpacing = UiTokens.SpacingM;
+        Grid.SetRow(AudioOutputPreviewTextBlock, 1);
+        Grid.SetColumn(AudioOutputPreviewTextBlock, 0);
+        Grid.SetColumnSpan(AudioOutputPreviewTextBlock, 2);
     }
 
     private static void ConfigureThreeItemGrid(
@@ -290,6 +220,7 @@ public sealed partial class AudioProcessingView : UserControl
         bool stacked)
     {
         grid.ColumnSpacing = stacked ? 0 : UiTokens.SpacingM;
+        grid.RowSpacing = stacked ? UiTokens.SpacingM : 0;
         secondColumn.Width = stacked ? new GridLength(0) : new GridLength(1, GridUnitType.Star);
         thirdColumn.Width = stacked ? new GridLength(0) : new GridLength(1, GridUnitType.Star);
         Grid.SetRow(secondItem, stacked ? 1 : 0);
@@ -297,4 +228,36 @@ public sealed partial class AudioProcessingView : UserControl
         Grid.SetRow(thirdItem, stacked ? 2 : 0);
         Grid.SetColumn(thirdItem, stacked ? 0 : 2);
     }
+
+    private void ConfigureAudioOptionsGrid(int columnCount)
+    {
+        var stacked = columnCount == 1;
+        RebuildAutoRows(AudioProcessingOptionsGrid, stacked ? 3 : 1);
+        AudioProcessingOptionsGrid.ColumnSpacing = columnCount == 1 ? 0 : UiTokens.SpacingM;
+        AudioSecondaryOptionColumn.Width = columnCount >= 2 ? new GridLength(1, GridUnitType.Star) : new GridLength(0);
+        AudioTertiaryOptionColumn.Width = columnCount >= 3 ? new GridLength(1, GridUnitType.Star) : new GridLength(0);
+
+        Grid.SetRow(AudioWorkflowComboBox, 0);
+        Grid.SetColumn(AudioWorkflowComboBox, 0);
+
+        Grid.SetRow(AudioEac3ToOutputFormatComboBox, stacked ? 1 : 0);
+        Grid.SetColumn(AudioEac3ToOutputFormatComboBox, stacked ? 0 : 1);
+        Grid.SetRow(AudioEac3ToAdditionalArgumentsTextBox, stacked ? 2 : 0);
+        Grid.SetColumn(AudioEac3ToAdditionalArgumentsTextBox, stacked ? 0 : 2);
+
+        Grid.SetRow(AudioOpusBitrateComboBox, stacked ? 1 : 0);
+        Grid.SetColumn(AudioOpusBitrateComboBox, stacked ? 0 : 1);
+        Grid.SetRow(AudioOpusMappingFamilyToggle, stacked ? 2 : 0);
+        Grid.SetColumn(AudioOpusMappingFamilyToggle, stacked ? 0 : 2);
+    }
+
+    private static void RebuildAutoRows(Grid grid, int rowCount)
+    {
+        grid.RowDefinitions.Clear();
+        for (var index = 0; index < rowCount; index++)
+        {
+            grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+        }
+    }
+
 }

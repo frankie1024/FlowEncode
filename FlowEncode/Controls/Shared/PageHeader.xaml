@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<UserControl
+    x:Class="FlowEncode.Controls.Shared.PageHeader"
+    x:Name="Root"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <Grid x:Name="LayoutRoot" RowSpacing="{StaticResource AppSpacingM}">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="*" />
+            <ColumnDefinition Width="Auto" />
+        </Grid.ColumnDefinitions>
+
+        <StackPanel x:Name="HeaderContentPanel" Spacing="{StaticResource AppSpacingXS}">
+            <TextBlock
+                x:Name="TitleTextBlock"
+                FontFamily="{StaticResource AppDisplayFont}"
+                FontSize="{StaticResource AppSectionTitleFontSize}"
+                FontWeight="SemiBold"
+                Text="{Binding Title, ElementName=Root}"
+                TextWrapping="WrapWholeWords" />
+            <TextBlock
+                x:Name="DescriptionTextBlock"
+                Foreground="{ThemeResource SubtleTextBrush}"
+                Text="{Binding Description, ElementName=Root}"
+                TextWrapping="WrapWholeWords"
+                Visibility="Collapsed" />
+            <TextBlock
+                x:Name="StatusTextBlock"
+                FontFamily="{StaticResource AppMonoFont}"
+                Foreground="{ThemeResource SubtleTextBrush}"
+                Text="{Binding StatusText, ElementName=Root}"
+                TextWrapping="WrapWholeWords"
+                Visibility="Collapsed" />
+        </StackPanel>
+
+        <ContentPresenter
+            x:Name="ActionsPresenter"
+            Grid.Column="1"
+            HorizontalAlignment="Right"
+            VerticalAlignment="Top"
+            Content="{Binding ActionsContent, ElementName=Root}" />
+    </Grid>
+</UserControl>

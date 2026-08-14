@@ -1219,6 +1219,7 @@ public partial class MainWindowViewModel
         _audioSourceInfo = null;
         _audioSourceInfoError = null;
         _isAudioSourceInfoLoading = false;
+        AudioOpusUseMappingFamily1 = false;
 
         if (string.IsNullOrWhiteSpace(sourcePath))
         {
@@ -1261,6 +1262,7 @@ public partial class MainWindowViewModel
 
             _audioSourceInfo = info;
             _audioSourceInfoError = null;
+            AudioOpusUseMappingFamily1 = info?.HasSurround51Or71Channels() == true;
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
@@ -1275,6 +1277,7 @@ public partial class MainWindowViewModel
 
             _audioSourceInfo = null;
             _audioSourceInfoError = ex.Message;
+            AudioOpusUseMappingFamily1 = false;
         }
         finally
         {

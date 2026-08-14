@@ -60,4 +60,6 @@ public sealed record AudioSourceInfo(
     }
 
     public bool HasStereoOrGreaterChannels() => Channels >= 2;
+
+    public bool HasSurround51Or71Channels() => Channels is 6 or 8;
 }
