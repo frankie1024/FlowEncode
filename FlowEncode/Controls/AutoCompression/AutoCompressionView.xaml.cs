@@ -59,7 +59,7 @@ public sealed partial class AutoCompressionView : UserControl
 
         ConfigureFourAdvancedItemsGrid(AutoCompressionAdvancedOptionsGrid, width >= 1080 ? 4 : width >= 760 ? 2 : 1);
 
-        ConfigureTwoItemGrid(AutoCompressionActionGrid, AutoCompressionCancelColumn, CancelAutoCompressionButton, compactForms, new GridLength(1, GridUnitType.Star));
+        AutoCompressionActionBar.IsStacked = compactForms;
     }
 
     private void AutoCompressionView_Loaded(object sender, RoutedEventArgs e)

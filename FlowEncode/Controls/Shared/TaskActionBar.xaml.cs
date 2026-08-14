@@ -21,7 +21,7 @@ public sealed partial class TaskActionBar : UserControl
     public object? TertiaryContent { get => GetValue(TertiaryContentProperty); set => SetValue(TertiaryContentProperty, value); }
     public bool IsStacked { get => (bool)GetValue(IsStackedProperty); set => SetValue(IsStackedProperty, value); }
 
-    private static DependencyProperty RegisterContentProperty(string name) => DependencyProperty.Register(name, typeof(object), typeof(TaskActionBar), new PropertyMetadata(null));
+    private static DependencyProperty RegisterContentProperty(string name) => DependencyProperty.Register(name, typeof(object), typeof(TaskActionBar), new PropertyMetadata(null, OnLayoutPropertyChanged));
 
     private static void OnLayoutPropertyChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
     {
@@ -33,10 +33,20 @@ public sealed partial class TaskActionBar : UserControl
 
     private void UpdateLayoutMode()
     {
-        ActionGrid.ColumnSpacing = IsStacked ? 0 : UiTokens.SpacingM;
-        ActionGrid.RowSpacing = IsStacked ? UiTokens.SpacingM : 0;
-        SecondaryColumn.Width = IsStacked ? new GridLength(0) : new GridLength(1, GridUnitType.Star);
-        TertiaryColumn.Width = IsStacked ? new GridLength(0) : new GridLength(1, GridUnitType.Star);
+        var hasPrimary = PrimaryContent is not null;
+        var hasSecondary = SecondaryContent is not null;
+        var hasTertiary = TertiaryContent is not null;
+        var actionCount = (hasPrimary ? 1 : 0) + (hasSecondary ? 1 : 0) + (hasTertiary ? 1 : 0);
+
+        PrimaryPresenter.Visibility = hasPrimary ? Visibility.Visible : Visibility.Collapsed;
+        SecondaryPresenter.Visibility = hasSecondary ? Visibility.Visible : Visibility.Collapsed;
+        TertiaryPresenter.Visibility = hasTertiary ? Visibility.Visible : Visibility.Collapsed;
+
+        ActionGrid.ColumnSpacing = !IsStacked && actionCount > 1 ? UiTokens.SpacingM : 0;
+        ActionGrid.RowSpacing = IsStacked && actionCount > 1 ? UiTokens.SpacingM : 0;
+        PrimaryColumn.Width = hasPrimary ? new GridLength(1, GridUnitType.Star) : new GridLength(0);
+        SecondaryColumn.Width = !IsStacked && hasSecondary ? new GridLength(1, GridUnitType.Star) : new GridLength(0);
+        TertiaryColumn.Width = !IsStacked && hasTertiary ? new GridLength(1, GridUnitType.Star) : new GridLength(0);
 
         SetPresenterLayout(PrimaryPresenter, 0, 0);
         SetPresenterLayout(SecondaryPresenter, IsStacked ? 1 : 0, IsStacked ? 0 : 1);

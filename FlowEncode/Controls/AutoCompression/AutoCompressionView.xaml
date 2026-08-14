@@ -69,13 +69,11 @@
                             </Grid.ColumnDefinitions>
 
                             <ComboBox x:Name="AutoCompressionEncoderComboBox" Header="{Binding Texts.EncoderHeader}" DisplayMemberPath="Label" ItemsSource="{Binding EncoderOptions}" SelectedItem="{Binding SelectedAutoEncoder, Mode=TwoWay}" />
-                            <ComboBox x:Name="AutoCompressionMetricComboBox" Grid.Column="1" Header="{Binding Texts.AutoCompressionMetricHeader}" DisplayMemberPath="Label" ItemsSource="{Binding AutoCompressionMetricOptions}" SelectedItem="{Binding SelectedAutoCompressionMetricOption, Mode=TwoWay}" />
+                            <ComboBox x:Name="AutoCompressionMetricComboBox" Grid.Column="1" Header="{Binding Texts.AutoCompressionMetricHeader}" DisplayMemberPath="Label" ItemsSource="{Binding AutoCompressionMetricOptions}" SelectedItem="{Binding SelectedAutoCompressionMetricOption, Mode=TwoWay}" ToolTipService.ToolTip="{Binding AutoCompressionMetricGuidanceText}" />
                             <NumberBox x:Name="AutoCompressionTargetVmafBox" Grid.Column="2" Header="{Binding Texts.AutoCompressionTargetVmafHeader}" Minimum="{Binding AutoCompressionTargetScoreMinimum}" Maximum="{Binding AutoCompressionTargetScoreMaximum}" SmallChange="0.5" SpinButtonPlacementMode="Inline" Value="{Binding AutoCompressionTargetVmaf, Mode=TwoWay}" />
                             <NumberBox x:Name="AutoCompressionProbesBox" Grid.Column="3" Header="{Binding Texts.AutoCompressionProbesHeader}" Minimum="1" Maximum="50" SmallChange="1" SpinButtonPlacementMode="Inline" Value="{Binding AutoCompressionProbes, Mode=TwoWay}" />
                             <NumberBox x:Name="AutoCompressionWorkersBox" Grid.Column="4" Header="{Binding Texts.AutoCompressionWorkersHeader}" Minimum="0" Maximum="64" SmallChange="1" SpinButtonPlacementMode="Inline" Value="{Binding AutoCompressionWorkers, Mode=TwoWay}" />
                         </Grid>
-
-                        <TextBlock Foreground="{ThemeResource SubtleTextBrush}" Text="{Binding AutoCompressionMetricGuidanceText}" TextWrapping="WrapWholeWords" />
 
                         <TextBox
                             x:Name="AutoCompressionVideoParametersTextBox"
@@ -116,53 +114,38 @@
                             </shared:AnimatedExpander.BodyContent>
                         </shared:AnimatedExpander>
 
-                        <Grid x:Name="AutoCompressionActionGrid" ColumnSpacing="{StaticResource AppSpacingM}" RowSpacing="{StaticResource AppSpacingM}">
-                            <Grid.RowDefinitions>
-                                <RowDefinition Height="Auto" />
-                                <RowDefinition Height="Auto" />
-                            </Grid.RowDefinitions>
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition x:Name="AutoCompressionStartColumn" Width="*" />
-                                <ColumnDefinition x:Name="AutoCompressionCancelColumn" Width="*" />
-                            </Grid.ColumnDefinitions>
-                            <Button x:Name="StartAutoCompressionButton" FontWeight="SemiBold" HorizontalAlignment="Stretch" AutomationProperties.Name="{Binding Texts.AutoCompressionStartButton}" Click="StartAutoCompressionButton_Click" IsEnabled="{Binding CanStartAutoCompression}" Style="{StaticResource AccentActionButtonStyle}" ToolTipService.ToolTip="{Binding Texts.AutoCompressionStartButton}">
-                                <StackPanel Orientation="Horizontal" Spacing="{StaticResource AppCommandIconTextSpacing}">
-                                    <SymbolIcon Symbol="Play" />
-                                    <TextBlock Text="{Binding Texts.AutoCompressionStartButton}" />
-                                </StackPanel>
-                            </Button>
-                            <Button x:Name="CancelAutoCompressionButton" Grid.Column="1" Style="{StaticResource StandardButtonStyle}" FontWeight="SemiBold" HorizontalAlignment="Stretch" AutomationProperties.Name="{Binding Texts.AutoCompressionCancelButton}" Click="CancelAutoCompressionButton_Click" IsEnabled="{Binding CanCancelAutoCompression}" ToolTipService.ToolTip="{Binding Texts.AutoCompressionCancelButton}">
-                                <StackPanel Orientation="Horizontal" Spacing="{StaticResource AppCommandIconTextSpacing}">
-                                    <SymbolIcon Symbol="Cancel" />
-                                    <TextBlock Text="{Binding Texts.AutoCompressionCancelButton}" />
-                                </StackPanel>
-                            </Button>
-                        </Grid>
+                        <shared:TaskActionBar x:Name="AutoCompressionActionBar">
+                            <shared:TaskActionBar.PrimaryContent>
+                                <Button x:Name="StartAutoCompressionButton" FontWeight="SemiBold" HorizontalAlignment="Stretch" AutomationProperties.Name="{Binding Texts.AutoCompressionStartButton}" Click="StartAutoCompressionButton_Click" IsEnabled="{Binding CanStartAutoCompression}" Style="{StaticResource AccentActionButtonStyle}" ToolTipService.ToolTip="{Binding Texts.AutoCompressionStartButton}">
+                                    <StackPanel Orientation="Horizontal" Spacing="{StaticResource AppCommandIconTextSpacing}">
+                                        <SymbolIcon Symbol="Play" />
+                                        <TextBlock Text="{Binding Texts.AutoCompressionStartButton}" />
+                                    </StackPanel>
+                                </Button>
+                            </shared:TaskActionBar.PrimaryContent>
+                            <shared:TaskActionBar.SecondaryContent>
+                                <Button x:Name="CancelAutoCompressionButton" Style="{StaticResource StandardButtonStyle}" FontWeight="SemiBold" HorizontalAlignment="Stretch" AutomationProperties.Name="{Binding Texts.AutoCompressionCancelButton}" Click="CancelAutoCompressionButton_Click" IsEnabled="{Binding CanCancelAutoCompression}" ToolTipService.ToolTip="{Binding Texts.AutoCompressionCancelButton}">
+                                    <StackPanel Orientation="Horizontal" Spacing="{StaticResource AppCommandIconTextSpacing}">
+                                        <SymbolIcon Symbol="Cancel" />
+                                        <TextBlock Text="{Binding Texts.AutoCompressionCancelButton}" />
+                                    </StackPanel>
+                                </Button>
+                            </shared:TaskActionBar.SecondaryContent>
+                        </shared:TaskActionBar>
                     </StackPanel>
 
                     <StackPanel Spacing="{StaticResource AppSpacingM}" DataContext="{Binding Status}">
-                        <Border Padding="{StaticResource AppInsetPanelPadding}" Background="{ThemeResource CardAltBrush}" CornerRadius="{StaticResource AppCardCornerRadius}">
-                            <StackPanel Spacing="{StaticResource AppSpacingS}">
-                                <TextBlock FontWeight="SemiBold" Text="{Binding Texts.AutoCompressionStatusTitle}" />
-                                <TextBlock FontFamily="{StaticResource AppMonoFont}" Text="{Binding AutoCompressionStatusText}" TextWrapping="WrapWholeWords" />
-                                <Border Padding="0" Background="{Binding AutoCompressionProgressTrackBrush}" BorderBrush="{Binding AutoCompressionProgressBorderBrush}" BorderThickness="{StaticResource AppCardBorderThickness}" CornerRadius="{StaticResource AppCardCornerRadius}">
-                                    <Grid Height="72">
-                                        <Rectangle RadiusX="8" RadiusY="8" Fill="{Binding AutoCompressionProgressFillBrush}" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" RenderTransformOrigin="0,0.5">
-                                            <Rectangle.RenderTransform>
-                                                <ScaleTransform ScaleX="{Binding AutoCompressionProgressValue}" />
-                                            </Rectangle.RenderTransform>
-                                        </Rectangle>
-                                        <Border Margin="1" Background="{ThemeResource AppProgressOverlayBrush}" CornerRadius="{StaticResource AppCardCornerRadius}" />
-                                        <TextBlock FontFamily="{StaticResource AppMonoFont}" FontSize="{StaticResource AppSubsectionTitleFontSize}" FontWeight="SemiBold" HorizontalAlignment="Center" VerticalAlignment="Center" Foreground="{ThemeResource TextFillColorPrimaryBrush}" Text="{Binding AutoCompressionProgressPercentText}" TextAlignment="Center" />
-                                    </Grid>
-                                </Border>
-                                <TextBlock
-                                    FontFamily="{StaticResource AppMonoFont}"
-                                    Foreground="{ThemeResource SubtleTextBrush}"
-                                    Text="{Binding AutoCompressionProgressHint}"
-                                    Visibility="{Binding AutoCompressionProgressHintVisibility}" />
-                            </StackPanel>
-                        </Border>
+                        <shared:TaskStatusPanel
+                            PresentationState="{Binding AutoCompressionPresentationState}"
+                            ProgressBorderBrush="{Binding AutoCompressionProgressBorderBrush}"
+                            ProgressFillBrush="{Binding AutoCompressionProgressFillBrush}"
+                            ProgressText="{Binding AutoCompressionProgressPercentText}"
+                            ProgressTrackBrush="{Binding AutoCompressionProgressTrackBrush}"
+                            ProgressValue="{Binding AutoCompressionProgressValue}"
+                            SecondaryText="{Binding AutoCompressionProgressHint}"
+                            SecondaryVisibility="{Binding AutoCompressionProgressHintVisibility}"
+                            StatusText="{Binding AutoCompressionStatusText}"
+                            Title="{Binding Texts.AutoCompressionStatusTitle}" />
 
                         <shared:CommandPreviewBox
                             Header="{Binding Texts.AutoCompressionCommandTitle}"
