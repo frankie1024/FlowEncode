@@ -25,8 +25,9 @@ public sealed partial class AutoCompressionView : UserControl
     public void ApplyLayout(bool compactForms, double width, Thickness contentPadding)
     {
         ContentStack.Padding = contentPadding;
-        ConfigureTwoItemGrid(AutoSourcePathGrid, AutoSourcePathActionColumn, AutoSourceBrowseButton, compactForms, GridLength.Auto);
-        ConfigureTwoItemGrid(AutoOutputPathGrid, AutoOutputPathActionColumn, AutoOutputBrowseButton, compactForms, GridLength.Auto);
+        ConfigureTwoItemGrid(AutoSourcePathGrid, AutoSourcePathActionColumn, AutoSourceBrowseButton, false, GridLength.Auto);
+        ConfigureTwoItemGrid(AutoOutputPathGrid, AutoOutputPathActionColumn, AutoOutputBrowseButton, false, GridLength.Auto);
+        AutoSourcePathGrid.RowSpacing = 0;
 
         var optionColumnCount = width >= 900
             ? 5

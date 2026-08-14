@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<UserControl
+    x:Class="FlowEncode.Controls.Shared.TaskStatusPanel"
+    x:Name="Root"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:shared="using:FlowEncode.Controls.Shared">
+    <Border Padding="{StaticResource AppInsetPanelPadding}" Background="{ThemeResource CardAltBrush}" CornerRadius="{StaticResource AppCardCornerRadius}">
+        <StackPanel Spacing="{StaticResource AppSpacingS}">
+            <Grid ColumnSpacing="{StaticResource AppSpacingS}">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+                <TextBlock FontFamily="{StaticResource AppDisplayFont}" FontSize="{StaticResource AppBodyLargeFontSize}" FontWeight="SemiBold" Text="{Binding Title, ElementName=Root}" />
+                <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="{StaticResource AppSpacingS}" VerticalAlignment="Center">
+                    <SymbolIcon x:Name="CompletedIcon" Foreground="{ThemeResource AppSuccessBrush}" Symbol="Accept" Visibility="Collapsed" shared:UiMotion.AnimateOnVisible="True" />
+                    <TextBlock MaxWidth="420" FontFamily="{StaticResource AppMonoFont}" Foreground="{ThemeResource SubtleTextBrush}" Text="{Binding StatusText, ElementName=Root}" TextTrimming="CharacterEllipsis" TextWrapping="NoWrap" />
+                </StackPanel>
+            </Grid>
+            <Border Padding="0" Background="{Binding ProgressTrackBrush, ElementName=Root}" BorderBrush="{Binding ProgressBorderBrush, ElementName=Root}" BorderThickness="{StaticResource AppCardBorderThickness}" CornerRadius="{StaticResource AppCardCornerRadius}">
+                <Grid Height="72">
+                    <Rectangle RadiusX="8" RadiusY="8" Fill="{Binding ProgressFillBrush, ElementName=Root}" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" RenderTransformOrigin="0,0.5">
+                        <Rectangle.RenderTransform>
+                            <ScaleTransform ScaleX="0" shared:UiMotion.SmoothScaleX="{Binding ProgressValue, ElementName=Root}" />
+                        </Rectangle.RenderTransform>
+                    </Rectangle>
+                    <Border Margin="1" Background="{ThemeResource AppProgressOverlayBrush}" CornerRadius="{StaticResource AppCardCornerRadius}" />
+                    <TextBlock FontFamily="{StaticResource AppMonoFont}" FontSize="{StaticResource AppSubsectionTitleFontSize}" FontWeight="SemiBold" HorizontalAlignment="Center" VerticalAlignment="Center" Foreground="{ThemeResource TextFillColorPrimaryBrush}" Text="{Binding ProgressText, ElementName=Root}" TextAlignment="Center" />
+                </Grid>
+            </Border>
+            <TextBlock FontFamily="{StaticResource AppMonoFont}" Foreground="{ThemeResource SubtleTextBrush}" Text="{Binding SecondaryText, ElementName=Root}" TextWrapping="WrapWholeWords" Visibility="{Binding SecondaryVisibility, ElementName=Root}" />
+            <ContentPresenter x:Name="FailureDetailsPresenter" Content="{Binding FailureDetailsContent, ElementName=Root}" Visibility="Collapsed" />
+        </StackPanel>
+    </Border>
+</UserControl>

@@ -29,7 +29,7 @@ public sealed partial class AudioProcessingView : UserControl
         ConfigureTwoItemGrid(AudioSourcePathGrid, AudioSourcePathActionColumn, AudioSourceBrowseButton, stackPathActions, GridLength.Auto);
         ConfigureTwoItemGrid(AudioOutputPathGrid, AudioOutputPathActionColumn, AudioOutputBrowseButton, stackPathActions, GridLength.Auto);
         ConfigureOutputPathGrid();
-        ConfigureThreeItemGrid(AudioProcessingActionGrid, AudioProcessingCancelColumn, AudioProcessingDeleteColumn, CancelAudioProcessingButton, DeleteAudioProcessingButton, compactForms);
+        AudioProcessingActionBar.IsStacked = compactForms;
         ConfigureAudioOptionsGrid(width >= 900 ? 3 : 1);
     }
 
@@ -209,24 +209,6 @@ public sealed partial class AudioProcessingView : UserControl
         Grid.SetRow(AudioOutputPreviewTextBlock, 1);
         Grid.SetColumn(AudioOutputPreviewTextBlock, 0);
         Grid.SetColumnSpan(AudioOutputPreviewTextBlock, 2);
-    }
-
-    private static void ConfigureThreeItemGrid(
-        Grid grid,
-        ColumnDefinition secondColumn,
-        ColumnDefinition thirdColumn,
-        FrameworkElement secondItem,
-        FrameworkElement thirdItem,
-        bool stacked)
-    {
-        grid.ColumnSpacing = stacked ? 0 : UiTokens.SpacingM;
-        grid.RowSpacing = stacked ? UiTokens.SpacingM : 0;
-        secondColumn.Width = stacked ? new GridLength(0) : new GridLength(1, GridUnitType.Star);
-        thirdColumn.Width = stacked ? new GridLength(0) : new GridLength(1, GridUnitType.Star);
-        Grid.SetRow(secondItem, stacked ? 1 : 0);
-        Grid.SetColumn(secondItem, stacked ? 0 : 1);
-        Grid.SetRow(thirdItem, stacked ? 2 : 0);
-        Grid.SetColumn(thirdItem, stacked ? 0 : 2);
     }
 
     private void ConfigureAudioOptionsGrid(int columnCount)

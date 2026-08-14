@@ -5,6 +5,7 @@ using System.IO;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
+using FlowEncode.Controls.Shared;
 using FlowEncode.Domain;
 using Microsoft.UI;
 using Microsoft.UI.Xaml;
@@ -334,6 +335,15 @@ public partial class MainWindowViewModel
     internal Brush AudioProcessingProgressBorderBrush => ResolveAudioProcessingProgressBorderBrush(_audioProcessingDisplayState);
 
     internal Brush AudioProcessingProgressFillBrush => ResolveAudioProcessingProgressFillBrush(_audioProcessingDisplayState);
+
+    internal TaskPresentationState AudioProcessingPresentationState => _audioProcessingDisplayState switch
+    {
+        EncodingJobState.Running => TaskPresentationState.Running,
+        EncodingJobState.Completed => TaskPresentationState.Completed,
+        EncodingJobState.Failed => TaskPresentationState.Failed,
+        EncodingJobState.Cancelled => TaskPresentationState.Cancelled,
+        _ => TaskPresentationState.Idle
+    };
 
     internal string AudioProcessingSuggestedOutputExtension => GetAudioProcessingSuggestedExtension();
 
@@ -1562,6 +1572,7 @@ public partial class MainWindowViewModel
         }
 
         _audioProcessingDisplayState = state;
+        OnPropertyChanged(nameof(AudioProcessingPresentationState));
         OnPropertyChanged(nameof(AudioProcessingStatusPanelBorderBrush));
         OnPropertyChanged(nameof(AudioProcessingProgressTrackBrush));
         OnPropertyChanged(nameof(AudioProcessingProgressBorderBrush));

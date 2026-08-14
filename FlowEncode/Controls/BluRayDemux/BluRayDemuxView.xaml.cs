@@ -48,8 +48,9 @@ public sealed partial class BluRayDemuxView : UserControl
         Grid.SetColumn(SecondaryPanel, stackedWorkspace ? 0 : 1);
         Grid.SetColumnSpan(SecondaryPanel, stackedWorkspace ? 2 : 1);
 
-        ConfigureTwoItemGrid(BluRaySourcePathGrid, BluRaySourcePathActionColumn, BluRaySourceBrowseButton, compactForms, GridLength.Auto);
-        ConfigureTwoItemGrid(BluRayOutputPathGrid, BluRayOutputPathActionColumn, BluRayOutputBrowseButton, compactForms, GridLength.Auto);
+        ConfigureTwoItemGrid(BluRaySourcePathGrid, BluRaySourcePathActionColumn, BluRaySourceBrowseButton, false, GridLength.Auto);
+        ConfigureTwoItemGrid(BluRayOutputPathGrid, BluRayOutputPathActionColumn, BluRayOutputBrowseButton, false, GridLength.Auto);
+        BluRaySourcePathGrid.RowSpacing = 0;
         ConfigureTwoItemGrid(BluRayBackendActionGrid, BluRayBackendActionColumn, ScanBluRayButton, compactForms, GridLength.Auto);
         ConfigureTwoItemGrid(BluRayTrackHeaderGrid, BluRayTrackHeaderActionColumn, BluRayTrackSelectionActionsPanel, compactForms, GridLength.Auto);
         ConfigureThreeItemGrid(BluRayDemuxActionGrid, BluRayDemuxActionCancelColumn, BluRayDemuxActionClearColumn, CancelBluRayDemuxButton, ClearBluRayDemuxButton, compactForms);

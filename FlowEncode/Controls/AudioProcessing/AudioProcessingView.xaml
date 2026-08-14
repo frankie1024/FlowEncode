@@ -72,63 +72,46 @@
                             <ToggleSwitch x:Name="AudioOpusMappingFamilyToggle" Grid.Column="2" Header="{Binding Texts.AudioOpusMappingFamilyHeader}" IsOn="{Binding AudioOpusUseMappingFamily1, Mode=TwoWay}" OnContent="{Binding Texts.ToggleOnLabel}" OffContent="{Binding Texts.ToggleOffLabel}" ToolTipService.ToolTip="{Binding Texts.AudioOpusMappingFamilyTooltip}" Visibility="{Binding AudioOpusOptionsVisibility}" shared:UiMotion.AnimateOnVisible="True" />
                         </Grid>
 
-                        <Grid x:Name="AudioProcessingActionGrid" ColumnSpacing="{StaticResource AppSpacingM}" RowSpacing="{StaticResource AppSpacingM}">
-                            <Grid.RowDefinitions>
-                                <RowDefinition Height="Auto" />
-                                <RowDefinition Height="Auto" />
-                                <RowDefinition Height="Auto" />
-                            </Grid.RowDefinitions>
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition x:Name="AudioProcessingStartColumn" Width="*" />
-                                <ColumnDefinition x:Name="AudioProcessingCancelColumn" Width="*" />
-                                <ColumnDefinition x:Name="AudioProcessingDeleteColumn" Width="*" />
-                            </Grid.ColumnDefinitions>
-                            <Button x:Name="StartAudioProcessingButton" FontWeight="SemiBold" HorizontalAlignment="Stretch" AutomationProperties.Name="{Binding Texts.AudioProcessingStartButton}" Click="StartAudioProcessingButton_Click" IsEnabled="{Binding CanStartAudioProcessing}" Style="{StaticResource AccentActionButtonStyle}" ToolTipService.ToolTip="{Binding Texts.AudioProcessingStartButton}">
-                                <StackPanel Orientation="Horizontal" Spacing="{StaticResource AppCommandIconTextSpacing}">
-                                    <SymbolIcon Symbol="Play" />
-                                    <TextBlock Text="{Binding Texts.AudioProcessingStartButton}" />
-                                </StackPanel>
-                            </Button>
-                            <Button x:Name="CancelAudioProcessingButton" Grid.Column="1" Style="{StaticResource StandardButtonStyle}" FontWeight="SemiBold" HorizontalAlignment="Stretch" AutomationProperties.Name="{Binding Texts.AudioProcessingCancelButton}" Click="CancelAudioProcessingButton_Click" IsEnabled="{Binding CanCancelAudioProcessing}" ToolTipService.ToolTip="{Binding Texts.AudioProcessingCancelButton}">
-                                <StackPanel Orientation="Horizontal" Spacing="{StaticResource AppCommandIconTextSpacing}">
-                                    <SymbolIcon Symbol="Cancel" />
-                                    <TextBlock Text="{Binding Texts.AudioProcessingCancelButton}" />
-                                </StackPanel>
-                            </Button>
-                            <Button x:Name="DeleteAudioProcessingButton" Grid.Column="2" Style="{StaticResource StandardButtonStyle}" FontWeight="SemiBold" HorizontalAlignment="Stretch" AutomationProperties.Name="{Binding Texts.AudioProcessingDeleteButton}" Click="DeleteAudioProcessingButton_Click" IsEnabled="{Binding CanClearAudioProcessingTask}" ToolTipService.ToolTip="{Binding Texts.AudioProcessingDeleteButton}">
-                                <StackPanel Orientation="Horizontal" Spacing="{StaticResource AppCommandIconTextSpacing}">
-                                    <SymbolIcon Symbol="Delete" />
-                                    <TextBlock Text="{Binding Texts.AudioProcessingDeleteButton}" />
-                                </StackPanel>
-                            </Button>
-                        </Grid>
+                        <shared:TaskActionBar x:Name="AudioProcessingActionBar">
+                            <shared:TaskActionBar.PrimaryContent>
+                                <Button x:Name="StartAudioProcessingButton" FontWeight="SemiBold" HorizontalAlignment="Stretch" AutomationProperties.Name="{Binding Texts.AudioProcessingStartButton}" Click="StartAudioProcessingButton_Click" IsEnabled="{Binding CanStartAudioProcessing}" Style="{StaticResource AccentActionButtonStyle}" ToolTipService.ToolTip="{Binding Texts.AudioProcessingStartButton}">
+                                    <StackPanel Orientation="Horizontal" Spacing="{StaticResource AppCommandIconTextSpacing}">
+                                        <SymbolIcon Symbol="Play" />
+                                        <TextBlock Text="{Binding Texts.AudioProcessingStartButton}" />
+                                    </StackPanel>
+                                </Button>
+                            </shared:TaskActionBar.PrimaryContent>
+                            <shared:TaskActionBar.SecondaryContent>
+                                <Button x:Name="CancelAudioProcessingButton" Style="{StaticResource StandardButtonStyle}" FontWeight="SemiBold" HorizontalAlignment="Stretch" AutomationProperties.Name="{Binding Texts.AudioProcessingCancelButton}" Click="CancelAudioProcessingButton_Click" IsEnabled="{Binding CanCancelAudioProcessing}" ToolTipService.ToolTip="{Binding Texts.AudioProcessingCancelButton}">
+                                    <StackPanel Orientation="Horizontal" Spacing="{StaticResource AppCommandIconTextSpacing}">
+                                        <SymbolIcon Symbol="Cancel" />
+                                        <TextBlock Text="{Binding Texts.AudioProcessingCancelButton}" />
+                                    </StackPanel>
+                                </Button>
+                            </shared:TaskActionBar.SecondaryContent>
+                            <shared:TaskActionBar.TertiaryContent>
+                                <Button x:Name="DeleteAudioProcessingButton" Style="{StaticResource StandardButtonStyle}" FontWeight="SemiBold" HorizontalAlignment="Stretch" AutomationProperties.Name="{Binding Texts.AudioProcessingDeleteButton}" Click="DeleteAudioProcessingButton_Click" IsEnabled="{Binding CanClearAudioProcessingTask}" ToolTipService.ToolTip="{Binding Texts.AudioProcessingDeleteButton}">
+                                    <StackPanel Orientation="Horizontal" Spacing="{StaticResource AppCommandIconTextSpacing}">
+                                        <SymbolIcon Symbol="Delete" />
+                                        <TextBlock Text="{Binding Texts.AudioProcessingDeleteButton}" />
+                                    </StackPanel>
+                                </Button>
+                            </shared:TaskActionBar.TertiaryContent>
+                        </shared:TaskActionBar>
                     </StackPanel>
 
                     <StackPanel Spacing="{StaticResource AppSpacingM}" DataContext="{Binding Status}">
-                        <Border Padding="{StaticResource AppInsetPanelPadding}" Background="{ThemeResource CardAltBrush}" CornerRadius="{StaticResource AppCardCornerRadius}">
-                            <StackPanel Spacing="{StaticResource AppSpacingS}">
-                                <Grid ColumnSpacing="{StaticResource AppSpacingS}">
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="Auto" />
-                                        <ColumnDefinition Width="*" />
-                                    </Grid.ColumnDefinitions>
-                                    <TextBlock FontFamily="{StaticResource AppDisplayFont}" FontSize="{StaticResource AppBodyLargeFontSize}" FontWeight="SemiBold" Text="{Binding Texts.AudioProcessingStatusTitle}" />
-                                    <TextBlock Grid.Column="1" FontFamily="{StaticResource AppMonoFont}" Foreground="{ThemeResource SubtleTextBrush}" Text="{Binding AudioProcessingStatusText}" TextTrimming="CharacterEllipsis" TextWrapping="NoWrap" VerticalAlignment="Center" />
-                                </Grid>
-                                <Border Padding="0" Background="{Binding AudioProcessingProgressTrackBrush}" BorderBrush="{Binding AudioProcessingProgressBorderBrush}" BorderThickness="{StaticResource AppCardBorderThickness}" CornerRadius="{StaticResource AppCardCornerRadius}">
-                                    <Grid Height="72">
-                                        <Rectangle RadiusX="8" RadiusY="8" Fill="{Binding AudioProcessingProgressFillBrush}" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" RenderTransformOrigin="0,0.5">
-                                            <Rectangle.RenderTransform>
-                                                <ScaleTransform ScaleX="0" shared:UiMotion.SmoothScaleX="{Binding AudioProcessingProgressValue}" />
-                                            </Rectangle.RenderTransform>
-                                        </Rectangle>
-                                        <Border Margin="1" Background="{ThemeResource AppProgressOverlayBrush}" CornerRadius="{StaticResource AppCardCornerRadius}" />
-                                        <TextBlock FontFamily="{StaticResource AppMonoFont}" FontSize="{StaticResource AppSubsectionTitleFontSize}" FontWeight="SemiBold" HorizontalAlignment="Center" VerticalAlignment="Center" Foreground="{ThemeResource TextFillColorPrimaryBrush}" Text="{Binding AudioProcessingProgressPercentText}" TextAlignment="Center" />
-                                    </Grid>
-                                </Border>
-                                <TextBlock FontFamily="{StaticResource AppMonoFont}" Foreground="{ThemeResource SubtleTextBrush}" Text="{Binding AudioProcessingProgressSecondaryText}" TextWrapping="WrapWholeWords" Visibility="{Binding AudioProcessingProgressSecondaryVisibility}" />
-                            </StackPanel>
-                        </Border>
+                        <shared:TaskStatusPanel
+                            PresentationState="{Binding AudioProcessingPresentationState}"
+                            ProgressBorderBrush="{Binding AudioProcessingProgressBorderBrush}"
+                            ProgressFillBrush="{Binding AudioProcessingProgressFillBrush}"
+                            ProgressText="{Binding AudioProcessingProgressPercentText}"
+                            ProgressTrackBrush="{Binding AudioProcessingProgressTrackBrush}"
+                            ProgressValue="{Binding AudioProcessingProgressValue}"
+                            SecondaryText="{Binding AudioProcessingProgressSecondaryText}"
+                            SecondaryVisibility="{Binding AudioProcessingProgressSecondaryVisibility}"
+                            StatusText="{Binding AudioProcessingStatusText}"
+                            Title="{Binding Texts.AudioProcessingStatusTitle}" />
 
                         <shared:CommandPreviewBox
                             x:Name="AudioCommandPreviewBox"
