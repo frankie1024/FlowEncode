@@ -12,7 +12,9 @@ namespace FlowEncode.Controls.Shared;
 
 public sealed partial class AnimatedExpander : UserControl
 {
-    private static readonly Duration ExpandCollapseDuration = new(TimeSpan.FromMilliseconds(220));
+    // Expand/collapse duration and easing come from the shared Motion tokens (App.xaml).
+    // Before UI-01 this was a literal 220ms constant; MotionEmphasis is 240ms.
+    private static readonly TimeSpan FallbackExpandCollapseMilliseconds = TimeSpan.FromMilliseconds(240);
     private readonly UISettings _uiSettings = new();
     private Storyboard? _currentStoryboard;
     private RotateTransform? _chevronRotateTransform;
@@ -317,16 +319,14 @@ public sealed partial class AnimatedExpander : UserControl
 
     private Storyboard BuildStoryboard(double fromHeight, double toHeight, double fromAngle, double toAngle)
     {
-        var easing = new CubicEase
-        {
-            EasingMode = EasingMode.EaseInOut
-        };
+        var duration = ResolveMotionDuration();
+        var easing = ResolveMotionEasing();
 
         var heightAnimation = new DoubleAnimation
         {
             From = fromHeight,
             To = toHeight,
-            Duration = ExpandCollapseDuration,
+            Duration = duration,
             EasingFunction = easing,
             EnableDependentAnimation = true
         };
@@ -337,7 +337,7 @@ public sealed partial class AnimatedExpander : UserControl
         {
             From = fromAngle,
             To = toAngle,
-            Duration = ExpandCollapseDuration,
+            Duration = duration,
             EasingFunction = easing
         };
         Storyboard.SetTarget(angleAnimation, _chevronRotateTransform);
@@ -347,6 +347,20 @@ public sealed partial class AnimatedExpander : UserControl
         storyboard.Children.Add(heightAnimation);
         storyboard.Children.Add(angleAnimation);
         return storyboard;
+    }
+
+    private static Duration ResolveMotionDuration()
+    {
+        return Microsoft.UI.Xaml.Application.Current is not null
+            ? UiTokens.MotionEmphasisDuration
+            : new Duration(FallbackExpandCollapseMilliseconds);
+    }
+
+    private static EasingFunctionBase ResolveMotionEasing()
+    {
+        return Microsoft.UI.Xaml.Application.Current is not null
+            ? UiTokens.MotionEasingInOut
+            : new CubicEase { EasingMode = EasingMode.EaseInOut };
     }
 
     private void StopCurrentAnimation()

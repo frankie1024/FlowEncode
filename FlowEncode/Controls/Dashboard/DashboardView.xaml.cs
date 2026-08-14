@@ -1,4 +1,5 @@
 using System;
+using System.Numerics;
 using FlowEncode.Controls.Shared;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
@@ -8,7 +9,9 @@ namespace FlowEncode.Controls.Dashboard;
 public sealed partial class DashboardView : UserControl
 {
     private const int DashboardCardCount = 6;
+    private const float FallbackHeroElevationZ = 8f;
     private double _lastWidth;
+    private bool _heroElevationThemeHookAttached;
 
     internal IDashboardViewHost? Host { get; set; }
 
@@ -17,6 +20,33 @@ public sealed partial class DashboardView : UserControl
         InitializeComponent();
         SizeChanged += DashboardView_SizeChanged;
         DashboardScroller.SizeChanged += DashboardScroller_SizeChanged;
+        Loaded += DashboardView_Loaded;
+    }
+
+    private void DashboardView_Loaded(object sender, RoutedEventArgs e)
+    {
+        // Re-apply on every load in case the theme changed while this view was detached.
+        ApplyHeroElevation();
+
+        if (_heroElevationThemeHookAttached)
+        {
+            return;
+        }
+
+        _heroElevationThemeHookAttached = true;
+        ActualThemeChanged += (_, _) => ApplyHeroElevation();
+    }
+
+    private void ApplyHeroElevation()
+    {
+        var z = FallbackHeroElevationZ;
+        if (Microsoft.UI.Xaml.Application.Current.Resources.TryGetValue("ThemeElevationZ_E1", out var resource)
+            && resource is double resourceZ)
+        {
+            z = (float)resourceZ;
+        }
+
+        DashboardHeroCard.Translation = new Vector3(0f, 0f, z);
     }
 
     public void ApplyLayout(double width, Thickness contentPadding)

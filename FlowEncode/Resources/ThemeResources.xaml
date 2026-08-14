@@ -123,6 +123,11 @@
             <SolidColorBrush x:Key="TemplateUserBadgeForegroundBrush" Color="{StaticResource ThemeColorTemplateUserBadgeForeground}" />
             <SolidColorBrush x:Key="SubtleTextBrush" Color="{StaticResource ThemeColorTextSecondary}" />
 
+            <!-- Elevation Z translation tokens (ThemeShadow receiver offsets, per theme) -->
+            <x:Double x:Key="ThemeElevationZ_E1">8</x:Double>
+            <x:Double x:Key="ThemeElevationZ_E2">16</x:Double>
+            <x:Double x:Key="ThemeElevationZ_E3">32</x:Double>
+
             <Style x:Key="SelectableSecondaryTextBlockStyle" TargetType="TextBlock">
                 <Setter Property="Foreground" Value="{ThemeResource ThemeTextSecondaryBrush}" />
             </Style>
@@ -244,6 +249,11 @@
             <SolidColorBrush x:Key="TemplateUserBadgeForegroundBrush" Color="{StaticResource ThemeColorTemplateUserBadgeForeground}" />
             <SolidColorBrush x:Key="SubtleTextBrush" Color="{StaticResource ThemeColorTextSecondary}" />
 
+            <!-- Elevation Z translation tokens (ThemeShadow receiver offsets, per theme) -->
+            <x:Double x:Key="ThemeElevationZ_E1">6</x:Double>
+            <x:Double x:Key="ThemeElevationZ_E2">12</x:Double>
+            <x:Double x:Key="ThemeElevationZ_E3">24</x:Double>
+
             <Style x:Key="SelectableSecondaryTextBlockStyle" TargetType="TextBlock">
                 <Setter Property="Foreground" Value="{ThemeResource ThemeTextSecondaryBrush}" />
             </Style>
@@ -322,6 +332,11 @@
             <SolidColorBrush x:Key="TemplateUserBadgeBrush" Color="{ThemeResource SystemColorHighlightColor}" />
             <SolidColorBrush x:Key="TemplateUserBadgeForegroundBrush" Color="{ThemeResource SystemColorHighlightTextColor}" />
             <SolidColorBrush x:Key="SubtleTextBrush" Color="{ThemeResource SystemColorWindowTextColor}" />
+
+            <!-- Elevation Z translation tokens: no shadows in High Contrast; borders carry hierarchy -->
+            <x:Double x:Key="ThemeElevationZ_E1">0</x:Double>
+            <x:Double x:Key="ThemeElevationZ_E2">0</x:Double>
+            <x:Double x:Key="ThemeElevationZ_E3">0</x:Double>
 
             <!-- Let selectable text inherit the list item's high-contrast foreground and selection colors. -->
             <Style x:Key="SelectableSecondaryTextBlockStyle" TargetType="TextBlock" />

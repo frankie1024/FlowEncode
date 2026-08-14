@@ -63,8 +63,33 @@
             <x:Double x:Key="AppSmallFontSize">12</x:Double>
 
             <!-- Shadow (Fluent Design elevation) -->
+            <!-- Elevation levels: E0 flat, E1 resting cards, E2 hover/active, E3 modal/overlay.
+                 ThemeShadow strength comes from the receiver's Z translation; the per-theme
+                 Z values live in ThemeResources.xaml (ThemeElevationZ_E1..E3). -->
             <ThemeShadow x:Key="HeroShadow" />
             <ThemeShadow x:Key="ElevatedShadow" />
+            <ThemeShadow x:Key="ElevationShadowE1" />
+            <ThemeShadow x:Key="ElevationShadowE2" />
+            <ThemeShadow x:Key="ElevationShadowE3" />
+            <x:Double x:Key="ElevationZ_E0">0</x:Double>
+
+            <!-- Motion tokens (single source for custom UI animation durations, ms) -->
+            <x:Double x:Key="MotionInstant">80</x:Double>
+            <x:Double x:Key="MotionFast">120</x:Double>
+            <x:Double x:Key="MotionNormal">180</x:Double>
+            <x:Double x:Key="MotionEmphasis">240</x:Double>
+            <x:Double x:Key="MotionSlow">320</x:Double>
+
+            <!-- Motion easing tokens: enter EaseOut, exit EaseIn, size/position EaseInOut -->
+            <CubicEase x:Key="MotionEasingEnter" EasingMode="EaseOut" />
+            <CubicEase x:Key="MotionEasingExit" EasingMode="EaseIn" />
+            <CubicEase x:Key="MotionEasingInOut" EasingMode="EaseInOut" />
+
+            <!-- Motion geometry tokens -->
+            <x:Double x:Key="MotionFieldOffsetY">8</x:Double>
+            <x:Double x:Key="MotionHoverLiftY">2</x:Double>
+            <x:Double x:Key="MotionListInsertOffsetY">8</x:Double>
+            <x:Double x:Key="MotionProgressSmoothMilliseconds">220</x:Double>
 
             <Style x:Key="StandardButtonStyle" TargetType="Button">
                 <Setter Property="MinHeight" Value="{StaticResource AppButtonMinHeight}" />

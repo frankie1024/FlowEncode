@@ -350,7 +350,7 @@
                                 </Grid>
 
                                 <Grid Grid.Row="1">
-                                    <ListView x:Name="JobsList" ItemsSource="{Binding Jobs}" MinHeight="320" SelectionMode="Extended" CanDragItems="True" CanReorderItems="True" AllowDrop="True" DragItemsStarting="JobsList_DragItemsStarting" DragItemsCompleted="JobsList_DragItemsCompleted" ContextRequested="JobsList_ContextRequested" SelectionChanged="JobsList_SelectionChanged">
+                                    <ListView x:Name="JobsList" ItemsSource="{Binding Jobs}" MinHeight="320" SelectionMode="Extended" CanDragItems="True" CanReorderItems="True" AllowDrop="True" DragItemsStarting="JobsList_DragItemsStarting" DragItemsCompleted="JobsList_DragItemsCompleted" ContextRequested="JobsList_ContextRequested" SelectionChanged="JobsList_SelectionChanged" shared:UiMotion.AnimateListEntrance="True">
                                         <ListView.ItemTemplate>
                                             <DataTemplate x:DataType="vm:EncodingJobItemViewModel">
                                                 <Grid Padding="12,12">
@@ -368,7 +368,7 @@
                                                     <TextBlock Grid.Column="2" HorizontalAlignment="Center" VerticalAlignment="Center" Text="{Binding StateLabel}" />
                                                     <StackPanel Grid.Column="3" HorizontalAlignment="Center" VerticalAlignment="Center" Spacing="{StaticResource AppSpacingXS}">
                                                         <TextBlock HorizontalAlignment="Center" Text="{Binding ProgressPercentLabel}" />
-                                                        <ProgressBar Width="76" Height="6" Maximum="1" Foreground="{ThemeResource QueueAccentBrush}" IsIndeterminate="{Binding IsProgressIndeterminate}" Value="{Binding ProgressValue}" />
+                                                        <ProgressBar Width="76" Height="6" Maximum="1" Foreground="{ThemeResource QueueAccentBrush}" IsIndeterminate="{Binding IsProgressIndeterminate}" shared:UiMotion.SmoothProgressValue="{Binding ProgressValue}" />
                                                     </StackPanel>
                                                 </Grid>
                                             </DataTemplate>
@@ -399,7 +399,7 @@
                                     <Grid Height="72">
                                         <Rectangle RadiusX="8" RadiusY="8" Fill="{ThemeResource QueueProgressAreaBrush}" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" RenderTransformOrigin="0,0.5">
                                             <Rectangle.RenderTransform>
-                                                <ScaleTransform ScaleX="{Binding SelectedJobProgressValue, FallbackValue=0}" />
+                                                <ScaleTransform ScaleX="0" shared:UiMotion.SmoothScaleX="{Binding SelectedJobProgressValue, FallbackValue=0}" />
                                             </Rectangle.RenderTransform>
                                         </Rectangle>
                                         <Border Margin="1" Background="{ThemeResource AppProgressOverlayBrush}" CornerRadius="{StaticResource AppCardCornerRadius}" />

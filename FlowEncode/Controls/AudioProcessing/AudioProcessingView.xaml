@@ -72,10 +72,10 @@
                                 <RowDefinition Height="Auto" />
                             </Grid.RowDefinitions>
                             <ComboBox x:Name="AudioWorkflowComboBox" Header="{Binding Texts.AudioWorkflowHeader}" DisplayMemberPath="Label" ItemsSource="{Binding AudioWorkflowOptions}" SelectedItem="{Binding SelectedAudioWorkflow, Mode=TwoWay}" />
-                            <ComboBox x:Name="AudioEac3ToOutputFormatComboBox" Grid.Row="1" Header="{Binding Texts.AudioEac3ToOutputFormatHeader}" DisplayMemberPath="Label" ItemsSource="{Binding AudioEac3ToOutputFormatOptions}" SelectedItem="{Binding SelectedAudioEac3ToOutputFormat, Mode=TwoWay}" Visibility="{Binding AudioEac3ToOptionsVisibility}" />
-                            <TextBox x:Name="AudioEac3ToAdditionalArgumentsTextBox" Grid.Row="2" Header="{Binding Texts.AudioEac3ToAdditionalArgumentsHeader}" PlaceholderText="{Binding Texts.AudioEac3ToAdditionalArgumentsPlaceholder}" Text="{Binding AudioProcessingAdditionalArguments, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Visibility="{Binding AudioEac3ToOptionsVisibility}" />
-                            <ComboBox x:Name="AudioOpusBitrateComboBox" Grid.Row="3" Header="{Binding Texts.AudioOpusBitrateHeader}" DisplayMemberPath="Label" ItemsSource="{Binding AudioOpusBitrateOptions}" SelectedItem="{Binding SelectedAudioOpusBitrate, Mode=TwoWay}" Visibility="{Binding AudioOpusOptionsVisibility}" />
-                            <ToggleSwitch x:Name="AudioOpusMappingFamilyToggle" Grid.Row="4" Header="{Binding Texts.AudioOpusMappingFamilyHeader}" IsOn="{Binding AudioOpusUseMappingFamily1, Mode=TwoWay}" OnContent="{Binding Texts.ToggleOnLabel}" OffContent="{Binding Texts.ToggleOffLabel}" ToolTipService.ToolTip="{Binding Texts.AudioOpusMappingFamilyTooltip}" Visibility="{Binding AudioOpusOptionsVisibility}" />
+                            <ComboBox x:Name="AudioEac3ToOutputFormatComboBox" Grid.Row="1" Header="{Binding Texts.AudioEac3ToOutputFormatHeader}" DisplayMemberPath="Label" ItemsSource="{Binding AudioEac3ToOutputFormatOptions}" SelectedItem="{Binding SelectedAudioEac3ToOutputFormat, Mode=TwoWay}" Visibility="{Binding AudioEac3ToOptionsVisibility}" shared:UiMotion.AnimateOnVisible="True" />
+                            <TextBox x:Name="AudioEac3ToAdditionalArgumentsTextBox" Grid.Row="2" Header="{Binding Texts.AudioEac3ToAdditionalArgumentsHeader}" PlaceholderText="{Binding Texts.AudioEac3ToAdditionalArgumentsPlaceholder}" Text="{Binding AudioProcessingAdditionalArguments, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Visibility="{Binding AudioEac3ToOptionsVisibility}" shared:UiMotion.AnimateOnVisible="True" />
+                            <ComboBox x:Name="AudioOpusBitrateComboBox" Grid.Row="3" Header="{Binding Texts.AudioOpusBitrateHeader}" DisplayMemberPath="Label" ItemsSource="{Binding AudioOpusBitrateOptions}" SelectedItem="{Binding SelectedAudioOpusBitrate, Mode=TwoWay}" Visibility="{Binding AudioOpusOptionsVisibility}" shared:UiMotion.AnimateOnVisible="True" />
+                            <ToggleSwitch x:Name="AudioOpusMappingFamilyToggle" Grid.Row="4" Header="{Binding Texts.AudioOpusMappingFamilyHeader}" IsOn="{Binding AudioOpusUseMappingFamily1, Mode=TwoWay}" OnContent="{Binding Texts.ToggleOnLabel}" OffContent="{Binding Texts.ToggleOffLabel}" ToolTipService.ToolTip="{Binding Texts.AudioOpusMappingFamilyTooltip}" Visibility="{Binding AudioOpusOptionsVisibility}" shared:UiMotion.AnimateOnVisible="True" />
                         </Grid>
 
                         <Border Padding="{StaticResource AppInsetPanelPadding}" Background="{ThemeResource CardAltBrush}" CornerRadius="{StaticResource AppCardCornerRadius}">
@@ -128,7 +128,7 @@
                                     <Grid Height="72">
                                         <Rectangle RadiusX="8" RadiusY="8" Fill="{Binding AudioProcessingProgressFillBrush}" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" RenderTransformOrigin="0,0.5">
                                             <Rectangle.RenderTransform>
-                                                <ScaleTransform ScaleX="{Binding AudioProcessingProgressValue}" />
+                                                <ScaleTransform ScaleX="0" shared:UiMotion.SmoothScaleX="{Binding AudioProcessingProgressValue}" />
                                             </Rectangle.RenderTransform>
                                         </Rectangle>
                                         <Border Margin="1" Background="{ThemeResource AppProgressOverlayBrush}" CornerRadius="{StaticResource AppCardCornerRadius}" />
