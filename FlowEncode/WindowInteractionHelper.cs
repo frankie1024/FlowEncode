@@ -228,12 +228,6 @@ internal static class WindowInteractionHelper
             return currentDirectory;
         }
 
-        var workspaceDirectory = ResolveExistingDirectoryOrParent(GetCurrentWorkspaceRootPath(), writeDiagnostics: false);
-        if (!string.IsNullOrWhiteSpace(workspaceDirectory))
-        {
-            return workspaceDirectory;
-        }
-
         if (useSharedRecentDirectory)
         {
             var lastDialogDirectory = ResolveExistingDirectoryOrParent(LoadLastFileDialogDirectory(), writeDiagnostics: false);
@@ -241,6 +235,12 @@ internal static class WindowInteractionHelper
             {
                 return lastDialogDirectory;
             }
+        }
+
+        var workspaceDirectory = ResolveExistingDirectoryOrParent(GetCurrentWorkspaceRootPath(), writeDiagnostics: false);
+        if (!string.IsNullOrWhiteSpace(workspaceDirectory))
+        {
+            return workspaceDirectory;
         }
 
         try
