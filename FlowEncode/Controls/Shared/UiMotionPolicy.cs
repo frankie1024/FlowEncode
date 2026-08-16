@@ -29,7 +29,7 @@ public static class UiMotionPolicy
         }
     }
 
-    private static bool IsHighContrastEnabled()
+    public static bool IsHighContrastEnabled()
     {
         try
         {

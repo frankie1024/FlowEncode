@@ -23,7 +23,8 @@ public sealed partial class OverviewView : UserControl
     private bool _interactionsInitialized;
     private bool _isLoaded;
     private bool _selectionSyncInProgress;
-    private double _lastWidth;
+    private bool _hasAppliedLayout;
+    private bool _lastStackedWorkspace;
 
     internal IOverviewViewHost? Host { get; set; }
 
@@ -38,16 +39,10 @@ public sealed partial class OverviewView : UserControl
         OverviewScrollViewer.SizeChanged += OverviewScrollViewer_SizeChanged;
     }
 
-    public void ApplyLayout(double width, Thickness contentPadding)
+    public void ApplyLayout(bool stackedWorkspace, bool compactForms, bool stackRateValue, Thickness contentPadding)
     {
-        if (width <= 0)
-        {
-            return;
-        }
-
-        _lastWidth = width;
-        var stackedWorkspace = width < 1000;
-        var compactForms = width < 700;
+        _hasAppliedLayout = true;
+        _lastStackedWorkspace = stackedWorkspace;
 
         OverviewContentStack.Padding = contentPadding;
         OverviewWorkspaceGrid.ColumnSpacing = stackedWorkspace ? 0 : UiTokens.SpacingL;
@@ -83,7 +78,7 @@ public sealed partial class OverviewView : UserControl
         QueueActionBar.IsStacked = compactForms;
         ConfigureThreeItemGrid(DraftEncoderRatePresetGrid, DraftRateColumn, DraftPresetColumn, DraftRateControlComboBox, DraftPresetComboBox, compactForms);
         ConfigureThreeItemGrid(DraftTuneProfileFormatValueGrid, DraftProfileColumn, DraftOutputFormatColumn, DraftProfileComboBox, DraftOutputFormatComboBox, compactForms);
-        ConfigureTwoItemGrid(DraftRateValueGrid, DraftRateValueInputColumn, DraftRateValueEditorHost, compactForms || width < 1240, new GridLength(220));
+        ConfigureTwoItemGrid(DraftRateValueGrid, DraftRateValueInputColumn, DraftRateValueEditorHost, compactForms || stackRateValue, new GridLength(220));
         ConfigureTwoItemGrid(OverviewTemplateActionGrid, OverviewTemplateActionSecondaryColumn, SaveCurrentConfigurationButton, compactForms, GridLength.Auto);
     }
 
@@ -108,20 +103,20 @@ public sealed partial class OverviewView : UserControl
         }
 
         _isLoaded = true;
-        if (_lastWidth > 0)
+        if (_hasAppliedLayout)
         {
-            ScheduleOverviewWorkspaceHeightRefresh(_lastWidth < 1000);
+            ScheduleOverviewWorkspaceHeightRefresh(_lastStackedWorkspace);
         }
     }
 
     private void OverviewScrollViewer_SizeChanged(object sender, SizeChangedEventArgs e)
     {
-        if (!_isLoaded || _lastWidth <= 0)
+        if (!_isLoaded || !_hasAppliedLayout)
         {
             return;
         }
 
-        ScheduleOverviewWorkspaceHeightRefresh(_lastWidth < 1000);
+        ScheduleOverviewWorkspaceHeightRefresh(_lastStackedWorkspace);
     }
 
     private async void BrowseSourceButton_Click(object sender, RoutedEventArgs e)

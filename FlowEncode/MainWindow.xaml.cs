@@ -268,7 +268,7 @@ public sealed partial class MainWindow : Window, ISettingsViewHost, IShellNaviga
             [MainShellSections.Overview] = new(
                 ShellSectionLifetime.Sticky,
                 () => CreateSectionView<OverviewView>(ViewModel.OverviewModule, view => view.Host = this),
-                static (control, width, contentPadding, _, _) => ((OverviewView)control).ApplyLayout(width, contentPadding)),
+                static (control, width, contentPadding, stackedWorkspace, compactForms) => ((OverviewView)control).ApplyLayout(stackedWorkspace, compactForms, width < OverviewRateValueStackedWidth, contentPadding)),
             [MainShellSections.Templates] = new(
                 ShellSectionLifetime.Sticky,
                 () => CreateSectionView<TemplatesView>(ViewModel.TemplatesModule, view => view.Host = this),
@@ -277,11 +277,11 @@ public sealed partial class MainWindow : Window, ISettingsViewHost, IShellNaviga
             [MainShellSections.AudioProcessing] = new(
                 ShellSectionLifetime.Recreatable,
                 () => CreateSectionView<AudioProcessingView>(ViewModel.AudioProcessingModule),
-                static (control, width, contentPadding, _, compactForms) => ((AudioProcessingView)control).ApplyLayout(compactForms, width, contentPadding)),
+                static (control, width, contentPadding, _, compactForms) => ((AudioProcessingView)control).ApplyLayout(compactForms, width >= AudioOptionsThreeColumnWidth ? 3 : 1, contentPadding)),
             [MainShellSections.AutoCompression] = new(
                 ShellSectionLifetime.Recreatable,
                 () => CreateSectionView<AutoCompressionView>(ViewModel.AutoCompressionModule),
-                static (control, width, contentPadding, _, compactForms) => ((AutoCompressionView)control).ApplyLayout(compactForms, width, contentPadding)),
+                static (control, width, contentPadding, _, compactForms) => ((AutoCompressionView)control).ApplyLayout(compactForms, ResolveAutoCompressionOptionColumnCount(width), ResolveAutoCompressionAdvancedColumnCount(width), contentPadding)),
             [MainShellSections.Settings] = new(
                 ShellSectionLifetime.Sticky,
                 () => CreateSectionView<SettingsView>(ViewModel.SettingsModule, view => view.Host = this),
@@ -289,6 +289,34 @@ public sealed partial class MainWindow : Window, ISettingsViewHost, IShellNaviga
                 null,
                 static async (_, window) => await window.ViewModel.SetupGuideModule.EnsureCardsAsync())
         };
+    }
+
+    private const double OverviewRateValueStackedWidth = 1240;
+    private const double AudioOptionsThreeColumnWidth = 900;
+    private const double AutoCompressionFiveColumnWidth = 900;
+    private const double AutoCompressionThreeColumnWidth = 720;
+    private const double AutoCompressionTwoColumnWidth = 560;
+    private const double AutoCompressionAdvancedFourColumnWidth = 1080;
+    private const double AutoCompressionAdvancedTwoColumnWidth = 760;
+
+    private static int ResolveAutoCompressionOptionColumnCount(double width)
+    {
+        return width >= AutoCompressionFiveColumnWidth
+            ? 5
+            : width >= AutoCompressionThreeColumnWidth
+                ? 3
+                : width >= AutoCompressionTwoColumnWidth
+                    ? 2
+                    : 1;
+    }
+
+    private static int ResolveAutoCompressionAdvancedColumnCount(double width)
+    {
+        return width >= AutoCompressionAdvancedFourColumnWidth
+            ? 4
+            : width >= AutoCompressionAdvancedTwoColumnWidth
+                ? 2
+                : 1;
     }
 
     private static TView CreateSectionView<TView>(object? dataContext = null, Action<TView>? configure = null)

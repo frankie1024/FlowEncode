@@ -81,7 +81,7 @@
                             PlaceholderText="--preset 6 --film-grain 8"
                             Text="{Binding AutoCompressionVideoParameters, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
 
-                        <shared:AnimatedExpander HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch">
+                        <shared:AnimatedExpander HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch" IsExpanded="{Binding IsAutoCompressionAdvancedOptionsExpanded, Mode=TwoWay}">
                             <shared:AnimatedExpander.HeaderContent>
                                 <TextBlock FontWeight="SemiBold" Text="{Binding Texts.AutoCompressionAdvancedHeader}" />
                             </shared:AnimatedExpander.HeaderContent>

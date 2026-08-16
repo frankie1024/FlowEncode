@@ -391,7 +391,7 @@ public static class UiMotion
     private sealed class ListEntranceState
     {
         private readonly ListViewBase _listView;
-        private readonly HashSet<object> _seenItems = new();
+        private ConditionalWeakTable<FrameworkElement, ItemMarker> _seenContainers = new();
 
         public ListEntranceState(ListViewBase listView)
         {
@@ -402,7 +402,7 @@ public static class UiMotion
         public void Detach()
         {
             _listView.ContainerContentChanging -= ListView_ContainerContentChanging;
-            _seenItems.Clear();
+            _seenContainers = new ConditionalWeakTable<FrameworkElement, ItemMarker>();
         }
 
         private void ListView_ContainerContentChanging(ListViewBase sender, ContainerContentChangingEventArgs args)
@@ -412,12 +412,20 @@ public static class UiMotion
                 return;
             }
 
-            if (!_seenItems.Add(args.Item))
+            var marker = _seenContainers.GetValue(container, static _ => new ItemMarker());
+            if (ReferenceEquals(marker.Item, args.Item))
             {
                 return;
             }
 
+            marker.Item = args.Item;
+
             PlayEntrance(container, UiTokens.MotionListInsertOffsetY);
+        }
+
+        private sealed class ItemMarker
+        {
+            public object? Item { get; set; }
         }
     }
 }

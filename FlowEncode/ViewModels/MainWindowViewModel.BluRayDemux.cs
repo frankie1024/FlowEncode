@@ -384,7 +384,6 @@ public partial class MainWindowViewModel
             return Texts.BluRayDemuxAlreadyRunningError;
         }
 
-        SetBluRayDemuxPresentationState(TaskPresentationState.Validating);
         BluRayDemuxRequest request;
         BluRayDemuxResult result;
         var backendLabel = Texts.BluRayBackendLabel(SelectedBluRayDemuxBackend?.Value ?? BluRayDemuxBackend.DgDemux);

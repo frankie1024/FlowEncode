@@ -117,6 +117,12 @@ public sealed class AutoCompressionFormViewModel : ModuleViewModelBase
 
     public bool CanCancelAutoCompression => Owner.CanCancelAutoCompression;
 
+    public bool IsAutoCompressionAdvancedOptionsExpanded
+    {
+        get => Owner.IsAutoCompressionAdvancedOptionsExpanded;
+        set => Owner.IsAutoCompressionAdvancedOptionsExpanded = value;
+    }
+
     public string? ValidateAutoCompressionForStart(out string? existingOutputPath)
     {
         return Owner.ValidateAutoCompressionForStart(out existingOutputPath);

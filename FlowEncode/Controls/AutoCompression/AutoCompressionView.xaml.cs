@@ -22,20 +22,13 @@ public sealed partial class AutoCompressionView : UserControl
         Loaded += AutoCompressionView_Loaded;
     }
 
-    public void ApplyLayout(bool compactForms, double width, Thickness contentPadding)
+    public void ApplyLayout(bool compactForms, int optionColumnCount, int advancedOptionColumnCount, Thickness contentPadding)
     {
         ContentStack.Padding = contentPadding;
         ConfigureTwoItemGrid(AutoSourcePathGrid, AutoSourcePathActionColumn, AutoSourceBrowseButton, false, GridLength.Auto);
         ConfigureTwoItemGrid(AutoOutputPathGrid, AutoOutputPathActionColumn, AutoOutputBrowseButton, false, GridLength.Auto);
         AutoSourcePathGrid.RowSpacing = 0;
 
-        var optionColumnCount = width >= 900
-            ? 5
-            : width >= 720
-                ? 3
-                : width >= 560
-                    ? 2
-                    : 1;
         RebuildAutoRows(
             AutoCompressionOptionsGrid,
             optionColumnCount switch
@@ -57,7 +50,7 @@ public sealed partial class AutoCompressionView : UserControl
             AutoCompressionWorkersBox,
             optionColumnCount);
 
-        ConfigureFourAdvancedItemsGrid(AutoCompressionAdvancedOptionsGrid, width >= 1080 ? 4 : width >= 760 ? 2 : 1);
+        ConfigureFourAdvancedItemsGrid(AutoCompressionAdvancedOptionsGrid, advancedOptionColumnCount);
 
         AutoCompressionActionBar.IsStacked = compactForms;
     }

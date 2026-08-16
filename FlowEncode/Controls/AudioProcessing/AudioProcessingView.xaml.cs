@@ -22,7 +22,7 @@ public sealed partial class AudioProcessingView : UserControl
         Loaded += AudioProcessingView_Loaded;
     }
 
-    public void ApplyLayout(bool compactForms, double width, Thickness contentPadding)
+    public void ApplyLayout(bool compactForms, int optionColumnCount, Thickness contentPadding)
     {
         ContentStack.Padding = contentPadding;
         const bool stackPathActions = false;
@@ -30,7 +30,7 @@ public sealed partial class AudioProcessingView : UserControl
         ConfigureTwoItemGrid(AudioOutputPathGrid, AudioOutputPathActionColumn, AudioOutputBrowseButton, stackPathActions, GridLength.Auto);
         ConfigureOutputPathGrid();
         AudioProcessingActionBar.IsStacked = compactForms;
-        ConfigureAudioOptionsGrid(width >= 900 ? 3 : 1);
+        ConfigureAudioOptionsGrid(optionColumnCount);
     }
 
     private void AudioProcessingView_Loaded(object sender, RoutedEventArgs e)

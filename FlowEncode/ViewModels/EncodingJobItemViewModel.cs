@@ -34,6 +34,7 @@ public sealed class EncodingJobItemViewModel : ObservableObject
     private string _displayCommand;
     private bool _isDisplayCommandResolved;
     private CancellationTokenSource? _cancellationTokenSource;
+    private bool _isCancellationRequested;
     private readonly StringBuilder _logBuilder = new();
     private string _lastMeaningfulLogLine;
 
@@ -288,7 +289,8 @@ public sealed class EncodingJobItemViewModel : ObservableObject
 
     public bool CanStart => State == EncodingJobState.Queued;
 
-    public bool CanCancel => State is EncodingJobState.Queued or EncodingJobState.Running;
+    public bool CanCancel => (State is EncodingJobState.Queued or EncodingJobState.Running)
+        && !_isCancellationRequested;
 
     public bool CanRestart => State is EncodingJobState.Completed or EncodingJobState.Failed or EncodingJobState.Cancelled;
 
@@ -384,13 +386,23 @@ public sealed class EncodingJobItemViewModel : ObservableObject
         }
     }
 
-    public void RequestCancellation()
+    public bool RequestCancellation()
     {
+        if (State != EncodingJobState.Running || _isCancellationRequested)
+        {
+            return false;
+        }
+
+        _isCancellationRequested = true;
+        OnPropertyChanged(nameof(CanCancel));
         _cancellationTokenSource?.Cancel();
+        return true;
     }
 
     public void MarkRunning()
     {
+        _isCancellationRequested = false;
+        OnPropertyChanged(nameof(CanCancel));
         State = EncodingJobState.Running;
         Summary = T("编码器已启动", "Encoder started");
         DetailLine = T("正在等待第一批编码日志...", "Waiting for the first encoder log...");
@@ -398,6 +410,11 @@ public sealed class EncodingJobItemViewModel : ObservableObject
 
     public void ApplyProgress(EncodingJobProgress progress)
     {
+        if (_isCancellationRequested && progress.State == EncodingJobState.Running)
+        {
+            return;
+        }
+
         State = progress.State;
         IsSourcePreparation = progress.IsSourcePreparation;
         if (progress.IsSourcePreparation)

@@ -69,7 +69,7 @@ public static class UiElevation
         element.Shadow = ResolveShadow(level);
 
         var translation = element.Translation;
-        element.Translation = new Vector3(translation.X, translation.Y, ResolveTranslationZ(level));
+        element.Translation = new Vector3(translation.X, translation.Y, ResolveTranslationZ(element, level));
     }
 
     private static Shadow? ResolveShadow(UiElevationLevel level)
@@ -83,6 +83,7 @@ public static class UiElevation
         };
 
         if (resourceKey is null
+            || UiMotionPolicy.IsHighContrastEnabled()
             || Microsoft.UI.Xaml.Application.Current?.Resources.TryGetValue(resourceKey, out var resource) != true)
         {
             return null;
@@ -91,7 +92,7 @@ public static class UiElevation
         return resource as Shadow;
     }
 
-    private static float ResolveTranslationZ(UiElevationLevel level)
+    private static float ResolveTranslationZ(FrameworkElement element, UiElevationLevel level)
     {
         var resourceKey = level switch
         {
@@ -102,7 +103,7 @@ public static class UiElevation
         };
 
         if (resourceKey is null
-            || Microsoft.UI.Xaml.Application.Current?.Resources.TryGetValue(resourceKey, out var resource) != true)
+            || !UiTokens.TryGetThemeResource(element, resourceKey, out var resource))
         {
             return 0f;
         }

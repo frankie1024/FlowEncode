@@ -39,6 +39,51 @@ internal static class UiTokens
         return new Duration(TimeSpan.FromMilliseconds(GetDouble(key)));
     }
 
+    public static bool TryGetThemeResource(FrameworkElement element, string key, out object? value)
+    {
+        value = null;
+        if (UiMotionPolicy.IsHighContrastEnabled())
+        {
+            return false;
+        }
+
+        var themeKey = element.ActualTheme == ElementTheme.Dark ? "Dark" : "Light";
+        if (TryGetThemeResource(element.Resources, themeKey, key, out value))
+        {
+            return true;
+        }
+
+        return TryGetThemeResource(Microsoft.UI.Xaml.Application.Current?.Resources, themeKey, key, out value);
+    }
+
+    private static bool TryGetThemeResource(ResourceDictionary? resources, string themeKey, string key, out object? value)
+    {
+        value = null;
+        if (resources is null)
+        {
+            return false;
+        }
+
+        if (resources.ThemeDictionaries.TryGetValue(themeKey, out var dictionary)
+            && dictionary is ResourceDictionary themeResources
+            && themeResources.TryGetValue(key, out value)
+            && value is not null)
+        {
+            return true;
+        }
+
+        foreach (var mergedDictionary in resources.MergedDictionaries)
+        {
+            if (TryGetThemeResource(mergedDictionary, themeKey, key, out value))
+            {
+                return true;
+            }
+        }
+
+        value = null;
+        return false;
+    }
+
     private static double GetDouble(string key)
     {
         var value = GetRequiredResource(key);

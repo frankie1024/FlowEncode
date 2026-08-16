@@ -452,7 +452,6 @@ public partial class MainWindowViewModel
             return Texts.AudioProcessingAlreadyRunningError;
         }
 
-        SetAudioProcessingPresentationState(TaskPresentationState.Validating);
         AudioProcessingResult result;
         var workflowLabel = Texts.AudioWorkflowLabel(SelectedAudioWorkflow?.Value ?? AudioProcessingMode.Ddp);
 

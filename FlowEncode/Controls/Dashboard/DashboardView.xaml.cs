@@ -39,8 +39,8 @@ public sealed partial class DashboardView : UserControl
 
     private void ApplyHeroElevation()
     {
-        var z = FallbackHeroElevationZ;
-        if (Microsoft.UI.Xaml.Application.Current.Resources.TryGetValue("ThemeElevationZ_E1", out var resource)
+        var z = UiMotionPolicy.IsHighContrastEnabled() ? 0f : FallbackHeroElevationZ;
+        if (UiTokens.TryGetThemeResource(DashboardHeroCard, "ThemeElevationZ_E1", out var resource)
             && resource is double resourceZ)
         {
             z = (float)resourceZ;

@@ -40,6 +40,7 @@ public partial class MainWindowViewModel
     private EncodingJobState? _autoCompressionDisplayState;
     private TaskPresentationState _autoCompressionPresentationState;
     private bool _isAutoCompressionCancellationRequested;
+    private bool _isAutoCompressionAdvancedOptionsExpanded;
     private readonly List<string> _autoCompressionLogStageLines = [];
     private string _autoCompressionLiveLogLine = string.Empty;
     private CancellationTokenSource? _autoCompressionInputRefreshCancellationTokenSource;
@@ -360,6 +361,12 @@ public partial class MainWindowViewModel
 
     internal bool CanCancelAutoCompression => _isAutoCompressionRunning && !_isAutoCompressionCancellationRequested;
 
+    internal bool IsAutoCompressionAdvancedOptionsExpanded
+    {
+        get => _isAutoCompressionAdvancedOptionsExpanded;
+        set => SetProperty(ref _isAutoCompressionAdvancedOptionsExpanded, value);
+    }
+
     internal TaskPresentationState AutoCompressionPresentationState => _autoCompressionPresentationState;
 
     internal string AutoCompressionProgressLabel =>
@@ -447,7 +454,6 @@ public partial class MainWindowViewModel
             return Texts.AutoCompressionAlreadyRunningError;
         }
 
-        SetAutoCompressionPresentationState(TaskPresentationState.Validating);
         AutoCompressionResult result;
         string sourceFileName;
 

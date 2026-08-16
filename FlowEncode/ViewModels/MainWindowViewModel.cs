@@ -1549,9 +1549,11 @@ public partial class MainWindowViewModel : CommunityToolkit.Mvvm.ComponentModel.
         }
         else if (job.State == EncodingJobState.Running)
         {
-            job.RequestCancellation();
-            _jobRunner.AbortJob(job.Request.JobId);
-            StatusText = Texts.RunningJobCancellingStatus(job.SourceFileName);
+            if (job.RequestCancellation())
+            {
+                _jobRunner.AbortJob(job.Request.JobId);
+                StatusText = Texts.RunningJobCancellingStatus(job.SourceFileName);
+            }
         }
 
         return Task.CompletedTask;
@@ -2136,8 +2138,10 @@ public partial class MainWindowViewModel : CommunityToolkit.Mvvm.ComponentModel.
 
         foreach (var job in runningJobs)
         {
-            job.RequestCancellation();
-            _jobRunner.AbortJob(job.Request.JobId);
+            if (job.RequestCancellation())
+            {
+                _jobRunner.AbortJob(job.Request.JobId);
+            }
         }
 
         var timeoutAt = DateTimeOffset.UtcNow + TimeSpan.FromSeconds(5);
