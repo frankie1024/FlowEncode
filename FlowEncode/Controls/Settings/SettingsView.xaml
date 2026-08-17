@@ -31,7 +31,7 @@
 
                     <StackPanel x:Name="SettingsActionPanel" Grid.Column="1" Orientation="Horizontal" Spacing="{StaticResource AppSpacingS}" HorizontalAlignment="Right" VerticalAlignment="Top">
                         <ProgressRing Width="26" Height="26" IsActive="{Binding IsAppUpdateActionInProgress}" Visibility="{Binding AppUpdateProgressVisibility}" />
-                        <Button Style="{StaticResource AccentButtonStyle}" AutomationProperties.Name="{Binding AppUpdateActionText}" Click="CheckUpdatesButton_Click" IsEnabled="{Binding CanExecuteAppUpdateAction}" ToolTipService.ToolTip="{Binding AppUpdateActionText}">
+                        <Button MinWidth="132" Style="{StaticResource AccentButtonStyle}" AutomationProperties.Name="{Binding AppUpdateActionText}" Click="CheckUpdatesButton_Click" IsEnabled="{Binding CanExecuteAppUpdateAction}" ToolTipService.ToolTip="{Binding AppUpdateActionText}">
                             <StackPanel Orientation="Horizontal" Spacing="{StaticResource AppCommandIconTextSpacing}">
                                 <SymbolIcon Symbol="{Binding AppUpdateActionIcon}" />
                                 <TextBlock Text="{Binding AppUpdateActionText}" />
@@ -58,6 +58,7 @@
 
                         <Border x:Name="SettingsSelectorsPanel" Padding="{StaticResource AppInsetPanelPadding}" Background="{ThemeResource CardAltBrush}" CornerRadius="{StaticResource AppCardCornerRadius}">
                             <StackPanel Spacing="{StaticResource AppSpacingM}">
+                                <TextBlock FontFamily="{StaticResource AppDisplayFont}" FontSize="{StaticResource AppCardTitleFontSize}" FontWeight="SemiBold" Text="{Binding Texts.SettingsAppearanceAndLanguageTitle}" />
                                 <ComboBox x:Name="ThemeSelectorComboBox" Header="{Binding Texts.ThemeHeader}" DisplayMemberPath="Label" ItemsSource="{Binding ThemeOptions}" SelectedItem="{Binding SelectedTheme, Mode=TwoWay}" SelectionChanged="ThemeSelectorComboBox_SelectionChanged" />
                                 <ComboBox x:Name="LanguageSelectorComboBox" Header="{Binding Texts.LanguageHeader}" DisplayMemberPath="Label" ItemsSource="{Binding LanguageOptions}" SelectedItem="{Binding SelectedLanguage, Mode=TwoWay}" SelectionChanged="LanguageSelectorComboBox_SelectionChanged" />
                             </StackPanel>
@@ -65,33 +66,37 @@
 
                         <Border x:Name="SettingsTogglePanel" Grid.Column="1" Padding="{StaticResource AppInsetPanelPadding}" Background="{ThemeResource CardAltBrush}" CornerRadius="{StaticResource AppCardCornerRadius}">
                             <StackPanel Spacing="{StaticResource AppSpacingM}">
+                                <TextBlock FontFamily="{StaticResource AppDisplayFont}" FontSize="{StaticResource AppCardTitleFontSize}" FontWeight="SemiBold" Text="{Binding Texts.SettingsBehaviorTitle}" />
                                 <ToggleSwitch x:Name="PreferSystemEncodersToggle" Header="{Binding Texts.PreferSystemEncodersHeader}" IsOn="{Binding PreferSystemEncoders, Mode=TwoWay}" OffContent="{Binding Texts.ToggleOffLabel}" OnContent="{Binding Texts.ToggleOnLabel}" ToolTipService.ToolTip="{Binding Texts.PreferSystemEncodersTooltip}" Toggled="SettingsToggle_Toggled" />
                                 <ToggleSwitch x:Name="AutoCheckUpdatesToggle" Header="{Binding Texts.AutoCheckUpdatesHeader}" IsOn="{Binding AutoCheckUpdatesOnStartup, Mode=TwoWay}" OffContent="{Binding Texts.ToggleOffLabel}" OnContent="{Binding Texts.ToggleOnLabel}" ToolTipService.ToolTip="{Binding Texts.AutoCheckUpdatesTooltip}" Toggled="SettingsToggle_Toggled" />
                             </StackPanel>
                         </Border>
 
                         <Border Grid.Row="2" Grid.ColumnSpan="2" Padding="{StaticResource AppInsetPanelPadding}" Background="{ThemeResource CardAltBrush}" CornerRadius="{StaticResource AppCardCornerRadius}">
-                            <Grid ColumnSpacing="{StaticResource AppSpacingM}" RowSpacing="{StaticResource AppSpacingM}">
-                                <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="*" />
-                                    <ColumnDefinition Width="Auto" />
-                                    <ColumnDefinition Width="Auto" />
-                                </Grid.ColumnDefinitions>
+                            <StackPanel Spacing="{StaticResource AppSpacingM}">
+                                <TextBlock FontFamily="{StaticResource AppDisplayFont}" FontSize="{StaticResource AppCardTitleFontSize}" FontWeight="SemiBold" Text="{Binding Texts.WorkspaceDirectoryHeader}" />
+                                <Grid ColumnSpacing="{StaticResource AppSpacingM}" RowSpacing="{StaticResource AppSpacingM}">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
 
-                                <TextBox x:Name="WorkspaceRootPathTextBox" Header="{Binding Texts.WorkspaceDirectoryHeader}" IsReadOnly="True" Text="{Binding WorkspaceRootPath, Mode=TwoWay}" TextWrapping="Wrap" />
-                                <Button Grid.Column="1" MinHeight="40" VerticalAlignment="Bottom" AutomationProperties.Name="{Binding Texts.ChooseFolderButton}" Click="BrowseWorkspaceFolderButton_Click" Style="{StaticResource StandardButtonStyle}" ToolTipService.ToolTip="{Binding Texts.ChooseFolderButton}">
-                                    <StackPanel Orientation="Horizontal" Spacing="{StaticResource AppCommandIconTextSpacing}">
-                                        <SymbolIcon Symbol="Folder" />
-                                        <TextBlock Text="{Binding Texts.ChooseFolderButton}" />
-                                    </StackPanel>
-                                </Button>
-                                <Button Grid.Column="2" MinHeight="40" VerticalAlignment="Bottom" AutomationProperties.Name="{Binding Texts.AppFolderButton}" Tag="{Binding WorkspaceRootPath}" Click="OpenTaggedFolderButton_Click" Style="{StaticResource StandardButtonStyle}" ToolTipService.ToolTip="{Binding Texts.AppFolderButton}">
-                                    <StackPanel Orientation="Horizontal" Spacing="{StaticResource AppCommandIconTextSpacing}">
-                                        <SymbolIcon Symbol="OpenLocal" />
-                                        <TextBlock Text="{Binding Texts.AppFolderButton}" />
-                                    </StackPanel>
-                                </Button>
-                            </Grid>
+                                    <TextBox x:Name="WorkspaceRootPathTextBox" IsReadOnly="True" Text="{Binding WorkspaceRootPath, Mode=TwoWay}" TextWrapping="Wrap" />
+                                    <Button Grid.Column="1" MinHeight="40" VerticalAlignment="Bottom" AutomationProperties.Name="{Binding Texts.ChooseFolderButton}" Click="BrowseWorkspaceFolderButton_Click" Style="{StaticResource StandardButtonStyle}" ToolTipService.ToolTip="{Binding Texts.ChooseFolderButton}">
+                                        <StackPanel Orientation="Horizontal" Spacing="{StaticResource AppCommandIconTextSpacing}">
+                                            <SymbolIcon Symbol="Folder" />
+                                            <TextBlock Text="{Binding Texts.ChooseFolderButton}" />
+                                        </StackPanel>
+                                    </Button>
+                                    <Button Grid.Column="2" MinHeight="40" VerticalAlignment="Bottom" AutomationProperties.Name="{Binding Texts.AppFolderButton}" Tag="{Binding WorkspaceRootPath}" Click="OpenTaggedFolderButton_Click" Style="{StaticResource StandardButtonStyle}" ToolTipService.ToolTip="{Binding Texts.AppFolderButton}">
+                                        <StackPanel Orientation="Horizontal" Spacing="{StaticResource AppCommandIconTextSpacing}">
+                                            <SymbolIcon Symbol="OpenLocal" />
+                                            <TextBlock Text="{Binding Texts.AppFolderButton}" />
+                                        </StackPanel>
+                                    </Button>
+                                </Grid>
+                            </StackPanel>
                         </Border>
                     </Grid>
                 </Grid>
@@ -113,13 +118,13 @@
 
                         <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="{StaticResource AppSpacingS}" HorizontalAlignment="Right" VerticalAlignment="Top">
                             <ProgressRing Width="24" Height="24" IsActive="True" Visibility="{Binding SetupGuideActionProgressVisibility}" />
-                            <Button Style="{StaticResource StandardButtonStyle}" AutomationProperties.Name="{Binding SetupGuideRefreshActionText}" Click="RefreshSetupGuideButton_Click" IsEnabled="{Binding CanExecuteSetupGuideRefreshAction}" ToolTipService.ToolTip="{Binding SetupGuideRefreshActionText}">
+                            <Button MinWidth="112" Style="{StaticResource StandardButtonStyle}" AutomationProperties.Name="{Binding SetupGuideRefreshActionText}" Click="RefreshSetupGuideButton_Click" IsEnabled="{Binding CanExecuteSetupGuideRefreshAction}" ToolTipService.ToolTip="{Binding SetupGuideRefreshActionText}">
                                 <StackPanel Orientation="Horizontal" Spacing="{StaticResource AppCommandIconTextSpacing}">
                                     <SymbolIcon Symbol="Refresh" />
                                     <TextBlock Text="{Binding SetupGuideRefreshActionText}" />
                                 </StackPanel>
                             </Button>
-                            <Button Style="{StaticResource StandardButtonStyle}" AutomationProperties.Name="{Binding SetupGuideUpdateCheckActionText}" Click="CheckSetupDependencyUpdatesButton_Click" IsEnabled="{Binding CanExecuteSetupGuideUpdateCheckAction}" ToolTipService.ToolTip="{Binding SetupGuideUpdateCheckActionText}">
+                            <Button MinWidth="156" Style="{StaticResource StandardButtonStyle}" AutomationProperties.Name="{Binding SetupGuideUpdateCheckActionText}" Click="CheckSetupDependencyUpdatesButton_Click" IsEnabled="{Binding CanExecuteSetupGuideUpdateCheckAction}" ToolTipService.ToolTip="{Binding SetupGuideUpdateCheckActionText}">
                                 <StackPanel Orientation="Horizontal" Spacing="{StaticResource AppCommandIconTextSpacing}">
                                     <SymbolIcon Symbol="Find" />
                                     <TextBlock Text="{Binding SetupGuideUpdateCheckActionText}" />

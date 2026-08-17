@@ -459,6 +459,8 @@ public sealed class AppText
     public string NewButton => Pick("新建", "New");
     public string SaveButton => Pick("保存", "Save");
     public string SettingsTitle => Pick("设置", "Settings");
+    public string SettingsAppearanceAndLanguageTitle => Pick("外观与语言", "Appearance & Language");
+    public string SettingsBehaviorTitle => Pick("行为", "Behavior");
     public string ThemeHeader => Pick("主题", "Theme");
     public string LanguageHeader => Pick("语言", "Language");
     public string ToggleOnLabel => Pick("开", "On");
