@@ -166,7 +166,8 @@ public static class UiMotion
         var targetValue = CoerceProgressValue(progressBar, (double)e.NewValue);
         if (!AnimationsEnabled || progressBar.IsIndeterminate)
         {
-            StopAnimation(progressBar, nameof(RangeBase.Value));
+            StopSmoothAnimation(progressBar, nameof(RangeBase.Value));
+            StopAnimation(progressBar, GetStoryboardKey(progressBar, nameof(RangeBase.Value)));
             progressBar.Value = targetValue;
             return;
         }
@@ -189,7 +190,8 @@ public static class UiMotion
         var targetValue = Math.Clamp((double)e.NewValue, 0, 1);
         if (!AnimationsEnabled)
         {
-            StopAnimation(transform, nameof(ScaleTransform.ScaleX));
+            StopSmoothAnimation(transform, nameof(ScaleTransform.ScaleX));
+            StopAnimation(transform, GetStoryboardKey(transform, nameof(ScaleTransform.ScaleX)));
             transform.ScaleX = targetValue;
             return;
         }
@@ -227,8 +229,11 @@ public static class UiMotion
 
     private static void ResetEntranceState(FrameworkElement element)
     {
+        StopAnimation(element, GetStoryboardKey(element, nameof(UIElement.Opacity)));
         element.Opacity = 1;
         var transform = EnsureCompositeTransform(element);
+        StopAnimation(transform, GetStoryboardKey(transform, nameof(CompositeTransform.TranslateX)));
+        StopAnimation(transform, GetStoryboardKey(transform, nameof(CompositeTransform.TranslateY)));
         transform.TranslateX = 0;
         transform.TranslateY = 0;
     }
@@ -275,7 +280,7 @@ public static class UiMotion
         EasingFunctionBase easing,
         bool enableDependentAnimation)
     {
-        var storyboardKey = $"{target.GetType().FullName}:{propertyName}";
+        var storyboardKey = GetStoryboardKey(target, propertyName);
         StopAnimation(target, storyboardKey);
 
         if (Math.Abs(from - to) < 0.0001)
@@ -320,6 +325,11 @@ public static class UiMotion
         storyboards.Remove(key);
     }
 
+    private static string GetStoryboardKey(DependencyObject target, string propertyName)
+    {
+        return $"{target.GetType().FullName}:{propertyName}";
+    }
+
     private static void QueueSmoothAnimation(
         DependencyObject target,
         string propertyName,
@@ -335,6 +345,17 @@ public static class UiMotion
         }
 
         state.Queue(currentValue, targetValue, enableDependentAnimation);
+    }
+
+    private static void StopSmoothAnimation(DependencyObject target, string propertyName)
+    {
+        if (!SmoothAnimationStates.TryGetValue(target, out var states)
+            || !states.Remove(propertyName, out var state))
+        {
+            return;
+        }
+
+        state.Cancel();
     }
 
     private static void RemoveAnimation(DependencyObject target, string key, Storyboard storyboard)
@@ -377,6 +398,20 @@ public static class UiMotion
             EnsureTimer(TimeSpan.FromMilliseconds(remaining));
         }
 
+        public void Cancel()
+        {
+            _pendingAnimation = null;
+            _lastAnimationStart = 0;
+            if (_timer is null)
+            {
+                return;
+            }
+
+            _timer.Stop();
+            _timer.Tick -= Timer_Tick;
+            _timer = null;
+        }
+
         private void EnsureTimer(TimeSpan interval)
         {
             _timer ??= DispatcherQueue.GetForCurrentThread().CreateTimer();
@@ -401,6 +436,11 @@ public static class UiMotion
 
             _pendingAnimation = null;
             _timer?.Stop();
+            if (!AnimationsEnabled)
+            {
+                return;
+            }
+
             _lastAnimationStart = Environment.TickCount64;
             AnimateDouble(
                 _target,

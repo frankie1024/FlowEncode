@@ -793,22 +793,32 @@ public sealed partial class MainWindow : Window, ISettingsViewHost, IShellNaviga
 
     private async Task DrainShellNavigationAsync()
     {
-        while (true)
+        try
         {
-            string? nextTag;
+            while (true)
+            {
+                string? nextTag;
+                lock (_shellNavigationSync)
+                {
+                    nextTag = _pendingShellSectionTag;
+                    _pendingShellSectionTag = null;
+                    if (string.IsNullOrWhiteSpace(nextTag))
+                    {
+                        return;
+                    }
+                }
+
+                await NavigateToShellSectionCoreAsync(nextTag);
+            }
+        }
+        finally
+        {
             lock (_shellNavigationSync)
             {
-                nextTag = _pendingShellSectionTag;
                 _pendingShellSectionTag = null;
-                if (string.IsNullOrWhiteSpace(nextTag))
-                {
-                    _isShellNavigationDrainActive = false;
-                    _shellNavigationDrainTask = Task.CompletedTask;
-                    return;
-                }
+                _isShellNavigationDrainActive = false;
+                _shellNavigationDrainTask = Task.CompletedTask;
             }
-
-            await NavigateToShellSectionCoreAsync(nextTag);
         }
     }
 
