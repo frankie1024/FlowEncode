@@ -93,6 +93,16 @@ public sealed class CliEnvironmentIntegrationServiceTests
     }
 
     [TestMethod]
+    public void ShouldUpdateEnvironmentVariable_OnlyReturnsTrueForChangedValues()
+    {
+        Assert.IsFalse(CliEnvironmentIntegrationService.ShouldUpdateEnvironmentVariable(null, null));
+        Assert.IsFalse(CliEnvironmentIntegrationService.ShouldUpdateEnvironmentVariable(@"F:\FlowEncode", @"F:\FlowEncode"));
+        Assert.IsTrue(CliEnvironmentIntegrationService.ShouldUpdateEnvironmentVariable(null, @"F:\FlowEncode"));
+        Assert.IsTrue(CliEnvironmentIntegrationService.ShouldUpdateEnvironmentVariable(@"F:\FlowEncode", @"G:\FlowEncode"));
+        Assert.IsTrue(CliEnvironmentIntegrationService.ShouldUpdateEnvironmentVariable(@"F:\FlowEncode", null));
+    }
+
+    [TestMethod]
     public void ComponentOwnership_PreexistingComponentRemainsUnownedAndTracksOwnedItems()
     {
         var root = Path.Combine(Path.GetTempPath(), nameof(CliEnvironmentIntegrationServiceTests), Guid.NewGuid().ToString("N"));

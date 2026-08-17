@@ -23,6 +23,7 @@ public partial class App : Microsoft.UI.Xaml.Application
     private const string SingleInstanceKey = "FlowEncode.Main";
     private const string SingleInstancePipeName = "FlowEncode.VapourSynth.Open.v1";
     private const string SingleInstanceActivateMessage = "__FLOWENCODE_ACTIVATE__";
+    private static readonly TimeSpan DeferredCliEnvironmentSynchronizationDelay = TimeSpan.FromSeconds(2);
     private static readonly TimeSpan SingleInstanceForwardTimeout = TimeSpan.FromSeconds(2);
     private static readonly TimeSpan SingleInstanceForwardConnectTimeout = TimeSpan.FromMilliseconds(150);
     private static readonly TimeSpan SingleInstanceForwardInitialDelay = TimeSpan.FromMilliseconds(50);
@@ -34,6 +35,8 @@ public partial class App : Microsoft.UI.Xaml.Application
     private Mutex? _singleInstanceMutex;
     private CancellationTokenSource? _singleInstancePipeCancellationTokenSource;
     private Task? _singleInstancePipeServerTask;
+    private CancellationTokenSource? _deferredCliEnvironmentSynchronizationCancellationTokenSource;
+    private Task? _deferredCliEnvironmentSynchronizationTask;
     private bool _ownsSingleInstanceMutex;
     private bool _isShuttingDown;
     private Window? _window;
@@ -77,14 +80,6 @@ public partial class App : Microsoft.UI.Xaml.Application
 
         var launchActivation = GetService<AppLaunchActivation>();
         launchActivation.SetRequestedVapourSynthFilePath(ResolveRequestedVapourSynthFilePath());
-        try
-        {
-            GetService<CliEnvironmentIntegrationService>().Synchronize();
-        }
-        catch (Exception ex)
-        {
-            TryWriteAppExceptionDiagnostic("Synchronize CLI environment", ex, AppDiagnosticSeverity.Warning);
-        }
 
         _window = GetService<MainWindow>();
         _window.Closed += MainWindow_Closed;
@@ -100,6 +95,7 @@ public partial class App : Microsoft.UI.Xaml.Application
         }
 
         _window.Activate();
+        StartDeferredCliEnvironmentSynchronization();
     }
 
     private void App_UnhandledException(object sender, Microsoft.UI.Xaml.UnhandledExceptionEventArgs e)
@@ -251,6 +247,7 @@ public partial class App : Microsoft.UI.Xaml.Application
         }
 
         StopSingleInstancePipeServer();
+        StopDeferredCliEnvironmentSynchronization();
         ReleaseSingleInstanceMutex();
 
         try
@@ -294,6 +291,66 @@ public partial class App : Microsoft.UI.Xaml.Application
         }
 
         _ = pipeServerTask.ContinueWith(
+            static (_, state) => ((CancellationTokenSource)state!).Dispose(),
+            cancellationTokenSource,
+            CancellationToken.None,
+            TaskContinuationOptions.ExecuteSynchronously,
+            TaskScheduler.Default);
+    }
+
+    private void StartDeferredCliEnvironmentSynchronization()
+    {
+        if (_deferredCliEnvironmentSynchronizationTask is not null)
+        {
+            return;
+        }
+
+        var cancellationTokenSource = new CancellationTokenSource();
+        var environmentIntegration = GetService<CliEnvironmentIntegrationService>();
+        var diagnostics = GetService<IAppDiagnostics>();
+        _deferredCliEnvironmentSynchronizationCancellationTokenSource = cancellationTokenSource;
+        _deferredCliEnvironmentSynchronizationTask = Task.Run(async () =>
+        {
+            try
+            {
+                await Task.Delay(DeferredCliEnvironmentSynchronizationDelay, cancellationTokenSource.Token);
+                environmentIntegration.Synchronize();
+            }
+            catch (OperationCanceledException) when (cancellationTokenSource.IsCancellationRequested)
+            {
+                // Shutdown cancelled the deferred startup operation.
+            }
+            catch (Exception ex)
+            {
+                diagnostics.WriteException(
+                    nameof(App),
+                    "Synchronize CLI environment",
+                    ex,
+                    AppDiagnosticSeverity.Warning);
+            }
+        });
+    }
+
+    private void StopDeferredCliEnvironmentSynchronization()
+    {
+        var cancellationTokenSource = _deferredCliEnvironmentSynchronizationCancellationTokenSource;
+        _deferredCliEnvironmentSynchronizationCancellationTokenSource = null;
+        var synchronizationTask = _deferredCliEnvironmentSynchronizationTask;
+        _deferredCliEnvironmentSynchronizationTask = null;
+
+        if (cancellationTokenSource is null)
+        {
+            return;
+        }
+
+        cancellationTokenSource.Cancel();
+        if (synchronizationTask is null || synchronizationTask.IsCompleted)
+        {
+            cancellationTokenSource.Dispose();
+            return;
+        }
+
+        _ = synchronizationTask.ContinueWith(
             static (_, state) => ((CancellationTokenSource)state!).Dispose(),
             cancellationTokenSource,
             CancellationToken.None,

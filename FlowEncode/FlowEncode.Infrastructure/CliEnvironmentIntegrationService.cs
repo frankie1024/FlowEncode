@@ -47,23 +47,25 @@ public sealed class CliEnvironmentIntegrationService
             manifest = RelocateWorkspaceComponentOwnership(manifest, _paths.RootPath);
             var nextUserPath = pathPlan.UserPath;
             var environmentSnapshot = CaptureEnvironmentSnapshot(currentUserPath);
+            var userEnvironmentChanged = false;
             try
             {
-                if (!string.Equals(currentUserPath, nextUserPath, StringComparison.Ordinal))
+                if (ShouldUpdateEnvironmentVariable(currentUserPath, nextUserPath))
                 {
                     Environment.SetEnvironmentVariable("PATH", nextUserPath, EnvironmentVariableTarget.User);
+                    userEnvironmentChanged = true;
                 }
 
                 var previousVariables = new Dictionary<string, string?>(manifest.PreviousUserEnvironmentVariables, StringComparer.OrdinalIgnoreCase);
-                SetManagedUserVariable(previousVariables, "FLOWENCODE_WORKSPACE", _paths.RootPath);
-                SetManagedUserVariable(previousVariables, "FLOWENCODE_TOOLS", _paths.ToolsRootPath);
+                userEnvironmentChanged |= SetManagedUserVariable(previousVariables, "FLOWENCODE_WORKSPACE", _paths.RootPath);
+                userEnvironmentChanged |= SetManagedUserVariable(previousVariables, "FLOWENCODE_TOOLS", _paths.ToolsRootPath);
                 if (!string.IsNullOrWhiteSpace(selectedPythonPath))
                 {
-                    SetManagedUserVariable(previousVariables, "FLOWENCODE_PYTHON", selectedPythonPath);
+                    userEnvironmentChanged |= SetManagedUserVariable(previousVariables, "FLOWENCODE_PYTHON", selectedPythonPath);
                 }
                 else
                 {
-                    RestoreManagedUserVariable(previousVariables, "FLOWENCODE_PYTHON");
+                    userEnvironmentChanged |= RestoreManagedUserVariable(previousVariables, "FLOWENCODE_PYTHON");
                 }
 
                 UpdateProcessPath(
@@ -82,7 +84,10 @@ public sealed class CliEnvironmentIntegrationService
                 throw;
             }
 
-            BroadcastEnvironmentChange();
+            if (userEnvironmentChanged)
+            {
+                BroadcastEnvironmentChange();
+            }
         }
     }
 
@@ -519,7 +524,7 @@ public sealed class CliEnvironmentIntegrationService
         }
     }
 
-    private static void SetManagedUserVariable(
+    private static bool SetManagedUserVariable(
         IDictionary<string, string?> previousVariables,
         string name,
         string value)
@@ -529,21 +534,41 @@ public sealed class CliEnvironmentIntegrationService
             previousVariables[name] = Environment.GetEnvironmentVariable(name, EnvironmentVariableTarget.User);
         }
 
-        Environment.SetEnvironmentVariable(name, value, EnvironmentVariableTarget.User);
-        Environment.SetEnvironmentVariable(name, value, EnvironmentVariableTarget.Process);
+        var userEnvironmentChanged = SetEnvironmentVariableIfChanged(name, value, EnvironmentVariableTarget.User);
+        SetEnvironmentVariableIfChanged(name, value, EnvironmentVariableTarget.Process);
+        return userEnvironmentChanged;
     }
 
-    private static void RestoreManagedUserVariable(
+    private static bool RestoreManagedUserVariable(
         IReadOnlyDictionary<string, string?> previousVariables,
         string name)
     {
         if (!previousVariables.TryGetValue(name, out var previousValue))
         {
-            return;
+            return false;
         }
 
-        Environment.SetEnvironmentVariable(name, previousValue, EnvironmentVariableTarget.User);
-        Environment.SetEnvironmentVariable(name, previousValue, EnvironmentVariableTarget.Process);
+        var userEnvironmentChanged = SetEnvironmentVariableIfChanged(name, previousValue, EnvironmentVariableTarget.User);
+        SetEnvironmentVariableIfChanged(name, previousValue, EnvironmentVariableTarget.Process);
+        return userEnvironmentChanged;
+    }
+
+    internal static bool ShouldUpdateEnvironmentVariable(string? currentValue, string? desiredValue)
+        => !string.Equals(currentValue, desiredValue, StringComparison.Ordinal);
+
+    private static bool SetEnvironmentVariableIfChanged(
+        string name,
+        string? desiredValue,
+        EnvironmentVariableTarget target)
+    {
+        var currentValue = Environment.GetEnvironmentVariable(name, target);
+        if (!ShouldUpdateEnvironmentVariable(currentValue, desiredValue))
+        {
+            return false;
+        }
+
+        Environment.SetEnvironmentVariable(name, desiredValue, target);
+        return true;
     }
 
     internal static string BuildProcessPathSynchronizationValue(
