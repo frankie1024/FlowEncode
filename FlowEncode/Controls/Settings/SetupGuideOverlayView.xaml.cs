@@ -7,6 +7,7 @@ using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Input;
 using Microsoft.UI.Xaml.Media;
+using Windows.System;
 
 namespace FlowEncode.Controls.Settings;
 
@@ -19,6 +20,7 @@ public sealed partial class SetupGuideOverlayView : UserControl
     private SetupGuideScrollAnchor _pendingSetupGuideScrollAnchor;
     private SetupGuideWheelDirection _armedSetupGuideWheelDirection;
     private int _armedSetupGuideWheelCardIndex = -1;
+    private int _lastSelectedSetupGuideCardIndex = -1;
     private DateTimeOffset _suppressSetupGuideWheelUntilUtc = DateTimeOffset.MinValue;
 
     private enum SetupGuideScrollAnchor
@@ -44,6 +46,8 @@ public sealed partial class SetupGuideOverlayView : UserControl
         InitializeComponent();
         Loaded += SetupGuideOverlayView_Loaded;
         SizeChanged += SetupGuideOverlayView_SizeChanged;
+        KeyDown += SetupGuideOverlayView_KeyDown;
+        RegisterPropertyChangedCallback(VisibilityProperty, SetupGuideOverlayView_VisibilityChanged);
     }
 
     public void RefreshLayout()
@@ -77,11 +81,31 @@ public sealed partial class SetupGuideOverlayView : UserControl
         _isInteractionInitialized = true;
         SetupGuideFlipView.AddHandler(UIElement.PointerWheelChangedEvent, new PointerEventHandler(SetupGuideCardScrollViewer_PointerWheelChanged), true);
         ScheduleLayoutRefresh();
+        FocusSetupGuideCloseButton();
     }
 
     private void SetupGuideOverlayView_SizeChanged(object sender, SizeChangedEventArgs e)
     {
         RefreshLayout();
+    }
+
+    private void SetupGuideOverlayView_VisibilityChanged(DependencyObject sender, DependencyProperty property)
+    {
+        if (Visibility == Visibility.Visible)
+        {
+            DispatcherQueue.TryEnqueue(FocusSetupGuideCloseButton);
+        }
+    }
+
+    private async void SetupGuideOverlayView_KeyDown(object sender, KeyRoutedEventArgs e)
+    {
+        if (e.Key != VirtualKey.Escape || ViewModel is not { IsSetupGuideOpen: true })
+        {
+            return;
+        }
+
+        e.Handled = true;
+        await DismissSetupGuideAsync();
     }
 
     private async void RefreshSetupGuideButton_Click(object sender, RoutedEventArgs e)
@@ -119,6 +143,11 @@ public sealed partial class SetupGuideOverlayView : UserControl
     }
 
     private async void CloseSetupGuideButton_Click(object sender, RoutedEventArgs e)
+    {
+        await DismissSetupGuideAsync();
+    }
+
+    private async Task DismissSetupGuideAsync()
     {
         var viewModel = ViewModel;
         if (viewModel is null)
@@ -274,6 +303,9 @@ public sealed partial class SetupGuideOverlayView : UserControl
             viewModel.Texts.ErrorSaveFailedTitle,
             async () =>
             {
+                await Task.Yield();
+                AnimateSelectedSetupGuideCard();
+
                 if (_pendingSetupGuideScrollAnchor == SetupGuideScrollAnchor.None || SetupGuideFlipView.SelectedIndex < 0)
                 {
                     ScheduleLayoutRefresh();
@@ -395,6 +427,57 @@ public sealed partial class SetupGuideOverlayView : UserControl
     {
         _armedSetupGuideWheelDirection = direction;
         _armedSetupGuideWheelCardIndex = cardIndex;
+    }
+
+    private void AnimateSelectedSetupGuideCard()
+    {
+        var selectedIndex = SetupGuideFlipView.SelectedIndex;
+        if (!_isInteractionInitialized || selectedIndex < 0
+            || SetupGuideFlipView.ContainerFromIndex(selectedIndex) is not DependencyObject container)
+        {
+            return;
+        }
+
+        var cardContent = FindDescendantByName(container, "SetupGuideCardContent");
+        if (cardContent is null)
+        {
+            return;
+        }
+
+        var offsetX = _lastSelectedSetupGuideCardIndex >= 0 && selectedIndex < _lastSelectedSetupGuideCardIndex
+            ? -UiTokens.MotionFieldOffsetY * 2
+            : UiTokens.MotionFieldOffsetY * 2;
+        _lastSelectedSetupGuideCardIndex = selectedIndex;
+        UiMotion.PlayHorizontalEntrance(cardContent, offsetX);
+    }
+
+    private void FocusSetupGuideCloseButton()
+    {
+        if (ViewModel is { IsSetupGuideOpen: true })
+        {
+            SetupGuideCloseButton.Focus(FocusState.Programmatic);
+        }
+    }
+
+    private static FrameworkElement? FindDescendantByName(DependencyObject root, string name)
+    {
+        if (root is FrameworkElement { Name: var currentName } element
+            && string.Equals(currentName, name, StringComparison.Ordinal))
+        {
+            return element;
+        }
+
+        var childCount = VisualTreeHelper.GetChildrenCount(root);
+        for (var index = 0; index < childCount; index++)
+        {
+            var match = FindDescendantByName(VisualTreeHelper.GetChild(root, index), name);
+            if (match is not null)
+            {
+                return match;
+            }
+        }
+
+        return null;
     }
 
     private void ResetSetupGuideWheelArmState()

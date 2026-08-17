@@ -7,6 +7,7 @@
     xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
     xmlns:settings="using:FlowEncode.Controls.Settings"
+    xmlns:shared="using:FlowEncode.Controls.Shared"
     Title="FlowEncode"
     mc:Ignorable="d">
     <Window.SystemBackdrop>
@@ -59,6 +60,8 @@
             IsHitTestVisible="False"
             Visibility="Collapsed">
             <Border
+                shared:UiElevation.Level="E3"
+                shared:UiMotion.AnimateOnVisible="True"
                 MaxWidth="480"
                 Padding="28"
                 HorizontalAlignment="Center"

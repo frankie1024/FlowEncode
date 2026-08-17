@@ -57,6 +57,8 @@ public sealed partial class MainWindow : Window, ISettingsViewHost, IShellNaviga
     private bool _isCloseConfirmationInProgress;
     private bool _isShutdownConfirmed;
     private bool _closeCleanupCompleted;
+    private bool _isDragDropOverlayHiding;
+    private int _dragDropOverlayVisibilityVersion;
     private string? _pendingShellSectionTag;
     private Task _shellNavigationDrainTask = Task.CompletedTask;
     private IntPtr _windowLargeIconHandle;
@@ -1262,11 +1264,50 @@ public sealed partial class MainWindow : Window, ISettingsViewHost, IShellNaviga
 
     private void SetDragDropOverlayVisible(bool isVisible)
     {
-        var targetVisibility = isVisible ? Visibility.Visible : Visibility.Collapsed;
-        if (DragDropOverlay.Visibility != targetVisibility)
+        if (isVisible)
         {
-            DragDropOverlay.Visibility = targetVisibility;
+            ++_dragDropOverlayVisibilityVersion;
+            if (DragDropOverlay.Visibility != Visibility.Visible)
+            {
+                DragDropOverlay.Visibility = Visibility.Visible;
+            }
+            else if (_isDragDropOverlayHiding)
+            {
+                UiMotion.PlayEntrance(DragDropOverlay, UiTokens.MotionFieldOffsetY);
+            }
+
+            _isDragDropOverlayHiding = false;
+            return;
         }
+
+        if (DragDropOverlay.Visibility != Visibility.Visible || _isDragDropOverlayHiding)
+        {
+            return;
+        }
+
+        var visibilityVersion = ++_dragDropOverlayVisibilityVersion;
+        _isDragDropOverlayHiding = true;
+        if (!UiMotion.PlayExit(DragDropOverlay, UiTokens.MotionFieldOffsetY))
+        {
+            DragDropOverlay.Visibility = Visibility.Collapsed;
+            _isDragDropOverlayHiding = false;
+            return;
+        }
+
+        _ = HideDragDropOverlayAfterExitAsync(visibilityVersion);
+    }
+
+    private async Task HideDragDropOverlayAfterExitAsync(int visibilityVersion)
+    {
+        await Task.Delay(TimeSpan.FromMilliseconds(UiTokens.MotionFast));
+
+        if (visibilityVersion != _dragDropOverlayVisibilityVersion || DragDropOverlay.Visibility != Visibility.Visible)
+        {
+            return;
+        }
+
+        DragDropOverlay.Visibility = Visibility.Collapsed;
+        _isDragDropOverlayHiding = false;
     }
 
     private void UpdateDragDropOverlay(DragDropPayloadType payloadType)

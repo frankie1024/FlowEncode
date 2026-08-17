@@ -79,6 +79,35 @@ public static class UiMotion
         AnimateDouble(element, nameof(UIElement.Opacity), element.Opacity, 1, UiTokens.MotionNormalDuration, UiTokens.MotionEasingEnter, false);
     }
 
+    public static void PlayHorizontalEntrance(FrameworkElement element, double offsetX)
+    {
+        if (!AnimationsEnabled)
+        {
+            ResetEntranceState(element);
+            return;
+        }
+
+        var transform = EnsureCompositeTransform(element);
+        transform.TranslateX = offsetX;
+        element.Opacity = 0;
+        AnimateDouble(transform, nameof(CompositeTransform.TranslateX), transform.TranslateX, 0, UiTokens.MotionEmphasisDuration, UiTokens.MotionEasingEnter, false);
+        AnimateDouble(element, nameof(UIElement.Opacity), element.Opacity, 1, UiTokens.MotionEmphasisDuration, UiTokens.MotionEasingEnter, false);
+    }
+
+    public static bool PlayExit(FrameworkElement element, double offsetY)
+    {
+        if (!AnimationsEnabled)
+        {
+            ResetEntranceState(element);
+            return false;
+        }
+
+        var transform = EnsureCompositeTransform(element);
+        AnimateDouble(transform, nameof(CompositeTransform.TranslateY), transform.TranslateY, offsetY, UiTokens.MotionFastDuration, UiTokens.MotionEasingInOut, false);
+        AnimateDouble(element, nameof(UIElement.Opacity), element.Opacity, 0, UiTokens.MotionFastDuration, UiTokens.MotionEasingInOut, false);
+        return true;
+    }
+
     private static void OnHoverLiftEnabledChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
     {
         if (d is not FrameworkElement element)
@@ -185,7 +214,9 @@ public static class UiMotion
     private static void ResetEntranceState(FrameworkElement element)
     {
         element.Opacity = 1;
-        EnsureCompositeTransform(element).TranslateY = 0;
+        var transform = EnsureCompositeTransform(element);
+        transform.TranslateX = 0;
+        transform.TranslateY = 0;
     }
 
     private static CompositeTransform EnsureCompositeTransform(FrameworkElement element)

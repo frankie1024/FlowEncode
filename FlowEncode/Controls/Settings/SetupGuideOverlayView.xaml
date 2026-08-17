@@ -8,7 +8,8 @@
     xmlns:vm="using:FlowEncode.ViewModels"
     xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
-    mc:Ignorable="d">
+    mc:Ignorable="d"
+    IsTabStop="True">
         <Grid Background="{ThemeResource AppModalSmokeBrush}">
         <Grid Padding="{StaticResource AppCardPadding}">
             <Border
@@ -53,7 +54,7 @@
                                     <TextBlock Text="{Binding SetupGuideUpdateCheckActionText}" />
                                 </StackPanel>
                             </Button>
-                            <Button AutomationProperties.Name="{Binding Texts.SetupGuideCloseButton}" Click="CloseSetupGuideButton_Click" Style="{StaticResource AccentButtonStyle}" ToolTipService.ToolTip="{Binding Texts.SetupGuideCloseButton}">
+                            <Button x:Name="SetupGuideCloseButton" AutomationProperties.Name="{Binding Texts.SetupGuideCloseButton}" Click="CloseSetupGuideButton_Click" Style="{StaticResource AccentButtonStyle}" ToolTipService.ToolTip="{Binding Texts.SetupGuideCloseButton}">
                                 <StackPanel Orientation="Horizontal" Spacing="{StaticResource AppCommandIconTextSpacing}">
                                     <SymbolIcon Symbol="Forward" />
                                     <TextBlock Text="{Binding Texts.SetupGuideCloseButton}" />
@@ -74,8 +75,7 @@
                         SelectionChanged="SetupGuideFlipView_SelectionChanged">
                         <FlipView.ItemTemplate>
                             <DataTemplate x:DataType="vm:SetupGuideCardViewModel">
-                                <Border Margin="{StaticResource AppSetupGuideCarouselCardMargin}" Padding="{StaticResource AppCardPadding}" VerticalAlignment="Stretch" Background="{ThemeResource CardAltBrush}" BorderBrush="{ThemeResource CardBorderBrush}" BorderThickness="{StaticResource AppCardBorderThickness}" CornerRadius="{StaticResource AppLargeCornerRadius}">
-                                    <Grid RowSpacing="{StaticResource AppSpacingL}">
+                                <Grid x:Name="SetupGuideCardContent" Margin="{StaticResource AppSetupGuideCarouselCardMargin}" RowSpacing="{StaticResource AppSpacingL}" VerticalAlignment="Stretch">
                                         <Grid.RowDefinitions>
                                             <RowDefinition Height="Auto" />
                                             <RowDefinition Height="*" />
@@ -192,8 +192,7 @@
                                                 </ItemsControl.ItemTemplate>
                                             </ItemsControl>
                                         </ScrollViewer>
-                                    </Grid>
-                                </Border>
+                                </Grid>
                             </DataTemplate>
                         </FlipView.ItemTemplate>
                     </FlipView>
