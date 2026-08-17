@@ -29,6 +29,7 @@
                         FontWeight="SemiBold"
                         Text="{x:Bind Header, Mode=OneWay}"
                         TextTrimming="CharacterEllipsis"
+                        ToolTipService.ToolTip="{x:Bind Header, Mode=OneWay}"
                         VerticalAlignment="Center" />
 
                     <Button

@@ -38,6 +38,8 @@ public sealed partial class MainWindow : Window, ISettingsViewHost, IShellNaviga
     private const int WindowClassLongIcon = -14;
     private const int WindowClassLongSmallIcon = -34;
     private const int SystemColorGrayText = 17;
+    private const double StackedWorkspaceWidth = 1000;
+    private const double CompactFormsWidth = 700;
     private readonly AppLaunchActivation _launchActivation;
     private readonly LocalAppSettingsService _localAppSettingsService;
     private readonly IAppDiagnostics _diagnostics;
@@ -234,8 +236,8 @@ public sealed partial class MainWindow : Window, ISettingsViewHost, IShellNaviga
             normalizedTag,
             contentWidth,
             CreateShellContentPadding(contentWidth),
-            contentWidth < 1000,
-            contentWidth < 700);
+            contentWidth < StackedWorkspaceWidth,
+            contentWidth < CompactFormsWidth);
         return control;
     }
 
@@ -572,8 +574,8 @@ public sealed partial class MainWindow : Window, ISettingsViewHost, IShellNaviga
             return;
         }
 
-        var stackedWorkspace = width < 1000;
-        var compactForms = width < 700;
+        var stackedWorkspace = width < StackedWorkspaceWidth;
+        var compactForms = width < CompactFormsWidth;
         var contentPadding = CreateShellContentPadding(width);
 
         foreach (var sectionTag in _shellSections.GetSectionTagsSnapshot())
@@ -593,6 +595,16 @@ public sealed partial class MainWindow : Window, ISettingsViewHost, IShellNaviga
 
     private static Thickness CreateShellContentPadding(double width)
     {
+        if (width < CompactFormsWidth)
+        {
+            return new Thickness(UiTokens.SpacingM, UiTokens.SpacingM, UiTokens.SpacingM, UiTokens.SpacingL);
+        }
+
+        if (width < StackedWorkspaceWidth)
+        {
+            return new Thickness(UiTokens.SpacingL, UiTokens.SpacingL, UiTokens.SpacingL, UiTokens.SpacingXL);
+        }
+
         return UiTokens.PagePadding;
     }
 

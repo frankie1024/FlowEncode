@@ -56,3 +56,6 @@ tmp/
 *.pyo
 __pycache__/
 /docs/av1an-parallel-crf-video-plan.md
+
+# Local media fixtures (generated, never committed)
+/local-media/
