@@ -625,11 +625,40 @@ public sealed class CliEnvironmentIntegrationService
 
     private void SaveManifestUnsafe(EnvironmentOwnershipManifest manifest)
     {
+        var serializedManifest = JsonSerializer.Serialize(NormalizeManifest(manifest), JsonOptions);
+        if (TryReadManifestContent(out var currentManifest)
+            && !ShouldWriteManifest(currentManifest, serializedManifest))
+        {
+            return;
+        }
+
         PersistentFileWriter.WriteAllText(
             _paths.EnvironmentOwnershipPath,
-            JsonSerializer.Serialize(NormalizeManifest(manifest), JsonOptions),
+            serializedManifest,
             new UTF8Encoding(encoderShouldEmitUTF8Identifier: false),
             message => AppDiagnosticsLog.Write(_paths, nameof(CliEnvironmentIntegrationService), message));
+    }
+
+    internal static bool ShouldWriteManifest(string? currentContent, string nextContent)
+        => !string.Equals(currentContent, nextContent, StringComparison.Ordinal);
+
+    private bool TryReadManifestContent(out string? content)
+    {
+        content = null;
+        try
+        {
+            if (!File.Exists(_paths.EnvironmentOwnershipPath))
+            {
+                return false;
+            }
+
+            content = File.ReadAllText(_paths.EnvironmentOwnershipPath);
+            return true;
+        }
+        catch
+        {
+            return false;
+        }
     }
 
     private static EnvironmentOwnershipManifest NormalizeManifest(EnvironmentOwnershipManifest manifest)

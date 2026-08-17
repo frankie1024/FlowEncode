@@ -129,7 +129,6 @@ public partial class App : Microsoft.UI.Xaml.Application
         services.AddSingleton<IVapourSynthWorkspaceService, VapourSynthWorkspaceService>();
         services.AddSingleton<IVapourSynthWorkspaceLanguageService, VapourSynthWorkspaceLanguageService>();
         services.AddSingleton<IVapourSynthPreviewService, VapourSynthPreviewService>();
-        services.AddSingleton<IVapourSynthShellIntegrationService, WindowsShellIntegrationService>();
         services.AddSingleton<MainWindowViewModel>();
         services.AddSingleton<VapourSynthWorkspaceViewModel>();
         services.AddTransient<VapourSynthPreviewWindowViewModel>();
@@ -297,7 +296,6 @@ public partial class App : Microsoft.UI.Xaml.Application
 
         var cancellationTokenSource = new CancellationTokenSource();
         var environmentIntegration = GetService<CliEnvironmentIntegrationService>();
-        var shellIntegration = GetService<IVapourSynthShellIntegrationService>();
         var diagnostics = GetService<IAppDiagnostics>();
         _deferredStartupMaintenanceCancellationTokenSource = cancellationTokenSource;
         _deferredStartupMaintenanceTask = Task.Run(async () =>
@@ -305,7 +303,6 @@ public partial class App : Microsoft.UI.Xaml.Application
             try
             {
                 await Task.Delay(DeferredStartupMaintenanceDelay, cancellationTokenSource.Token);
-                shellIntegration.RegisterNewVpyFileMenu();
                 environmentIntegration.Synchronize();
             }
             catch (OperationCanceledException) when (cancellationTokenSource.IsCancellationRequested)

@@ -103,6 +103,16 @@ public sealed class CliEnvironmentIntegrationServiceTests
     }
 
     [TestMethod]
+    public void ShouldWriteManifest_OnlyReturnsTrueForChangedContent()
+    {
+        const string manifest = "{\"schemaVersion\":1}";
+
+        Assert.IsFalse(CliEnvironmentIntegrationService.ShouldWriteManifest(manifest, manifest));
+        Assert.IsTrue(CliEnvironmentIntegrationService.ShouldWriteManifest(null, manifest));
+        Assert.IsTrue(CliEnvironmentIntegrationService.ShouldWriteManifest(manifest, "{\"schemaVersion\":2}"));
+    }
+
+    [TestMethod]
     public void ComponentOwnership_PreexistingComponentRemainsUnownedAndTracksOwnedItems()
     {
         var root = Path.Combine(Path.GetTempPath(), nameof(CliEnvironmentIntegrationServiceTests), Guid.NewGuid().ToString("N"));

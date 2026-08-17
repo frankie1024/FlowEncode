@@ -105,6 +105,9 @@ Root: HKA; Subkey: "Software\Classes\.vpy"; ValueType: string; ValueName: ""; Va
 Root: HKA; Subkey: "Software\Classes\.vpy"; Flags: uninsdeletekeyifempty
 Root: HKA; Subkey: "Software\Classes\.vpy\OpenWithProgids"; ValueType: string; ValueName: "{#VapourSynthProgId}"; ValueData: ""; Flags: uninsdeletevalue
 Root: HKA; Subkey: "Software\Classes\.vpy\OpenWithProgids"; Flags: uninsdeletekeyifempty
+Root: HKA; Subkey: "Software\Classes\.vpy\ShellNew"; ValueType: string; ValueName: ""; ValueData: ""; Flags: uninsdeletevalue
+Root: HKA; Subkey: "Software\Classes\.vpy\ShellNew"; ValueType: string; ValueName: "FileName"; ValueData: "{app}\Assets\VapourSynthScript.vpy"; Flags: uninsdeletevalue
+Root: HKA; Subkey: "Software\Classes\.vpy\ShellNew"; Flags: uninsdeletekeyifempty
 Root: HKA; Subkey: "Software\Classes\{#VapourSynthProgId}"; ValueType: string; ValueName: ""; ValueData: "{#VapourSynthFileTypeName}"; Flags: uninsdeletekey
 Root: HKA; Subkey: "Software\Classes\{#VapourSynthProgId}\DefaultIcon"; ValueType: string; ValueName: ""; ValueData: "{app}\{#AppExeName},0"; Flags: uninsdeletekey
 Root: HKA; Subkey: "Software\Classes\{#VapourSynthProgId}\shell\open\command"; ValueType: string; ValueName: ""; ValueData: """{app}\{#AppExeName}"" ""%1"""; Flags: uninsdeletekey
@@ -144,6 +147,31 @@ var
   PrerequisiteStates: array[0..PrerequisiteCount - 1] of Integer;
   PrerequisiteVersions: array[0..PrerequisiteCount - 1] of string;
   AllowApplicationLaunch: Boolean;
+
+procedure RemoveLegacyShellNewRegistration();
+var
+  TemplatePath: string;
+  MenuText: string;
+  HasLegacyShellNewRegistration: Boolean;
+begin
+  HasLegacyShellNewRegistration :=
+    RegQueryStringValue(HKCU, 'Software\Classes\.vpy\ShellNew', 'FileName', TemplatePath) and
+    (Pos('\flowencode\data\templates\vapoursynthscript.vpy', Lowercase(TemplatePath)) > 0);
+
+  if HasLegacyShellNewRegistration then
+    RegDeleteKeyIncludingSubkeys(HKCU, 'Software\Classes\.vpy\ShellNew');
+
+  if HasLegacyShellNewRegistration and
+     RegQueryStringValue(HKCU, 'Software\Classes\VapourSynthScript', '', MenuText) and
+     ((MenuText = 'VapourSynth Script') or (MenuText = 'VapourSynth 视频脚本')) then
+    RegDeleteKeyIncludingSubkeys(HKCU, 'Software\Classes\VapourSynthScript');
+end;
+
+procedure CurStepChanged(CurStep: TSetupStep);
+begin
+  if CurStep = ssInstall then
+    RemoveLegacyShellNewRegistration();
+end;
 
 function GetWebView2MachineClientKeyPath(): string;
 begin
