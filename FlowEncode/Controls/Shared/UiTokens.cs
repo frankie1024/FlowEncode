@@ -13,6 +13,7 @@ internal static class UiTokens
     public static double SpacingXXL => GetDouble("AppSpacingXXL");
     public static double DisplayFontSize => GetDouble("AppDisplayFontSize");
     public static double DisplayFontSizeCompact => GetDouble("AppDisplayFontSizeCompact");
+    public static double MotionInstant => GetDouble("MotionInstant");
     public static double MotionFast => GetDouble("MotionFast");
     public static double MotionNormal => GetDouble("MotionNormal");
     public static double MotionEmphasis => GetDouble("MotionEmphasis");
