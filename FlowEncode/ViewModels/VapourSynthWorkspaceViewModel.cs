@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
+using System.Collections.Specialized;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
@@ -42,6 +43,7 @@ public sealed class VapourSynthWorkspaceViewModel : ObservableObject
         _launchActivation = launchActivation;
         _texts = new AppText(settingsService.Load().Language);
         Tabs = new ReadOnlyObservableCollection<VapourSynthWorkspaceTabViewModel>(_tabs);
+        _tabs.CollectionChanged += Tabs_CollectionChanged;
     }
 
     public AppText Texts
@@ -51,6 +53,9 @@ public sealed class VapourSynthWorkspaceViewModel : ObservableObject
     }
 
     public ReadOnlyObservableCollection<VapourSynthWorkspaceTabViewModel> Tabs { get; }
+
+    // TabView mutates this collection directly when a user reorders tabs.
+    public ObservableCollection<VapourSynthWorkspaceTabViewModel> ReorderableTabs => _tabs;
 
     public VapourSynthWorkspaceTabViewModel? ActiveTab
     {
@@ -813,6 +818,27 @@ public sealed class VapourSynthWorkspaceViewModel : ObservableObject
         OnPropertyChanged(nameof(HasAnyUnsavedChanges));
         OnPropertyChanged(nameof(CanCompareTabs));
         OnPropertyChanged(nameof(DirtyTabs));
+    }
+
+    private void Tabs_CollectionChanged(object? sender, NotifyCollectionChangedEventArgs e)
+    {
+        if (!_isInitialized)
+        {
+            return;
+        }
+
+        if (e.Action != NotifyCollectionChangedAction.Move)
+        {
+            return;
+        }
+
+        if (IsCompareMode)
+        {
+            NormalizeCompareTabsByOrder(ActiveTab);
+        }
+
+        RefreshActiveTabBindings();
+        ScheduleSessionSave();
     }
 
     private void AddTab(VapourSynthWorkspaceTabViewModel tab)

@@ -6,6 +6,7 @@ using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
 using FlowEncode.Application;
+using FlowEncode.Controls.Shared;
 using FlowEncode.Domain;
 using FlowEncode.Infrastructure;
 using FlowEncode.ViewModels;
@@ -37,6 +38,11 @@ public sealed partial class VapourSynthWorkspaceView : UserControl, IDisposable
     private long _diagnosticsVersion;
     private bool _isDisposed;
     private int _workspaceTabSelectionSuppressionCount;
+    private Microsoft.UI.Dispatching.DispatcherQueueTimer? _editorPaneLayoutTransitionTimer;
+    private DateTimeOffset _editorPaneLayoutTransitionStartedAt;
+    private double _editorPaneLayoutTransitionStartWidth;
+    private double _editorPaneLayoutTransitionTargetWidth;
+    private bool _editorPaneLayoutTransitionShowsRightPane;
 
     public VapourSynthWorkspaceViewModel ViewModel { get; }
 
@@ -129,6 +135,7 @@ public sealed partial class VapourSynthWorkspaceView : UserControl, IDisposable
     private void UserControl_Unloaded(object sender, RoutedEventArgs e)
     {
         CancelPendingDiagnostics();
+        StopEditorPaneLayoutTransition();
     }
 
     private async Task InitializeEditorAsync(bool forceReload = false)
@@ -1338,8 +1345,91 @@ public sealed partial class VapourSynthWorkspaceView : UserControl, IDisposable
     private void UpdateEditorPaneLayout()
     {
         var showRightPane = ViewModel.IsCompareMode && ViewModel.RightTab is not null;
-        RightEditorColumnDefinition.Width = showRightPane ? new GridLength(1, GridUnitType.Star) : new GridLength(0);
+        if (!UiMotionPolicy.AreCustomAnimationsEnabled() || EditorSurfaceHost.ActualWidth <= 0)
+        {
+            ApplyEditorPaneLayout(showRightPane);
+            return;
+        }
+
+        var rightPaneIsVisible = RightEditorPane.Visibility == Visibility.Visible;
+        if (showRightPane == rightPaneIsVisible && _editorPaneLayoutTransitionTimer is null)
+        {
+            return;
+        }
+
+        StartEditorPaneLayoutTransition(showRightPane);
+    }
+
+    private void ApplyEditorPaneLayout(bool showRightPane)
+    {
+        StopEditorPaneLayoutTransition();
         RightEditorPane.Visibility = showRightPane ? Visibility.Visible : Visibility.Collapsed;
+        RightEditorColumnDefinition.Width = showRightPane
+            ? new GridLength(1, GridUnitType.Star)
+            : new GridLength(0);
+    }
+
+    private void StartEditorPaneLayoutTransition(bool showRightPane)
+    {
+        StopEditorPaneLayoutTransition();
+
+        var currentWidth = RightEditorPane.Visibility == Visibility.Visible
+            ? Math.Max(0, RightEditorColumnDefinition.ActualWidth)
+            : 0;
+        var targetWidth = showRightPane
+            ? Math.Max(0, (EditorSurfaceHost.ActualWidth - EditorSurfaceHost.ColumnSpacing) / 2)
+            : 0;
+
+        if (Math.Abs(currentWidth - targetWidth) < 0.5)
+        {
+            ApplyEditorPaneLayout(showRightPane);
+            return;
+        }
+
+        RightEditorPane.Visibility = Visibility.Visible;
+        RightEditorColumnDefinition.Width = new GridLength(currentWidth, GridUnitType.Pixel);
+        _editorPaneLayoutTransitionStartWidth = currentWidth;
+        _editorPaneLayoutTransitionTargetWidth = targetWidth;
+        _editorPaneLayoutTransitionShowsRightPane = showRightPane;
+        _editorPaneLayoutTransitionStartedAt = DateTimeOffset.UtcNow;
+        _editorPaneLayoutTransitionTimer = DispatcherQueue.CreateTimer();
+        _editorPaneLayoutTransitionTimer.Interval = TimeSpan.FromMilliseconds(16);
+        _editorPaneLayoutTransitionTimer.Tick += EditorPaneLayoutTransitionTimer_Tick;
+        _editorPaneLayoutTransitionTimer.Start();
+    }
+
+    private void EditorPaneLayoutTransitionTimer_Tick(Microsoft.UI.Dispatching.DispatcherQueueTimer sender, object args)
+    {
+        var elapsedMilliseconds = (DateTimeOffset.UtcNow - _editorPaneLayoutTransitionStartedAt).TotalMilliseconds;
+        var progress = Math.Clamp(elapsedMilliseconds / UiTokens.MotionNormal, 0, 1);
+        var easedProgress = progress * progress * (3 - (2 * progress));
+        var width = _editorPaneLayoutTransitionStartWidth
+            + ((_editorPaneLayoutTransitionTargetWidth - _editorPaneLayoutTransitionStartWidth) * easedProgress);
+        RightEditorColumnDefinition.Width = new GridLength(Math.Max(0, width), GridUnitType.Pixel);
+
+        if (progress < 1)
+        {
+            return;
+        }
+
+        var showRightPane = _editorPaneLayoutTransitionShowsRightPane;
+        StopEditorPaneLayoutTransition();
+        RightEditorPane.Visibility = showRightPane ? Visibility.Visible : Visibility.Collapsed;
+        RightEditorColumnDefinition.Width = showRightPane
+            ? new GridLength(1, GridUnitType.Star)
+            : new GridLength(0);
+    }
+
+    private void StopEditorPaneLayoutTransition()
+    {
+        if (_editorPaneLayoutTransitionTimer is null)
+        {
+            return;
+        }
+
+        _editorPaneLayoutTransitionTimer.Stop();
+        _editorPaneLayoutTransitionTimer.Tick -= EditorPaneLayoutTransitionTimer_Tick;
+        _editorPaneLayoutTransitionTimer = null;
     }
 
     private VapourSynthEditorPaneView GetActiveEditorPane()
@@ -1597,6 +1687,7 @@ public sealed partial class VapourSynthWorkspaceView : UserControl, IDisposable
         Unloaded -= UserControl_Unloaded;
         WorkspaceRoot.KeyDown -= WorkspaceRoot_KeyDown;
         CancelPendingDiagnostics();
+        StopEditorPaneLayoutTransition();
         _previewService.LogEmitted -= PreviewService_LogEmitted;
         LeftEditorPane.Dispose();
         RightEditorPane.Dispose();

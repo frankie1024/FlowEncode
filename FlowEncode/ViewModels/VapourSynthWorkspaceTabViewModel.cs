@@ -85,7 +85,7 @@ public sealed class VapourSynthWorkspaceTabViewModel : ObservableObject
             var fileName = string.IsNullOrWhiteSpace(_currentFilePath)
                 ? Texts.VapourSynthUntitledDocument
                 : Path.GetFileName(_currentFilePath);
-            return _isDirty ? $"{fileName} *" : fileName;
+            return fileName;
         }
     }
 

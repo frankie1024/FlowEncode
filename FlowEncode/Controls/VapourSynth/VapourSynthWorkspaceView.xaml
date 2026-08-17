@@ -78,7 +78,7 @@
                     </AppBarButton.Icon>
                 </AppBarButton>
                 <AppBarSeparator />
-                <AppBarButton x:Name="EncodeButton" Click="EncodeButton_Click" Label="{Binding Texts.VapourSynthEncodeButton}">
+                <AppBarButton x:Name="EncodeButton" Click="EncodeButton_Click" Foreground="{ThemeResource AccentTextFillColorPrimaryBrush}" Label="{Binding Texts.VapourSynthEncodeButton}">
                     <AppBarButton.Icon>
                         <SymbolIcon Symbol="Video" />
                     </AppBarButton.Icon>
@@ -86,7 +86,7 @@
                         <KeyboardAccelerator Key="F9" />
                     </AppBarButton.KeyboardAccelerators>
                 </AppBarButton>
-                <AppBarButton Click="PreviewButton_Click" Label="{Binding Texts.VapourSynthPreviewButton}">
+                <AppBarButton Click="PreviewButton_Click" Foreground="{ThemeResource AccentTextFillColorPrimaryBrush}" Label="{Binding Texts.VapourSynthPreviewButton}">
                     <AppBarButton.Icon>
                         <SymbolIcon Symbol="Play" />
                     </AppBarButton.Icon>
@@ -103,17 +103,31 @@
                 Background="{ThemeResource CardBrush}"
                 AddTabButtonClick="WorkspaceTabView_AddTabButtonClick"
                 IsAddTabButtonVisible="True"
+                CanReorderTabs="True"
                 SelectionChanged="WorkspaceTabView_SelectionChanged"
                 TabCloseRequested="WorkspaceTabView_TabCloseRequested"
-                TabItemsSource="{Binding Tabs}">
+                TabItemsSource="{Binding ReorderableTabs}">
                 <TabView.TabItemTemplate>
                     <DataTemplate x:DataType="vm:VapourSynthWorkspaceTabViewModel">
                         <TabViewItem ContextRequested="WorkspaceTabViewItem_ContextRequested" IsClosable="True" DoubleTapped="WorkspaceTabViewItem_DoubleTapped">
                             <TabViewItem.Header>
                                 <StackPanel Orientation="Horizontal" Spacing="8">
-                                    <SymbolIcon
-                                        Symbol="Pin"
-                                        Visibility="{Binding PinIconVisibility}" />
+                                    <Grid Width="12" Height="16">
+                                        <SymbolIcon
+                                            HorizontalAlignment="Center"
+                                            VerticalAlignment="Center"
+                                            Symbol="Pin"
+                                            Visibility="{Binding PinIconVisibility}" />
+                                    </Grid>
+                                    <Grid Width="6" Height="16" ToolTipService.ToolTip="{Binding Texts.VapourSynthModifiedBadge}">
+                                        <Ellipse
+                                            Width="6"
+                                            Height="6"
+                                            HorizontalAlignment="Center"
+                                            VerticalAlignment="Center"
+                                            Fill="{ThemeResource AppWarningBrush}"
+                                            Visibility="{Binding DirtyBadgeVisibility}" />
+                                    </Grid>
                                     <TextBlock Text="{Binding TabTitle}" />
                                 </StackPanel>
                             </TabViewItem.Header>
@@ -162,20 +176,6 @@
                             Text="{Binding HeaderStatusText}"
                             TextTrimming="CharacterEllipsis"
                             TextWrapping="NoWrap" />
-                        <Border
-                            Padding="10,4"
-                            VerticalAlignment="Center"
-                            Background="{ThemeResource AppWarningSoftBrush}"
-                            BorderBrush="{ThemeResource AppWarningBrush}"
-                            BorderThickness="{StaticResource AppCardBorderThickness}"
-                            CornerRadius="{StaticResource AppControlCornerRadius}"
-                            Visibility="{Binding DirtyBadgeVisibility}">
-                            <TextBlock
-                                FontSize="{StaticResource AppCaptionFontSize}"
-                                FontWeight="SemiBold"
-                                Foreground="{ThemeResource AppWarningBrush}"
-                                Text="{Binding Texts.VapourSynthModifiedBadge}" />
-                        </Border>
                     </StackPanel>
                 </Grid>
             </Border>
