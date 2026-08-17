@@ -57,6 +57,14 @@ public sealed class TemplateLibraryViewModel : CommunityToolkit.Mvvm.ComponentMo
         ? Visibility.Visible
         : Visibility.Collapsed;
 
+    public Visibility EmptyLibraryVisibility => UserTemplates.Count == 0
+        ? Visibility.Visible
+        : Visibility.Collapsed;
+
+    public Visibility SearchEmptyVisibility => UserTemplates.Count > 0 && TemplateLibraryItems.Count == 0
+        ? Visibility.Visible
+        : Visibility.Collapsed;
+
     public string? EditingUserTemplateId => _editingTemplateId;
 
     public string? CurrentTemplateSelectionKey => _currentTemplateSelectionKey;
@@ -66,6 +74,20 @@ public sealed class TemplateLibraryViewModel : CommunityToolkit.Mvvm.ComponentMo
     public bool CanEditTemplateDraft => !IsEditingPinnedTemplate;
 
     public bool HasUnsavedTemplateChanges => !MatchesTemplateEditingBaseline();
+
+    public void ClearTemplateSearch()
+    {
+        TemplateSearchText = string.Empty;
+    }
+
+    public void UpdateTemplateSelection(TemplateLibraryItemViewModel? selectedItem)
+    {
+        foreach (var item in TemplateLibraryItems)
+        {
+            item.IsSelected = ReferenceEquals(item, selectedItem);
+            item.IsModified = item.IsSelected && HasUnsavedTemplateChanges;
+        }
+    }
 
     public void ApplyLoadedTemplates(IEnumerable<SavedTemplate> templates)
     {
@@ -278,11 +300,14 @@ public sealed class TemplateLibraryViewModel : CommunityToolkit.Mvvm.ComponentMo
         OnPropertyChanged(nameof(CurrentTemplateSelectionKey));
         OnPropertyChanged(nameof(HasUnsavedTemplateChanges));
         RaiseTemplateLockPropertyChanges();
+        UpdateTemplateSelection(TemplateLibraryItems.FirstOrDefault(item =>
+            string.Equals(item.Key, _currentTemplateSelectionKey, StringComparison.Ordinal)));
     }
 
     internal void NotifyDraftChanged()
     {
         OnPropertyChanged(nameof(HasUnsavedTemplateChanges));
+        UpdateTemplateSelection(TemplateLibraryItems.FirstOrDefault(item => item.IsSelected));
     }
 
     public void Dispose()
@@ -291,8 +316,10 @@ public sealed class TemplateLibraryViewModel : CommunityToolkit.Mvvm.ComponentMo
 
     private void RefreshTemplateLibraryItems()
     {
-        IEnumerable<TemplateLibraryItemViewModel> items =
-            UserTemplates.Select(BuildUserTemplateLibraryItem);
+        IEnumerable<TemplateLibraryItemViewModel> items = UserTemplates
+            .OrderByDescending(template => template.IsPinned)
+            .ThenByDescending(template => template.UpdatedAt)
+            .Select(BuildUserTemplateLibraryItem);
 
         var search = TemplateSearchText?.Trim();
         if (!string.IsNullOrWhiteSpace(search))
@@ -302,6 +329,10 @@ public sealed class TemplateLibraryViewModel : CommunityToolkit.Mvvm.ComponentMo
 
         ReplaceItems(TemplateLibraryItems, items);
         OnPropertyChanged(nameof(TemplateLibraryEmptyVisibility));
+        OnPropertyChanged(nameof(EmptyLibraryVisibility));
+        OnPropertyChanged(nameof(SearchEmptyVisibility));
+        UpdateTemplateSelection(TemplateLibraryItems.FirstOrDefault(item =>
+            string.Equals(item.Key, _currentTemplateSelectionKey, StringComparison.Ordinal)));
     }
 
     private SavedTemplate? BuildDraftTemplateForExchange()

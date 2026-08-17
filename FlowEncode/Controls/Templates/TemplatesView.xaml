@@ -26,7 +26,13 @@
                         <TextBlock FontFamily="{StaticResource AppDisplayFont}" FontSize="{StaticResource AppSubsectionTitleFontSize}" FontWeight="SemiBold" Text="{Binding Texts.TemplateLibraryTitle}" />
                         <TextBox PlaceholderText="{Binding Texts.TemplateSearchPlaceholder}" Text="{Binding TemplateSearchText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
                         <Grid>
-                            <ListView x:Name="TemplateLibraryList" ItemsSource="{Binding TemplateLibraryItems}" SelectionChanged="TemplateLibraryList_SelectionChanged" SelectionMode="Single">
+                            <ListView x:Name="TemplateLibraryList" MinHeight="220" ItemsSource="{Binding TemplateLibraryItems}" SelectionChanged="TemplateLibraryList_SelectionChanged" SelectionMode="Single">
+                                <ListView.ItemContainerTransitions>
+                                    <TransitionCollection>
+                                        <AddDeleteThemeTransition />
+                                        <ReorderThemeTransition />
+                                    </TransitionCollection>
+                                </ListView.ItemContainerTransitions>
                                 <ListView.ItemTemplate>
                                     <DataTemplate x:DataType="vm:TemplateLibraryItemViewModel">
                                         <Border Margin="{StaticResource AppBottomSpacingM}" Padding="{StaticResource AppInsetPanelPadding}" Background="{ThemeResource TemplateUserCardBrush}" BorderBrush="{ThemeResource ThemeBorderElevatedBrush}" BorderThickness="{StaticResource AppCardBorderThickness}" CornerRadius="{StaticResource AppCardCornerRadius}" shared:UiElevation.Level="E1" shared:UiElevation.HoverLevel="E2">
@@ -42,9 +48,14 @@
                                                             <ColumnDefinition Width="Auto" />
                                                         </Grid.ColumnDefinitions>
                                                         <TextBlock FontFamily="{StaticResource AppDisplayFont}" FontSize="18" FontWeight="SemiBold" Text="{Binding Name}" TextWrapping="WrapWholeWords" />
-                                                        <Border Grid.Column="1" Padding="10,4" Background="{ThemeResource TemplateUserBadgeBrush}" CornerRadius="{StaticResource AppControlCornerRadius}">
-                                                            <TextBlock FontSize="12" FontWeight="SemiBold" Foreground="{ThemeResource TemplateUserBadgeForegroundBrush}" Text="{Binding SourceLabel}" />
-                                                        </Border>
+                                                        <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="6">
+                                                            <Border Padding="10,4" Background="{ThemeResource TemplateUserBadgeBrush}" CornerRadius="{StaticResource AppControlCornerRadius}">
+                                                                <TextBlock FontSize="12" FontWeight="SemiBold" Foreground="{ThemeResource TemplateUserBadgeForegroundBrush}" Text="{Binding SourceLabel}" />
+                                                            </Border>
+                                                            <Border Padding="10,4" Background="{ThemeResource AppWarningSoftBrush}" CornerRadius="{StaticResource AppControlCornerRadius}" Visibility="{Binding ModifiedVisibility}">
+                                                                <TextBlock FontSize="12" FontWeight="SemiBold" Foreground="{ThemeResource AppWarningBrush}" Text="{Binding Texts.TemplateModifiedLabel}" />
+                                                            </Border>
+                                                        </StackPanel>
                                                     </Grid>
                                                     <TextBlock Text="{Binding EncoderAndQualityText}" TextWrapping="WrapWholeWords" />
                                                     <TextBlock Style="{ThemeResource SelectableSecondaryTextBlockStyle}" Text="{Binding MetaText}" TextWrapping="WrapWholeWords" Visibility="{Binding MetaVisibility}" />
@@ -63,7 +74,28 @@
                                 </ListView.ItemTemplate>
                             </ListView>
 
-                            <TextBlock HorizontalAlignment="Center" VerticalAlignment="Center" FontSize="{StaticResource AppCardTitleFontSize}" FontWeight="SemiBold" Foreground="{ThemeResource SubtleTextBrush}" Text="{Binding Texts.TemplateNoMatch}" Visibility="{Binding TemplateLibraryEmptyVisibility}" />
+                            <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" MaxWidth="300" Spacing="{StaticResource AppSpacingS}" Visibility="{Binding EmptyLibraryVisibility}">
+                                <SymbolIcon HorizontalAlignment="Center" Symbol="Add" Foreground="{ThemeResource AppAccentBrush}" />
+                                <TextBlock HorizontalAlignment="Center" FontSize="{StaticResource AppCardTitleFontSize}" FontWeight="SemiBold" Text="{Binding Texts.TemplateEmptyLibraryTitle}" TextAlignment="Center" TextWrapping="WrapWholeWords" />
+                                <TextBlock HorizontalAlignment="Center" Foreground="{ThemeResource SubtleTextBrush}" Text="{Binding Texts.TemplateEmptyLibraryDescription}" TextAlignment="Center" TextWrapping="WrapWholeWords" />
+                                <Button HorizontalAlignment="Center" Click="NewTemplateButton_Click">
+                                    <StackPanel Orientation="Horizontal" Spacing="{StaticResource AppSpacingXS}">
+                                        <SymbolIcon Symbol="Add" />
+                                        <TextBlock Text="{Binding Texts.NewButton}" />
+                                    </StackPanel>
+                                </Button>
+                            </StackPanel>
+                            <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" MaxWidth="300" Spacing="{StaticResource AppSpacingS}" Visibility="{Binding SearchEmptyVisibility}">
+                                <SymbolIcon HorizontalAlignment="Center" Symbol="Find" Foreground="{ThemeResource AppNeutralBrush}" />
+                                <TextBlock HorizontalAlignment="Center" FontSize="{StaticResource AppCardTitleFontSize}" FontWeight="SemiBold" Text="{Binding Texts.TemplateSearchEmptyTitle}" TextAlignment="Center" TextWrapping="WrapWholeWords" />
+                                <TextBlock HorizontalAlignment="Center" Foreground="{ThemeResource SubtleTextBrush}" Text="{Binding Texts.TemplateSearchEmptyDescription}" TextAlignment="Center" TextWrapping="WrapWholeWords" />
+                                <Button HorizontalAlignment="Center" Click="ClearTemplateSearchButton_Click">
+                                    <StackPanel Orientation="Horizontal" Spacing="{StaticResource AppSpacingXS}">
+                                        <SymbolIcon Symbol="Clear" />
+                                        <TextBlock Text="{Binding Texts.ClearTemplateSearchButton}" />
+                                    </StackPanel>
+                                </Button>
+                            </StackPanel>
                         </Grid>
                     </StackPanel>
                 </Border>

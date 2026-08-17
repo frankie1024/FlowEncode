@@ -217,6 +217,12 @@ public sealed class AppText
     public string TemplateLibraryTitle => Pick("模板库", "Template Library");
     public string TemplateSearchPlaceholder => Pick("搜索模板名称", "Search templates");
     public string TemplateNoMatch => Pick("未找到匹配模板", "No matching templates");
+    public string TemplateEmptyLibraryTitle => Pick("还没有模板", "No templates yet");
+    public string TemplateEmptyLibraryDescription => Pick("新建模板后会显示在这里。", "New templates will appear here.");
+    public string TemplateSearchEmptyTitle => Pick("未找到匹配模板", "No matching templates");
+    public string TemplateSearchEmptyDescription => Pick("尝试其他名称，或清除搜索后查看全部模板。", "Try a different name or clear the search to see all templates.");
+    public string ClearTemplateSearchButton => Pick("清除搜索", "Clear search");
+    public string TemplateModifiedLabel => Pick("已修改", "Modified");
     public string TemplateEditorTitle => Pick("模板编辑", "Template Editor");
     public string VapourSynthWorkspaceTitle => "VapourSynth";
     public string VapourSynthOpenButton => Pick("打开", "Open");

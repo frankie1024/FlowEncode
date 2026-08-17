@@ -65,6 +65,7 @@ public sealed partial class TemplatesView : UserControl
     public void SetTemplateLibrarySelection(TemplateLibraryItemViewModel? templateItem)
     {
         RunWithTemplateSelectionSync(() => TemplateLibraryList.SelectedItem = templateItem);
+        LibraryViewModel?.UpdateTemplateSelection(templateItem);
     }
 
     public void RestoreCurrentTemplateSelection()
@@ -81,6 +82,7 @@ public sealed partial class TemplatesView : UserControl
                 string.Equals(item.Key, libraryViewModel.CurrentTemplateSelectionKey, StringComparison.Ordinal));
 
         RunWithTemplateSelectionSync(() => TemplateLibraryList.SelectedItem = selectedItem);
+        libraryViewModel.UpdateTemplateSelection(selectedItem);
         Host?.SetOverviewTemplateSelection(selectedItem);
         Host?.SetSavedTemplateQuickSelection(selectedItem?.UserTemplate);
     }
@@ -148,6 +150,7 @@ public sealed partial class TemplatesView : UserControl
                 }
 
                 RunWithTemplateSelectionSync(() => TemplateLibraryList.SelectedItem = null);
+                LibraryViewModel?.UpdateTemplateSelection(null);
                 Host?.SetSavedTemplateQuickSelection(null);
                 editorViewModel.BeginNewTemplateDraft();
             });
@@ -284,16 +287,27 @@ public sealed partial class TemplatesView : UserControl
                         libraryViewModel.CurrentTemplateSelectionKey,
                         templateItem.Key,
                         StringComparison.Ordinal);
+                    var deletedItemIndex = TemplateLibraryList.Items.IndexOf(templateItem);
                     await libraryViewModel.DeleteTemplateAsync(template.Id);
 
                     if (deletedCurrentTemplate)
                     {
-                        SyncTemplateSelectors(null);
+                        var nextItem = libraryViewModel.TemplateLibraryItems.Count == 0
+                            ? null
+                            : libraryViewModel.TemplateLibraryItems[Math.Min(deletedItemIndex, libraryViewModel.TemplateLibraryItems.Count - 1)];
+                        SyncTemplateSelectors(nextItem);
+
+                        if (nextItem?.UserTemplate is not null)
+                        {
+                            await libraryViewModel.SelectUserTemplateAsync(nextItem.UserTemplate);
+                        }
                     }
                     else
                     {
                         RestoreCurrentTemplateSelection();
                     }
+
+                    TemplateLibraryList.Focus(FocusState.Programmatic);
                 }
                 catch (Exception ex)
                 {
@@ -333,6 +347,11 @@ public sealed partial class TemplatesView : UserControl
                 }
             },
             LibraryViewModel?.Texts.ErrorPinFailedTitle);
+    }
+
+    private void ClearTemplateSearchButton_Click(object sender, RoutedEventArgs e)
+    {
+        LibraryViewModel?.ClearTemplateSearch();
     }
 
     public async Task<SavedTemplate?> SaveCurrentTemplateAsync()
@@ -447,6 +466,7 @@ public sealed partial class TemplatesView : UserControl
     private void SyncTemplateSelectors(TemplateLibraryItemViewModel? templateItem)
     {
         RunWithTemplateSelectionSync(() => TemplateLibraryList.SelectedItem = templateItem);
+        LibraryViewModel?.UpdateTemplateSelection(templateItem);
         Host?.SetOverviewTemplateSelection(templateItem);
         Host?.SetSavedTemplateQuickSelection(templateItem?.UserTemplate);
     }
