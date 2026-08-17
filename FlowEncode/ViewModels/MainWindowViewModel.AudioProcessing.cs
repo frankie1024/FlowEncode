@@ -212,6 +212,7 @@ public partial class MainWindowViewModel
                 OnPropertyChanged(nameof(CanClearAudioProcessingTask));
                 OnPropertyChanged(nameof(AudioProcessingProgressPrimaryText));
                 OnPropertyChanged(nameof(AudioProcessingProgressSecondaryText));
+                RaiseDashboardCardActivityPropertyChanges();
             }
         }
     }
@@ -1586,6 +1587,7 @@ public partial class MainWindowViewModel
         OnPropertyChanged(nameof(AudioProcessingProgressTrackBrush));
         OnPropertyChanged(nameof(AudioProcessingProgressBorderBrush));
         OnPropertyChanged(nameof(AudioProcessingProgressFillBrush));
+        RaiseDashboardCardActivityPropertyChanges();
     }
 
     private void ClampAudioProcessingProgressForTerminalState(EncodingJobState state)

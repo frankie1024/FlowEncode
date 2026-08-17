@@ -388,6 +388,22 @@ public partial class MainWindowViewModel : CommunityToolkit.Mvvm.ComponentModel.
         ? Visibility.Visible
         : Visibility.Collapsed;
 
+    internal Visibility DashboardBluRayDemuxStatusVisibility => IsDashboardBluRayDemuxActive() || _bluRayDemuxDisplayState is not null
+        ? Visibility.Visible
+        : Visibility.Collapsed;
+
+    internal Visibility DashboardBluRayDemuxProgressVisibility => IsDashboardBluRayDemuxActive()
+        ? Visibility.Visible
+        : Visibility.Collapsed;
+
+    internal string DashboardBluRayDemuxStatusText => DashboardBluRayDemuxStatusVisibility == Visibility.Visible
+        ? BluRayDemuxStatusText
+        : string.Empty;
+
+    internal Brush DashboardBluRayDemuxStatusBrush => ResolveDashboardStatusBrush(IsDashboardBluRayDemuxActive()
+        ? EncodingJobState.Running
+        : _bluRayDemuxDisplayState);
+
     internal double DashboardBluRayDemuxProgressValue => IsBluRayDemuxRunning
         ? BluRayDemuxProgressValue
         : 0.0;
@@ -400,6 +416,18 @@ public partial class MainWindowViewModel : CommunityToolkit.Mvvm.ComponentModel.
         ? Visibility.Visible
         : Visibility.Collapsed;
 
+    internal Visibility DashboardOverviewStatusVisibility => GetDashboardOverviewJob() is not null
+        ? Visibility.Visible
+        : Visibility.Collapsed;
+
+    internal Visibility DashboardOverviewProgressVisibility => GetDashboardOverviewJob()?.State == EncodingJobState.Running
+        ? Visibility.Visible
+        : Visibility.Collapsed;
+
+    internal string DashboardOverviewStatusText => GetDashboardOverviewJob()?.StateLabel ?? string.Empty;
+
+    internal Brush DashboardOverviewStatusBrush => ResolveDashboardStatusBrush(GetDashboardOverviewJob()?.State);
+
     internal double DashboardOverviewProgressValue => GetDashboardRunningOverviewJob()?.ProgressValue ?? 0.0;
 
     internal bool DashboardOverviewProgressIsIndeterminate => GetDashboardRunningOverviewJob()?.IsProgressIndeterminate ?? false;
@@ -407,6 +435,22 @@ public partial class MainWindowViewModel : CommunityToolkit.Mvvm.ComponentModel.
     internal Visibility DashboardAudioProcessingActivityVisibility => IsAudioProcessingRunning
         ? Visibility.Visible
         : Visibility.Collapsed;
+
+    internal Visibility DashboardAudioProcessingStatusVisibility => IsAudioProcessingRunning || _audioProcessingDisplayState is not null
+        ? Visibility.Visible
+        : Visibility.Collapsed;
+
+    internal Visibility DashboardAudioProcessingProgressVisibility => IsAudioProcessingRunning
+        ? Visibility.Visible
+        : Visibility.Collapsed;
+
+    internal string DashboardAudioProcessingStatusText => DashboardAudioProcessingStatusVisibility == Visibility.Visible
+        ? AudioProcessingStatusText
+        : string.Empty;
+
+    internal Brush DashboardAudioProcessingStatusBrush => ResolveDashboardStatusBrush(IsAudioProcessingRunning
+        ? EncodingJobState.Running
+        : _audioProcessingDisplayState);
 
     internal double DashboardAudioProcessingProgressValue => AudioProcessingProgressValue;
 
@@ -416,9 +460,37 @@ public partial class MainWindowViewModel : CommunityToolkit.Mvvm.ComponentModel.
         ? Visibility.Visible
         : Visibility.Collapsed;
 
+    internal Visibility DashboardAutoCompressionStatusVisibility => IsAutoCompressionRunning || _autoCompressionDisplayState is not null
+        ? Visibility.Visible
+        : Visibility.Collapsed;
+
+    internal Visibility DashboardAutoCompressionProgressVisibility => IsAutoCompressionRunning
+        ? Visibility.Visible
+        : Visibility.Collapsed;
+
+    internal string DashboardAutoCompressionStatusText => DashboardAutoCompressionStatusVisibility == Visibility.Visible
+        ? AutoCompressionStatusText
+        : string.Empty;
+
+    internal Brush DashboardAutoCompressionStatusBrush => ResolveDashboardStatusBrush(IsAutoCompressionRunning
+        ? EncodingJobState.Running
+        : _autoCompressionDisplayState);
+
     internal double DashboardAutoCompressionProgressValue => AutoCompressionProgressPercent / 100.0;
 
     internal bool DashboardAutoCompressionProgressIsIndeterminate => IsAutoCompressionRunning && AutoCompressionProgressIsIndeterminate;
+
+    private static Brush ResolveDashboardStatusBrush(EncodingJobState? state)
+    {
+        return state switch
+        {
+            EncodingJobState.Failed => ResolveBrush("AppErrorBrush"),
+            EncodingJobState.Cancelled => ResolveBrush("AppNeutralBrush"),
+            EncodingJobState.Completed => ResolveBrush("AppSuccessBrush"),
+            EncodingJobState.Running => ResolveBrush("QueueProgressFillBrush"),
+            _ => ResolveBrush("CardBorderBrush")
+        };
+    }
 
     internal string PreviewTitle
     {
@@ -3426,15 +3498,31 @@ public partial class MainWindowViewModel : CommunityToolkit.Mvvm.ComponentModel.
     private void RaiseDashboardCardActivityPropertyChanges()
     {
         OnPropertyChanged(nameof(DashboardBluRayDemuxActivityVisibility));
+        OnPropertyChanged(nameof(DashboardBluRayDemuxStatusVisibility));
+        OnPropertyChanged(nameof(DashboardBluRayDemuxProgressVisibility));
+        OnPropertyChanged(nameof(DashboardBluRayDemuxStatusText));
+        OnPropertyChanged(nameof(DashboardBluRayDemuxStatusBrush));
         OnPropertyChanged(nameof(DashboardBluRayDemuxProgressValue));
         OnPropertyChanged(nameof(DashboardBluRayDemuxProgressIsIndeterminate));
         OnPropertyChanged(nameof(DashboardOverviewActivityVisibility));
+        OnPropertyChanged(nameof(DashboardOverviewStatusVisibility));
+        OnPropertyChanged(nameof(DashboardOverviewProgressVisibility));
+        OnPropertyChanged(nameof(DashboardOverviewStatusText));
+        OnPropertyChanged(nameof(DashboardOverviewStatusBrush));
         OnPropertyChanged(nameof(DashboardOverviewProgressValue));
         OnPropertyChanged(nameof(DashboardOverviewProgressIsIndeterminate));
         OnPropertyChanged(nameof(DashboardAudioProcessingActivityVisibility));
+        OnPropertyChanged(nameof(DashboardAudioProcessingStatusVisibility));
+        OnPropertyChanged(nameof(DashboardAudioProcessingProgressVisibility));
+        OnPropertyChanged(nameof(DashboardAudioProcessingStatusText));
+        OnPropertyChanged(nameof(DashboardAudioProcessingStatusBrush));
         OnPropertyChanged(nameof(DashboardAudioProcessingProgressValue));
         OnPropertyChanged(nameof(DashboardAudioProcessingProgressIsIndeterminate));
         OnPropertyChanged(nameof(DashboardAutoCompressionActivityVisibility));
+        OnPropertyChanged(nameof(DashboardAutoCompressionStatusVisibility));
+        OnPropertyChanged(nameof(DashboardAutoCompressionProgressVisibility));
+        OnPropertyChanged(nameof(DashboardAutoCompressionStatusText));
+        OnPropertyChanged(nameof(DashboardAutoCompressionStatusBrush));
         OnPropertyChanged(nameof(DashboardAutoCompressionProgressValue));
         OnPropertyChanged(nameof(DashboardAutoCompressionProgressIsIndeterminate));
     }
@@ -3442,6 +3530,13 @@ public partial class MainWindowViewModel : CommunityToolkit.Mvvm.ComponentModel.
     private EncodingJobItemViewModel? GetDashboardRunningOverviewJob()
     {
         return Jobs.FirstOrDefault(static job => job.State == EncodingJobState.Running);
+    }
+
+    private EncodingJobItemViewModel? GetDashboardOverviewJob()
+    {
+        return GetDashboardRunningOverviewJob()
+            ?? Jobs.FirstOrDefault(static job => job.State == EncodingJobState.Queued)
+            ?? Jobs.LastOrDefault(static job => job.State is EncodingJobState.Completed or EncodingJobState.Failed or EncodingJobState.Cancelled);
     }
 
     private bool IsDashboardBluRayDemuxActive()

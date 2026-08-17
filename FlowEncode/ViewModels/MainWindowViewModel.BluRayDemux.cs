@@ -143,6 +143,7 @@ public partial class MainWindowViewModel
             {
                 OnPropertyChanged(nameof(CanClearBluRayDemuxTask));
                 OnPropertyChanged(nameof(BluRayDemuxProgressSecondaryText));
+                RaiseDashboardCardActivityPropertyChanges();
             }
         }
     }
@@ -531,6 +532,7 @@ public partial class MainWindowViewModel
         OnPropertyChanged(nameof(BluRayDemuxProgressTrackBrush));
         OnPropertyChanged(nameof(BluRayDemuxProgressBorderBrush));
         OnPropertyChanged(nameof(BluRayDemuxProgressFillBrush));
+        RaiseDashboardCardActivityPropertyChanges();
 
         BluRayDemuxSourcePath = string.Empty;
         BluRayDemuxOutputPath = string.Empty;
@@ -1356,6 +1358,7 @@ public partial class MainWindowViewModel
         OnPropertyChanged(nameof(BluRayDemuxProgressTrackBrush));
         OnPropertyChanged(nameof(BluRayDemuxProgressBorderBrush));
         OnPropertyChanged(nameof(BluRayDemuxProgressFillBrush));
+        RaiseDashboardCardActivityPropertyChanges();
     }
 
     private void SetBluRayDemuxPresentationState(TaskPresentationState state)

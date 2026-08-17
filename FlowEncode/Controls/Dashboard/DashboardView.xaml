@@ -177,7 +177,7 @@
                                 <SymbolIcon Symbol="Library" />
                             </Viewbox>
 
-                            <Border Grid.Column="1" Style="{StaticResource DashboardActivityIndicatorStyle}" Visibility="{Binding DashboardBluRayDemuxActivityVisibility}" />
+                            <Border Grid.Column="1" Background="{Binding DashboardBluRayDemuxStatusBrush}" Style="{StaticResource DashboardActivityIndicatorStyle}" Visibility="{Binding DashboardBluRayDemuxStatusVisibility}" />
                         </Grid>
 
                         <StackPanel Grid.Row="1" Spacing="{StaticResource AppSpacingS}">
@@ -185,18 +185,21 @@
                             <TextBlock Foreground="{ThemeResource SubtleTextBrush}" MaxLines="3" Text="{Binding Texts.DashboardDemuxCardDescription}" TextTrimming="CharacterEllipsis" TextWrapping="WrapWholeWords" />
                         </StackPanel>
 
-                        <Grid Grid.Row="2" ColumnSpacing="{StaticResource AppSpacingM}">
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="*" />
-                                <ColumnDefinition Width="Auto" />
-                            </Grid.ColumnDefinitions>
-                            <ProgressBar
-                                Style="{StaticResource DashboardCardProgressBarStyle}"
-                                IsIndeterminate="{Binding DashboardBluRayDemuxProgressIsIndeterminate}"
-                                shared:UiMotion.SmoothProgressValue="{Binding DashboardBluRayDemuxProgressValue}"
-                                Visibility="{Binding DashboardBluRayDemuxActivityVisibility}" />
-                            <SymbolIcon Grid.Column="1" Symbol="Forward" />
-                        </Grid>
+                        <StackPanel Grid.Row="2" Spacing="{StaticResource AppSpacingXS}">
+                            <TextBlock Foreground="{Binding DashboardBluRayDemuxStatusBrush}" FontSize="{StaticResource AppCaptionFontSize}" FontWeight="SemiBold" Text="{Binding DashboardBluRayDemuxStatusText}" TextTrimming="CharacterEllipsis" Visibility="{Binding DashboardBluRayDemuxStatusVisibility}" />
+                            <Grid ColumnSpacing="{StaticResource AppSpacingM}">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <ProgressBar
+                                    Style="{StaticResource DashboardCardProgressBarStyle}"
+                                    IsIndeterminate="{Binding DashboardBluRayDemuxProgressIsIndeterminate}"
+                                    shared:UiMotion.SmoothProgressValue="{Binding DashboardBluRayDemuxProgressValue}"
+                                    Visibility="{Binding DashboardBluRayDemuxProgressVisibility}" />
+                                <SymbolIcon Grid.Column="1" Symbol="Forward" />
+                            </Grid>
+                        </StackPanel>
                     </Grid>
                 </Button>
 
@@ -245,7 +248,7 @@
                                 <SymbolIcon Symbol="Video" />
                             </Viewbox>
 
-                            <Border Grid.Column="1" Style="{StaticResource DashboardActivityIndicatorStyle}" Visibility="{Binding DashboardOverviewActivityVisibility}" />
+                            <Border Grid.Column="1" Background="{Binding DashboardOverviewStatusBrush}" Style="{StaticResource DashboardActivityIndicatorStyle}" Visibility="{Binding DashboardOverviewStatusVisibility}" />
                         </Grid>
 
                         <StackPanel Grid.Row="1" Spacing="{StaticResource AppSpacingS}">
@@ -253,18 +256,21 @@
                             <TextBlock Foreground="{ThemeResource SubtleTextBrush}" MaxLines="3" Text="{Binding Texts.DashboardVideoEncodeCardDescription}" TextTrimming="CharacterEllipsis" TextWrapping="WrapWholeWords" />
                         </StackPanel>
 
-                        <Grid Grid.Row="2" ColumnSpacing="{StaticResource AppSpacingM}">
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="*" />
-                                <ColumnDefinition Width="Auto" />
-                            </Grid.ColumnDefinitions>
-                            <ProgressBar
-                                Style="{StaticResource DashboardCardProgressBarStyle}"
-                                IsIndeterminate="{Binding DashboardOverviewProgressIsIndeterminate}"
-                                shared:UiMotion.SmoothProgressValue="{Binding DashboardOverviewProgressValue}"
-                                Visibility="{Binding DashboardOverviewActivityVisibility}" />
-                            <SymbolIcon Grid.Column="1" Symbol="Forward" />
-                        </Grid>
+                        <StackPanel Grid.Row="2" Spacing="{StaticResource AppSpacingXS}">
+                            <TextBlock Foreground="{Binding DashboardOverviewStatusBrush}" FontSize="{StaticResource AppCaptionFontSize}" FontWeight="SemiBold" Text="{Binding DashboardOverviewStatusText}" TextTrimming="CharacterEllipsis" Visibility="{Binding DashboardOverviewStatusVisibility}" />
+                            <Grid ColumnSpacing="{StaticResource AppSpacingM}">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <ProgressBar
+                                    Style="{StaticResource DashboardCardProgressBarStyle}"
+                                    IsIndeterminate="{Binding DashboardOverviewProgressIsIndeterminate}"
+                                    shared:UiMotion.SmoothProgressValue="{Binding DashboardOverviewProgressValue}"
+                                    Visibility="{Binding DashboardOverviewProgressVisibility}" />
+                                <SymbolIcon Grid.Column="1" Symbol="Forward" />
+                            </Grid>
+                        </StackPanel>
                     </Grid>
                 </Button>
 
@@ -286,7 +292,7 @@
                                 <SymbolIcon Symbol="Audio" />
                             </Viewbox>
 
-                            <Border Grid.Column="1" Style="{StaticResource DashboardActivityIndicatorStyle}" Visibility="{Binding DashboardAudioProcessingActivityVisibility}" />
+                            <Border Grid.Column="1" Background="{Binding DashboardAudioProcessingStatusBrush}" Style="{StaticResource DashboardActivityIndicatorStyle}" Visibility="{Binding DashboardAudioProcessingStatusVisibility}" />
                         </Grid>
 
                         <StackPanel Grid.Row="1" Spacing="{StaticResource AppSpacingS}">
@@ -294,18 +300,21 @@
                             <TextBlock Foreground="{ThemeResource SubtleTextBrush}" MaxLines="3" Text="{Binding Texts.DashboardAudioTranscodeCardDescription}" TextTrimming="CharacterEllipsis" TextWrapping="WrapWholeWords" />
                         </StackPanel>
 
-                        <Grid Grid.Row="2" ColumnSpacing="{StaticResource AppSpacingM}">
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="*" />
-                                <ColumnDefinition Width="Auto" />
-                            </Grid.ColumnDefinitions>
-                            <ProgressBar
-                                Style="{StaticResource DashboardCardProgressBarStyle}"
-                                IsIndeterminate="{Binding DashboardAudioProcessingProgressIsIndeterminate}"
-                                shared:UiMotion.SmoothProgressValue="{Binding DashboardAudioProcessingProgressValue}"
-                                Visibility="{Binding DashboardAudioProcessingActivityVisibility}" />
-                            <SymbolIcon Grid.Column="1" Symbol="Forward" />
-                        </Grid>
+                        <StackPanel Grid.Row="2" Spacing="{StaticResource AppSpacingXS}">
+                            <TextBlock Foreground="{Binding DashboardAudioProcessingStatusBrush}" FontSize="{StaticResource AppCaptionFontSize}" FontWeight="SemiBold" Text="{Binding DashboardAudioProcessingStatusText}" TextTrimming="CharacterEllipsis" Visibility="{Binding DashboardAudioProcessingStatusVisibility}" />
+                            <Grid ColumnSpacing="{StaticResource AppSpacingM}">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <ProgressBar
+                                    Style="{StaticResource DashboardCardProgressBarStyle}"
+                                    IsIndeterminate="{Binding DashboardAudioProcessingProgressIsIndeterminate}"
+                                    shared:UiMotion.SmoothProgressValue="{Binding DashboardAudioProcessingProgressValue}"
+                                    Visibility="{Binding DashboardAudioProcessingProgressVisibility}" />
+                                <SymbolIcon Grid.Column="1" Symbol="Forward" />
+                            </Grid>
+                        </StackPanel>
                     </Grid>
                 </Button>
 
@@ -327,7 +336,7 @@
                                 <SymbolIcon Symbol="Play" />
                             </Viewbox>
 
-                            <Border Grid.Column="1" Style="{StaticResource DashboardActivityIndicatorStyle}" Visibility="{Binding DashboardAutoCompressionActivityVisibility}" />
+                            <Border Grid.Column="1" Background="{Binding DashboardAutoCompressionStatusBrush}" Style="{StaticResource DashboardActivityIndicatorStyle}" Visibility="{Binding DashboardAutoCompressionStatusVisibility}" />
                         </Grid>
 
                         <StackPanel Grid.Row="1" Spacing="{StaticResource AppSpacingS}">
@@ -335,18 +344,21 @@
                             <TextBlock Foreground="{ThemeResource SubtleTextBrush}" MaxLines="3" Text="{Binding Texts.DashboardAutoCompressionCardDescription}" TextTrimming="CharacterEllipsis" TextWrapping="WrapWholeWords" />
                         </StackPanel>
 
-                        <Grid Grid.Row="2" ColumnSpacing="{StaticResource AppSpacingM}">
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="*" />
-                                <ColumnDefinition Width="Auto" />
-                            </Grid.ColumnDefinitions>
-                            <ProgressBar
-                                Style="{StaticResource DashboardCardProgressBarStyle}"
-                                IsIndeterminate="{Binding DashboardAutoCompressionProgressIsIndeterminate}"
-                                shared:UiMotion.SmoothProgressValue="{Binding DashboardAutoCompressionProgressValue}"
-                                Visibility="{Binding DashboardAutoCompressionActivityVisibility}" />
-                            <SymbolIcon Grid.Column="1" Symbol="Forward" />
-                        </Grid>
+                        <StackPanel Grid.Row="2" Spacing="{StaticResource AppSpacingXS}">
+                            <TextBlock Foreground="{Binding DashboardAutoCompressionStatusBrush}" FontSize="{StaticResource AppCaptionFontSize}" FontWeight="SemiBold" Text="{Binding DashboardAutoCompressionStatusText}" TextTrimming="CharacterEllipsis" Visibility="{Binding DashboardAutoCompressionStatusVisibility}" />
+                            <Grid ColumnSpacing="{StaticResource AppSpacingM}">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <ProgressBar
+                                    Style="{StaticResource DashboardCardProgressBarStyle}"
+                                    IsIndeterminate="{Binding DashboardAutoCompressionProgressIsIndeterminate}"
+                                    shared:UiMotion.SmoothProgressValue="{Binding DashboardAutoCompressionProgressValue}"
+                                    Visibility="{Binding DashboardAutoCompressionProgressVisibility}" />
+                                <SymbolIcon Grid.Column="1" Symbol="Forward" />
+                            </Grid>
+                        </StackPanel>
                     </Grid>
                 </Button>
 

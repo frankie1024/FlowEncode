@@ -293,7 +293,13 @@ public partial class MainWindowViewModel
     internal string AutoCompressionStatusText
     {
         get => _autoCompressionStatusText;
-        private set => SetProperty(ref _autoCompressionStatusText, value);
+        private set
+        {
+            if (SetProperty(ref _autoCompressionStatusText, value))
+            {
+                RaiseDashboardCardActivityPropertyChanges();
+            }
+        }
     }
 
     internal string AutoCompressionCommandLine
@@ -992,6 +998,7 @@ public partial class MainWindowViewModel
         OnPropertyChanged(nameof(AutoCompressionProgressTrackBrush));
         OnPropertyChanged(nameof(AutoCompressionProgressBorderBrush));
         OnPropertyChanged(nameof(AutoCompressionProgressFillBrush));
+        RaiseDashboardCardActivityPropertyChanges();
     }
 
     private void SetAutoCompressionPresentationState(TaskPresentationState state)
