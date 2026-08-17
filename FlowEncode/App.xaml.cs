@@ -23,7 +23,7 @@ public partial class App : Microsoft.UI.Xaml.Application
     private const string SingleInstanceKey = "FlowEncode.Main";
     private const string SingleInstancePipeName = "FlowEncode.VapourSynth.Open.v1";
     private const string SingleInstanceActivateMessage = "__FLOWENCODE_ACTIVATE__";
-    private static readonly TimeSpan DeferredCliEnvironmentSynchronizationDelay = TimeSpan.FromSeconds(2);
+    private static readonly TimeSpan DeferredStartupMaintenanceDelay = TimeSpan.FromSeconds(2);
     private static readonly TimeSpan SingleInstanceForwardTimeout = TimeSpan.FromSeconds(2);
     private static readonly TimeSpan SingleInstanceForwardConnectTimeout = TimeSpan.FromMilliseconds(150);
     private static readonly TimeSpan SingleInstanceForwardInitialDelay = TimeSpan.FromMilliseconds(50);
@@ -35,8 +35,8 @@ public partial class App : Microsoft.UI.Xaml.Application
     private Mutex? _singleInstanceMutex;
     private CancellationTokenSource? _singleInstancePipeCancellationTokenSource;
     private Task? _singleInstancePipeServerTask;
-    private CancellationTokenSource? _deferredCliEnvironmentSynchronizationCancellationTokenSource;
-    private Task? _deferredCliEnvironmentSynchronizationTask;
+    private CancellationTokenSource? _deferredStartupMaintenanceCancellationTokenSource;
+    private Task? _deferredStartupMaintenanceTask;
     private bool _ownsSingleInstanceMutex;
     private bool _isShuttingDown;
     private Window? _window;
@@ -84,18 +84,8 @@ public partial class App : Microsoft.UI.Xaml.Application
         _window = GetService<MainWindow>();
         _window.Closed += MainWindow_Closed;
 
-        try
-        {
-            var shellIntegration = GetService<IVapourSynthShellIntegrationService>();
-            shellIntegration.RegisterNewVpyFileMenu();
-        }
-        catch (Exception ex)
-        {
-            TryWriteAppExceptionDiagnostic("Register .vpy ShellNew menu", ex, AppDiagnosticSeverity.Warning);
-        }
-
         _window.Activate();
-        StartDeferredCliEnvironmentSynchronization();
+        StartDeferredStartupMaintenance();
     }
 
     private void App_UnhandledException(object sender, Microsoft.UI.Xaml.UnhandledExceptionEventArgs e)
@@ -247,7 +237,7 @@ public partial class App : Microsoft.UI.Xaml.Application
         }
 
         StopSingleInstancePipeServer();
-        StopDeferredCliEnvironmentSynchronization();
+        StopDeferredStartupMaintenance();
         ReleaseSingleInstanceMutex();
 
         try
@@ -298,22 +288,24 @@ public partial class App : Microsoft.UI.Xaml.Application
             TaskScheduler.Default);
     }
 
-    private void StartDeferredCliEnvironmentSynchronization()
+    private void StartDeferredStartupMaintenance()
     {
-        if (_deferredCliEnvironmentSynchronizationTask is not null)
+        if (_deferredStartupMaintenanceTask is not null)
         {
             return;
         }
 
         var cancellationTokenSource = new CancellationTokenSource();
         var environmentIntegration = GetService<CliEnvironmentIntegrationService>();
+        var shellIntegration = GetService<IVapourSynthShellIntegrationService>();
         var diagnostics = GetService<IAppDiagnostics>();
-        _deferredCliEnvironmentSynchronizationCancellationTokenSource = cancellationTokenSource;
-        _deferredCliEnvironmentSynchronizationTask = Task.Run(async () =>
+        _deferredStartupMaintenanceCancellationTokenSource = cancellationTokenSource;
+        _deferredStartupMaintenanceTask = Task.Run(async () =>
         {
             try
             {
-                await Task.Delay(DeferredCliEnvironmentSynchronizationDelay, cancellationTokenSource.Token);
+                await Task.Delay(DeferredStartupMaintenanceDelay, cancellationTokenSource.Token);
+                shellIntegration.RegisterNewVpyFileMenu();
                 environmentIntegration.Synchronize();
             }
             catch (OperationCanceledException) when (cancellationTokenSource.IsCancellationRequested)
@@ -324,19 +316,19 @@ public partial class App : Microsoft.UI.Xaml.Application
             {
                 diagnostics.WriteException(
                     nameof(App),
-                    "Synchronize CLI environment",
+                    "Run deferred startup maintenance",
                     ex,
                     AppDiagnosticSeverity.Warning);
             }
         });
     }
 
-    private void StopDeferredCliEnvironmentSynchronization()
+    private void StopDeferredStartupMaintenance()
     {
-        var cancellationTokenSource = _deferredCliEnvironmentSynchronizationCancellationTokenSource;
-        _deferredCliEnvironmentSynchronizationCancellationTokenSource = null;
-        var synchronizationTask = _deferredCliEnvironmentSynchronizationTask;
-        _deferredCliEnvironmentSynchronizationTask = null;
+        var cancellationTokenSource = _deferredStartupMaintenanceCancellationTokenSource;
+        _deferredStartupMaintenanceCancellationTokenSource = null;
+        var maintenanceTask = _deferredStartupMaintenanceTask;
+        _deferredStartupMaintenanceTask = null;
 
         if (cancellationTokenSource is null)
         {
@@ -344,13 +336,13 @@ public partial class App : Microsoft.UI.Xaml.Application
         }
 
         cancellationTokenSource.Cancel();
-        if (synchronizationTask is null || synchronizationTask.IsCompleted)
+        if (maintenanceTask is null || maintenanceTask.IsCompleted)
         {
             cancellationTokenSource.Dispose();
             return;
         }
 
-        _ = synchronizationTask.ContinueWith(
+        _ = maintenanceTask.ContinueWith(
             static (_, state) => ((CancellationTokenSource)state!).Dispose(),
             cancellationTokenSource,
             CancellationToken.None,
