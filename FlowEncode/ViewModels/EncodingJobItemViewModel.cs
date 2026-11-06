@@ -554,18 +554,42 @@ public sealed class EncodingJobItemViewModel : ObservableObject
             _logBuilder.Remove(0, removeCount);
         }
 
-        var retainedText = _logBuilder.ToString();
-        var firstLineBreak = retainedText.IndexOfAny(['\r', '\n']);
+        // Only scan the head of the buffer: materializing the whole retained log twice per trim
+        // allocated ~240 KB of throwaway strings on the UI thread.
+        var firstLineBreak = IndexOfFirstLineBreak(_logBuilder);
         if (firstLineBreak >= 0 && firstLineBreak + 1 < _logBuilder.Length)
         {
             _logBuilder.Remove(0, firstLineBreak + 1);
         }
 
         var marker = T("[日志过长，已只保留最近输出]", "[Log truncated; only latest output is kept]");
-        if (!_logBuilder.ToString().StartsWith(marker, StringComparison.Ordinal))
+        if (!StartsWithOrdinal(_logBuilder, marker))
         {
             _logBuilder.Insert(0, $"{marker}{Environment.NewLine}");
         }
+    }
+
+    private static int IndexOfFirstLineBreak(StringBuilder builder)
+    {
+        var offset = 0;
+        foreach (var chunk in builder.GetChunks())
+        {
+            var index = chunk.Span.IndexOfAny('\r', '\n');
+            if (index >= 0)
+            {
+                return offset + index;
+            }
+
+            offset += chunk.Length;
+        }
+
+        return -1;
+    }
+
+    private static bool StartsWithOrdinal(StringBuilder builder, string value)
+    {
+        return builder.Length >= value.Length
+            && string.Equals(builder.ToString(0, value.Length), value, StringComparison.Ordinal);
     }
 
     private string LastMeaningfulLine(string log)
