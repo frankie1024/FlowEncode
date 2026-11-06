@@ -44,6 +44,7 @@ It is designed for users who want a graphical Windows video encoding GUI while k
 - [Installation and Runtime Requirements](#installation-and-runtime-requirements)
 - [Local Data and Privacy](#local-data-and-privacy)
 - [Development and Build](#development-and-build)
+- [AI Integration (MCP Server)](#ai-integration-mcp-server)
 - [Feedback and License](#feedback-and-license)
 
 ## Project Scope
@@ -170,6 +171,7 @@ The main application is a WinUI 3 desktop app:
 | `FlowEncode.Domain` | Encoding configuration, job models and domain rules. |
 | `FlowEncode.Infrastructure` | Local tool discovery, runners, cache and external integrations. |
 | `FlowEncode.Domain.Tests` | Domain-layer tests. |
+| `FlowEncode.Mcp` | MCP server (stdio) for AI clients. |
 
 Build notes:
 
@@ -194,6 +196,53 @@ Common commands:
 ./scripts/build.ps1 -Configuration Release -RunTests
 ./scripts/build-release-assets.ps1
 ```
+
+## AI Integration (MCP Server)
+
+`FlowEncode.Mcp` is a stdio [Model Context Protocol](https://modelcontextprotocol.io/) server that lets AI clients such as Claude or Cursor drive FlowEncode directly. It reuses the desktop app's infrastructure and the settings, toolchain and templates under `%LOCALAPPDATA%\FlowEncode`, so finish the in-app environment guide first.
+
+Build:
+
+```powershell
+dotnet publish FlowEncode/FlowEncode.Mcp -c Release --self-contained -o artifacts/mcp
+```
+
+Register it with Claude Code:
+
+```powershell
+claude mcp add flowencode -- "C:\path\to\artifacts\mcp\FlowEncode.Mcp.exe"
+```
+
+Or add it to the `mcpServers` section of Claude Desktop or another client:
+
+```json
+{
+  "mcpServers": {
+    "flowencode": {
+      "command": "C:\\path\\to\\artifacts\\mcp\\FlowEncode.Mcp.exe"
+    }
+  }
+}
+```
+
+Tools:
+
+| Tool | Description |
+| --- | --- |
+| `get_environment_status` | Checks encoders, FFmpeg, VSPipe, Python, Av1an, demuxers and the readiness of each capability. |
+| `list_encoders` | Lists the x264 / x265 / SVT-AV1 executables found and the one new jobs will use. |
+| `list_templates` / `get_default_profile` / `save_template` | Read, inspect defaults and save `.profile` templates (shared with the desktop template library). |
+| `probe_video_source` / `probe_audio_source` | Read video (resolution, frame rate, frame count, bit depth, HDR metadata) or audio source info. |
+| `scan_bluray_disc` | Scan Blu-ray playlists and tracks through DGDemux / eac3to. |
+| `preview_encoding_command` | Build the exact encoder command line without running it. |
+| `start_encoding_job` / `get_encoding_job` / `list_encoding_jobs` / `cancel_encoding_job` | Start encodes in the background, poll progress (percent, fps, bitrate, ETA, log lines) and cancel them. |
+
+Notes:
+
+- All paths must be absolute. Existing output files are not overwritten unless `overwrite: true` is passed.
+- Concurrency follows the "max concurrent encoding jobs" setting; extra jobs wait in a queue.
+- When the MCP server exits (the client disconnects) it terminates every encoder it started.
+- Toolchain installation and updates still happen in the desktop app.
 
 ## Feedback and License
 

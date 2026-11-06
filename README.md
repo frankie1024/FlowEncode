@@ -44,6 +44,7 @@ FlowEncode 是一个面向 Windows x64 的桌面端编码工作流前端，围�
 - [安装与运行要求](#安装与运行要求)
 - [本地数据与隐私](#本地数据与隐私)
 - [开发与构建](#开发与构建)
+- [AI 调用（MCP 服务）](#ai-调用mcp-服务)
 - [反馈与许可](#反馈与许可)
 
 ## 核心定位
@@ -170,6 +171,7 @@ FlowEncode 默认面向本地工作流：
 | `FlowEncode.Domain` | 编码配置、任务模型和领域规则。 |
 | `FlowEncode.Infrastructure` | 本地工具探测、运行器、缓存和外部集成。 |
 | `FlowEncode.Domain.Tests` | 领域层测试。 |
+| `FlowEncode.Mcp` | 面向 AI 客户端的 MCP 服务（stdio）。 |
 
 构建注意事项：
 
@@ -194,6 +196,53 @@ FlowEncode 默认面向本地工作流：
 ./scripts/build.ps1 -Configuration Release -RunTests
 ./scripts/build-release-assets.ps1
 ```
+
+## AI 调用（MCP 服务）
+
+`FlowEncode.Mcp` 是一个基于 [Model Context Protocol](https://modelcontextprotocol.io/) 的 stdio 服务，让 Claude、Cursor 等 AI 客户端直接调用 FlowEncode 的编码能力。它复用桌面端的基础设施与 `%LOCALAPPDATA%\FlowEncode` 下的设置、工具链和模板，因此请先在桌面端完成环境引导。
+
+构建：
+
+```powershell
+dotnet publish FlowEncode/FlowEncode.Mcp -c Release --self-contained -o artifacts/mcp
+```
+
+在 Claude Code 中注册：
+
+```powershell
+claude mcp add flowencode -- "C:\path\to\artifacts\mcp\FlowEncode.Mcp.exe"
+```
+
+或在 Claude Desktop 等客户端的 `mcpServers` 配置中加入：
+
+```json
+{
+  "mcpServers": {
+    "flowencode": {
+      "command": "C:\\path\\to\\artifacts\\mcp\\FlowEncode.Mcp.exe"
+    }
+  }
+}
+```
+
+提供的工具：
+
+| 工具 | 说明 |
+| --- | --- |
+| `get_environment_status` | 检测编码器、FFmpeg、VSPipe、Python、Av1an、解封装工具等依赖及各能力就绪状态。 |
+| `list_encoders` | 列出可用的 x264 / x265 / SVT-AV1 可执行文件及新任务实际会使用的版本。 |
+| `list_templates` / `get_default_profile` / `save_template` | 读取、查看默认参数、保存 `.profile` 模板（与桌面端模板库共享）。 |
+| `probe_video_source` / `probe_audio_source` | 读取视频（分辨率、帧率、帧数、位深、HDR 元数据）或音频源信息。 |
+| `scan_bluray_disc` | 通过 DGDemux / eac3to 扫描蓝光播放列表与轨道。 |
+| `preview_encoding_command` | 生成将要执行的完整编码命令，不实际运行。 |
+| `start_encoding_job` / `get_encoding_job` / `list_encoding_jobs` / `cancel_encoding_job` | 后台启动编码、轮询进度（百分比、fps、码率、ETA、日志）、取消任务。 |
+
+说明：
+
+- 所有路径都必须是绝对路径；默认不覆盖已存在的输出文件（可传 `overwrite: true`）。
+- 并发数遵循设置中的“最大并发编码任务数”，超出部分排队。
+- MCP 服务退出（客户端断开）时会终止其启动的全部编码进程。
+- 工具链的安装与更新仍在桌面端完成。
 
 ## 反馈与许可
 
