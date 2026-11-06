@@ -30,6 +30,26 @@ public sealed class LocalEncodingJobRunnerVisibleLogTests
         Assert.IsTrue(trimmed.Length <= 120_000 + 128);
     }
 
+    [TestMethod]
+    public void CreateRawLogWriter_DoesNotEmitByteOrderMark()
+    {
+        var path = Path.Combine(Path.GetTempPath(), $"flowencode-raw-log-{Guid.NewGuid():N}.log");
+        try
+        {
+            using (var writer = EncodingJobLogWriter.CreateRawLogWriter(path))
+            {
+                writer.WriteLine("frame 1");
+            }
+
+            var bytes = File.ReadAllBytes(path);
+            Assert.AreEqual((byte)'f', bytes[0], "Raw logs are spliced into sidecar logs and must not start with a BOM.");
+        }
+        finally
+        {
+            File.Delete(path);
+        }
+    }
+
     private static int CountOccurrences(string text, string value)
     {
         var count = 0;

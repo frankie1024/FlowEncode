@@ -47,6 +47,37 @@ public sealed class ExecutionOutputStagingTests
     }
 
     [TestMethod]
+    public void TryPreserveStagedFile_MovesStagedOutputNextToFinalPath()
+    {
+        var finalPath = Path.Combine(_testRoot, "movie.mkv");
+        var stagingDirectory = Path.Combine(_testRoot, ".flowencode-temp", "job");
+        var jobId = Guid.NewGuid();
+        var stagedPath = ExecutionOutputStaging.CreateStagedFilePath(stagingDirectory, finalPath, jobId);
+        File.WriteAllText(stagedPath, "encoded");
+
+        var preservedPath = ExecutionOutputStaging.TryPreserveStagedFile(stagedPath, finalPath, jobId);
+
+        Assert.IsNotNull(preservedPath);
+        Assert.AreEqual(_testRoot, Path.GetDirectoryName(preservedPath));
+        Assert.AreEqual(".mkv", Path.GetExtension(preservedPath));
+        Assert.AreEqual("encoded", File.ReadAllText(preservedPath));
+        Assert.IsFalse(File.Exists(stagedPath));
+    }
+
+    [TestMethod]
+    public void TryPreserveStagedFile_WhenStagedOutputIsMissing_ReturnsNull()
+    {
+        var finalPath = Path.Combine(_testRoot, "movie.mkv");
+
+        var preservedPath = ExecutionOutputStaging.TryPreserveStagedFile(
+            Path.Combine(_testRoot, "missing.tmp.mkv"),
+            finalPath,
+            Guid.NewGuid());
+
+        Assert.IsNull(preservedPath);
+    }
+
+    [TestMethod]
     public void FinalizeDirectory_MovesStagedFilesIntoFinalDirectoryAndRemovesStage()
     {
         var finalDirectory = Path.Combine(_testRoot, "demux-out");

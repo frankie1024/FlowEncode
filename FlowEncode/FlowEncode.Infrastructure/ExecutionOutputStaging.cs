@@ -59,6 +59,44 @@ internal static class ExecutionOutputStaging
         }
     }
 
+    /// <summary>
+    /// Moves a staged output that could not be finalized next to the requested output path so the
+    /// completed work survives the temp directory cleanup. Returns the preserved path, or null.
+    /// </summary>
+    public static string? TryPreserveStagedFile(
+        string? stagedPath,
+        string finalPath,
+        Guid jobId,
+        Action<string>? onFailure = null)
+    {
+        if (string.IsNullOrWhiteSpace(stagedPath) || !File.Exists(stagedPath))
+        {
+            return null;
+        }
+
+        var directory = Path.GetDirectoryName(finalPath);
+        var fileName = Path.GetFileNameWithoutExtension(finalPath);
+        if (string.IsNullOrWhiteSpace(fileName))
+        {
+            fileName = "output";
+        }
+
+        var preservedFileName = $"{fileName}.{jobId:N}.recovered{Path.GetExtension(finalPath)}";
+        var preservedPath = string.IsNullOrWhiteSpace(directory)
+            ? preservedFileName
+            : Path.Combine(directory, preservedFileName);
+        try
+        {
+            File.Move(stagedPath, preservedPath, overwrite: false);
+            return preservedPath;
+        }
+        catch (Exception ex)
+        {
+            onFailure?.Invoke($"Failed to preserve staged output '{stagedPath}' as '{preservedPath}'. {ex.GetType().Name}: {ex.Message}");
+            return null;
+        }
+    }
+
     public static void FinalizeDirectory(string stagedDirectory, string finalDirectory)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(stagedDirectory);

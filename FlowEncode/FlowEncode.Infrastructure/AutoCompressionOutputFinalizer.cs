@@ -34,6 +34,15 @@ internal static class AutoCompressionOutputFinalizer
             failureSummary = BuildFailureSummary(language, finalOutputPath, ex);
             writeDiagnostic?.Invoke(
                 $"Failed to finalize auto compression output from '{stagedOutputPath}' to '{finalOutputPath}'. {ex.GetType().Name}: {ex.Message}");
+            var preservedPath = ExecutionOutputStaging.TryPreserveStagedFile(stagedOutputPath, finalOutputPath, jobId, writeDiagnostic);
+            if (preservedPath is not null)
+            {
+                failureSummary += T(
+                    language,
+                    $" The encoded output was kept at: {preservedPath}",
+                    $" 编码结果已保留在：{preservedPath}");
+            }
+
             return false;
         }
 

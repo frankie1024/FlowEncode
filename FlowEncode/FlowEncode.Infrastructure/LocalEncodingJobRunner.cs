@@ -456,7 +456,40 @@ public sealed class LocalEncodingJobRunner : IEncodingJobRunner
                 }
             }
 
-            FinalizeOutputFile(stagedOutputPath, request.OutputPath, request.JobId);
+            try
+            {
+                FinalizeOutputFile(stagedOutputPath, request.OutputPath, request.JobId);
+            }
+            catch (InvalidOperationException ex)
+            {
+                currentState = EncodingJobState.Failed;
+                var finalizationFailureSummary = ex.Message;
+                lock (lineGate)
+                {
+                    visibleLogBuilder.AppendLine(finalizationFailureSummary);
+                    rawLogWriter.WriteLine(finalizationFailureSummary);
+                }
+
+                var finalizationFailureLog = visibleLogBuilder.ToString();
+                await CloseRawLogWriterAsync();
+                var finalizationFailureLogPath = await _logWriter.WriteSidecarLogAsync(request, displayCommand, currentState, 0, rawLogPath);
+
+                progress?.Report(new EncodingJobProgress(
+                    request.JobId,
+                    currentState,
+                    1.0,
+                    finalizationFailureSummary,
+                    finalizationFailureSummary));
+
+                return new EncodingJobResult(
+                    request.JobId,
+                    currentState,
+                    0,
+                    finalizationFailureSummary,
+                    finalizationFailureLog,
+                    finalizationFailureLogPath);
+            }
+
             currentState = EncodingJobState.Completed;
             var summary = T(language, "Encoding completed", "编码完成");
             var visibleLog = visibleLogBuilder.ToString();
@@ -524,6 +557,8 @@ public sealed class LocalEncodingJobRunner : IEncodingJobRunner
             _activeExecutions.TryRemove(request.JobId, out _);
             activeExecution?.Dispose();
             activeSourceProcess?.Dispose();
+            // Covers a process whose Start() threw before it was handed to a ManagedProcessExecution.
+            activeProcess?.Dispose();
             CleanupPlanArtifacts(plan);
             CleanupStagedOutput(stagedOutputPath, request.OutputPath, request.JobId);
 
@@ -986,10 +1021,17 @@ public sealed class LocalEncodingJobRunner : IEncodingJobRunner
         }
         catch (IOException ex)
         {
-            throw new InvalidOperationException(T(
-                GetLanguage(),
-                $"Encoding completed but the output file could not be finalized: {finalOutputPath}",
-                $"编码已完成，但无法完成输出文件落盘：{finalOutputPath}"), ex);
+            var preservedPath = ExecutionOutputStaging.TryPreserveStagedFile(stagedOutputPath, finalOutputPath, jobId, WriteDiagnostic);
+            var reason = ex.InnerException?.Message ?? ex.Message;
+            throw new InvalidOperationException(preservedPath is null
+                ? T(
+                    GetLanguage(),
+                    $"Encoding completed but the output file could not be finalized: {finalOutputPath}. {reason}",
+                    $"编码已完成，但无法完成输出文件落盘：{finalOutputPath}。{reason}")
+                : T(
+                    GetLanguage(),
+                    $"Encoding completed but the output file could not be finalized: {finalOutputPath}. {reason} The encoded output was kept at: {preservedPath}",
+                    $"编码已完成，但无法完成输出文件落盘：{finalOutputPath}。{reason} 编码结果已保留在：{preservedPath}"), ex);
         }
     }
 

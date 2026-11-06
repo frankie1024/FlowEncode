@@ -623,7 +623,7 @@ internal sealed class ParallelVideoEncodingAv1anRunner
         return Path.GetDirectoryName(fileName) ?? AppContext.BaseDirectory;
     }
 
-    private static void FinalizeOutputFile(string stagedOutputPath, string finalOutputPath, Guid jobId)
+    private void FinalizeOutputFile(string stagedOutputPath, string finalOutputPath, Guid jobId)
     {
         try
         {
@@ -631,7 +631,10 @@ internal sealed class ParallelVideoEncodingAv1anRunner
         }
         catch (IOException ex)
         {
-            throw new InvalidOperationException($"Encoding completed but the output file could not be finalized: {finalOutputPath}", ex);
+            var preservedPath = ExecutionOutputStaging.TryPreserveStagedFile(stagedOutputPath, finalOutputPath, jobId, WriteDiagnostic);
+            throw new InvalidOperationException(preservedPath is null
+                ? $"Encoding completed but the output file could not be finalized: {finalOutputPath}"
+                : $"Encoding completed but the output file could not be finalized: {finalOutputPath}. The encoded output was kept at: {preservedPath}", ex);
         }
     }
 
