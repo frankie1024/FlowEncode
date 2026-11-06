@@ -1,4 +1,5 @@
 using FlowEncode.Application;
+using FlowEncode.AutomationBridge;
 using FlowEncode.Infrastructure;
 using FlowEncode.ViewModels;
 using Microsoft.Extensions.DependencyInjection;
@@ -40,6 +41,7 @@ public partial class App : Microsoft.UI.Xaml.Application
     private bool _ownsSingleInstanceMutex;
     private bool _isShuttingDown;
     private Window? _window;
+    private DesktopAutomationHost? _automationHost;
 
     public App()
     {
@@ -81,8 +83,10 @@ public partial class App : Microsoft.UI.Xaml.Application
         var launchActivation = GetService<AppLaunchActivation>();
         launchActivation.SetRequestedVapourSynthFilePath(ResolveRequestedVapourSynthFilePath());
 
-        _window = GetService<MainWindow>();
+        var mainWindow = GetService<MainWindow>();
+        _window = mainWindow;
         _window.Closed += MainWindow_Closed;
+        StartAutomationHost(mainWindow);
 
         _window.Activate();
         StartDeferredStartupMaintenance();
@@ -235,6 +239,7 @@ public partial class App : Microsoft.UI.Xaml.Application
             _window = null;
         }
 
+        StopAutomationHost();
         StopSingleInstancePipeServer();
         StopDeferredStartupMaintenance();
         ReleaseSingleInstanceMutex();
@@ -248,6 +253,40 @@ public partial class App : Microsoft.UI.Xaml.Application
             TryWriteAppExceptionDiagnostic("Dispose application services", ex, AppDiagnosticSeverity.Error);
             TryWriteExceptionFile("shutdown-error.log", ex, "shutdown error");
         }
+    }
+
+    /// <summary>
+    /// Lets the FlowEncode MCP server queue tasks and change settings in this instance.
+    /// </summary>
+    private void StartAutomationHost(MainWindow mainWindow)
+    {
+        var diagnostics = GetService<IAppDiagnostics>();
+        try
+        {
+            _automationHost = new DesktopAutomationHost(mainWindow, diagnostics);
+            _automationHost.Start();
+        }
+        catch (Exception ex)
+        {
+            _automationHost = null;
+            TryWriteAppExceptionDiagnostic("Start automation host", ex, AppDiagnosticSeverity.Warning);
+        }
+    }
+
+    private void StopAutomationHost()
+    {
+        var host = _automationHost;
+        _automationHost = null;
+        if (host is null)
+        {
+            return;
+        }
+
+        _ = host.DisposeAsync().AsTask().ContinueWith(
+            task => TryWriteAppExceptionDiagnostic("Stop automation host", task.Exception!.GetBaseException(), AppDiagnosticSeverity.Warning),
+            CancellationToken.None,
+            TaskContinuationOptions.OnlyOnFaulted,
+            TaskScheduler.Default);
     }
 
     private void StopSingleInstancePipeServer()

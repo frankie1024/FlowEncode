@@ -1368,9 +1368,29 @@ public sealed partial class MainWindow : Window, ISettingsViewHost, IShellNaviga
 
     private async Task<bool> PersistSettingsAsync(bool refreshTemplateLibrary)
     {
+        var error = await PersistSettingsCoreAsync(refreshTemplateLibrary);
+        if (error is null)
+        {
+            return true;
+        }
+
+        if (error.Length > 0)
+        {
+            await ShowMessageAsync(ViewModel.Texts.ErrorSaveSettingsFailedTitle, error);
+        }
+
+        return false;
+    }
+
+    /// <summary>
+    /// Saves the view model's settings and applies their window-level effects.
+    /// Returns null on success, an empty string when saving is not possible right now, or the save error.
+    /// </summary>
+    private async Task<string?> PersistSettingsCoreAsync(bool refreshTemplateLibrary)
+    {
         if (!_isWindowReady || !_hasCompletedInitialization || _isPersistingSettings)
         {
-            return false;
+            return string.Empty;
         }
 
         _isPersistingSettings = true;
@@ -1381,8 +1401,7 @@ public sealed partial class MainWindow : Window, ISettingsViewHost, IShellNaviga
             var error = ViewModel.SaveSettings();
             if (!string.IsNullOrWhiteSpace(error))
             {
-                await ShowMessageAsync(ViewModel.Texts.ErrorSaveSettingsFailedTitle, error);
-                return false;
+                return error;
             }
 
             ApplyTheme(ViewModel.SettingsModule.CurrentThemePreference);
@@ -1406,7 +1425,7 @@ public sealed partial class MainWindow : Window, ISettingsViewHost, IShellNaviga
                 TemplatesPanel?.RestoreCurrentTemplateSelection();
             }
 
-            return true;
+            return null;
         }
         finally
         {

@@ -13,7 +13,7 @@ using FlowEncode.Infrastructure;
 
 namespace FlowEncode.ViewModels;
 
-public sealed class SetupGuideViewModel : ObservableObject, ISetupDependencyModuleViewModel, IDisposable
+public sealed partial class SetupGuideViewModel : ObservableObject, ISetupDependencyModuleViewModel, IDisposable
 {
     private readonly ISetupGuideHost _host;
     private readonly ISetupBootstrapService _setupBootstrapService;

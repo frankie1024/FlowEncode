@@ -6,9 +6,7 @@ using System.Globalization;
 using System.IO;
 using System.Linq;
 using System.Numerics;
-using System.Text.RegularExpressions;
 using System.Threading.Tasks;
-using System.Xml.Linq;
 using FlowEncode.Application;
 using FlowEncode.Domain;
 using FlowEncode.Infrastructure;
@@ -1357,14 +1355,7 @@ public sealed partial class VapourSynthPreviewWindow : Window
                 try
                 {
                     var chapters = GetChapterEntries();
-                    if (string.Equals(targetExtension, ".xml", StringComparison.OrdinalIgnoreCase))
-                    {
-                        await File.WriteAllTextAsync(selectedPath, BuildMatroskaChaptersXml(chapters));
-                    }
-                    else
-                    {
-                        await File.WriteAllLinesAsync(selectedPath, BuildOgmChapterLines(chapters));
-                    }
+                    await ChapterFile.SaveAsync(selectedPath, chapters);
 
                     SetStatusText(ViewModel.Texts.VapourSynthPreviewChaptersExportedStatus(chapters.Count, selectedPath));
                 }
@@ -1989,11 +1980,11 @@ public sealed partial class VapourSynthPreviewWindow : Window
         if (IsAbsoluteCropMode(outputState.CropMode))
         {
             EnsureAbsoluteCropStateWithinBounds(outputState.AbsoluteCrop, _selectedOutputInfo.Width, _selectedOutputInfo.Height);
-            return $"{clipToken} = core.std.CropAbs({clipToken}, x={outputState.AbsoluteCrop.Left}, y={outputState.AbsoluteCrop.Top}, width={outputState.AbsoluteCrop.Width}, height={outputState.AbsoluteCrop.Height})";
+            return PreviewCropCommandBuilder.BuildAbsolute(outputState.AbsoluteCrop.Left, outputState.AbsoluteCrop.Top, outputState.AbsoluteCrop.Width, outputState.AbsoluteCrop.Height, clipToken);
         }
 
         EnsureRelativeCropStateWithinBounds(outputState.RelativeCrop, _selectedOutputInfo.Width, _selectedOutputInfo.Height);
-        return $"{clipToken} = core.std.CropRel({clipToken}, left={outputState.RelativeCrop.Left}, top={outputState.RelativeCrop.Top}, right={outputState.RelativeCrop.Right}, bottom={outputState.RelativeCrop.Bottom})";
+        return PreviewCropCommandBuilder.BuildRelative(outputState.RelativeCrop.Left, outputState.RelativeCrop.Top, outputState.RelativeCrop.Right, outputState.RelativeCrop.Bottom, clipToken);
     }
 
     private static bool IsAbsoluteCropMode(string? mode)
@@ -2203,15 +2194,9 @@ public sealed partial class VapourSynthPreviewWindow : Window
         }
     }
 
-    private async Task<IReadOnlyList<ChapterEntry>> LoadChapterFileAsync(string filePath)
+    private static Task<IReadOnlyList<ChapterEntry>> LoadChapterFileAsync(string filePath)
     {
-        var extension = Path.GetExtension(filePath);
-        if (string.Equals(extension, ".xml", StringComparison.OrdinalIgnoreCase))
-        {
-            return ParseMatroskaChaptersXml(await File.ReadAllTextAsync(filePath));
-        }
-
-        return ParseOgmChapters(await File.ReadAllLinesAsync(filePath));
+        return ChapterFile.LoadAsync(filePath);
     }
 
     private async Task<PreviewFrameCompositionResult> RenderSnapshotFrameAsync(
@@ -2243,137 +2228,14 @@ public sealed partial class VapourSynthPreviewWindow : Window
             .ToList();
     }
 
-    private static IReadOnlyList<ChapterEntry> ParseOgmChapters(IEnumerable<string> lines)
-    {
-        var timecodes = new Dictionary<int, TimeSpan>();
-        var titles = new Dictionary<int, string>();
-        var pattern = new Regex(@"^CHAPTER(?<index>\d+)(?<name>NAME)?=(?<value>.*)$", RegexOptions.IgnoreCase);
-
-        foreach (var rawLine in lines)
-        {
-            var line = rawLine.Trim();
-            if (string.IsNullOrWhiteSpace(line) || line.StartsWith('#'))
-            {
-                continue;
-            }
-
-            var match = pattern.Match(line);
-            if (!match.Success
-                || !int.TryParse(match.Groups["index"].Value, NumberStyles.Integer, CultureInfo.InvariantCulture, out var index))
-            {
-                continue;
-            }
-
-            var value = match.Groups["value"].Value.Trim();
-            if (match.Groups["name"].Success)
-            {
-                titles[index] = StripOgmLanguagePrefix(value);
-            }
-            else if (TryParseChapterTimecode(value, out var timecode))
-            {
-                timecodes[index] = timecode;
-            }
-        }
-
-        return timecodes
-            .OrderBy(static item => item.Key)
-            .Select(item => new ChapterEntry(
-                item.Value,
-                titles.TryGetValue(item.Key, out var title) && !string.IsNullOrWhiteSpace(title)
-                    ? title
-                    : $"Chapter {item.Key:00}"))
-            .ToList();
-    }
-
-    private static IReadOnlyList<ChapterEntry> ParseMatroskaChaptersXml(string xml)
-    {
-        var document = XDocument.Parse(xml);
-        return document
-            .Descendants("ChapterAtom")
-            .Select(atom =>
-            {
-                var startText = atom.Element("ChapterTimeStart")?.Value.Trim();
-                var title = atom
-                    .Elements("ChapterDisplay")
-                    .Elements("ChapterString")
-                    .FirstOrDefault()
-                    ?.Value
-                    .Trim();
-
-                return TryParseChapterTimecode(startText, out var timecode)
-                    ? new ChapterEntry(timecode, string.IsNullOrWhiteSpace(title) ? "Chapter" : title)
-                    : null;
-            })
-            .Where(static chapter => chapter is not null)
-            .Select(static chapter => chapter!)
-            .OrderBy(static chapter => chapter.Timecode)
-            .ToList();
-    }
-
-    private static IEnumerable<string> BuildOgmChapterLines(IReadOnlyList<ChapterEntry> chapters)
-    {
-        for (var index = 0; index < chapters.Count; index++)
-        {
-            var chapterNumber = index + 1;
-            yield return $"CHAPTER{chapterNumber:00}={FormatChapterTimecode(chapters[index].Timecode)}";
-            yield return $"CHAPTER{chapterNumber:00}NAME={chapters[index].Title}";
-        }
-    }
-
-    private static string BuildMatroskaChaptersXml(IReadOnlyList<ChapterEntry> chapters)
-    {
-        var editionEntry = new XElement("EditionEntry",
-            chapters.Select((chapter, index) =>
-                new XElement("ChapterAtom",
-                    new XElement("ChapterTimeStart", FormatChapterTimecode(chapter.Timecode)),
-                    new XElement("ChapterUID", index + 1),
-                    new XElement("ChapterDisplay",
-                        new XElement("ChapterString", chapter.Title),
-                        new XElement("ChapterLanguage", "und")))));
-
-        var document = new XDocument(
-            new XDeclaration("1.0", "UTF-8", null),
-            new XElement("Chapters", editionEntry));
-        return document.ToString();
-    }
-
     private static bool TryParseChapterTimecode(string? value, out TimeSpan timecode)
     {
-        timecode = default;
-        if (string.IsNullOrWhiteSpace(value))
-        {
-            return false;
-        }
-
-        var text = value.Trim().Replace(',', '.');
-        var parts = text.Split(':');
-        if (parts.Length == 2)
-        {
-            text = $"00:{text}";
-        }
-
-        return TimeSpan.TryParseExact(
-                text,
-                [@"h\:mm\:ss\.fff", @"hh\:mm\:ss\.fff", @"h\:mm\:ss", @"hh\:mm\:ss"],
-                CultureInfo.InvariantCulture,
-                out timecode)
-            || TimeSpan.TryParse(text, CultureInfo.InvariantCulture, out timecode);
+        return ChapterFile.TryParseTimecode(value, out timecode);
     }
 
     private static string FormatChapterTimecode(TimeSpan timecode)
     {
-        return timecode.ToString(@"hh\:mm\:ss\.fff", CultureInfo.InvariantCulture);
-    }
-
-    private static string StripOgmLanguagePrefix(string value)
-    {
-        var separatorIndex = value.IndexOf(':', StringComparison.Ordinal);
-        if (separatorIndex > 0 && separatorIndex <= 3)
-        {
-            return value[(separatorIndex + 1)..].Trim();
-        }
-
-        return value.Trim();
+        return ChapterFile.FormatTimecode(timecode);
     }
 
     private async Task<ChapterEntry?> ShowChapterEditDialogAsync(TimeSpan timecode, string title)
@@ -3795,10 +3657,6 @@ public sealed partial class VapourSynthPreviewWindow : Window
         long SessionRevision,
         VapourSynthPreviewOutputInfo OutputInfo,
         int FrameNumber);
-
-    private sealed record ChapterEntry(
-        TimeSpan Timecode,
-        string Title);
 
     private sealed class PreviewOutputState
     {
