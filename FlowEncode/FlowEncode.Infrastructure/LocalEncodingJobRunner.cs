@@ -1023,23 +1023,10 @@ public sealed class LocalEncodingJobRunner : IEncodingJobRunner
 
     private void FinalizeOutputFile(string stagedOutputPath, string finalOutputPath, Guid jobId, bool overwrite)
     {
-        try
+        var failure = ExecutionOutputStaging.FinalizeFileOrPreserve(stagedOutputPath, finalOutputPath, jobId, overwrite, WriteDiagnostic);
+        if (failure is not null)
         {
-            ExecutionOutputStaging.FinalizeFile(stagedOutputPath, finalOutputPath, jobId, overwrite);
-        }
-        catch (IOException ex)
-        {
-            var preservedPath = ExecutionOutputStaging.TryPreserveStagedFile(stagedOutputPath, finalOutputPath, jobId, WriteDiagnostic);
-            var reason = ex.InnerException?.Message ?? ex.Message;
-            throw new InvalidOperationException(preservedPath is null
-                ? T(
-                    GetLanguage(),
-                    $"Encoding completed but the output file could not be finalized: {finalOutputPath}. {reason}",
-                    $"编码已完成，但无法完成输出文件落盘：{finalOutputPath}。{reason}")
-                : T(
-                    GetLanguage(),
-                    $"Encoding completed but the output file could not be finalized: {finalOutputPath}. {reason} The encoded output was kept at: {preservedPath}",
-                    $"编码已完成，但无法完成输出文件落盘：{finalOutputPath}。{reason} 编码结果已保留在：{preservedPath}"), ex);
+            throw new InvalidOperationException(failure.Describe(GetLanguage()), failure.Exception);
         }
     }
 

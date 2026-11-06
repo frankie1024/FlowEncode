@@ -1,3 +1,5 @@
+using FlowEncode.Domain;
+
 namespace FlowEncode.Infrastructure;
 
 internal static class ExecutionOutputStaging
@@ -64,6 +66,30 @@ internal static class ExecutionOutputStaging
         catch (Exception ex)
         {
             throw new IOException($"Failed to finalize output file: {finalPath}", ex);
+        }
+    }
+
+    /// <summary>
+    /// Finalizes a staged output. If that fails, keeps the encoded result (see <see cref="TryPreserveStagedFile"/>)
+    /// and returns a description of the failure instead of throwing, so every runner reports it the same way.
+    /// </summary>
+    public static StagedOutputFinalizeFailure? FinalizeFileOrPreserve(
+        string stagedPath,
+        string finalPath,
+        Guid jobId,
+        bool overwrite,
+        Action<string>? writeDiagnostic)
+    {
+        try
+        {
+            FinalizeFile(stagedPath, finalPath, jobId, overwrite);
+            return null;
+        }
+        catch (IOException ex)
+        {
+            writeDiagnostic?.Invoke($"Failed to finalize output '{stagedPath}' -> '{finalPath}'. {ex.GetType().Name}: {ex.InnerException?.Message ?? ex.Message}");
+            var preservedPath = TryPreserveStagedFile(stagedPath, finalPath, jobId, writeDiagnostic);
+            return new StagedOutputFinalizeFailure(finalPath, ex.InnerException?.Message ?? ex.Message, preservedPath, ex);
         }
     }
 
@@ -228,5 +254,32 @@ internal static class ExecutionOutputStaging
         return string.IsNullOrWhiteSpace(directory)
             ? backupFileName
             : Path.Combine(directory, backupFileName);
+    }
+}
+
+internal sealed record StagedOutputFinalizeFailure(
+    string FinalPath,
+    string Reason,
+    string? PreservedPath,
+    IOException Exception)
+{
+    public string DescribePreservedOutput(AppLanguage language)
+    {
+        if (PreservedPath is null)
+        {
+            return string.Empty;
+        }
+
+        return language == AppLanguage.Chinese
+            ? $" 编码结果已保留在：{PreservedPath}"
+            : $" The encoded output was kept at: {PreservedPath}";
+    }
+
+    public string Describe(AppLanguage language)
+    {
+        var summary = language == AppLanguage.Chinese
+            ? $"编码已完成，但无法完成输出文件落盘：{FinalPath}。{Reason}"
+            : $"Encoding completed but the output file could not be finalized: {FinalPath}. {Reason}";
+        return summary + DescribePreservedOutput(language);
     }
 }

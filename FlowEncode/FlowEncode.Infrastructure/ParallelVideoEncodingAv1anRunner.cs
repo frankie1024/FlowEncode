@@ -631,16 +631,10 @@ internal sealed class ParallelVideoEncodingAv1anRunner
 
     private void FinalizeOutputFile(string stagedOutputPath, string finalOutputPath, Guid jobId, bool overwrite)
     {
-        try
+        var failure = ExecutionOutputStaging.FinalizeFileOrPreserve(stagedOutputPath, finalOutputPath, jobId, overwrite, WriteDiagnostic);
+        if (failure is not null)
         {
-            ExecutionOutputStaging.FinalizeFile(stagedOutputPath, finalOutputPath, jobId, overwrite);
-        }
-        catch (IOException ex)
-        {
-            var preservedPath = ExecutionOutputStaging.TryPreserveStagedFile(stagedOutputPath, finalOutputPath, jobId, WriteDiagnostic);
-            throw new InvalidOperationException(preservedPath is null
-                ? $"Encoding completed but the output file could not be finalized: {finalOutputPath}"
-                : $"Encoding completed but the output file could not be finalized: {finalOutputPath}. The encoded output was kept at: {preservedPath}", ex);
+            throw new InvalidOperationException(failure.Describe(GetLanguage()), failure.Exception);
         }
     }
 
