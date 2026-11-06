@@ -199,18 +199,22 @@ Common commands:
 
 ## AI Integration (MCP Server)
 
-`FlowEncode.Mcp` is a stdio [Model Context Protocol](https://modelcontextprotocol.io/) server that lets AI clients such as Claude or Cursor drive FlowEncode directly. It reuses the desktop app's infrastructure and the settings, toolchain and templates under `%LOCALAPPDATA%\FlowEncode`, so finish the in-app environment guide first.
+`FlowEncode.Mcp` is a [Model Context Protocol](https://modelcontextprotocol.io/) stdio server that lets AI clients such as Claude or Cursor operate FlowEncode in natural language: the video encoding queue, audio conversion, Blu-ray demuxing, target-quality auto compression, VapourSynth scripts and previews, templates, settings, dependency maintenance and app updates.
 
-Build:
+**One task system.** The MCP server does not run tasks itself. Encodes, audio / Blu-ray / auto-compression tasks, settings changes, dependency installs and app updates are handed to the FlowEncode desktop app over a local named pipe that only accepts the current Windows user; the app is started automatically when it is not running. AI-initiated tasks therefore appear in the app's queue, share its concurrent-job limit and queue-completion action, and can be watched or cancelled in the UI; the AI can likewise list, cancel, reorder and remove jobs the user queued in the app. Read-only work (probing, command previews, template files, VapourSynth diagnostics and rendering) runs in the MCP process against the same `%LOCALAPPDATA%\FlowEncode` settings and workspace.
+
+### Setup
+
+The installer places the server in the `mcp` folder of the install directory (by default `C:\Program Files\FlowEncode\mcp\FlowEncode.Mcp.exe`). Run the self-check first; it confirms the desktop app can be found and prints ready-to-paste client configuration:
 
 ```powershell
-dotnet publish FlowEncode/FlowEncode.Mcp -c Release --self-contained -o artifacts/mcp
+& "C:\Program Files\FlowEncode\mcp\FlowEncode.Mcp.exe" --check
 ```
 
 Register it with Claude Code:
 
 ```powershell
-claude mcp add flowencode -- "C:\path\to\artifacts\mcp\FlowEncode.Mcp.exe"
+claude mcp add flowencode -- "C:\Program Files\FlowEncode\mcp\FlowEncode.Mcp.exe"
 ```
 
 Or add it to the `mcpServers` section of Claude Desktop or another client:
@@ -219,30 +223,34 @@ Or add it to the `mcpServers` section of Claude Desktop or another client:
 {
   "mcpServers": {
     "flowencode": {
-      "command": "C:\\path\\to\\artifacts\\mcp\\FlowEncode.Mcp.exe"
+      "command": "C:\\Program Files\\FlowEncode\\mcp\\FlowEncode.Mcp.exe"
     }
   }
 }
 ```
 
-Tools:
+When building from source, run `dotnet publish FlowEncode/FlowEncode.Mcp -c Release --self-contained -o artifacts/mcp` and set the `FLOWENCODE_DESKTOP_EXE` environment variable to the desktop executable, since there is no `FlowEncode.exe` next to the server.
 
-| Tool | Description |
+### Tools
+
+| Area | Tools |
 | --- | --- |
-| `get_environment_status` | Checks encoders, FFmpeg, VSPipe, Python, Av1an, demuxers and the readiness of each capability. |
-| `list_encoders` | Lists the x264 / x265 / SVT-AV1 executables found and the one new jobs will use. |
-| `list_templates` / `get_default_profile` / `save_template` | Read, inspect defaults and save `.profile` templates (shared with the desktop template library). |
-| `probe_video_source` / `probe_audio_source` | Read video (resolution, frame rate, frame count, bit depth, HDR metadata) or audio source info. |
-| `scan_bluray_disc` | Scan Blu-ray playlists and tracks through DGDemux / eac3to. |
-| `preview_encoding_command` | Build the exact encoder command line without running it. |
-| `start_encoding_job` / `get_encoding_job` / `list_encoding_jobs` / `cancel_encoding_job` | Start encodes in the background, poll progress (percent, fps, bitrate, ETA, log lines) and cancel them. |
+| App and settings | `get_app_status`, `launch_desktop_app`, `get_settings`, `update_settings` (encoder preference, theme, language, workspace, concurrency, queue-completion action), `check_app_update`, `install_app_update` |
+| Video encoding queue | `preview_encoding_command`, `start_encoding_job`, `get_encoding_job`, `list_encoding_jobs`, `cancel_encoding_job`, `start_queued_encoding_job`, `restart_encoding_job`, `remove_encoding_job`, `move_encoding_job` |
+| Audio | `probe_audio_source`, `preview_audio_command`, `start_audio_task` (DDP / Opus / FLAC / AC3) |
+| Blu-ray | `scan_bluray_disc`, `preview_bluray_demux_command`, `start_bluray_demux` (export selected video, audio, subtitle and chapter tracks) |
+| Target-quality auto compression | `preview_auto_compression_command`, `start_auto_compression` (VMAF / SSIMULACRA2 / Butteraugli / XPSNR, probes, probing rate, interpolation, statistic) |
+| Module tasks | `get_task_status`, `cancel_task` (audio / bluray / autocompression) |
+| VapourSynth | `vapoursynth_new_script`, `vapoursynth_read_script`, `vapoursynth_save_script`, `vapoursynth_diagnose_script`, `vapoursynth_list_functions`, `vapoursynth_get_outputs`, `vapoursynth_render_frame` (PNG frame, frame properties, timecode seek, crop preview with the `CropAbs/CropRel` line), `vapoursynth_compare_frames`, `read_chapters`, `write_chapters` |
+| Templates | `list_templates`, `get_default_profile`, `save_template`, `set_template_pinned`, `delete_template`, `import_template`, `export_template` |
+| Environment and dependencies | `get_environment_status`, `list_encoders`, `probe_video_source`, `list_dependencies`, `manage_dependency` (install/update, uninstall, import, pin, clear pin), `refresh_environment`, `get_operation`, `list_operations` |
 
 Notes:
 
-- All paths must be absolute. Existing output files are not overwritten unless `overwrite: true` is passed.
-- Concurrency follows the "max concurrent encoding jobs" setting; extra jobs wait in a queue.
-- When the MCP server exits (the client disconnects) it terminates every encoder it started.
-- Toolchain installation and updates still happen in the desktop app.
+- All paths must be absolute. Existing output files are not overwritten unless `overwrite: true` is passed, and a job whose output path is already used by a queued or running job is rejected instead of being renamed as the UI does.
+- As in the UI, the audio, Blu-ray and auto-compression modules each run one task at a time.
+- Dependency installs and app updates are long-running and return an `operationId`; poll `get_operation`. An app update launches the installer once no task is running and closes the desktop app; the installer also replaces the MCP server, so the client has to reconnect.
+- Closing the MCP client does not stop tasks already handed to the desktop app.
 
 ## Feedback and License
 

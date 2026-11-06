@@ -54,7 +54,7 @@ public static class EncodingTools
         [Description("Encode with Av1an chunked parallel encoding instead of a single encoder process.")] bool useAv1anParallel = false,
         [Description("Av1an worker count (only with useAv1anParallel).")] int? av1anWorkers = null,
         [Description("Allow replacing an existing file at outputPath. Defaults to false.")] bool overwrite = false,
-        [Description("Start as soon as a slot is free (default). False leaves it queued until start_queued_encoding_job.")] bool startImmediately = true,
+        [Description("Kick the queue now (default). False only appends the job; it still runs when the queue next advances (another job finishes or start_queued_encoding_job is called), as in the app.")] bool startImmediately = true,
         CancellationToken cancellationToken = default)
     {
         var request = await BuildRequestAsync(
