@@ -1,0 +1,29 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <Import Project="..\..\build\Version.props" />
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <AssemblyName>FlowEncode.Mcp</AssemblyName>
+    <RootNamespace>FlowEncode.Mcp</RootNamespace>
+    <RuntimeIdentifier>win-x64</RuntimeIdentifier>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Extensions.Hosting" />
+    <PackageReference Include="ModelContextProtocol" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="FlowEncode.Domain.Tests" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\FlowEncode.Application\FlowEncode.Application.csproj" />
+    <ProjectReference Include="..\FlowEncode.Domain\FlowEncode.Domain.csproj" />
+    <ProjectReference Include="..\FlowEncode.Infrastructure\FlowEncode.Infrastructure.csproj" />
+  </ItemGroup>
+
+</Project>

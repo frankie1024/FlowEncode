@@ -17,6 +17,7 @@
     <ProjectReference Include="..\FlowEncode.Domain\FlowEncode.Domain.csproj" />
     <ProjectReference Include="..\FlowEncode.Application\FlowEncode.Application.csproj" />
     <ProjectReference Include="..\FlowEncode.Infrastructure\FlowEncode.Infrastructure.csproj" />
+    <ProjectReference Include="..\FlowEncode.Mcp\FlowEncode.Mcp.csproj" />
   </ItemGroup>
 
 </Project>
