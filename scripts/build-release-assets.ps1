@@ -128,6 +128,29 @@ if (-not (Test-Path (Join-Path $publishRoot "FlowEncode.exe"))) {
     throw "Publish completed but executable was not found in $publishRoot"
 }
 
+# The MCP server ships in {app}\mcp so AI clients can drive the installed app. It is self-contained
+# in its own folder because its dependency set (Microsoft.Extensions.Hosting, MCP SDK) differs from the GUI's.
+$mcpProjectPath = Join-Path $repoRoot "FlowEncode\FlowEncode.Mcp\FlowEncode.Mcp.csproj"
+$mcpPublishRoot = Join-Path $publishRoot "mcp"
+$mcpExecutablePath = Join-Path $mcpPublishRoot "FlowEncode.Mcp.exe"
+
+Write-Host "Publishing MCP server to $mcpPublishRoot"
+& dotnet publish $mcpProjectPath -c $Configuration --self-contained true -p:PublishSingleFile=false -o $mcpPublishRoot
+
+if ($LASTEXITCODE -ne 0) {
+    throw "dotnet publish for the MCP server failed with exit code $LASTEXITCODE."
+}
+
+if (-not (Test-Path $mcpExecutablePath)) {
+    throw "MCP publish completed but executable was not found in $mcpPublishRoot"
+}
+
+# Installation check: the server must find FlowEncode.exe one level up, as it will after install.
+& $mcpExecutablePath --check | Out-Host
+if ($LASTEXITCODE -ne 0) {
+    throw "FlowEncode.Mcp.exe --check failed with exit code $LASTEXITCODE; it could not locate FlowEncode.exe."
+}
+
 Sanitize-ReleaseLayout -RootPath $publishRoot -SatelliteLanguageDirectories $SatelliteLanguageDirectories
 
 & $installerBuildScript `
