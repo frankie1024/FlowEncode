@@ -13,6 +13,119 @@ public sealed class McpEncodingJobManagerTests
     private static readonly TimeSpan Timeout = TimeSpan.FromSeconds(10);
 
     [TestMethod]
+    [DataRow(false)]
+    [DataRow(true)]
+    public async Task StartEncodingJob_PassesOverwritePolicyToRunner(bool overwrite)
+    {
+        var sourcePath = Path.Combine(Path.GetTempPath(), $"flowencode-source-{Guid.NewGuid():N}.y4m");
+        var outputPath = Path.ChangeExtension(sourcePath, ".264");
+        File.WriteAllText(sourcePath, "source");
+        var runner = new FakeEncodingJobRunner();
+        using var manager = CreateManager(runner, maxConcurrentJobs: 1);
+        try
+        {
+            var status = await FlowEncode.Mcp.Tools.EncodingTools.StartEncodingJob(
+                manager, new EmptyProfileLibrary(), sourcePath, outputPath,
+                encoder: "x264", overwrite: overwrite);
+            var job = manager.Find(status.JobId)!;
+            var control = await runner.WaitForStartAsync(job.Request.JobId);
+
+            Assert.AreEqual(overwrite, job.Request.OverwriteOutput);
+            control.Complete(EncodingJobState.Completed);
+            await job.Completion.WaitAsync(Timeout);
+        }
+        finally
+        {
+            await manager.StopAsync(CancellationToken.None);
+            File.Delete(sourcePath);
+        }
+    }
+
+    [TestMethod]
+    public async Task Enqueue_WhenConcurrentRequestsShareAnOutput_AcceptsExactlyOneUntilItFinishes()
+    {
+        var runner = new FakeEncodingJobRunner();
+        using var manager = CreateManager(runner, maxConcurrentJobs: 2);
+        var request = CreateRequest();
+        var accepted = new ConcurrentBag<TrackedEncodingJob>();
+        var rejected = new ConcurrentBag<Exception>();
+        var start = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var submissions = Enumerable.Range(0, 16).Select(async _ =>
+        {
+            await start.Task;
+            try
+            {
+                accepted.Add(manager.Enqueue(request with { JobId = Guid.NewGuid() }));
+            }
+            catch (InvalidOperationException ex)
+            {
+                rejected.Add(ex);
+            }
+        }).ToArray();
+
+        start.SetResult();
+        await Task.WhenAll(submissions).WaitAsync(Timeout);
+        try
+        {
+            Assert.AreEqual(1, accepted.Count);
+            Assert.AreEqual(15, rejected.Count);
+            foreach (var error in rejected)
+            {
+                StringAssert.Contains(error.Message, "Another active job");
+            }
+
+            var first = accepted.Single();
+            var control = await runner.WaitForStartAsync(first.Request.JobId);
+            control.Complete(EncodingJobState.Completed);
+            await first.Completion.WaitAsync(Timeout);
+
+            var next = manager.Enqueue(request with { JobId = Guid.NewGuid() });
+            var nextControl = await runner.WaitForStartAsync(next.Request.JobId);
+            nextControl.Complete(EncodingJobState.Completed);
+            await next.Completion.WaitAsync(Timeout);
+        }
+        finally
+        {
+            await manager.StopAsync(CancellationToken.None);
+        }
+    }
+
+    [TestMethod]
+    public async Task Enqueue_WhenOverwriteIsDisabledAndOutputExists_RejectsWithoutStartingRunner()
+    {
+        var path = Path.Combine(Path.GetTempPath(), $"flowencode-existing-{Guid.NewGuid():N}.264");
+        File.WriteAllText(path, "original");
+        var runner = new FakeEncodingJobRunner();
+        using var manager = CreateManager(runner, maxConcurrentJobs: 1);
+        try
+        {
+            var request = CreateRequest() with { OutputPath = path, OverwriteOutput = false };
+            var error = Assert.ThrowsExactly<InvalidOperationException>(() => manager.Enqueue(request));
+
+            StringAssert.Contains(error.Message, "Output file already exists");
+            Assert.AreEqual(0, manager.List().Count);
+            Assert.IsFalse(runner.HasStarted(request.JobId));
+            Assert.AreEqual("original", File.ReadAllText(path));
+        }
+        finally
+        {
+            await manager.StopAsync(CancellationToken.None);
+            File.Delete(path);
+        }
+    }
+
+    [TestMethod]
+    public async Task Enqueue_AfterShutdown_RejectsNewJobs()
+    {
+        var runner = new FakeEncodingJobRunner();
+        using var manager = CreateManager(runner, maxConcurrentJobs: 1);
+        await manager.StopAsync(CancellationToken.None);
+
+        Assert.ThrowsExactly<InvalidOperationException>(() => manager.Enqueue(CreateRequest()));
+        Assert.AreEqual(0, manager.List().Count);
+    }
+
+    [TestMethod]
     public async Task Enqueue_RunsJobAndRecordsProgressAndResult()
     {
         var runner = new FakeEncodingJobRunner();

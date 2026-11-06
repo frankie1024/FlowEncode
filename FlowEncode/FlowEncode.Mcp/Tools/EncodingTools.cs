@@ -58,17 +58,7 @@ public static class EncodingTools
         var request = await BuildRequestAsync(
             profileLibrary, sourcePath, outputPath, templateId, encoder, overrides, pipeline, useAv1anParallel, av1anWorkers, cancellationToken);
 
-        if (!overwrite && File.Exists(request.OutputPath))
-        {
-            throw new McpException($"Output file already exists: {request.OutputPath}. Pass overwrite=true or choose another outputPath.");
-        }
-
-        if (jobManager.List().Any(job => !job.IsFinished
-                && string.Equals(job.Request.OutputPath, request.OutputPath, StringComparison.OrdinalIgnoreCase)))
-        {
-            throw new McpException($"Another active job is already writing to {request.OutputPath}.");
-        }
-
+        request = request with { OverwriteOutput = overwrite };
         var job = await McpToolGuard.RunAsync(() => Task.FromResult(jobManager.Enqueue(request)));
         return job.GetStatus(logLineCount: 0);
     }

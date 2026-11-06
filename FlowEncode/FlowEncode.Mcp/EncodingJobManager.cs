@@ -19,6 +19,8 @@ public sealed class EncodingJobManager : IHostedService, IDisposable
     private readonly ConcurrentDictionary<Guid, TrackedEncodingJob> _jobs = new();
     private readonly CancellationTokenSource _shutdown = new();
     private readonly SemaphoreSlim _slots;
+    private readonly object _enqueueGate = new();
+    private bool _stopping;
 
     public EncodingJobManager(
         IEncodingJobRunner runner,
@@ -34,17 +36,35 @@ public sealed class EncodingJobManager : IHostedService, IDisposable
     public TrackedEncodingJob Enqueue(EncodingJobRequest request)
     {
         RequestValidation.ValidateEncodingJobRequest(request);
-        _shutdown.Token.ThrowIfCancellationRequested();
-
-        var job = new TrackedEncodingJob(request, CancellationTokenSource.CreateLinkedTokenSource(_shutdown.Token));
-        if (!_jobs.TryAdd(request.JobId, job))
+        lock (_enqueueGate)
         {
-            job.Dispose();
-            throw new InvalidOperationException($"A job with id {request.JobId} already exists.");
-        }
+            if (_stopping)
+            {
+                throw new InvalidOperationException("The MCP server is stopping and cannot accept new jobs.");
+            }
 
-        job.Completion = Task.Run(() => RunAsync(job));
-        return job;
+            if (!request.OverwriteOutput && File.Exists(request.OutputPath))
+            {
+                throw new InvalidOperationException($"Output file already exists: {request.OutputPath}. Pass overwrite=true or choose another outputPath.");
+            }
+
+            var outputPath = Path.GetFullPath(request.OutputPath);
+            if (_jobs.Values.Any(job => !job.Completion.IsCompleted
+                    && string.Equals(Path.GetFullPath(job.Request.OutputPath), outputPath, StringComparison.OrdinalIgnoreCase)))
+            {
+                throw new InvalidOperationException($"Another active job is already writing to {request.OutputPath}.");
+            }
+
+            var job = new TrackedEncodingJob(request, CancellationTokenSource.CreateLinkedTokenSource(_shutdown.Token));
+            if (!_jobs.TryAdd(request.JobId, job))
+            {
+                job.Dispose();
+                throw new InvalidOperationException($"A job with id {request.JobId} already exists.");
+            }
+
+            job.Completion = Task.Run(() => RunAsync(job));
+            return job;
+        }
     }
 
     public TrackedEncodingJob? Find(Guid jobId) => _jobs.TryGetValue(jobId, out var job) ? job : null;
@@ -102,7 +122,12 @@ public sealed class EncodingJobManager : IHostedService, IDisposable
     {
         // The MCP client went away: stop every encoder instead of leaving orphaned processes.
         // Snapshot first: cancelling can finish jobs synchronously before they would be aborted.
-        var activeJobs = _jobs.Values.Where(static job => !job.IsFinished).ToList();
+        List<TrackedEncodingJob> activeJobs;
+        lock (_enqueueGate)
+        {
+            _stopping = true;
+            activeJobs = _jobs.Values.Where(static job => !job.Completion.IsCompleted).ToList();
+        }
         _shutdown.Cancel();
         foreach (var job in activeJobs)
         {

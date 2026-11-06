@@ -82,6 +82,7 @@ public sealed class LocalEncodingJobRunner : IEncodingJobRunner
         var lineGate = new object();
         var rawLogWriter = EncodingJobLogWriter.CreateRawLogWriter(rawLogPath);
         var rawLogWriterClosed = false;
+        var preserveStagedOutput = false;
         Task pumpOutput = Task.CompletedTask;
         Task pumpError = Task.CompletedTask;
         Task pumpSourceError = Task.CompletedTask;
@@ -458,10 +459,11 @@ public sealed class LocalEncodingJobRunner : IEncodingJobRunner
 
             try
             {
-                FinalizeOutputFile(stagedOutputPath, request.OutputPath, request.JobId);
+                FinalizeOutputFile(stagedOutputPath, request.OutputPath, request.JobId, request.OverwriteOutput);
             }
             catch (InvalidOperationException ex)
             {
+                preserveStagedOutput = File.Exists(stagedOutputPath);
                 currentState = EncodingJobState.Failed;
                 var finalizationFailureSummary = ex.Message;
                 lock (lineGate)
@@ -560,7 +562,10 @@ public sealed class LocalEncodingJobRunner : IEncodingJobRunner
             // Covers a process whose Start() threw before it was handed to a ManagedProcessExecution.
             activeProcess?.Dispose();
             CleanupPlanArtifacts(plan);
-            CleanupStagedOutput(stagedOutputPath, request.OutputPath, request.JobId);
+            if (!preserveStagedOutput)
+            {
+                CleanupStagedOutput(stagedOutputPath, request.OutputPath, request.JobId);
+            }
 
             if (!rawLogWriterClosed)
             {
@@ -568,7 +573,10 @@ public sealed class LocalEncodingJobRunner : IEncodingJobRunner
             }
 
             CleanupTemporaryRawLog(rawLogPath);
-            CleanupJobTempDirectory(request);
+            if (!preserveStagedOutput)
+            {
+                CleanupJobTempDirectory(request);
+            }
         }
     }
 
@@ -1013,11 +1021,11 @@ public sealed class LocalEncodingJobRunner : IEncodingJobRunner
         return ExecutionOutputStaging.CreateStagedFilePath(GetJobTempDirectory(request), request.OutputPath, request.JobId);
     }
 
-    private void FinalizeOutputFile(string stagedOutputPath, string finalOutputPath, Guid jobId)
+    private void FinalizeOutputFile(string stagedOutputPath, string finalOutputPath, Guid jobId, bool overwrite)
     {
         try
         {
-            ExecutionOutputStaging.FinalizeFile(stagedOutputPath, finalOutputPath, jobId);
+            ExecutionOutputStaging.FinalizeFile(stagedOutputPath, finalOutputPath, jobId, overwrite);
         }
         catch (IOException ex)
         {

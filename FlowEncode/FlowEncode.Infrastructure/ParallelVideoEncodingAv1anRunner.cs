@@ -109,6 +109,7 @@ internal sealed class ParallelVideoEncodingAv1anRunner
         double? currentProgress = null;
         var currentSummary = T(language, "Av1an parallel encoding started", "Av1an 并行压制已启动");
         var outputFinalized = false;
+        var finalizationAttempted = false;
         var finalExitCode = -1;
         var startedAt = Stopwatch.GetTimestamp();
 
@@ -253,7 +254,8 @@ internal sealed class ParallelVideoEncodingAv1anRunner
                     AppendAv1anFileLog(av1anLogPath, AppendLine);
                     await rawLogWriter.FlushAsync();
                     visibleLog = visibleLogBuilder.ToString();
-                    FinalizeOutputFile(stagedOutputPath, request.OutputPath, request.JobId);
+                    finalizationAttempted = true;
+                    FinalizeOutputFile(stagedOutputPath, request.OutputPath, request.JobId, request.OverwriteOutput);
 
                     currentProgress = 1.0;
                     progress?.Report(new EncodingJobProgress(
@@ -370,14 +372,18 @@ internal sealed class ParallelVideoEncodingAv1anRunner
             activeExecution?.Dispose();
             process?.Dispose();
             await CloseRawLogWriterAsync();
-            if (!outputFinalized)
+            var preserveStagedOutput = finalizationAttempted && File.Exists(stagedOutputPath);
+            if (!outputFinalized && !preserveStagedOutput)
             {
                 ExecutionOutputStaging.CleanupStagedFile(stagedOutputPath, request.OutputPath, request.JobId, WriteDiagnostic);
             }
 
             CleanupTemporaryRawLog(rawLogPath);
             CleanupTemporaryRawLog(av1anLogPath);
-            CleanupJobTempDirectory(tempDirectory);
+            if (!preserveStagedOutput)
+            {
+                CleanupJobTempDirectory(tempDirectory);
+            }
         }
     }
 
@@ -623,11 +629,11 @@ internal sealed class ParallelVideoEncodingAv1anRunner
         return Path.GetDirectoryName(fileName) ?? AppContext.BaseDirectory;
     }
 
-    private void FinalizeOutputFile(string stagedOutputPath, string finalOutputPath, Guid jobId)
+    private void FinalizeOutputFile(string stagedOutputPath, string finalOutputPath, Guid jobId, bool overwrite)
     {
         try
         {
-            ExecutionOutputStaging.FinalizeFile(stagedOutputPath, finalOutputPath, jobId);
+            ExecutionOutputStaging.FinalizeFile(stagedOutputPath, finalOutputPath, jobId, overwrite);
         }
         catch (IOException ex)
         {

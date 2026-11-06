@@ -24,7 +24,7 @@ internal static class ExecutionOutputStaging
         return Path.Combine(stagingDirectory, stagedFileName);
     }
 
-    public static void FinalizeFile(string stagedPath, string finalPath, Guid jobId)
+    public static void FinalizeFile(string stagedPath, string finalPath, Guid jobId, bool overwrite = true)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(stagedPath);
         ArgumentException.ThrowIfNullOrWhiteSpace(finalPath);
@@ -40,6 +40,14 @@ internal static class ExecutionOutputStaging
             if (!string.IsNullOrWhiteSpace(outputDirectory))
             {
                 Directory.CreateDirectory(outputDirectory);
+            }
+
+            // Move without replacement enforces the policy atomically, even if the destination
+            // appeared while the job was queued or encoding.
+            if (!overwrite)
+            {
+                File.Move(stagedPath, finalPath, overwrite: false);
+                return;
             }
 
             if (File.Exists(finalPath))
@@ -61,7 +69,8 @@ internal static class ExecutionOutputStaging
 
     /// <summary>
     /// Moves a staged output that could not be finalized next to the requested output path so the
-    /// completed work survives the temp directory cleanup. Returns the preserved path, or null.
+    /// completed work survives the temp directory cleanup. If moving fails, returns the original
+    /// staged path; callers must retain that file and its directory. Returns null for missing output.
     /// </summary>
     public static string? TryPreserveStagedFile(
         string? stagedPath,
@@ -92,8 +101,8 @@ internal static class ExecutionOutputStaging
         }
         catch (Exception ex)
         {
-            onFailure?.Invoke($"Failed to preserve staged output '{stagedPath}' as '{preservedPath}'. {ex.GetType().Name}: {ex.Message}");
-            return null;
+            onFailure?.Invoke($"Failed to move staged output '{stagedPath}' to '{preservedPath}'. Keeping the original staged file. {ex.GetType().Name}: {ex.Message}");
+            return stagedPath;
         }
     }
 

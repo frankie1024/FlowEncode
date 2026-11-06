@@ -28,6 +28,28 @@ public sealed class AutoCompressionOutputFinalizerTests
     }
 
     [TestMethod]
+    public void TryFinalizeOutput_WhenFinalizationAndRecoveryBothFail_ReportsRetainedStagedOutput()
+    {
+        var jobId = Guid.NewGuid();
+        var stagedDirectory = Path.Combine(_testRoot, "staging", jobId.ToString("N"));
+        var stagedPath = Path.Combine(stagedDirectory, "movie.mkv");
+        Directory.CreateDirectory(stagedDirectory);
+        File.WriteAllText(stagedPath, "encoded-data");
+        // A file in place of the target directory deterministically prevents both moves.
+        var blockedDirectory = Path.Combine(_testRoot, "blocked");
+        File.WriteAllText(blockedDirectory, "blocker");
+
+        var success = AutoCompressionOutputFinalizer.TryFinalizeOutput(
+            jobId, stagedPath, Path.Combine(blockedDirectory, "movie.mkv"),
+            AppLanguage.English, writeDiagnostic: null, out var failureSummary);
+
+        Assert.IsFalse(success);
+        StringAssert.Contains(failureSummary, $"The encoded output was kept at: {stagedPath}");
+        Assert.AreEqual("encoded-data", File.ReadAllText(stagedPath));
+        Assert.AreEqual("blocker", File.ReadAllText(blockedDirectory));
+    }
+
+    [TestMethod]
     public void TryFinalizeOutput_WhenStagedFileExists_MovesFileToFinalPath()
     {
         var jobId = Guid.NewGuid();
