@@ -1,6 +1,7 @@
 using System.ComponentModel;
 using FlowEncode.Application;
 using FlowEncode.Domain;
+using FlowEncode.Infrastructure.Automation;
 using ModelContextProtocol;
 using ModelContextProtocol.Server;
 
@@ -38,11 +39,11 @@ public static class EncodingTools
     }
 
     [McpServerTool(Name = "start_encoding_job", Destructive = false, OpenWorld = false)]
-    [Description("Starts a video encode in the background and returns its jobId immediately. "
-        + "Poll get_encoding_job for progress; encodes can take minutes to hours. Jobs beyond the "
-        + "MaxConcurrentEncodingJobs setting wait in a queue. Jobs stop if the MCP server exits.")]
-    public static async Task<EncodingJobStatus> StartEncodingJob(
-        EncodingJobManager jobManager,
+    [Description("Adds a video encode to the FlowEncode desktop app's queue (starting the app if needed) and returns the job. "
+        + "The job is visible and controllable in the app, follows its MaxConcurrentEncodingJobs limit and the "
+        + "queue-completion action, and keeps running after this MCP session ends. Poll get_encoding_job for progress.")]
+    public static async Task<AutomationJobSnapshot> StartEncodingJob(
+        DesktopBridge desktop,
         IProfileLibraryService profileLibrary,
         [Description("Absolute path of the source: .vpy, .avs, .mkv, .mp4, .avi, .flv, .y4m or .yuv.")] string sourcePath,
         [Description("Absolute output path. Defaults to the source folder with an auto-generated name.")] string? outputPath = null,
@@ -53,54 +54,120 @@ public static class EncodingTools
         [Description("Encode with Av1an chunked parallel encoding instead of a single encoder process.")] bool useAv1anParallel = false,
         [Description("Av1an worker count (only with useAv1anParallel).")] int? av1anWorkers = null,
         [Description("Allow replacing an existing file at outputPath. Defaults to false.")] bool overwrite = false,
+        [Description("Start as soon as a slot is free (default). False leaves it queued until start_queued_encoding_job.")] bool startImmediately = true,
         CancellationToken cancellationToken = default)
     {
         var request = await BuildRequestAsync(
             profileLibrary, sourcePath, outputPath, templateId, encoder, overrides, pipeline, useAv1anParallel, av1anWorkers, cancellationToken);
 
         request = request with { OverwriteOutput = overwrite };
-        var job = await McpToolGuard.RunAsync(() => Task.FromResult(jobManager.Enqueue(request)));
-        return job.GetStatus(logLineCount: 0);
+        return await desktop.SendAsync<AutomationJobSnapshot>(
+            DesktopAutomationMethods.QueueEnqueue,
+            new EnqueueEncodingJobParams(request, startImmediately),
+            cancellationToken);
     }
 
     [McpServerTool(Name = "get_encoding_job", ReadOnly = true)]
-    [Description("Returns state (Queued/Running/Completed/Failed/Cancelled), progress percent, fps, bitrate, ETA, "
-        + "the sidecar log path once finished, and the most recent encoder log lines.")]
-    public static EncodingJobStatus GetEncodingJob(
-        EncodingJobManager jobManager,
-        [Description("The jobId returned by start_encoding_job.")] string jobId,
-        [Description("How many recent log lines to include (0-200). Defaults to 20.")] int logLines = 20)
+    [Description("Returns a queue job's state (Queued/Running/Completed/Failed/Cancelled), progress percent, fps, bitrate, ETA, "
+        + "command line, sidecar log path once finished, and the most recent encoder log lines.")]
+    public static Task<AutomationJobSnapshot> GetEncodingJob(
+        DesktopBridge desktop,
+        [Description("The jobId from start_encoding_job or list_encoding_jobs.")] string jobId,
+        [Description("How many recent log lines to include (0-200). Defaults to 20.")] int logLines = 20,
+        CancellationToken cancellationToken = default)
     {
-        return FindJob(jobManager, jobId).GetStatus(logLines);
+        return desktop.SendIfRunningAsync<AutomationJobSnapshot>(
+            DesktopAutomationMethods.QueueGet,
+            new GetJobParams(McpJobIds.Parse(jobId), Math.Clamp(logLines, 0, 200)),
+            McpServerText.DesktopNotRunning,
+            cancellationToken);
     }
 
     [McpServerTool(Name = "list_encoding_jobs", ReadOnly = true)]
-    [Description("Lists every encoding job started by this MCP server session with its current state and progress.")]
-    public static IReadOnlyList<EncodingJobStatus> ListEncodingJobs(EncodingJobManager jobManager)
+    [Description("Lists every job in the desktop app's encoding queue in queue order, including jobs the user added in the app.")]
+    public static Task<IReadOnlyList<AutomationJobSnapshot>> ListEncodingJobs(
+        DesktopBridge desktop,
+        CancellationToken cancellationToken = default)
     {
-        return jobManager.List().Select(static job => job.GetStatus(logLineCount: 0)).ToList();
+        return desktop.SendIfRunningAsync<IReadOnlyList<AutomationJobSnapshot>>(
+            DesktopAutomationMethods.QueueList,
+            null,
+            McpServerText.DesktopNotRunning,
+            cancellationToken);
     }
 
     [McpServerTool(Name = "cancel_encoding_job", Destructive = true, Idempotent = true)]
-    [Description("Cancels a queued or running encoding job and terminates its encoder processes. "
+    [Description("Cancels a queued or running job in the desktop queue and terminates its encoder processes. "
         + "The partial output is discarded.")]
-    public static EncodingJobStatus CancelEncodingJob(
-        EncodingJobManager jobManager,
-        [Description("The jobId returned by start_encoding_job.")] string jobId)
+    public static Task<AutomationJobSnapshot> CancelEncodingJob(
+        DesktopBridge desktop,
+        [Description("The jobId to cancel.")] string jobId,
+        CancellationToken cancellationToken = default)
     {
-        var job = FindJob(jobManager, jobId);
-        jobManager.Cancel(job.Request.JobId);
-        return job.GetStatus(logLineCount: 5);
+        return SendJobCommandAsync(desktop, DesktopAutomationMethods.QueueCancel, jobId, cancellationToken);
     }
 
-    private static TrackedEncodingJob FindJob(EncodingJobManager jobManager, string jobId)
+    [McpServerTool(Name = "start_queued_encoding_job", Destructive = false)]
+    [Description("Starts a queued job now. When every concurrency slot is busy the job is moved to the front so it runs next.")]
+    public static Task<AutomationJobSnapshot> StartQueuedEncodingJob(
+        DesktopBridge desktop,
+        [Description("The jobId of a Queued job.")] string jobId,
+        CancellationToken cancellationToken = default)
     {
-        if (!Guid.TryParse(jobId, out var id))
-        {
-            throw new McpException($"'{jobId}' is not a valid job id.");
-        }
+        return SendJobCommandAsync(desktop, DesktopAutomationMethods.QueueStart, jobId, cancellationToken);
+    }
 
-        return jobManager.Find(id) ?? throw new McpException($"No encoding job with id {jobId}. Call list_encoding_jobs to see known jobs.");
+    [McpServerTool(Name = "restart_encoding_job", Destructive = false)]
+    [Description("Queues a finished, failed or cancelled job again with the same parameters (as a new job id).")]
+    public static Task<AutomationJobSnapshot> RestartEncodingJob(
+        DesktopBridge desktop,
+        [Description("The jobId of a Completed, Failed or Cancelled job.")] string jobId,
+        CancellationToken cancellationToken = default)
+    {
+        return SendJobCommandAsync(desktop, DesktopAutomationMethods.QueueRestart, jobId, cancellationToken);
+    }
+
+    [McpServerTool(Name = "remove_encoding_job", Destructive = true, Idempotent = true)]
+    [Description("Removes a job that is not running from the desktop queue and returns the remaining queue. Output files are not deleted.")]
+    public static Task<IReadOnlyList<AutomationJobSnapshot>> RemoveEncodingJob(
+        DesktopBridge desktop,
+        [Description("The jobId to remove.")] string jobId,
+        CancellationToken cancellationToken = default)
+    {
+        return desktop.SendIfRunningAsync<IReadOnlyList<AutomationJobSnapshot>>(
+            DesktopAutomationMethods.QueueRemove,
+            new JobIdParams(McpJobIds.Parse(jobId)),
+            McpServerText.DesktopNotRunning,
+            cancellationToken);
+    }
+
+    [McpServerTool(Name = "move_encoding_job", Destructive = false)]
+    [Description("Reorders the desktop queue: moves a queued job to a 0-based position (0 = first, -1 = last). "
+        + "Queued jobs cannot move ahead of running ones. Returns the queue in its new order.")]
+    public static Task<IReadOnlyList<AutomationJobSnapshot>> MoveEncodingJob(
+        DesktopBridge desktop,
+        [Description("The jobId of a Queued job.")] string jobId,
+        [Description("Target 0-based position among all jobs; -1 moves it to the end.")] int position,
+        CancellationToken cancellationToken = default)
+    {
+        return desktop.SendIfRunningAsync<IReadOnlyList<AutomationJobSnapshot>>(
+            DesktopAutomationMethods.QueueMove,
+            new MoveJobParams(McpJobIds.Parse(jobId), position),
+            McpServerText.DesktopNotRunning,
+            cancellationToken);
+    }
+
+    private static Task<AutomationJobSnapshot> SendJobCommandAsync(
+        DesktopBridge desktop,
+        string method,
+        string jobId,
+        CancellationToken cancellationToken)
+    {
+        return desktop.SendIfRunningAsync<AutomationJobSnapshot>(
+            method,
+            new JobIdParams(McpJobIds.Parse(jobId)),
+            McpServerText.DesktopNotRunning,
+            cancellationToken);
     }
 
     private static async Task<EncodingJobRequest> BuildRequestAsync(

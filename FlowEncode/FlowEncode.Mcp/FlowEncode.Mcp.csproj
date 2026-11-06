@@ -20,6 +20,14 @@
     <InternalsVisibleTo Include="FlowEncode.Domain.Tests" />
   </ItemGroup>
 
+  <!-- The VapourSynth preview / diagnostics helpers are resolved next to the executable. -->
+  <ItemGroup>
+    <None Include="..\Assets\VapourSynthEditor\python\*.py"
+          Link="Assets\VapourSynthEditor\python\%(Filename)%(Extension)"
+          CopyToOutputDirectory="PreserveNewest"
+          CopyToPublishDirectory="PreserveNewest" />
+  </ItemGroup>
+
   <ItemGroup>
     <ProjectReference Include="..\FlowEncode.Application\FlowEncode.Application.csproj" />
     <ProjectReference Include="..\FlowEncode.Domain\FlowEncode.Domain.csproj" />

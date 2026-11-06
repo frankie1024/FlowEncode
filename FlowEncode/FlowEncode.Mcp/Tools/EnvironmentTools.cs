@@ -13,9 +13,18 @@ public static class EnvironmentTools
         + "and which FlowEncode capabilities are ready. Probing runs the tools, so it can take several seconds.")]
     public static async Task<EnvironmentStatusResult> GetEnvironmentStatus(
         IEnvironmentReadinessService readinessService,
+        IToolProbeService toolProbeService,
+        IEncoderDiscoveryService encoderDiscoveryService,
         [Description("Include tools that are not installed. Defaults to true.")] bool includeMissingTools = true,
+        [Description("Re-detect tools instead of using results cached earlier in this session (e.g. after an install). Defaults to true.")] bool refresh = true,
         CancellationToken cancellationToken = default)
     {
+        if (refresh)
+        {
+            toolProbeService.InvalidateCache();
+            encoderDiscoveryService.InvalidateCache();
+        }
+
         var report = await McpToolGuard.RunAsync(() => readinessService.CheckAsync(cancellationToken));
 
         var tools = report.Tools

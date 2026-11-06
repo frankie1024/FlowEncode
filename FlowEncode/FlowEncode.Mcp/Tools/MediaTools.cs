@@ -70,59 +70,6 @@ public static class MediaTools
             info.DurationSeconds,
             info.IsLossless());
     }
-
-    [McpServerTool(Name = "scan_bluray_disc", ReadOnly = true, Idempotent = true)]
-    [Description("Lists the playlists of a Blu-ray folder (the folder that contains BDMV) with duration and chapter count, "
-        + "using DGDemux or eac3to. Pass a playlist id to also list its video/audio/subtitle tracks.")]
-    public static async Task<BluRayScanResultView> ScanBluRayDisc(
-        IBluRayDiscProbeService discProbeService,
-        [Description("Absolute path of the Blu-ray folder.")] string discPath,
-        [Description("Demux backend: dgdemux (default) or eac3to.")] string? backend = null,
-        [Description("Optional playlist id from a previous scan; when set, its tracks are listed as well.")] string? playlistId = null,
-        CancellationToken cancellationToken = default)
-    {
-        var fullPath = McpPaths.RequireExistingDirectory(discPath, nameof(discPath));
-        var demuxBackend = ParseBackend(backend);
-
-        var playlists = await McpToolGuard.RunAsync(() => discProbeService.ScanDiscAsync(demuxBackend, fullPath, cancellationToken));
-        IReadOnlyList<BluRayTrackView>? tracks = null;
-        if (!string.IsNullOrWhiteSpace(playlistId))
-        {
-            var playlist = playlists.FirstOrDefault(item => string.Equals(item.Id, playlistId.Trim(), StringComparison.OrdinalIgnoreCase))
-                ?? throw new McpException($"Playlist '{playlistId}' was not found on {fullPath}.");
-            var scan = await McpToolGuard.RunAsync(() => discProbeService.ScanPlaylistAsync(demuxBackend, fullPath, playlist, cancellationToken));
-            tracks = scan.Tracks
-                .Select(static track => new BluRayTrackView(track.Id, track.Kind.ToString(), track.DisplayName, track.Detail, track.Language))
-                .ToList();
-        }
-
-        return new BluRayScanResultView(
-            demuxBackend.ToString(),
-            playlists
-                .Select(static playlist => new BluRayPlaylistView(
-                    playlist.Id,
-                    playlist.DisplayName,
-                    playlist.Summary,
-                    playlist.DurationText,
-                    playlist.ChapterCount))
-                .ToList(),
-            tracks);
-    }
-
-    private static BluRayDemuxBackend ParseBackend(string? value)
-    {
-        if (string.IsNullOrWhiteSpace(value))
-        {
-            return BluRayDemuxBackend.DgDemux;
-        }
-
-        return value.Trim().ToLowerInvariant() switch
-        {
-            "dgdemux" => BluRayDemuxBackend.DgDemux,
-            "eac3to" => BluRayDemuxBackend.Eac3To,
-            _ => throw new McpException($"Unknown backend '{value}'. Use dgdemux or eac3to.")
-        };
-    }
 }
 
 public sealed record VideoSourceInfoView(
@@ -151,22 +98,3 @@ public sealed record AudioSourceInfoView(
     int? BitDepth,
     double? DurationSeconds,
     bool IsLossless);
-
-public sealed record BluRayScanResultView(
-    string Backend,
-    IReadOnlyList<BluRayPlaylistView> Playlists,
-    IReadOnlyList<BluRayTrackView>? Tracks);
-
-public sealed record BluRayPlaylistView(
-    string Id,
-    string DisplayName,
-    string Summary,
-    string DurationText,
-    int? ChapterCount);
-
-public sealed record BluRayTrackView(
-    string Id,
-    string Kind,
-    string DisplayName,
-    string Detail,
-    string Language);

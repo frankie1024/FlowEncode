@@ -1,22 +1,20 @@
-using System.Text.Encodings.Web;
-using System.Text.Json;
 using FlowEncode.Mcp;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
-using ModelContextProtocol;
+
+if (args.Any(static arg => string.Equals(arg, "--check", StringComparison.OrdinalIgnoreCase)))
+{
+    // Installation check for users wiring up an MCP client: prints where the desktop app and
+    // the automation channel are, without speaking the MCP protocol.
+    return await SelfCheck.RunAsync();
+}
 
 var builder = Host.CreateApplicationBuilder(args);
 
 // stdout carries the MCP JSON-RPC stream, so every log line must go to stderr.
 builder.Logging.ClearProviders();
 builder.Logging.AddConsole(options => options.LogToStandardErrorThreshold = LogLevel.Trace);
-
-// Tool results carry Chinese paths and messages; keep them readable instead of \uXXXX-escaped.
-var toolSerializerOptions = new JsonSerializerOptions(McpJsonUtilities.DefaultOptions)
-{
-    Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping
-};
 
 builder.Services.AddFlowEncodeServices();
 builder.Services
@@ -30,6 +28,12 @@ builder.Services
         options.ServerInstructions = McpServerText.Instructions;
     })
     .WithStdioServerTransport()
-    .WithToolsFromAssembly(serializerOptions: toolSerializerOptions);
+    .WithToolsFromAssembly(serializerOptions: McpJson.Options)
+    .WithRequestFilters(filters => filters.AddCallToolFilter(next => async (context, cancellationToken) =>
+    {
+        context.Services?.GetService<WorkspaceRootSync>()?.Synchronize();
+        return await next(context, cancellationToken);
+    }));
 
 await builder.Build().RunAsync();
+return 0;
