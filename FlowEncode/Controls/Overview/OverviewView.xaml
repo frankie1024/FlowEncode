@@ -402,7 +402,7 @@
                                     <Grid Height="72">
                                         <Rectangle RadiusX="8" RadiusY="8" Fill="{ThemeResource QueueProgressAreaBrush}" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" RenderTransformOrigin="0,0.5">
                                             <Rectangle.RenderTransform>
-                                                <ScaleTransform ScaleX="0" shared:UiMotion.SmoothScaleX="{Binding SelectedJobProgressValue, FallbackValue=0}" />
+                                                <ScaleTransform ScaleX="{Binding SelectedJobProgressValue, FallbackValue=0}" />
                                             </Rectangle.RenderTransform>
                                         </Rectangle>
                                         <Border Margin="1" Background="{ThemeResource AppProgressOverlayBrush}" CornerRadius="{StaticResource AppCardCornerRadius}" />

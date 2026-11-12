@@ -22,7 +22,7 @@
                 <Grid Height="72">
                     <Rectangle RadiusX="8" RadiusY="8" Fill="{Binding ProgressFillBrush, ElementName=Root}" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" RenderTransformOrigin="0,0.5">
                         <Rectangle.RenderTransform>
-                            <ScaleTransform ScaleX="0" shared:UiMotion.SmoothScaleX="{Binding ProgressValue, ElementName=Root}" />
+                            <ScaleTransform ScaleX="{Binding ProgressValue, ElementName=Root}" />
                         </Rectangle.RenderTransform>
                     </Rectangle>
                     <Border Margin="1" Background="{ThemeResource AppProgressOverlayBrush}" CornerRadius="{StaticResource AppCardCornerRadius}" />
