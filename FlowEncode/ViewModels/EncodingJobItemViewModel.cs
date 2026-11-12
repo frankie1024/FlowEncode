@@ -410,6 +410,9 @@ public sealed class EncodingJobItemViewModel : ObservableObject
 
     public void ApplyProgress(EncodingJobProgress progress)
     {
+        if (progress.JobId != JobId || State is EncodingJobState.Completed or EncodingJobState.Failed or EncodingJobState.Cancelled)
+            return;
+
         if (_isCancellationRequested && progress.State == EncodingJobState.Running)
         {
             return;

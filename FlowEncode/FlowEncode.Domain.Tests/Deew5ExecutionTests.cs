@@ -11,6 +11,55 @@ namespace FlowEncode.Domain.Tests;
 public sealed class Deew5ExecutionTests
 {
     [TestMethod]
+    public async Task StageEstimate_UpdatesWithoutNewEventsResetsOnStageChangeAndClearsAtCompletion()
+    {
+        using var fixture = new Fixture();
+        var updates = new System.Collections.Concurrent.ConcurrentQueue<AudioProcessingProgress>();
+        var result = await fixture.Runner.RunAsync(fixture.Request(scenario: "stage-eta"),
+            new InlineProgress(updates.Enqueue));
+
+        Assert.AreEqual(EncodingJobState.Completed, result.State, result.Log);
+        var estimated = updates.FirstOrDefault(p => p.PhaseLabel == "ffmpeg" && p.Telemetry?.Remaining.HasValue == true);
+        Assert.IsNotNull(estimated, "A silent stage must gain an estimate after five seconds.");
+        Assert.AreEqual(.075, estimated.ProgressFraction!.Value, .000001);
+        Assert.IsNull(estimated.Telemetry!.SpeedMultiplier);
+        Assert.IsNull(estimated.Telemetry.BitrateKbps);
+        Assert.IsNull(estimated.Telemetry.EstimatedOutputBytes);
+        var measure = updates.Where(p => p.PhaseLabel == "measure").ToArray();
+        Assert.IsTrue(measure.Length > 0);
+        Assert.IsTrue(measure.All(p => p.Telemetry?.Remaining is null));
+        Assert.IsTrue(measure.Any(p => p.Telemetry?.DeewDb == -27));
+        Assert.IsNull(updates.Last().Telemetry);
+        Assert.AreEqual(result.Log, updates.Last().LogSnapshot);
+    }
+
+    [TestMethod]
+    public async Task LiveLogs_ForwardActualOutputWithoutLosingProgressOrTruncatingFinalLog()
+    {
+        using var fixture = new Fixture();
+        var updates = new System.Collections.Concurrent.ConcurrentQueue<AudioProcessingProgress>();
+        var result = await fixture.Runner.RunAsync(fixture.Request(scenario: "live-log"),
+            new InlineProgress(updates.Enqueue));
+
+        Assert.AreEqual(EncodingJobState.Completed, result.State, result.Log);
+        var live = updates.FirstOrDefault(p => p.State == EncodingJobState.Running
+            && p.LogSnapshot?.Contains("实际 stdout 输出") == true
+            && p.LogSnapshot.Contains("实际 stderr 输出"));
+        Assert.IsNotNull(live, result.Log + "\n" + JsonSerializer.Serialize(updates));
+        Assert.AreEqual(.725, live.ProgressFraction!.Value, .000001);
+        Assert.AreEqual("encode", live.PhaseLabel);
+        Assert.IsNull(live.Telemetry, "Unavailable deew metrics must not produce empty telemetry placeholders.");
+        StringAssert.Contains(live.LogSnapshot!, "输入摘要 0");
+        StringAssert.Contains(live.LogSnapshot!, "输入摘要 59");
+        StringAssert.Contains(live.DetailLine, "实际 stdout 输出");
+        Assert.IsFalse(live.LogSnapshot!.Contains('\u001b'));
+        StringAssert.Contains(result.Log, "warning: 测试诊断");
+        StringAssert.Contains(result.Log, "末尾未换行");
+        Assert.AreEqual(result.Log, updates.Last().LogSnapshot);
+        Assert.AreEqual(1.0, updates.Last().ProgressFraction);
+    }
+
+    [TestMethod]
     public async Task OutputCollision_PreflightsAllMediaBeforePublishingAnyFile()
     {
         using var fixture = new Fixture();

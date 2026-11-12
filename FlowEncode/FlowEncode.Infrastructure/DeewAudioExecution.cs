@@ -38,14 +38,51 @@ public sealed partial class CliAudioProcessingRunner
         var diagnostics = new List<string>();
         var outputs = new List<string>();
         var log = new StringBuilder();
+        var pendingLog = new StringBuilder();
         var gate = new object();
-        void Log(string line) { lock (gate) log.AppendLine(line); }
+        double? currentFraction = null;
+        var currentStage = "starting";
+        var hasStageEvent = false;
+        double? currentDb = null;
+        var currentDbSource = DeewDbSource.Unknown;
+        DeewEventsReader? reader = null;
+        AudioProcessingTelemetry? currentTelemetry = null;
+        var progressPending = true;
+        void Log(string line)
+        {
+            lock (gate)
+            {
+                log.AppendLine(line);
+                pendingLog.AppendLine(line);
+                progressPending = true;
+            }
+        }
+        void PublishProgress()
+        {
+            lock (gate)
+            {
+                var remaining = reader?.Remaining;
+                AudioProcessingTelemetry? telemetry = currentDb.HasValue || remaining.HasValue
+                    ? new(null, null, remaining, null, currentDb, currentDbSource)
+                    : null;
+                if (telemetry != currentTelemetry)
+                {
+                    currentTelemetry = telemetry;
+                    progressPending = true;
+                }
+                if (!progressPending) return;
+                progressPending = false;
+                var detail = pendingLog.ToString().TrimEnd();
+                pendingLog.Clear();
+                progress?.Report(new(request.JobId, EncodingJobState.Running, currentFraction,
+                    "deew: " + currentStage, detail, currentTelemetry, hasStageEvent ? currentStage : null, log.ToString()));
+            }
+        }
         var state = EncodingJobState.Failed;
         var exit = -1;
         var summary = "deew failed";
         var preserveStaging = false;
         var mediaMigrationFailed = false;
-        DeewEventsReader? reader = null;
         DeewConfigLease? lease = null;
         string? retainedTemp = null;
         string? externalTemp = null;
@@ -106,13 +143,22 @@ public sealed partial class CliAudioProcessingRunner
                 options = options with { TrackIndex = null };
             }
             reader = new DeewEventsReader(profile, Log, (fraction, stage, db, origin) =>
-                progress?.Report(new(request.JobId, EncodingJobState.Running, fraction,
-                    "deew: " + stage, "deew: " + stage, new(null, null, null, null, db, origin), stage)));
+            {
+                lock (gate)
+                {
+                    currentFraction = fraction;
+                    currentStage = stage;
+                    hasStageEvent = true;
+                    currentDb = db;
+                    currentDbSource = origin;
+                    progressPending = true;
+                }
+            });
             var info = DeewToolchain.StartInfo(deew, ffmpeg, ffprobe);
             foreach (var arg in DeewArguments.Build(input, staging, options)) info.ArgumentList.Add(arg);
             info.Environment["DEEW_EVENTS_FILE"] = eventsPath;
-            progress?.Report(new(request.JobId, EncodingJobState.Running, null, "deew: starting", "deew: starting"));
-            exit = await ExecuteDeewAsync(request.JobId, info, eventsPath, reader, Log, token);
+            PublishProgress();
+            exit = await ExecuteDeewAsync(request.JobId, info, eventsPath, reader, Log, PublishProgress, token);
             if (token.IsCancellationRequested || _abortedDeew.ContainsKey(request.JobId) || exit == 130) state = EncodingJobState.Cancelled;
             else if (exit != 0 || reader.Error is not null) summary = reader.Error ?? $"deew exited {exit}.";
             else if (options.MeasureOnly)
@@ -187,14 +233,15 @@ public sealed partial class CliAudioProcessingRunner
             if (lease?.RestorationError is string restorationError) { Log(restorationError); summary += " Config restoration requires attention: " + restorationError; }
             _abortedDeew.TryRemove(request.JobId, out _);
         }
-        progress?.Report(new(request.JobId, state, state == EncodingJobState.Completed ? 1 : null, summary, summary));
+        progress?.Report(new(request.JobId, state, state == EncodingJobState.Completed ? 1 : null, summary, string.Empty,
+            LogSnapshot: log.ToString()));
         return new(request.JobId, state, exit, summary, log.ToString(), command, outputs, diagnostics, retainedTemp,
             reader is not null && (options.MeasureOnly || options.Format == "ac4" && options.Dialnorm is not null and not 0) ? reader.Db : null,
             options.Dialnorm is not null and not 0 ? options.Dialnorm : null);
     }
 
     private async Task<int> ExecuteDeewAsync(Guid jobId, ProcessStartInfo info, string eventsPath,
-        DeewEventsReader reader, Action<string> log, CancellationToken token)
+        DeewEventsReader reader, Action<string> log, Action publishProgress, CancellationToken token)
     {
         using var process = new Process { StartInfo = info };
         token.ThrowIfCancellationRequested();
@@ -212,6 +259,7 @@ public sealed partial class CliAudioProcessingRunner
                 while (!stopPolling.IsCancellationRequested)
                 {
                     await reader.ReadAvailableAsync(eventsPath, false, stopPolling.Token);
+                    publishProgress();
                     await Task.Delay(200, stopPolling.Token);
                 }
             }
@@ -220,19 +268,24 @@ public sealed partial class CliAudioProcessingRunner
         try
         {
             // Cancellation terminates the process tree, then we still drain streams and the event tail.
-            await process.WaitForExitAsync(CancellationToken.None);
-            await Task.WhenAll(stdout, stderr).WaitAsync(TimeSpan.FromSeconds(10));
+            await ProcessExecutionMonitor.WaitForExitAsync(process, CancellationToken.None, stdout, stderr, polling);
+            execution.Terminate();
+            await ProcessExecutionMonitor.DrainAsync(CancellationToken.None, stdout, stderr);
             return process.ExitCode;
         }
         finally
         {
             if (!process.HasExited) execution.Terminate();
             stopPolling.Cancel();
-            await polling;
-            using var tailDeadline = new CancellationTokenSource(TimeSpan.FromSeconds(5));
-            try { await reader.ReadAvailableAsync(eventsPath, true, tailDeadline.Token); }
-            catch (OperationCanceledException) { log("deew event tail read timed out."); }
-            _activeExecutions.TryRemove(jobId, out _);
+            try
+            {
+                await polling;
+                using var tailDeadline = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+                try { await reader.ReadAvailableAsync(eventsPath, true, tailDeadline.Token); }
+                catch (OperationCanceledException) { log("deew event tail read timed out."); }
+                publishProgress();
+            }
+            finally { _activeExecutions.TryRemove(jobId, out _); }
         }
     }
 }

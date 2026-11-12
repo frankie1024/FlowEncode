@@ -10,7 +10,6 @@ internal enum PipelineFirstCompletion
 {
     ProducerExited,
     ConsumerExited,
-    PipeCompleted,
     PipeBroken
 }
 
@@ -43,18 +42,21 @@ internal static class ProcessPipelineMonitor
             consumerExitTask,
             pipeCopyTask);
 
+        if (ReferenceEquals(firstCompletedTask, pipeCopyTask))
+        {
+            if (await pipeCopyTask == PipeCopyCompletion.BrokenPipe)
+                return PipelineFirstCompletion.PipeBroken;
+
+            // EOF can arrive before the producer's failing exit is observed. Keep
+            // watching both processes so the caller can terminate a waiting encoder.
+            firstCompletedTask = await Task.WhenAny(producerExitTask, consumerExitTask);
+        }
+
         if (ReferenceEquals(firstCompletedTask, producerExitTask))
         {
             return PipelineFirstCompletion.ProducerExited;
         }
 
-        if (ReferenceEquals(firstCompletedTask, consumerExitTask))
-        {
-            return PipelineFirstCompletion.ConsumerExited;
-        }
-
-        return await pipeCopyTask == PipeCopyCompletion.BrokenPipe
-            ? PipelineFirstCompletion.PipeBroken
-            : PipelineFirstCompletion.PipeCompleted;
+        return PipelineFirstCompletion.ConsumerExited;
     }
 }

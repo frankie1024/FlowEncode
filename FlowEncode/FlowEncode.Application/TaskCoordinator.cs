@@ -160,8 +160,11 @@ public sealed class TaskCoordinator
         try
         {
             entry.Cancellation.Token.ThrowIfCancellationRequested();
+            ValidateExecutionInput(entry.Workload);
             if (entry.Preflight is not null) await entry.Preflight(entry.Cancellation.Token).ConfigureAwait(false);
             (result, outcome) = await entry.Work!().ConfigureAwait(false);
+            if (IsActive(outcome.State))
+                throw new InvalidOperationException("The task runner returned without a terminal result. / 任务执行器结束时未返回终态。");
         }
         catch (OperationCanceledException) when (entry.Cancellation.IsCancellationRequested)
         { failure = new OperationCanceledException(entry.Cancellation.Token); outcome = new(EncodingJobState.Cancelled, "Cancelled", "", []); }
@@ -204,6 +207,19 @@ public sealed class TaskCoordinator
         }
         if (request.ProducesMedia && !request.OverwriteOutput && (File.Exists(output) || request.OutputIsDirectory && Directory.Exists(output) && Directory.EnumerateFileSystemEntries(output).Any()))
             throw new IOException("The output already exists. Choose another output or explicitly enable overwrite.");
+    }
+
+    private static void ValidateExecutionInput(TaskWorkload request)
+    {
+        if (request.Kind == TaskKind.BluRay)
+        {
+            if (!Directory.Exists(request.SourcePath))
+                throw new DirectoryNotFoundException($"Source directory not found / 未找到输入目录：{request.SourcePath}");
+            if (!File.Exists(request.BluRay!.Playlist.SourcePath))
+                throw new FileNotFoundException("Blu-ray playlist not found / 未找到蓝光播放列表。", request.BluRay.Playlist.SourcePath);
+        }
+        else if (!File.Exists(request.SourcePath))
+            throw new FileNotFoundException($"Source file not found / 未找到输入文件：{request.SourcePath}", request.SourcePath);
     }
 
     private static bool IsChild(string path, string directory) => path.StartsWith(directory + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase);

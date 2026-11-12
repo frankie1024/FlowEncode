@@ -1,9 +1,25 @@
 using System.Text.Json;
 using System.Text.RegularExpressions;
 
+Console.OutputEncoding = new System.Text.UTF8Encoding(false);
+
 // A real child process for lifecycle tests, independent of licensed external tools.
 var tool = Path.GetFileNameWithoutExtension(Environment.ProcessPath!);
 string? Option(string name) { var i = Array.IndexOf(args, name); return i >= 0 && i + 1 < args.Length ? args[i + 1] : null; }
+var businessScenarioPath = Path.Combine(AppContext.BaseDirectory, "business-scenario.txt");
+var businessScenario = File.Exists(businessScenarioPath) ? File.ReadAllText(businessScenarioPath).Trim() : null;
+if (businessScenario is not null)
+{
+    await File.AppendAllTextAsync(Path.Combine(AppContext.BaseDirectory, tool + "-calls.log"), string.Join(" ", args) + "\n");
+    if (businessScenario == "probe-hang" && tool == "av1an")
+    {
+        await File.WriteAllTextAsync(Path.Combine(AppContext.BaseDirectory, "probe-pid.txt"), Environment.ProcessId.ToString());
+        await Task.Delay(TimeSpan.FromMinutes(1));
+        return 0;
+    }
+}
+if (tool is "vspipe" or "x264")
+    await File.AppendAllTextAsync(Path.Combine(AppContext.BaseDirectory, tool + "-calls.log"), string.Join(" ", args) + "\n");
 if (tool == "python" && args.Contains("-c"))
 {
     await File.AppendAllTextAsync(Path.Combine(AppContext.BaseDirectory, "python-probes.log"), "probe\n");
@@ -14,6 +30,55 @@ if (args.Contains("--hold-child")) { await Task.Delay(TimeSpan.FromMinutes(1)); 
 if (args.Contains("--version") || args.Contains("-version") || args.Contains("--help"))
 {
     Console.WriteLine(tool.StartsWith("deew") ? "deew 5.1.0" : tool.StartsWith("dee_") ? "Dolby Encoding Engine version 6.7.0+test" : tool + " version 1.0.0");
+    return 0;
+}
+if (tool == "vspipe" && args.Contains("--info"))
+{
+    using var script = JsonDocument.Parse(await File.ReadAllTextAsync(args[^1]));
+    var mediaPath = script.RootElement.GetProperty("source").GetString()!;
+    if (!File.Exists(mediaPath))
+    {
+        Console.Error.WriteLine("Script evaluation failed:");
+        Console.Error.WriteLine("Traceback (most recent call last):");
+        Console.Error.WriteLine($"FileNotFoundError: Source file does not exist: {mediaPath}");
+        return 1;
+    }
+    Console.WriteLine("Width: 16\nHeight: 16\nFrames: 24\nFormat Name: YUV420P8\nBits: 8\nFPS: 24/1");
+    return 0;
+}
+if (tool == "x264") return 0;
+if (businessScenario is not null && tool == "ffprobe")
+{
+    var isVideoCheck = Option("-of") == "csv=p=0";
+    Console.WriteLine(isVideoCheck ? businessScenario == "broken-output" ? "" : "video"
+        : "{\"streams\":[{\"codec_name\":\"pcm_s24le\",\"channels\":2,\"channel_layout\":\"stereo\",\"sample_rate\":\"48000\"}]}");
+    return 0;
+}
+if (businessScenario is not null && tool == "av1an")
+{
+    void Emit(string type) => Console.WriteLine(JsonSerializer.Serialize(new { type, ts = DateTimeOffset.UtcNow, message = "test backend failure" }));
+    if (businessScenario is "failure-then-complete" or "cancel-then-complete")
+        Emit(businessScenario == "failure-then-complete" ? "run_failed" : "run_cancelled");
+    var outputFile = Option("-o")!;
+    if (businessScenario != "no-output")
+    {
+        Directory.CreateDirectory(Path.GetDirectoryName(outputFile)!);
+        await File.WriteAllTextAsync(outputFile, businessScenario == "empty-output" ? "" : "encoded video");
+    }
+    Emit("run_completed");
+    if (businessScenario == "complete-then-failure") Emit("run_failed");
+    return 0;
+}
+if (businessScenario is not null && tool is "dgdemux" or "eac3to")
+{
+    var outputFile = tool == "dgdemux" ? Option("-o") + ".264"
+        : args.First(a => a.Contains(".flowencode-temp", StringComparison.OrdinalIgnoreCase)).Replace(".*", ".264");
+    if (businessScenario != "no-output")
+    {
+        Directory.CreateDirectory(Path.GetDirectoryName(outputFile)!);
+        await File.WriteAllTextAsync(outputFile, businessScenario == "empty-output" ? "" : "extracted media");
+    }
+    Console.WriteLine(tool == "dgdemux" ? "Done!" : "Done.");
     return 0;
 }
 if (args.Contains("-gc"))
@@ -49,6 +114,26 @@ async Task Event(object value) => await File.AppendAllTextAsync(events, JsonSeri
 await Event(new { type = "hello", version = "5.1.0" });
 await Event(new { type = "progress", job = 0, stage = "starting", percent = (double?)null, db = (double?)null });
 await Event(new { type = "warning", text = "测试诊断" });
+if (scenario == "live-log")
+{
+    await Event(new { type = "progress", job = 0, stage = "encode", percent = 50, db = (double?)null });
+    for (var line = 0; line < 60; line++) Console.WriteLine($"输入摘要 {line}");
+    Console.WriteLine("\u001b[32m实际 stdout 输出\u001b[0m");
+    Console.Error.WriteLine("实际 stderr 输出");
+    Console.Out.Flush(); Console.Error.Flush();
+    await Task.Delay(800);
+    Console.Write("末尾未换行"); Console.Out.Flush();
+}
+if (scenario == "stage-eta")
+{
+    await Event(new { type = "progress", job = 0, stage = "ffmpeg", percent = 50, db = (double?)null });
+    // No more progress events: the host must still update the estimate on its polling timer.
+    await Task.Delay(5800);
+    await Event(new { type = "progress", job = 0, stage = "measure", percent = 0, db = (double?)null });
+    await Task.Delay(300);
+    await Event(new { type = "progress", job = 0, stage = "measure", percent = 50, db = -27 });
+    await Task.Delay(300);
+}
 var output = Option("-o")!;
 // Deliberately honor the upstream to_input priority to catch a missing lease override.
 if (Regex.IsMatch(config, @"(?m)^\s*to_input\s*=\s*true")) output = Path.GetDirectoryName(sourcePath)!;

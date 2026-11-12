@@ -54,6 +54,7 @@ internal static class ProcessProbeRunner
         {
             throw new InvalidOperationException($"Failed to start process: {startInfo.FileName}");
         }
+        using var execution = new ManagedProcessExecution(process);
 
         var outputTask = process.StandardOutput.ReadToEndAsync();
         var errorTask = standardErrorLineNormalizer is null && standardErrorProgress is null
@@ -65,14 +66,16 @@ internal static class ProcessProbeRunner
 
         try
         {
-            await WaitForExitOrTerminateAsync(process, timeout, timeoutMessage, cancellationToken).ConfigureAwait(false);
+            await WaitForExitOrTerminateAsync(process, timeout, timeoutMessage, cancellationToken, outputTask, errorTask).ConfigureAwait(false);
         }
         catch
         {
+            execution.Terminate();
             await TryObserveOutputTasksAsync(startInfo.FileName, outputTask, errorTask).ConfigureAwait(false);
             throw;
         }
 
+        execution.Terminate();
         await AwaitOutputTasksAsync(startInfo.FileName, outputTask, errorTask).ConfigureAwait(false);
         return new ProcessProbeResult(outputTask.Result, errorTask.Result, process.ExitCode);
     }
@@ -108,14 +111,15 @@ internal static class ProcessProbeRunner
         Process process,
         TimeSpan timeout,
         string timeoutMessage,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        params Task[] readers)
     {
         using var timeoutCts = new CancellationTokenSource(timeout);
         using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, timeoutCts.Token);
 
         try
         {
-            await process.WaitForExitAsync(linkedCts.Token).ConfigureAwait(false);
+            await ProcessExecutionMonitor.WaitForExitAsync(process, linkedCts.Token, readers).ConfigureAwait(false);
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {

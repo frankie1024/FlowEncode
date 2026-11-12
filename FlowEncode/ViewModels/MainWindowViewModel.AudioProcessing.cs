@@ -340,14 +340,11 @@ public partial class MainWindowViewModel
     internal string AudioProcessingProgressSecondaryText =>
         _audioProcessingTelemetry is not null
             ? Texts.AudioProcessingTelemetrySummary(_audioProcessingTelemetry)
+            : (_activeAudioProcessingMode ?? SelectedAudioWorkflow?.Value) == AudioProcessingMode.Ddp
+                ? string.Empty
             : !string.IsNullOrWhiteSpace(_audioProcessingPhaseLabel)
                 ? _audioProcessingPhaseLabel
-            : _isAudioProcessingRunning
-                && AudioProcessingProgressIsIndeterminate
-                && (_activeAudioProcessingMode ?? SelectedAudioWorkflow?.Value) == AudioProcessingMode.Ddp
-                    && string.Equals(AudioProcessingStatusText, Texts.AudioProcessingDdpWarmupHint, StringComparison.Ordinal)
-                        ? Texts.AudioProcessingDdpWarmupHint
-                    : string.Empty;
+                : string.Empty;
 
     internal Visibility AudioProcessingProgressSecondaryVisibility =>
         string.IsNullOrWhiteSpace(AudioProcessingProgressSecondaryText)
@@ -552,7 +549,11 @@ public partial class MainWindowViewModel
         OnPropertyChanged(nameof(CanOpenAudioDiagnostics));
         OnPropertyChanged(nameof(CanOpenAudioRetained));
 
-        if (string.IsNullOrWhiteSpace(AudioProcessingLog))
+        if (_activeAudioProcessingMode == AudioProcessingMode.Ddp)
+        {
+            AudioProcessingLog = result.Log;
+        }
+        else if (string.IsNullOrWhiteSpace(AudioProcessingLog))
         {
             AudioProcessingLog = LastMeaningfulAudioProcessingLine(result.Log, result.Summary);
         }
@@ -1458,6 +1459,11 @@ public partial class MainWindowViewModel
     private void ApplyAudioProcessingLogUpdate(AudioProcessingProgress progress)
     {
         var activeMode = _activeAudioProcessingMode ?? SelectedAudioWorkflow?.Value;
+        if (activeMode == AudioProcessingMode.Ddp)
+        {
+            if (progress.LogSnapshot is not null) AudioProcessingLog = progress.LogSnapshot;
+            return;
+        }
         if (!UsesCompactAudioProcessingLog(activeMode))
         {
             ReplaceAudioProcessingLogLine(progress.DetailLine);
@@ -1470,6 +1476,7 @@ public partial class MainWindowViewModel
     private void ApplyFinalAudioProcessingLogLine(string line)
     {
         var activeMode = _activeAudioProcessingMode ?? SelectedAudioWorkflow?.Value;
+        if (activeMode == AudioProcessingMode.Ddp) return;
         if (!UsesCompactAudioProcessingLog(activeMode))
         {
             ReplaceAudioProcessingLogLine(line);
@@ -1481,7 +1488,9 @@ public partial class MainWindowViewModel
 
     private void ApplyAudioProcessingFailureLog(string log, string fallback)
     {
-        AudioProcessingLog = BuildAudioProcessingFailureLog(log, fallback);
+        AudioProcessingLog = _activeAudioProcessingMode == AudioProcessingMode.Ddp
+            ? (string.IsNullOrWhiteSpace(log) ? fallback : log)
+            : BuildAudioProcessingFailureLog(log, fallback);
     }
 
     private void ReplaceCompactAudioProcessingLog(string? phaseLabel, string line)

@@ -47,7 +47,7 @@ public abstract class CliBluRayDemuxBackendAdapterBase : IBluRayDemuxBackendAdap
     protected async Task<string> ResolveToolPathAsync(RegisteredToolKind kind, CancellationToken cancellationToken)
     {
         var result = await _toolProbeService.ProbeAsync(kind, cancellationToken);
-        if (result.IsReady && !string.IsNullOrWhiteSpace(result.ExecutablePath))
+        if (result.IsReady && File.Exists(result.ExecutablePath))
         {
             return result.ExecutablePath;
         }
@@ -76,37 +76,36 @@ public abstract class CliBluRayDemuxBackendAdapterBase : IBluRayDemuxBackendAdap
 
     protected async Task<ProcessCaptureResult> CaptureProcessAsync(ProcessStartInfo startInfo, CancellationToken cancellationToken)
     {
-        var outputBuilder = new StringBuilder();
+        var result = await ProcessProbeRunner.RunAsync(startInfo, TimeSpan.FromMinutes(2),
+            "Blu-ray scan timed out / 蓝光扫描超时。", cancellationToken);
+        return new ProcessCaptureResult(result.ExitCode,
+            $"{result.StandardOutput}{Environment.NewLine}{result.StandardError}".Trim());
+    }
 
-        using var process = new Process
-        {
-            StartInfo = startInfo
-        };
+    protected static void ValidateInput(BluRayDemuxRequest request)
+    {
+        if (!Directory.Exists(request.DiscPath))
+            throw new DirectoryNotFoundException($"Blu-ray source directory not found / 未找到蓝光源目录：{request.DiscPath}");
+        if (!File.Exists(request.Playlist.SourcePath))
+            throw new FileNotFoundException("Blu-ray playlist not found / 未找到蓝光播放列表。", request.Playlist.SourcePath);
+        if (request.Selections.Count == 0 || request.Selections.Any(s => string.IsNullOrWhiteSpace(s.Track.DemuxToken)))
+            throw new ArgumentException("Select valid tracks to demux / 请选择有效的解复用轨道。");
+    }
 
-        process.Start();
-        using var execution = new ManagedProcessExecution(process);
-        using var registration = cancellationToken.Register(static state =>
+    protected static IReadOnlyList<string> ValidateStagedOutputs(BluRayDemuxRequest request, string stagedDirectory)
+    {
+        var files = Directory.GetFiles(stagedDirectory, "*", SearchOption.AllDirectories)
+            .Where(p => new FileInfo(p).Length > 0 && Path.GetExtension(p).ToLowerInvariant() is not (".log" or ".html" or ".json"))
+            .ToArray();
+        foreach (var selection in request.Selections)
         {
-            if (state is ManagedProcessExecution activeExecution)
-            {
-                activeExecution.Terminate();
-            }
-        }, execution);
-        var stdOutTask = ReadLinesAsync(process.StandardOutput, outputBuilder, null, cancellationToken);
-        var stdErrTask = ReadLinesAsync(process.StandardError, outputBuilder, null, cancellationToken);
-
-        try
-        {
-            await process.WaitForExitAsync(cancellationToken);
-            await Task.WhenAll(stdOutTask, stdErrTask);
+            var pattern = Path.GetFileName(selection.OutputPath);
+            if (!files.Any(p => System.IO.Enumeration.FileSystemName.MatchesSimpleExpression(pattern, Path.GetFileName(p), ignoreCase: true)))
+                throw new InvalidOperationException($"No non-empty output for the selected track / 选中轨道未生成有效产物：{selection.Track.DisplayName}");
         }
-        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
-        {
-            execution.Terminate();
-            throw;
-        }
-
-        return new ProcessCaptureResult(process.ExitCode, outputBuilder.ToString().Trim());
+        if (files.Length < request.Selections.Select(s => s.Track.DemuxToken).Distinct().Count())
+            throw new InvalidOperationException("Some selected tracks produced no output / 部分选中轨道未生成有效产物。");
+        return files.Select(p => Path.Combine(request.OutputDirectory, Path.GetRelativePath(stagedDirectory, p))).ToArray();
     }
 
     protected async Task<BluRayDemuxResult> RunProcessAsync(
@@ -135,13 +134,9 @@ public abstract class CliBluRayDemuxBackendAdapterBase : IBluRayDemuxBackendAdap
                 return;
             }
 
-            if (logBuilder.Length < MaxLogLength)
-            {
-                logBuilder.AppendLine(line);
-            }
-
             lock (gate)
             {
+                if (logBuilder.Length < MaxLogLength) logBuilder.AppendLine(line);
                 lastDetailLine = line;
                 var parsedProgress = progressParser(line);
                 if (parsedProgress.HasValue)
@@ -194,9 +189,9 @@ public abstract class CliBluRayDemuxBackendAdapterBase : IBluRayDemuxBackendAdap
             pumpOutput = ReadLinesAsync(process.StandardOutput, null, HandleLine, cancellationToken);
             pumpError = ReadLinesAsync(process.StandardError, null, HandleLine, cancellationToken);
 
-            await process.WaitForExitAsync(cancellationToken);
+            await ProcessExecutionMonitor.WaitForExitAsync(process, cancellationToken, pumpOutput, pumpError);
             activeExecution.Terminate();
-            await Task.WhenAll(pumpOutput, pumpError);
+            await ProcessExecutionMonitor.DrainAsync(cancellationToken, pumpOutput, pumpError);
             hasExitCode = TryGetExitCode(process, out exitCode);
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
@@ -205,7 +200,7 @@ public abstract class CliBluRayDemuxBackendAdapterBase : IBluRayDemuxBackendAdap
 
             try
             {
-                await Task.WhenAll(pumpOutput, pumpError);
+                await ProcessExecutionMonitor.DrainAsync(CancellationToken.None, pumpOutput, pumpError);
             }
             catch (OperationCanceledException)
             {
@@ -246,17 +241,9 @@ public abstract class CliBluRayDemuxBackendAdapterBase : IBluRayDemuxBackendAdap
 
         var log = logBuilder.ToString().Trim();
         var lastMeaningfulLine = GetLastMeaningfulLine(log);
-        var reportedSuccess = HasSuccessfulTerminalLine(log, successLineDetector);
-
-        if ((hasExitCode && exitCode == 0) || (!hasExitCode && reportedSuccess))
+        if (hasExitCode && exitCode == 0)
         {
-            progress?.Report(new BluRayDemuxProgress(
-                request.JobId,
-                EncodingJobState.Completed,
-                1.0,
-                completedSummary,
-                lastMeaningfulLine));
-
+            // The adapter validates and publishes staged files before reporting completion.
             return new BluRayDemuxResult(
                 request.JobId,
                 EncodingJobState.Completed,

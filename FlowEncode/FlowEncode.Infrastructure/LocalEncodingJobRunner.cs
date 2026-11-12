@@ -61,6 +61,23 @@ public sealed class LocalEncodingJobRunner : IEncodingJobRunner
         _parallelVideoAv1anRunner.Abort(jobId);
     }
 
+    public Task ValidateSourceAsync(
+        string sourcePath,
+        IProgress<string>? progress = null,
+        CancellationToken cancellationToken = default)
+    {
+        return Task.Run(() =>
+        {
+            var pipelineKind = InputSourceSupport.ResolvePipelineKind(sourcePath);
+            // Scripts can depend on files that changed without changing the script itself.
+            var sourceInfo = _sourceInfoProbe.Probe(sourcePath, pipelineKind,
+                line => progress?.Report(line), cancellationToken, allowCached: false);
+            if (sourceInfo is null && pipelineKind != InputPipelineKind.RawYuvFile)
+                throw new InvalidOperationException(T(GetLanguage(),
+                    "No usable source video information was found.", "未找到可用的源视频信息。"));
+        }, cancellationToken);
+    }
+
     internal string BuildValidatedDisplayCommand(EncodingJobRequest request, CancellationToken token)
     {
         RequestValidation.ValidateEncodingJobRequest(request);
@@ -161,6 +178,10 @@ public sealed class LocalEncodingJobRunner : IEncodingJobRunner
 
         try
         {
+            RequestValidation.ValidateEncodingJobRequest(request);
+            if (!File.Exists(request.SourcePath))
+                throw new FileNotFoundException(T(language, "Encoding source file was not found.", "未找到压制输入源文件。"), request.SourcePath);
+
             if (pipelineKind == InputPipelineKind.VapourSynth)
             {
                 progress?.Report(new EncodingJobProgress(
@@ -386,12 +407,12 @@ public sealed class LocalEncodingJobRunner : IEncodingJobRunner
                 var sourceExitCodeShouldBeIgnored = false;
                 if (sourceProcess is null)
                 {
-                    await process.WaitForExitAsync(cancellationToken);
+                    await ProcessExecutionMonitor.WaitForExitAsync(process, cancellationToken, pumpOutput, pumpError);
                 }
                 else
                 {
-                    var encoderExitTask = process.WaitForExitAsync(cancellationToken);
-                    var sourceExitTask = sourceProcess.WaitForExitAsync(cancellationToken);
+                    var encoderExitTask = ProcessExecutionMonitor.WaitForExitAsync(process, cancellationToken, pumpOutput, pumpError);
+                    var sourceExitTask = ProcessExecutionMonitor.WaitForExitAsync(sourceProcess, cancellationToken, pumpSourceError);
                     var pipeCopyTask = ProcessPipelineMonitor.ObservePipeCopyAsync(copySourceToEncoder);
                     var ignoreSourceExitCode = false;
                     var firstCompletion = await ProcessPipelineMonitor.WaitForFirstCompletionAsync(
@@ -409,12 +430,12 @@ public sealed class LocalEncodingJobRunner : IEncodingJobRunner
                     }
                     else if (firstCompletion == PipelineFirstCompletion.ConsumerExited)
                     {
-                        ignoreSourceExitCode = true;
+                        ignoreSourceExitCode = !sourceProcess.HasExited;
                         TryTerminateProcess(sourceProcess);
                     }
                     else if (firstCompletion == PipelineFirstCompletion.PipeBroken)
                     {
-                        ignoreSourceExitCode = true;
+                        ignoreSourceExitCode = !sourceProcess.HasExited;
                         TryTerminateProcess(sourceProcess);
                     }
 
@@ -427,7 +448,7 @@ public sealed class LocalEncodingJobRunner : IEncodingJobRunner
                 }
 
                 activeExecution.Terminate();
-                await Task.WhenAll(pumpOutput, pumpError, pumpSourceError);
+                await ProcessExecutionMonitor.DrainAsync(cancellationToken, pumpOutput, pumpError, pumpSourceError);
                 var exitCode = process.ExitCode;
                 var sourceExitCode = sourceProcess?.ExitCode;
                 if (sourceExitCodeShouldBeIgnored)
@@ -525,11 +546,11 @@ public sealed class LocalEncodingJobRunner : IEncodingJobRunner
 
             try
             {
-                await Task.WhenAll(ProcessPipelineMonitor.ObservePipeCopyAsync(copySourceToEncoder), pumpOutput, pumpError, pumpSourceError);
+                await ProcessExecutionMonitor.DrainAsync(CancellationToken.None, ProcessPipelineMonitor.ObservePipeCopyAsync(copySourceToEncoder), pumpOutput, pumpError, pumpSourceError);
             }
-            catch (OperationCanceledException)
+            catch (Exception drainError)
             {
-                // Expected while draining cancelled process output.
+                WriteDiagnostic($"Cancelled encoding output drain: {drainError.Message}");
             }
 
             await CloseRawLogWriterAsync();
@@ -544,6 +565,13 @@ public sealed class LocalEncodingJobRunner : IEncodingJobRunner
         }
         catch (Exception ex)
         {
+            activeExecution?.Terminate();
+            try
+            {
+                await ProcessExecutionMonitor.DrainAsync(CancellationToken.None,
+                    ProcessPipelineMonitor.ObservePipeCopyAsync(copySourceToEncoder), pumpOutput, pumpError, pumpSourceError);
+            }
+            catch (Exception drainError) { WriteDiagnostic($"Encoding output drain failed: {drainError.Message}"); }
             currentState = EncodingJobState.Failed;
             visibleLogBuilder.AppendLine(ex.Message);
             if (!rawLogWriterClosed) rawLogWriter.WriteLine(ex.Message);

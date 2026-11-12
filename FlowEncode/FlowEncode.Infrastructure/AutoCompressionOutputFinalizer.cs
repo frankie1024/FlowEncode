@@ -26,6 +26,12 @@ internal static class AutoCompressionOutputFinalizer
             return false;
         }
 
+        if (new FileInfo(stagedOutputPath).Length == 0)
+        {
+            failureSummary = $"Auto encode produced an empty output file / 自动压制生成了空文件：{finalOutputPath}";
+            return false;
+        }
+
         var failure = ExecutionOutputStaging.FinalizeFileOrPreserve(stagedOutputPath, finalOutputPath, jobId, overwrite, writeDiagnostic);
         if (failure is not null)
         {

@@ -568,8 +568,9 @@ public sealed partial class CliAudioProcessingRunner : IAudioProcessingRunner
                 pumpSupplementalProgress = PumpProgressFileAsync(process, supplementalProgressFilePath, handleLine);
             }
 
-            await process.WaitForExitAsync(cancellationToken);
-            await Task.WhenAll(pumpOutput, pumpError, pumpSupplementalProgress);
+            await ProcessExecutionMonitor.WaitForExitAsync(process, cancellationToken, pumpOutput, pumpError, pumpSupplementalProgress);
+            activeExecution.Terminate();
+            await ProcessExecutionMonitor.DrainAsync(cancellationToken, pumpOutput, pumpError, pumpSupplementalProgress);
 
             return new ProcessExecutionResult(process.ExitCode);
         }
@@ -579,7 +580,7 @@ public sealed partial class CliAudioProcessingRunner : IAudioProcessingRunner
 
             try
             {
-                await Task.WhenAll(pumpOutput, pumpError, pumpSupplementalProgress);
+                await ProcessExecutionMonitor.DrainAsync(CancellationToken.None, pumpOutput, pumpError, pumpSupplementalProgress);
             }
             catch (Exception ex)
             {
@@ -678,8 +679,8 @@ public sealed partial class CliAudioProcessingRunner : IAudioProcessingRunner
                 pumpSupplementalProgress = PumpProgressFileAsync(ffmpegProcess, supplementalProgressFilePath, handleLine);
             }
 
-            var ffmpegExitTask = ffmpegProcess.WaitForExitAsync(cancellationToken);
-            var opusExitTask = opusProcess.WaitForExitAsync(cancellationToken);
+            var ffmpegExitTask = ProcessExecutionMonitor.WaitForExitAsync(ffmpegProcess, cancellationToken, pumpFfmpegError, pumpSupplementalProgress);
+            var opusExitTask = ProcessExecutionMonitor.WaitForExitAsync(opusProcess, cancellationToken, pumpOpusOutput, pumpOpusError);
             var pipeCopyTask = ProcessPipelineMonitor.ObservePipeCopyAsync(copyPcmToOpus);
             var ffmpegExitCodeShouldBeIgnored = false;
             var firstCompletion = await ProcessPipelineMonitor.WaitForFirstCompletionAsync(
@@ -704,13 +705,13 @@ public sealed partial class CliAudioProcessingRunner : IAudioProcessingRunner
                 }
                 else
                 {
-                    ffmpegExitCodeShouldBeIgnored = true;
+                    ffmpegExitCodeShouldBeIgnored = !ffmpegProcess.HasExited;
                     TryTerminate(ffmpegProcess);
                 }
             }
             else if (firstCompletion == PipelineFirstCompletion.PipeBroken)
             {
-                ffmpegExitCodeShouldBeIgnored = true;
+                ffmpegExitCodeShouldBeIgnored = !ffmpegProcess.HasExited;
                 TryTerminate(ffmpegProcess);
             }
 
@@ -718,7 +719,8 @@ public sealed partial class CliAudioProcessingRunner : IAudioProcessingRunner
                 ffmpegExitTask,
                 opusExitTask,
                 pipeCopyTask);
-            await Task.WhenAll(pumpFfmpegError, pumpOpusOutput, pumpOpusError, pumpSupplementalProgress);
+            activeExecution.Terminate();
+            await ProcessExecutionMonitor.DrainAsync(cancellationToken, pumpFfmpegError, pumpOpusOutput, pumpOpusError, pumpSupplementalProgress);
 
             var ffmpegExitCode = ffmpegExitCodeShouldBeIgnored ? 0 : ffmpegProcess.ExitCode;
             return BuildOpusPipelineExecutionResult(ffmpegExitCode, opusProcess.ExitCode);
@@ -729,7 +731,7 @@ public sealed partial class CliAudioProcessingRunner : IAudioProcessingRunner
 
             try
             {
-                await Task.WhenAll(
+                await ProcessExecutionMonitor.DrainAsync(CancellationToken.None,
                     ProcessPipelineMonitor.ObservePipeCopyAsync(copyPcmToOpus),
                     pumpFfmpegError,
                     pumpOpusOutput,
@@ -751,7 +753,7 @@ public sealed partial class CliAudioProcessingRunner : IAudioProcessingRunner
 
             try
             {
-                await Task.WhenAll(
+                await ProcessExecutionMonitor.DrainAsync(CancellationToken.None,
                     ProcessPipelineMonitor.ObservePipeCopyAsync(copyPcmToOpus),
                     pumpFfmpegError,
                     pumpOpusOutput,
@@ -1068,6 +1070,8 @@ public sealed partial class CliAudioProcessingRunner : IAudioProcessingRunner
         {
             if (!string.IsNullOrWhiteSpace(runPlan.StagedOutputPath))
             {
+                if (!File.Exists(runPlan.StagedOutputPath) || new FileInfo(runPlan.StagedOutputPath).Length == 0)
+                    throw new InvalidOperationException("Audio processing produced no non-empty output / 音频处理未生成有效产物。");
                 ExecutionOutputStaging.FinalizeFile(
                     runPlan.StagedOutputPath,
                     runPlan.DisplayRequest.OutputPath,

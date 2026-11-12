@@ -7,4 +7,5 @@ public sealed record AudioProcessingProgress(
     string Summary,
     string DetailLine,
     AudioProcessingTelemetry? Telemetry = null,
-    string? PhaseLabel = null);
+    string? PhaseLabel = null,
+    string? LogSnapshot = null);

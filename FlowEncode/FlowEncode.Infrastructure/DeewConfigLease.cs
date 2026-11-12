@@ -89,8 +89,21 @@ internal sealed class DeewConfigLease : IDisposable
         try
         {
             File.WriteAllBytes(temporary, bytes);
-            if (File.Exists(path)) File.Replace(temporary, path, null);
-            else File.Move(temporary, path);
+            for (var attempt = 0; ; attempt++)
+            {
+                try
+                {
+                    if (File.Exists(path)) File.Replace(temporary, path, null);
+                    else File.Move(temporary, path);
+                    break;
+                }
+                catch (IOException ex) when (attempt < 10 && (ex.HResult & 0xffff) is 5 or 32 or 33 or 1175)
+                {
+                    // Windows scanners can briefly retain a newly generated config.
+                    // Keep atomic replacement and the recovery backup intact.
+                    Thread.Sleep(50);
+                }
+            }
         }
         finally { File.Delete(temporary); }
     }

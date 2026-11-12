@@ -51,7 +51,7 @@ internal sealed class ParallelVideoEncodingAv1anRunner
         RequestValidation.ValidateEncodingJobRequest(request);
         var parallel = RequestValidation.CreateParallelVideoEncodingRequest(request);
         LegacyAv1anCliFallbackRunner.EnsureAv1anRuntimeReadyAsync(_toolLocator.ResolveAv1an(), GetLanguage(), token).GetAwaiter().GetResult();
-        var source = ProbeSourceInfo(request, true, RequiresSourceMetadata(parallel), token);
+        var source = ProbeSourceInfo(request, true, RequiresSourceMetadata(parallel), token, allowCached: false);
         var profile = new EncodingProfile(parallel.EncoderKind, "", "", parallel.Preset, parallel.Tune, parallel.Profile,
             RateControlMode.Crf, parallel.Crf, null, "mkv", parallel.VideoParameters, parallel.UhdParameters);
         var ffmpeg = _toolLocator.ResolveFfmpeg(); var ffprobe = _toolLocator.ResolveFfprobe();
@@ -99,7 +99,8 @@ internal sealed class ParallelVideoEncodingAv1anRunner
             request,
             includeSourceMetadata: true,
             required: RequiresSourceMetadata(parallelRequest),
-            cancellationToken);
+            cancellationToken,
+            allowCached: false);
         var displayCommand = ParallelVideoAv1anArgumentBuilder.BuildCommand(
             parallelRequest,
             av1anPath,
@@ -266,9 +267,9 @@ internal sealed class ParallelVideoEncodingAv1anRunner
             pumpOutput = PumpAsync(process.StandardOutput, HandleLine, cancellationToken);
             pumpError = PumpAsync(process.StandardError, HandleLine, cancellationToken);
 
-            await process.WaitForExitAsync(cancellationToken);
+            await ProcessExecutionMonitor.WaitForExitAsync(process, cancellationToken, pumpOutput, pumpError);
             activeExecution.Terminate();
-            await Task.WhenAll(pumpOutput, pumpError);
+            await ProcessExecutionMonitor.DrainAsync(cancellationToken, pumpOutput, pumpError);
             finalExitCode = process.ExitCode;
             _activeExecutions.TryRemove(request.JobId, out _);
 
@@ -371,7 +372,7 @@ internal sealed class ParallelVideoEncodingAv1anRunner
             activeExecution?.Terminate();
             try
             {
-                await Task.WhenAll(pumpOutput, pumpError);
+                await ProcessExecutionMonitor.DrainAsync(CancellationToken.None, pumpOutput, pumpError);
             }
             catch (Exception ex)
             {
@@ -473,7 +474,8 @@ internal sealed class ParallelVideoEncodingAv1anRunner
         EncodingJobRequest request,
         bool includeSourceMetadata,
         bool required,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        bool allowCached = true)
     {
         if (!includeSourceMetadata)
         {
@@ -484,9 +486,11 @@ internal sealed class ParallelVideoEncodingAv1anRunner
         {
             var sourceInfo = _sourceInfoProbe.Probe(
                 request.SourcePath,
-                request.PipelineKind,
+                request.PipelineKind == InputPipelineKind.Auto
+                    ? InputSourceSupport.ResolvePipelineKind(request.SourcePath)
+                    : request.PipelineKind,
                 cancellationToken: cancellationToken,
-                allowCached: true);
+                allowCached: allowCached);
 
             if (sourceInfo is null && required)
             {
@@ -512,7 +516,9 @@ internal sealed class ParallelVideoEncodingAv1anRunner
         ex is InvalidOperationException or JsonException;
 
     private static bool RequiresSourceMetadata(ParallelVideoEncodingRequest request) =>
-        request.EncoderKind == EncoderKind.SvtAv1 && request.PipelineKind != InputPipelineKind.RawYuvFile;
+        (request.PipelineKind == InputPipelineKind.Auto
+            ? InputSourceSupport.ResolvePipelineKind(request.SourcePath)
+            : request.PipelineKind) != InputPipelineKind.RawYuvFile;
 
     private static string GetTempDirectory(EncodingJobRequest request)
     {

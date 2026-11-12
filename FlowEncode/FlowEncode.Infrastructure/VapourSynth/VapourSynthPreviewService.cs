@@ -29,6 +29,7 @@ public sealed class VapourSynthPreviewService : IVapourSynthPreviewService
     private readonly SemaphoreSlim _stateLock = new(1, 1);
     private readonly TimeSpan _closeTimeout = TimeSpan.FromSeconds(2);
     private readonly TimeSpan _killWaitTimeout = TimeSpan.FromSeconds(5);
+    private readonly TimeSpan _responseTimeout;
     private static readonly string[] WarningTokens = ["warning", "warn"];
     private static readonly string[] ErrorTokens = ["error", "failed", "exception", "fatal"];
     private readonly StringBuilder _stderrBuffer = new();
@@ -58,10 +59,12 @@ public sealed class VapourSynthPreviewService : IVapourSynthPreviewService
         LocalAppPaths appPaths,
         IVapourSynthPreviewHostFactory hostFactory,
         IPreviewFrameTransportFactory? frameTransportFactory = null,
-        string? sessionRootPath = null)
+        string? sessionRootPath = null,
+        TimeSpan? responseTimeout = null)
     {
         _appPaths = appPaths;
         _hostFactory = hostFactory;
+        _responseTimeout = responseTimeout ?? TimeSpan.FromMinutes(2);
         _frameTransportFactory = frameTransportFactory ?? new SharedMemoryPreviewFrameTransportFactory();
         _sessionRootPath = string.IsNullOrWhiteSpace(sessionRootPath)
             ? Path.Combine(appPaths.DataRootPath, "vapoursynth-preview")
@@ -246,6 +249,11 @@ public sealed class VapourSynthPreviewService : IVapourSynthPreviewService
                 helperRenderStopwatch.Elapsed,
                 transportReadStopwatch.Elapsed);
         }
+        catch
+        {
+            await CloseHostCoreAsync();
+            throw;
+        }
         finally
         {
             _stateLock.Release();
@@ -310,6 +318,20 @@ public sealed class VapourSynthPreviewService : IVapourSynthPreviewService
     }
 
     private async Task<HostResponseDto> ReadResponseAsync(CancellationToken cancellationToken)
+    {
+        using var responseCancellation = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        responseCancellation.CancelAfter(_responseTimeout);
+        try
+        {
+            return await ReadResponseCoreAsync(responseCancellation.Token);
+        }
+        catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
+        {
+            throw new InvalidOperationException(BuildHostFailureMessage("Preview helper response timed out / 预览辅助进程响应超时。"));
+        }
+    }
+
+    private async Task<HostResponseDto> ReadResponseCoreAsync(CancellationToken cancellationToken)
     {
         if (_hostSession is null)
         {

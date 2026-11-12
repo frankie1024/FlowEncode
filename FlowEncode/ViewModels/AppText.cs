@@ -965,15 +965,25 @@ public sealed class AppText
 
     public string AudioProcessingTelemetrySummary(AudioProcessingTelemetry telemetry)
     {
-        if (telemetry.DeewDb.HasValue)
+        if (telemetry.DeewDbSource.HasValue || telemetry.DeewDb.HasValue)
         {
-            var label = telemetry.DeewDbSource switch
+            var parts = new System.Collections.Generic.List<string>();
+            if (telemetry.Remaining.HasValue)
             {
-                DeewDbSource.Measured => Pick("实测响度", "Measured loudness"),
-                DeewDbSource.SpecifiedDialnorm => Pick("指定 dialnorm", "Specified dialnorm"),
-                _ => Pick("dB（来源未知）", "dB (unknown source)")
-            };
-            return $"{label}: {telemetry.DeewDb:0.##} dB";
+                var time = FormatTelemetryDuration(telemetry.Remaining.Value);
+                parts.Add(Pick($"当前阶段剩余约 {time}", $"Current stage: ~{time} left"));
+            }
+            if (telemetry.DeewDb.HasValue)
+            {
+                var label = telemetry.DeewDbSource switch
+                {
+                    DeewDbSource.Measured => Pick("实测响度", "Measured loudness"),
+                    DeewDbSource.SpecifiedDialnorm => Pick("指定 dialnorm", "Specified dialnorm"),
+                    _ => Pick("dB（来源未知）", "dB (unknown source)")
+                };
+                parts.Add($"{label}: {telemetry.DeewDb:0.##} dB");
+            }
+            return string.Join(" · ", parts);
         }
         var speedText = telemetry.SpeedMultiplier.HasValue && telemetry.SpeedMultiplier.Value > 0
             ? $"{telemetry.SpeedMultiplier.Value:0.#}x"

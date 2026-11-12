@@ -32,6 +32,9 @@ public sealed class StructuredAv1anRunner : IAutoCompressionRunner
         IProgress<AutoCompressionProgress>? progress = null,
         CancellationToken cancellationToken = default)
     {
+        RequestValidation.ValidateAutoCompressionRequest(request);
+        if (!File.Exists(request.SourcePath))
+            throw new FileNotFoundException("Auto encode source file not found / 未找到自动压制输入文件。", request.SourcePath);
         var probe = await ProbeAv1anAsync(cancellationToken);
         if (probe.State != ReadinessState.Ready || !probe.IsProtocolCompatible)
         {
@@ -39,7 +42,7 @@ public sealed class StructuredAv1anRunner : IAutoCompressionRunner
         }
 
         var language = GetLanguage();
-        RequestValidation.ValidateAutoCompressionRequest(request);
+        _legacyRunner.ValidateSource(request, cancellationToken);
         if (!File.Exists(request.SourcePath))
         {
             throw new FileNotFoundException(
@@ -53,7 +56,7 @@ public sealed class StructuredAv1anRunner : IAutoCompressionRunner
         await LegacyAv1anCliFallbackRunner.EnsureAv1anRuntimeReadyAsync(av1anPath, language, cancellationToken);
 
         var tempDirectory = LegacyAv1anCliFallbackRunner.GetTempDirectory(request);
-        Directory.CreateDirectory(tempDirectory);
+        ExecutionOutputStaging.EnsureFreshDirectory(tempDirectory);
         var stagedOutputPath = LegacyAv1anCliFallbackRunner.CreateStagedOutputPath(request, tempDirectory);
         var executionRequest = request with { OutputPath = stagedOutputPath };
         var arguments = LegacyAv1anCliFallbackRunner.BuildArgumentParts(
@@ -86,6 +89,8 @@ public sealed class StructuredAv1anRunner : IAutoCompressionRunner
         double? currentProgress = null;
         var currentSummary = T(language, "Auto encode started", "自动压制已启动");
         var lastFailureMessage = string.Empty;
+        var reportedFailure = false;
+        var reportedCancellation = false;
 
         void HandleStructuredStdoutLine(string line)
         {
@@ -120,19 +125,21 @@ public sealed class StructuredAv1anRunner : IAutoCompressionRunner
                 switch (currentStage)
                 {
                     case AutoCompressionExecutionStage.Completed:
-                        currentState = EncodingJobState.Completed;
-                        currentProgress = 1.0;
-                        currentSummary = T(language, "Auto encode completed", "自动压制完成");
+                        currentState = EncodingJobState.Running;
+                        currentStage = AutoCompressionExecutionStage.Concatenating;
+                        currentSummary = T(language, "Verifying auto encode output", "正在校验自动压制产物");
                         break;
                     case AutoCompressionExecutionStage.Failed:
-                        currentState = EncodingJobState.Failed;
+                        reportedFailure = true;
+                        currentState = EncodingJobState.Running;
                         lastFailureMessage = JsonlEventParser.TryGetFailureMessage(parsedStructuredEvent) ?? string.Empty;
                         currentSummary = string.IsNullOrWhiteSpace(lastFailureMessage)
                             ? T(language, "Auto encode failed", "自动压制失败")
                             : T(language, $"Auto encode failed: {lastFailureMessage}", $"自动压制失败：{lastFailureMessage}");
                         break;
                     case AutoCompressionExecutionStage.Cancelled:
-                        currentState = EncodingJobState.Cancelled;
+                        reportedCancellation = true;
+                        currentState = EncodingJobState.Running;
                         currentSummary = T(language, "Auto encode cancelled", "自动压制已取消");
                         break;
                     default:
@@ -206,16 +213,24 @@ public sealed class StructuredAv1anRunner : IAutoCompressionRunner
             pumpOutput = PumpAsync(process.StandardOutput, HandleStructuredStdoutLine, cancellationToken);
             pumpError = PumpAsync(process.StandardError, HandleDiagnosticLine, cancellationToken);
 
-            await process.WaitForExitAsync(cancellationToken);
+            await ProcessExecutionMonitor.WaitForExitAsync(process, cancellationToken, pumpOutput, pumpError);
             activeExecution.Terminate();
-            await Task.WhenAll(pumpOutput, pumpError);
+            await ProcessExecutionMonitor.DrainAsync(cancellationToken, pumpOutput, pumpError);
             finalExitCode = process.ExitCode;
 
             _activeExecutions.TryRemove(request.JobId, out _);
 
             var log = logBuilder.ToString();
-            if (finalExitCode == 0)
+            if (reportedCancellation && !reportedFailure)
             {
+                var summary = T(language, "Auto encode cancelled", "自动压制已取消");
+                progress?.Report(new(request.JobId, EncodingJobState.Cancelled, AutoCompressionExecutionStage.Cancelled,
+                    currentProgress, summary, summary));
+                return new(request.JobId, EncodingJobState.Cancelled, finalExitCode, summary, log, displayCommand, backendCapabilities);
+            }
+            if (finalExitCode == 0 && !reportedFailure)
+            {
+                new ParallelVideoEncodingOutputVerifier(_toolLocator).VerifyVideoOutput(stagedOutputPath, language, cancellationToken);
                 if (!AutoCompressionOutputFinalizer.TryFinalizeOutput(
                         request.JobId,
                         stagedOutputPath,
@@ -318,7 +333,7 @@ public sealed class StructuredAv1anRunner : IAutoCompressionRunner
 
             try
             {
-                await Task.WhenAll(pumpOutput, pumpError);
+                await ProcessExecutionMonitor.DrainAsync(CancellationToken.None, pumpOutput, pumpError);
             }
             catch (Exception ex)
             {
@@ -359,6 +374,12 @@ public sealed class StructuredAv1anRunner : IAutoCompressionRunner
         return
             $"{LegacyAv1anCliFallbackRunner.Quote(av1anPath)} " +
             $"{CommandLineDisplay.JoinArguments(LegacyAv1anCliFallbackRunner.BuildArgumentParts(request, LegacyAv1anCliFallbackRunner.GetTempDirectory(request), GetLanguage(), useStructuredProgress: true))}";
+    }
+
+    internal string BuildValidatedDisplayCommand(AutoCompressionRequest request, CancellationToken token)
+    {
+        _legacyRunner.ValidateSource(request, token);
+        return BuildDisplayCommand(request);
     }
 
     public void Abort(Guid jobId)

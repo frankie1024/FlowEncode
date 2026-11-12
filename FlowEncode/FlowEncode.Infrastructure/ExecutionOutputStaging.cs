@@ -4,6 +4,13 @@ namespace FlowEncode.Infrastructure;
 
 internal static class ExecutionOutputStaging
 {
+    internal static void EnsureFreshDirectory(string directory)
+    {
+        if (Directory.Exists(directory) && Directory.EnumerateFileSystemEntries(directory).Any())
+            throw new IOException($"The task staging directory is not empty / 任务临时目录不是空目录：{directory}");
+        Directory.CreateDirectory(directory);
+    }
+
     public static string CreateStagedFilePath(
         string stagingDirectory,
         string finalPath,

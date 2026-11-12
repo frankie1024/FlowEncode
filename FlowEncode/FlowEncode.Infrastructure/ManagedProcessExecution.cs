@@ -51,6 +51,7 @@ internal sealed class ManagedProcessExecution : IDisposable
             return;
         }
 
+        Terminate();
         foreach (var jobObject in _jobObjects)
         {
             jobObject.Dispose();

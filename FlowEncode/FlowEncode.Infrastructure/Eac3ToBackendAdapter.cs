@@ -169,9 +169,10 @@ public sealed class Eac3ToBackendAdapter : CliBluRayDemuxBackendAdapterBase
         IProgress<BluRayDemuxProgress>? progress = null,
         CancellationToken cancellationToken = default)
     {
+        ValidateInput(request);
         var stagedRequest = CreateStagedRequest(request);
         var eac3ToPath = await ResolveToolPathAsync(RegisteredToolKind.Eac3To, cancellationToken);
-        Directory.CreateDirectory(stagedRequest.OutputDirectory);
+        ExecutionOutputStaging.EnsureFreshDirectory(stagedRequest.OutputDirectory);
 
         var startInfo = CreateStartInfo(eac3ToPath, _appPaths.LogsRootPath);
         startInfo.ArgumentList.Add(stagedRequest.DiscPath);
@@ -204,8 +205,11 @@ public sealed class Eac3ToBackendAdapter : CliBluRayDemuxBackendAdapterBase
             if (result.State == EncodingJobState.Completed)
             {
                 preserveStagedOutput = true;
+                var outputs = ValidateStagedOutputs(request, stagedRequest.OutputDirectory);
                 FinalizeStagedOutputDirectory(stagedRequest.OutputDirectory, request.OutputDirectory, request.OverwriteOutput);
                 preserveStagedOutput = false;
+                result = result with { OutputPaths = outputs };
+                progress?.Report(new(request.JobId, EncodingJobState.Completed, 1, result.Summary, string.Empty));
             }
 
             return result;

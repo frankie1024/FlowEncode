@@ -12,6 +12,43 @@ namespace FlowEncode.Domain.Tests;
 public sealed class SharedTaskCoordinatorTests
 {
     [TestMethod]
+    public async Task QueuedSourceDisappears_FailsBeforeExecutionAndReleasesTheSlot()
+    {
+        using var root = new TestRoot();
+        var tasks = new TaskCoordinator(new Settings());
+        var first = root.Video();
+        var entered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var release = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var firstRun = tasks.RunAsync(first, async (_, _) => { entered.SetResult(); await release.Task; return 1; }, Done);
+        await entered.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        var pending = root.Audio();
+        var ran = false;
+        var pendingRun = tasks.RunAsync(pending, (_, _) => { ran = true; return Task.FromResult(2); }, Done);
+        File.Delete(pending.SourcePath);
+        release.SetResult();
+
+        await firstRun;
+        await Assert.ThrowsExactlyAsync<FileNotFoundException>(() => pendingRun.WaitAsync(TimeSpan.FromSeconds(5)));
+        Assert.IsFalse(ran);
+        Assert.AreEqual(EncodingJobState.Failed, tasks.Get(pending.TaskId).State);
+        var following = root.Video();
+        Assert.AreEqual(3, await tasks.RunAsync(following, (_, _) => Task.FromResult(3), Done).WaitAsync(TimeSpan.FromSeconds(5)));
+        Assert.IsFalse(tasks.HasActiveTasks);
+    }
+
+    [TestMethod]
+    public async Task RunnerReturningNonterminalState_CannotLeavePhantomRunningTask()
+    {
+        using var root = new TestRoot();
+        var tasks = new TaskCoordinator(new Settings());
+        var request = root.Video();
+        await Assert.ThrowsExactlyAsync<InvalidOperationException>(() => tasks.RunAsync(request, (_, _) => Task.FromResult(1),
+            _ => new(EncodingJobState.Running, "still running", "", [])));
+        Assert.AreEqual(EncodingJobState.Failed, tasks.Get(request.TaskId).State);
+        Assert.IsFalse(tasks.HasActiveTasks);
+    }
+
+    [TestMethod]
     public async Task VideoAndAudio_UseOneConcurrencyBudget_AndCancellationTargetsOnlyItsId()
     {
         using var root = new TestRoot();
@@ -127,6 +164,11 @@ public sealed class SharedTaskCoordinatorTests
     internal sealed class TestRoot : IDisposable
     {
         public string Path { get; } = Deew5ContractTests.NewRoot();
+        public TestRoot()
+        {
+            File.WriteAllText(System.IO.Path.Combine(Path, "source.y4m"), "YUV4MPEG2 W16 H16 F24:1 C420\n");
+            File.WriteAllText(System.IO.Path.Combine(Path, "source.wav"), "audio");
+        }
         public TaskWorkload Video(string? output = null) => new(TaskKind.Video, Video: new(Guid.NewGuid(), DefaultEncodingProfiles.GetDefault(EncoderKind.X264),
             System.IO.Path.Combine(Path, "source.y4m"), output ?? System.IO.Path.Combine(Path, Guid.NewGuid() + ".264"), InputPipelineKind.Y4mFile, EncoderArchitecture.X64, OverwriteOutput: false));
         public TaskWorkload Audio() => new(TaskKind.Audio, Audio: new(Guid.NewGuid(), System.IO.Path.Combine(Path, "source.wav"), System.IO.Path.Combine(Path, Guid.NewGuid() + ".opus"),

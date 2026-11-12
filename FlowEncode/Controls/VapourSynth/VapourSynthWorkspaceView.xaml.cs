@@ -663,7 +663,9 @@ public sealed partial class VapourSynthWorkspaceView : UserControl, IDisposable
         }
 
         var mainWindow = App.GetService<MainWindow>();
-        await mainWindow.ViewModel.PrepareEncodingSourceAsync(sourcePath);
+        await mainWindow.ViewModel.PrepareEncodingSourceAsync(sourcePath, new Progress<string>(line =>
+            ViewModel.AppendPreviewLog(tab, new VapourSynthPreviewLogEntry(
+                DateTimeOffset.Now, VapourSynthPreviewLogLevel.Information, "VapourSynth", line))));
         mainWindow.NavigateToEncodingPage(sourcePath);
     }
 
@@ -840,6 +842,12 @@ public sealed partial class VapourSynthWorkspaceView : UserControl, IDisposable
             LogExpander.IsExpanded = true;
             await Task.Yield();
             await action();
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            ViewModel.AppendPreviewLog(tab, new VapourSynthPreviewLogEntry(
+                DateTimeOffset.Now, VapourSynthPreviewLogLevel.Error, "FlowEncode", ex.Message));
+            throw;
         }
         finally
         {

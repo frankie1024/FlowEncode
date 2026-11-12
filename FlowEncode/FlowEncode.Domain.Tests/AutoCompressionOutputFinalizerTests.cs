@@ -28,6 +28,19 @@ public sealed class AutoCompressionOutputFinalizerTests
     }
 
     [TestMethod]
+    public void TryFinalizeOutput_EmptyStagedFileCannotReplaceExistingOutput()
+    {
+        var staged = Path.Combine(_testRoot, "empty.mkv");
+        var final = Path.Combine(_testRoot, "existing.mkv");
+        File.WriteAllText(staged, "");
+        File.WriteAllText(final, "existing media");
+        Assert.IsFalse(AutoCompressionOutputFinalizer.TryFinalizeOutput(Guid.NewGuid(), staged, final,
+            AppLanguage.English, null, out var detail));
+        StringAssert.Contains(detail, "empty output");
+        Assert.AreEqual("existing media", File.ReadAllText(final));
+    }
+
+    [TestMethod]
     public void TryFinalizeOutput_WhenStagedFileExists_MovesFileToFinalPath()
     {
         var jobId = Guid.NewGuid();

@@ -164,7 +164,12 @@ public sealed class TaskPlanningService(TaskCoordinator tasks, IAppSettingsServi
                 break;
             default:
                 await Tool(RegisteredToolKind.Av1an); await Tool(RegisteredToolKind.Ffprobe);
-                command = autoRunner.BuildDisplayCommand(request.AutoCompression!);
+                var auto = request.AutoCompression!;
+                if (Path.GetExtension(auto.SourcePath).Equals(".vpy", StringComparison.OrdinalIgnoreCase)) await Tool(RegisteredToolKind.Vspipe);
+                if (Path.GetExtension(auto.SourcePath).Equals(".avs", StringComparison.OrdinalIgnoreCase)) await Tool(RegisteredToolKind.Avs2PipeMod);
+                command = autoRunner is CoordinatedAutoCompressionRunner validatedAuto
+                    ? await Task.Run(() => validatedAuto.BuildValidatedDisplayCommand(auto, token), token).ConfigureAwait(false)
+                    : autoRunner.BuildDisplayCommand(auto);
                 break;
         }
         if (!request.OverwriteOutput && outputs.Any(a => File.Exists(a.Path)))

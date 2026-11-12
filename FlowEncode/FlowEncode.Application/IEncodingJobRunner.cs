@@ -11,5 +11,10 @@ public interface IEncodingJobRunner
 
     string BuildDisplayCommand(EncodingJobRequest request);
 
+    Task ValidateSourceAsync(
+        string sourcePath,
+        IProgress<string>? progress = null,
+        CancellationToken cancellationToken = default);
+
     void AbortJob(Guid jobId);
 }

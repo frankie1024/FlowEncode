@@ -44,6 +44,10 @@ internal sealed partial class SourceVideoInfoProbe
         CancellationToken cancellationToken = default,
         bool allowCached = false)
     {
+        cancellationToken.ThrowIfCancellationRequested();
+        if (!File.Exists(sourcePath))
+            throw new FileNotFoundException($"Source file not found / 未找到输入源文件：{sourcePath}", sourcePath);
+
         if (allowCached && TryBuildCacheKey(sourcePath, pipelineKind) is { } cacheKey)
         {
             return ProbeCached(cacheKey, sourcePath, pipelineKind, progress, cancellationToken);
@@ -152,6 +156,8 @@ internal sealed partial class SourceVideoInfoProbe
             UseShellExecute = false,
             RedirectStandardOutput = true,
             RedirectStandardError = true,
+            StandardOutputEncoding = Encoding.UTF8,
+            StandardErrorEncoding = Encoding.UTF8,
             CreateNoWindow = true,
             ArgumentList =
             {
@@ -172,7 +178,10 @@ internal sealed partial class SourceVideoInfoProbe
         cancellationToken.ThrowIfCancellationRequested();
         if (result.ExitCode != 0)
         {
-            throw new InvalidOperationException($"vspipe --info 失败：{FirstMeaningfulLine(result.StandardError)}");
+            var detail = string.IsNullOrWhiteSpace(result.StandardError)
+                ? result.StandardOutput.Trim()
+                : result.StandardError.Trim();
+            throw new InvalidOperationException($"VapourSynth script evaluation failed / 脚本加载失败：{Environment.NewLine}{detail}");
         }
 
         var sourceInfo = ParseVspipeInfo(result.StandardOutput);

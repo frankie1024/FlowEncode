@@ -7,6 +7,8 @@ namespace FlowEncode.Infrastructure;
 public sealed class CoordinatedEncodingRunner(LocalEncodingJobRunner inner, TaskCoordinator tasks) : IEncodingJobRunner
 {
     public string BuildDisplayCommand(EncodingJobRequest request) => inner.BuildDisplayCommand(request);
+    public Task ValidateSourceAsync(string sourcePath, IProgress<string>? progress = null, CancellationToken cancellationToken = default) =>
+        inner.ValidateSourceAsync(sourcePath, progress, cancellationToken);
     internal string BuildValidatedDisplayCommand(EncodingJobRequest request, CancellationToken token) => inner.BuildValidatedDisplayCommand(request, token);
     public void AbortJob(Guid id) { try { tasks.Cancel(id); } catch (KeyNotFoundException) { } inner.AbortJob(id); }
     public Task<EncodingJobResult> RunAsync(EncodingJobRequest request, IProgress<EncodingJobProgress>? progress = null, CancellationToken cancellationToken = default) =>
@@ -46,6 +48,7 @@ public sealed class CoordinatedBluRayRunner(CliBluRayDemuxRunner inner, TaskCoor
 
 public sealed class CoordinatedAutoCompressionRunner(StructuredAv1anRunner inner, TaskCoordinator tasks) : IAutoCompressionRunner
 {
+    internal string BuildValidatedDisplayCommand(AutoCompressionRequest request, CancellationToken token) => inner.BuildValidatedDisplayCommand(request, token);
     public string BuildDisplayCommand(AutoCompressionRequest request) => inner.BuildDisplayCommand(request);
     public void Abort(Guid id) { try { tasks.Cancel(id); } catch (KeyNotFoundException) { } inner.Abort(id); }
     public Task<AutoCompressionResult> RunAsync(AutoCompressionRequest request, IProgress<AutoCompressionProgress>? progress = null, CancellationToken cancellationToken = default) =>

@@ -142,7 +142,7 @@ public sealed class LocalEncodingJobRunnerDisplayCommandTests
         }
         catch (InvalidOperationException exception)
         {
-            StringAssert.Contains(exception.Message, "SVT-AV1 requires detectable source metadata");
+            StringAssert.Contains(exception.Message, "Y4M");
             return;
         }
 

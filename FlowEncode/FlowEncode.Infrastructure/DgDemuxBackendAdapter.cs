@@ -191,9 +191,10 @@ public sealed class DgDemuxBackendAdapter : CliBluRayDemuxBackendAdapterBase
         IProgress<BluRayDemuxProgress>? progress = null,
         CancellationToken cancellationToken = default)
     {
+        ValidateInput(request);
         var stagedRequest = CreateStagedRequest(request);
         var dgDemuxPath = await ResolveToolPathAsync(RegisteredToolKind.DgDemux, cancellationToken);
-        Directory.CreateDirectory(stagedRequest.OutputDirectory);
+        ExecutionOutputStaging.EnsureFreshDirectory(stagedRequest.OutputDirectory);
 
         var startInfo = CreateStartInfo(dgDemuxPath);
         startInfo.ArgumentList.Add("-i");
@@ -222,8 +223,11 @@ public sealed class DgDemuxBackendAdapter : CliBluRayDemuxBackendAdapterBase
             if (result.State == EncodingJobState.Completed)
             {
                 preserveStagedOutput = true;
+                var outputs = ValidateStagedOutputs(request, stagedRequest.OutputDirectory);
                 FinalizeStagedOutputDirectory(stagedRequest.OutputDirectory, request.OutputDirectory, request.OverwriteOutput);
                 preserveStagedOutput = false;
+                result = result with { OutputPaths = outputs };
+                progress?.Report(new(request.JobId, EncodingJobState.Completed, 1, result.Summary, string.Empty));
             }
 
             return result;

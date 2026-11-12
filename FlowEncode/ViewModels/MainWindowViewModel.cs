@@ -450,7 +450,9 @@ public partial class MainWindowViewModel : CommunityToolkit.Mvvm.ComponentModel.
         : Visibility.Collapsed;
 
     internal string DashboardAudioProcessingStatusText => DashboardAudioProcessingStatusVisibility == Visibility.Visible
-        ? AudioProcessingStatusText
+        ? IsAudioProcessingRunning && AudioProcessingProgressPercent > 0
+            ? $"{AudioProcessingStatusText} · {AudioProcessingProgressPercentText}"
+            : AudioProcessingStatusText
         : string.Empty;
 
     internal Brush DashboardAudioProcessingStatusBrush => ResolveDashboardStatusBrush(IsAudioProcessingRunning
@@ -2618,8 +2620,9 @@ public partial class MainWindowViewModel : CommunityToolkit.Mvvm.ComponentModel.
         }
     }
 
-    internal async Task PrepareEncodingSourceAsync(string sourcePath)
+    internal async Task PrepareEncodingSourceAsync(string sourcePath, IProgress<string>? progress = null)
     {
+        await _jobRunner.ValidateSourceAsync(sourcePath, progress);
         SourcePath = sourcePath;
         CancelPendingDraftInputRefresh();
         ApplyDraftInputPaths();

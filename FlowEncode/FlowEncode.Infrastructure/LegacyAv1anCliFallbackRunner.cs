@@ -52,6 +52,7 @@ public sealed class LegacyAv1anCliFallbackRunner : IAutoCompressionRunner
         CancellationToken cancellationToken = default)
     {
         var language = GetLanguage();
+        ValidateSource(request, cancellationToken);
         if (!File.Exists(request.SourcePath))
         {
             throw new FileNotFoundException(T(language, "Auto encode source file was not found.", "未找到自动压制输入源文件。"), request.SourcePath);
@@ -60,7 +61,7 @@ public sealed class LegacyAv1anCliFallbackRunner : IAutoCompressionRunner
         var av1anPath = _toolLocator.ResolveAv1an();
         await EnsureAv1anRuntimeReadyAsync(av1anPath, language, cancellationToken);
         var tempDirectory = GetTempDirectory(request);
-        Directory.CreateDirectory(tempDirectory);
+        ExecutionOutputStaging.EnsureFreshDirectory(tempDirectory);
         var stagedOutputPath = CreateStagedOutputPath(request, tempDirectory);
         var executionRequest = request with { OutputPath = stagedOutputPath };
         var arguments = BuildArgumentParts(executionRequest, tempDirectory, language);
@@ -176,9 +177,9 @@ public sealed class LegacyAv1anCliFallbackRunner : IAutoCompressionRunner
             pumpOutput = PumpAsync(process.StandardOutput, HandleLine, cancellationToken);
             pumpError = PumpAsync(process.StandardError, HandleLine, cancellationToken);
 
-            await process.WaitForExitAsync(cancellationToken);
+            await ProcessExecutionMonitor.WaitForExitAsync(process, cancellationToken, pumpOutput, pumpError);
             activeExecution.Terminate();
-            await Task.WhenAll(pumpOutput, pumpError);
+            await ProcessExecutionMonitor.DrainAsync(cancellationToken, pumpOutput, pumpError);
             finalExitCode = process.ExitCode;
 
             _activeExecutions.TryRemove(request.JobId, out _);
@@ -186,6 +187,7 @@ public sealed class LegacyAv1anCliFallbackRunner : IAutoCompressionRunner
             var log = logBuilder.ToString();
             if (finalExitCode == 0)
             {
+                new ParallelVideoEncodingOutputVerifier(_toolLocator).VerifyVideoOutput(stagedOutputPath, language, cancellationToken);
                 if (!AutoCompressionOutputFinalizer.TryFinalizeOutput(
                         request.JobId,
                         stagedOutputPath,
@@ -253,7 +255,7 @@ public sealed class LegacyAv1anCliFallbackRunner : IAutoCompressionRunner
 
             try
             {
-                await Task.WhenAll(pumpOutput, pumpError);
+                await ProcessExecutionMonitor.DrainAsync(CancellationToken.None, pumpOutput, pumpError);
             }
             catch (Exception ex)
             {
@@ -733,25 +735,32 @@ public sealed class LegacyAv1anCliFallbackRunner : IAutoCompressionRunner
 
     internal static async Task EnsureAv1anRuntimeReadyAsync(string av1anPath, AppLanguage language, CancellationToken cancellationToken)
     {
+        using var suppression = ErrorDialogSuppression.Enter();
         using var process = CreateProcess(av1anPath, ["--version"]);
-        using (ErrorDialogSuppression.Enter())
-        {
-            process.Start();
-        }
-
-        var outputTask = process.StandardOutput.ReadToEndAsync(cancellationToken);
-        var errorTask = process.StandardError.ReadToEndAsync(cancellationToken);
-        await process.WaitForExitAsync(cancellationToken);
-        var output = await outputTask;
-        var error = await errorTask;
-
-        if (process.ExitCode == 0)
+        var result = await ProcessProbeRunner.RunAsync(process.StartInfo, TimeSpan.FromSeconds(10),
+            T(language, "Av1an preflight timed out.", "Av1an 启动检查超时。"), cancellationToken);
+        if (result.ExitCode == 0)
         {
             return;
         }
 
-        var message = BuildRuntimeFailureMessage(language, process.ExitCode, output, error);
+        var message = BuildRuntimeFailureMessage(language, result.ExitCode, result.StandardOutput, result.StandardError);
         throw new InvalidOperationException(message);
+    }
+
+    internal void ValidateSource(AutoCompressionRequest request, CancellationToken token)
+    {
+        RequestValidation.ValidateAutoCompressionRequest(request);
+        var pipeline = Path.GetExtension(request.SourcePath).ToLowerInvariant() switch
+        {
+            ".vpy" => InputPipelineKind.VapourSynth,
+            ".avs" => InputPipelineKind.AviSynth,
+            ".y4m" => InputPipelineKind.Y4mFile,
+            _ => InputPipelineKind.FfmpegPipe
+        };
+        if (new SourceVideoInfoProbe(_toolLocator).Probe(request.SourcePath, pipeline,
+            cancellationToken: token, allowCached: false) is null)
+            throw new InvalidOperationException("The auto encode source could not be loaded. / 无法加载自动压制输入源。");
     }
 
     internal static string BuildRuntimeFailureMessage(AppLanguage language, int exitCode, string output, string error)

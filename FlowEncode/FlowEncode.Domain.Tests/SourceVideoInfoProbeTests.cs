@@ -46,6 +46,19 @@ public sealed class SourceVideoInfoProbeTests
     }
 
     [TestMethod]
+    public void Probe_WhenCachedSourceWasDeleted_RejectsIt()
+    {
+        var probe = new SourceVideoInfoProbe(CreateToolLocator());
+        var sourcePath = WriteY4mFile(0);
+        Assert.IsNotNull(probe.Probe(sourcePath, InputPipelineKind.Y4mFile, allowCached: true));
+        File.Delete(sourcePath);
+
+        var error = Assert.ThrowsExactly<FileNotFoundException>(() =>
+            probe.Probe(sourcePath, InputPipelineKind.Y4mFile, allowCached: true));
+        Assert.AreEqual(sourcePath, error.FileName);
+    }
+
+    [TestMethod]
     public void VapourSynthFramePropertyProbeScriptResource_CanBeRead()
     {
         var script = SourceVideoInfoProbe.ReadVapourSynthFramePropertyProbeScriptForTesting();

@@ -13,14 +13,19 @@ internal sealed class DeewEventsReader
     private readonly DeewEffectiveOutputProfile _profile;
     private readonly Action<string> _diagnostic;
     private readonly Action<double?, string, double?, DeewDbSource> _progress;
+    private readonly DeewStageTimeEstimate _timeEstimate;
     public bool HasHello { get; private set; }
     public string? Error { get; private set; }
     public double? Db { get; private set; }
     public double Fraction { get; private set; }
+    public TimeSpan? Remaining => _timeEstimate.Remaining;
 
     public DeewEventsReader(DeewEffectiveOutputProfile profile, Action<string> diagnostic,
-        Action<double?, string, double?, DeewDbSource> progress)
-    { _profile = profile; _diagnostic = diagnostic; _progress = progress; }
+        Action<double?, string, double?, DeewDbSource> progress, TimeProvider? clock = null)
+    {
+        _profile = profile; _diagnostic = diagnostic; _progress = progress;
+        _timeEstimate = new(clock ?? TimeProvider.System);
+    }
 
     public async Task ReadAvailableAsync(string path, bool final, CancellationToken token)
     {
@@ -82,6 +87,7 @@ internal sealed class DeewEventsReader
                 // Preserve the measured value separately instead of overwriting it with the target.
                 if (eventDb.HasValue && (!ac4Manifest || stage == "measure")) Db = eventDb;
                 var origin = ac4Manifest && stage == "encode" ? DeewDbSource.SpecifiedDialnorm : _profile.DbSource;
+                _timeEstimate.Update(stage, percent);
                 var range = stage switch { "ffmpeg" => (0.0, .15), "decode" => (.15, .35), "measure" => (.35, .45), "encode" => (.45, 1.0), _ => (0.0, 0.0) };
                 if (_profile.Options.MeasureOnly && stage == "measure") range = (0, 1);
                 double? fraction = null;

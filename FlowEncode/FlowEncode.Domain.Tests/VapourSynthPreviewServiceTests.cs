@@ -12,6 +12,28 @@ namespace FlowEncode.Domain.Tests;
 public sealed class VapourSynthPreviewServiceTests
 {
     [TestMethod]
+    public async Task UnresponsiveHost_TimesOutAndClosesSession()
+    {
+        using var context = CreateContext(TimeSpan.FromMilliseconds(100));
+        context.Session.WaitWhenNoResponse = true;
+        var error = await AssertThrowsAsync<InvalidOperationException>(() => context.Service.OpenSessionAsync(CreateOpenRequest()));
+        StringAssert.Contains(error.Message, "timed out");
+        Assert.IsFalse(context.Service.HasActiveSession);
+    }
+
+    [TestMethod]
+    public async Task UnresponsiveRender_TimesOutAndClearsActiveSession()
+    {
+        using var context = CreateContext(TimeSpan.FromMilliseconds(100));
+        context.Session.EnqueueResponse(CreateReadyResponseJson((0, "Preview", 2, 1, 10)));
+        await context.Service.OpenSessionAsync(CreateOpenRequest());
+        context.Session.WaitWhenNoResponse = true;
+        var error = await AssertThrowsAsync<InvalidOperationException>(() => context.Service.RenderFrameAsync(0, 0));
+        StringAssert.Contains(error.Message, "timed out");
+        Assert.IsFalse(context.Service.HasActiveSession);
+    }
+
+    [TestMethod]
     public async Task OpenSessionAsync_WhenReadyResponseReceived_ReturnsSortedOutputs()
     {
         using var context = CreateContext();
@@ -186,7 +208,7 @@ public sealed class VapourSynthPreviewServiceTests
         Assert.AreEqual(1, context.Session.WrittenLines.Count(static line => line.Contains("\"command\":\"close\"", StringComparison.Ordinal)));
     }
 
-    private static TestContext CreateContext()
+    private static TestContext CreateContext(TimeSpan? responseTimeout = null)
     {
         var tempRootPath = Path.Combine(Path.GetTempPath(), "FlowEncodePreviewTests", Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(tempRootPath);
@@ -196,7 +218,8 @@ public sealed class VapourSynthPreviewServiceTests
         var service = new VapourSynthPreviewService(
             new LocalAppPaths(Path.Combine(tempRootPath, "state"), Path.Combine(tempRootPath, "install"), [Path.Combine(tempRootPath, "workspace")]),
             factory,
-            sessionRootPath: tempRootPath);
+            sessionRootPath: tempRootPath,
+            responseTimeout: responseTimeout);
 
         return new TestContext(tempRootPath, service, factory, session);
     }
@@ -390,9 +413,13 @@ public sealed class VapourSynthPreviewServiceTests
             return Task.CompletedTask;
         }
 
-        public Task<string?> ReadLineAsync(CancellationToken cancellationToken = default)
+        public bool WaitWhenNoResponse { get; set; }
+
+        public async Task<string?> ReadLineAsync(CancellationToken cancellationToken = default)
         {
-            return Task.FromResult(_responses.Count > 0 ? _responses.Dequeue() : null);
+            if (_responses.Count > 0) return _responses.Dequeue();
+            if (WaitWhenNoResponse) await Task.Delay(Timeout.InfiniteTimeSpan, cancellationToken);
+            return null;
         }
 
         public Task WaitForExitAsync(CancellationToken cancellationToken = default)
