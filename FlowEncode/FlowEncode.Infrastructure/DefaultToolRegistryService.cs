@@ -5,7 +5,7 @@ namespace FlowEncode.Infrastructure;
 
 public sealed class DefaultToolRegistryService : IToolRegistryService
 {
-    private const string ManagedAv1anReleasesUrl = "https://github.com/frankie1024/Av1an/releases";
+    private const string ManagedAv1anReleasesUrl = "https://github.com/frankie1024/Av1an/releases/tag/v0.5.2-flowencode.2";
     private static readonly IReadOnlyList<string> PythonExecutables = ["python.exe", "py.exe"];
     private static readonly IReadOnlyList<string> PythonEnvironmentVariables = PythonRuntimeCompatibility.EnvironmentVariableNames;
     private const ToolSearchLocation PythonSearchLocations =
@@ -13,16 +13,16 @@ public sealed class DefaultToolRegistryService : IToolRegistryService
 
     private static readonly IReadOnlyList<ToolDefinition> Tools = Array.AsReadOnly(
     [
-        new ToolDefinition(RegisteredToolKind.X264, ToolProbeMode.EncoderBinary, [], [], ToolSearchLocation.None, string.Empty, "https://github.com/frankie1024/x264-windows-builds/releases"),
-        new ToolDefinition(RegisteredToolKind.X265, ToolProbeMode.EncoderBinary, [], [], ToolSearchLocation.None, string.Empty, "https://github.com/frankie1024/x265-windows-builds/releases"),
-        new ToolDefinition(RegisteredToolKind.SvtAv1, ToolProbeMode.EncoderBinary, [], [], ToolSearchLocation.None, string.Empty, "https://github.com/frankie1024/svt-av1-windows-builds/releases"),
-        new ToolDefinition(RegisteredToolKind.Ffmpeg, ToolProbeMode.ProcessVersion, ["ffmpeg.exe", "ffmpeg64.exe"], ["FLOWENCODE_FFMPEG", "FFMPEG_PATH", "FFMPEG_EXE", "FFMPEG"], ToolSearchLocation.EnvironmentVariables | ToolSearchLocation.LocalToolsRoot | ToolSearchLocation.Path, "-version", "https://github.com/BtbN/FFmpeg-Builds/releases/latest", ExternalToolKind.Ffmpeg),
-        new ToolDefinition(RegisteredToolKind.Ffprobe, ToolProbeMode.ProcessVersion, ["ffprobe.exe", "ffprobe64.exe"], ["FLOWENCODE_FFPROBE", "FFPROBE_PATH", "FFPROBE_EXE", "FFPROBE"], ToolSearchLocation.EnvironmentVariables | ToolSearchLocation.LocalToolsRoot | ToolSearchLocation.Path, "-version", "https://github.com/BtbN/FFmpeg-Builds/releases/latest"),
-        new ToolDefinition(RegisteredToolKind.Vspipe, ToolProbeMode.ProcessVersion, ["vspipe.exe", "VSPipe.exe"], ["FLOWENCODE_VSPIPE", "VSPIPE_PATH", "VSPIPE_EXE", "VSPIPE"], ToolSearchLocation.EnvironmentVariables | ToolSearchLocation.LocalToolsRoot | ToolSearchLocation.Path | ToolSearchLocation.VspipeSidecar | ToolSearchLocation.ProgramFilesVapourSynth | ToolSearchLocation.PythonScripts, "--version", "https://www.vapoursynth.com/"),
-        new ToolDefinition(RegisteredToolKind.Python, ToolProbeMode.ProcessVersion, PythonExecutables, PythonEnvironmentVariables, PythonSearchLocations, "--version", "https://www.python.org/downloads/windows/"),
+        new ToolDefinition(RegisteredToolKind.X264, ToolProbeMode.EncoderBinary, [], [], ToolSearchLocation.None, string.Empty, "https://github.com/frankie1024/x264-windows-builds/releases/tag/stable-20250608-b35605ace3dd"),
+        new ToolDefinition(RegisteredToolKind.X265, ToolProbeMode.EncoderBinary, [], [], ToolSearchLocation.None, string.Empty, "https://github.com/frankie1024/x265-windows-builds/releases/tag/4.2"),
+        new ToolDefinition(RegisteredToolKind.SvtAv1, ToolProbeMode.EncoderBinary, [], [], ToolSearchLocation.None, string.Empty, "https://github.com/frankie1024/svt-av1-windows-builds/releases/tag/v4.1.0"),
+        new ToolDefinition(RegisteredToolKind.Ffmpeg, ToolProbeMode.ProcessVersion, ["ffmpeg.exe", "ffmpeg64.exe"], ["FLOWENCODE_FFMPEG", "FFMPEG_PATH", "FFMPEG_EXE", "FFMPEG"], ToolSearchLocation.EnvironmentVariables | ToolSearchLocation.LocalToolsRoot | ToolSearchLocation.Path, "-version", "https://github.com/GyanD/codexffmpeg/releases/tag/8.1", ExternalToolKind.Ffmpeg),
+        new ToolDefinition(RegisteredToolKind.Ffprobe, ToolProbeMode.ProcessVersion, ["ffprobe.exe", "ffprobe64.exe"], ["FLOWENCODE_FFPROBE", "FFPROBE_PATH", "FFPROBE_EXE", "FFPROBE"], ToolSearchLocation.EnvironmentVariables | ToolSearchLocation.LocalToolsRoot | ToolSearchLocation.Path, "-version", "https://github.com/GyanD/codexffmpeg/releases/tag/8.1"),
+        new ToolDefinition(RegisteredToolKind.Vspipe, ToolProbeMode.ProcessVersion, ["vspipe.exe", "VSPipe.exe"], ["FLOWENCODE_VSPIPE", "VSPIPE_PATH", "VSPIPE_EXE", "VSPIPE"], ToolSearchLocation.EnvironmentVariables | ToolSearchLocation.LocalToolsRoot | ToolSearchLocation.Path | ToolSearchLocation.VspipeSidecar | ToolSearchLocation.ProgramFilesVapourSynth | ToolSearchLocation.PythonScripts, "--version", "https://github.com/vapoursynth/vapoursynth/releases/tag/R79"),
+        new ToolDefinition(RegisteredToolKind.Python, ToolProbeMode.ProcessVersion, PythonExecutables, PythonEnvironmentVariables, PythonSearchLocations, "--version", "https://www.python.org/downloads/release/python-31210/"),
         new ToolDefinition(RegisteredToolKind.Pip, ToolProbeMode.ProcessVersion, ["pip.exe", "pip3.exe"], ["FLOWENCODE_PIP", "PIP_PATH", "PIP_EXE"], ToolSearchLocation.EnvironmentVariables | ToolSearchLocation.PythonScripts | ToolSearchLocation.Path, "--version", "https://pip.pypa.io/"),
         new ToolDefinition(RegisteredToolKind.Vsrepo, ToolProbeMode.PythonModuleImport, PythonExecutables, PythonEnvironmentVariables, PythonSearchLocations, string.Empty, "https://github.com/vapoursynth/vsrepo", ProbeValue: "vsrepo.vsrepo"),
-        new ToolDefinition(RegisteredToolKind.VsrepoCli, ToolProbeMode.ProcessVersion, ["vsrepo.exe"], ["FLOWENCODE_VSREPO", "VSREPO_PATH", "VSREPO_EXE"], ToolSearchLocation.EnvironmentVariables | ToolSearchLocation.PythonScripts | ToolSearchLocation.Path, "installed", "https://github.com/vapoursynth/vsrepo"),
+        new ToolDefinition(RegisteredToolKind.VsrepoCli, ToolProbeMode.ProcessVersion, ["vsrepo.exe"], ["FLOWENCODE_VSREPO", "VSREPO_PATH", "VSREPO_EXE"], ToolSearchLocation.EnvironmentVariables | ToolSearchLocation.PythonScripts | ToolSearchLocation.Path, "--help", "https://github.com/vapoursynth/vsrepo"),
         new ToolDefinition(RegisteredToolKind.VsrepoPackageFfms2, ToolProbeMode.VsrepoInstalledPackage, PythonExecutables, PythonEnvironmentVariables, PythonSearchLocations, string.Empty, "https://github.com/vapoursynth/vsrepo", ProbeValue: "ffms2"),
         new ToolDefinition(RegisteredToolKind.VsrepoPackageFpng, ToolProbeMode.VsrepoInstalledPackage, PythonExecutables, PythonEnvironmentVariables, PythonSearchLocations, string.Empty, "https://github.com/vapoursynth/vsrepo", ProbeValue: "fpng"),
         new ToolDefinition(RegisteredToolKind.VsrepoPackageLibp2p, ToolProbeMode.VsrepoInstalledPackage, PythonExecutables, PythonEnvironmentVariables, PythonSearchLocations, string.Empty, "https://github.com/vapoursynth/vsrepo", ProbeValue: "libp2p"),

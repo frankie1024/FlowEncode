@@ -14,7 +14,7 @@
 
   <p>
     <img alt="Platform" src="https://img.shields.io/badge/platform-Windows%20x64-0078d4">
-    <img alt="Version" src="https://img.shields.io/badge/version-2.0.2-167a7f">
+    <img alt="Version" src="https://img.shields.io/badge/version-2.0.3-167a7f">
     <img alt="Framework" src="https://img.shields.io/badge/.NET-8.0-512bd4">
     <img alt="UI" src="https://img.shields.io/badge/UI-WinUI%203-0d6efd">
     <img alt="License" src="https://img.shields.io/badge/license-GPL--3.0--only-blue">
@@ -119,7 +119,9 @@ flowchart LR
 
 前往 [GitHub Releases](https://github.com/frankie1024/FlowEncode/releases) 下载最新的 Windows x64 安装包。
 
-> **版本支持说明：2.0.2 是 2.0 系列最后一个补丁版本，也是最后一个支持旧版 deew（3.x / DEE 5.2.1 工具链）的版本。** 3.0 将转向 deew 5.x 新工具链；需要继续使用旧版 deew 的用户，请保留 2.0.2。3.0 开发计划见 [路线图](docs/ROADMAP-3.0.md)。
+> **版本支持说明：2.0.3 是 2.0 系列最后一个补丁版本，也是最后一个支持旧版 deew（3.x / DEE 5.2.1 工具链）的版本。** 3.0 将转向 deew 5.x 新工具链；需要继续使用旧版 deew 的用户，请保留 2.0.3。3.0 开发计划见 [路线图](docs/ROADMAP-3.0.md)。
+
+工具链安装和更新固定到 [2.0 兼容基线](docs/TOOLCHAIN-BASELINE-2.0.md)。请先升级主程序到 2.0.3，避免旧版自动更新策略继续下载不兼容的新工具。
 
 当前发布资产以安装版为主：
 

@@ -780,7 +780,7 @@ public sealed class SetupGuideViewModel : ObservableObject, ISetupDependencyModu
                 0,
                 Texts.Pick("Python", "Python"),
                 Texts.Pick("首个必须项。后续所有 Python 侧安装动作都依赖这里。", "The first required step. All Python-side installs depend on this card."),
-                Texts.Pick("自动选择 Python 官方当前受支持的 Windows x64 安装器；Python 3.12 或更新的 x64 版本均可使用。", "FlowEncode selects a currently supported official Windows x64 installer. Python 3.12 or newer x64 is supported."),
+                Texts.Pick("固定安装 Python 3.12.10 x64；2.0 的 VapourSynth 插件基线仅使用 Python 3.12 ABI。", "Installs the pinned Python 3.12.10 x64 release. The 2.0 VapourSynth baseline uses the Python 3.12 ABI."),
                 [BuildSetupDependencyItem(SetupDependencyKind.Python312)]),
             CreateCard(
                 1,
@@ -1041,7 +1041,7 @@ public sealed class SetupGuideViewModel : ObservableObject, ISetupDependencyModu
                 : Texts.Pick($"已装：{status.InstalledVersion}", $"Installed: {status.InstalledVersion}"),
             kind == SetupDependencyKind.VsPluginBundle || string.IsNullOrWhiteSpace(status.LatestVersion)
                 ? string.Empty
-                : Texts.Pick($"最新：{status.LatestVersion}", $"Latest: {status.LatestVersion}"),
+                : Texts.Pick($"2.0 兼容基线：{status.LatestVersion}", $"2.0 baseline: {status.LatestVersion}"),
             warningText,
             status.Detail,
             status.ExecutablePath,
@@ -1293,13 +1293,13 @@ public sealed class SetupGuideViewModel : ObservableObject, ISetupDependencyModu
         if (!string.IsNullOrWhiteSpace(status.InstalledVersion))
         {
             return Texts.Pick(
-                $"当前检测到的 Python 版本为 {status.InstalledVersion}，VapourSynth 栈需要 Python 3.12+ x64。",
-                $"The detected Python version is {status.InstalledVersion}, but the VapourSynth stack requires Python 3.12+ x64.");
+                $"当前检测到的 Python 版本为 {status.InstalledVersion}，VapourSynth 栈需要 Python 3.12 x64。",
+                $"The detected Python version is {status.InstalledVersion}, but the VapourSynth stack requires Python 3.12 x64.");
         }
 
         return Texts.Pick(
-            "未检测到 Python 3.12+ x64。建议先安装官方 Windows x64 版本。",
-            "Python 3.12+ x64 was not detected. Install the official Windows x64 build first.");
+            "未检测到 Python 3.12 x64。建议先安装官方 Windows x64 版本。",
+            "Python 3.12 x64 was not detected. Install the official Windows x64 build first.");
     }
 
     private string BuildPythonDependentStatusText(SetupDependencyStatus status, string readyText, string missingText)
@@ -1360,8 +1360,8 @@ public sealed class SetupGuideViewModel : ObservableObject, ISetupDependencyModu
         else if (hasUpdateAvailable && !string.IsNullOrWhiteSpace(status.LatestVersion))
         {
             warnings.Add(Texts.Pick(
-                $"检测到可用新版本：{status.LatestVersion}",
-                $"A newer version is available: {status.LatestVersion}"));
+                $"可安装 2.0 兼容基线：{status.LatestVersion}",
+                $"2.0 compatibility baseline available: {status.LatestVersion}"));
         }
 
         if (status.IsInstallSupported

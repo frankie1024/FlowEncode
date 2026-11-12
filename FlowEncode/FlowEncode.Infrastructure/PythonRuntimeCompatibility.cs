@@ -7,7 +7,7 @@ internal static class PythonRuntimeCompatibility
 
     public static bool IsSupportedVersion(Version version)
     {
-        return version.Major == 3 && version >= MinimumSupportedVersion;
+        return version.Major == 3 && version.Minor == 12 && version >= MinimumSupportedVersion;
     }
 
     public static bool IsTargetMinor(Version version)

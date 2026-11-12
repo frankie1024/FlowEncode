@@ -24,7 +24,7 @@ internal static class EncoderManifestCatalog
             [
                 new EncoderUpdateChannel(
                     "FlowEncode x264 Windows Builds",
-                    "https://github.com/frankie1024/x264-windows-builds/releases/latest",
+                    "https://github.com/frankie1024/x264-windows-builds/releases/tag/stable-20250608-b35605ace3dd",
                     "FlowEncode 默认使用这个 x264 Windows x64 发布源，统一自动更新与手动导入策略。"),
                 new EncoderUpdateChannel(
                     "VideoLAN 源码",
@@ -43,7 +43,7 @@ internal static class EncoderManifestCatalog
             [
                 new EncoderUpdateChannel(
                     "FlowEncode x265 Windows Builds",
-                    "https://github.com/frankie1024/x265-windows-builds/releases/latest",
+                    "https://github.com/frankie1024/x265-windows-builds/releases/tag/4.2",
                     "FlowEncode 默认使用这个 x265 Windows x64 发布源。"),
                 new EncoderUpdateChannel(
                     "MulticoreWare 仓库",
@@ -62,7 +62,7 @@ internal static class EncoderManifestCatalog
             [
                 new EncoderUpdateChannel(
                     "FlowEncode SVT-AV1 Windows Builds",
-                    "https://github.com/frankie1024/svt-av1-windows-builds/releases/latest",
+                    "https://github.com/frankie1024/svt-av1-windows-builds/releases/tag/v4.1.0",
                     "FlowEncode 默认使用这个 SVT-AV1 EncApp Windows x64 发布源。"),
                 new EncoderUpdateChannel(
                     "AOMedia GitLab",

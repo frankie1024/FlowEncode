@@ -306,7 +306,7 @@ public sealed class ProcessToolProbeService : IToolProbeService
         {
             StartInfo = CreatePythonModuleProcessStartInfo(
                 candidate.Path,
-                ["-m", "vsrepo.vsrepo", "-t", GetVsrepoTarget(), "installed"])
+                LegacyVsrepoBaseline.Arguments(_paths, GetVsrepoTarget(), "installed", []))
         };
 
         using var _ = ErrorDialogSuppression.Enter();
@@ -456,16 +456,24 @@ public sealed class ProcessToolProbeService : IToolProbeService
         return startInfo;
     }
 
+    internal static bool IsUnsupportedDeewVersion(string version)
+    {
+        var match = Regex.Match(version, @"(?<!\d)(?<major>\d+)\.\d+(?:\.\d+)?");
+        return match.Success && int.TryParse(match.Groups["major"].Value, out var major) && major >= 5;
+    }
+
     private ToolProbeResult CreateReadyResult(ToolDefinition definition, ToolCandidate candidate, string version)
     {
+        var isNewDeew = definition.Kind == RegisteredToolKind.Deew
+            && IsUnsupportedDeewVersion(version);
         return new ToolProbeResult(
             definition.Kind,
-            ReadinessState.Ready,
+            isNewDeew ? ReadinessState.Misconfigured : ReadinessState.Ready,
             candidate.Source,
             candidate.SourceLabel,
             candidate.Path,
             version,
-            string.Empty,
+            isNewDeew ? "FlowEncode 2.0 requires legacy deew 3.x / DEE 5.2.1. Upgrade FlowEncode for deew 5.x." : string.Empty,
             definition.ReleaseUrl,
             definition.ManagedExternalToolKind);
     }
@@ -505,7 +513,7 @@ public sealed class ProcessToolProbeService : IToolProbeService
                 return CreateMisconfiguredResult(
                     definition,
                     candidate,
-                    $"Python {version} {(is64Bit ? "x64" : "x86")} is not compatible with the VapourSynth stack. Python 3.12+ x64 is required.");
+                    $"Python {version} {(is64Bit ? "x64" : "x86")} is not compatible with the VapourSynth stack. Python 3.12 x64 is required.");
             }
 
             var executablePath = lines.Count > 1 && File.Exists(lines[1])

@@ -15,8 +15,6 @@ namespace FlowEncode.Infrastructure;
 [SupportedOSPlatform("windows")]
 public sealed class SetupBootstrapService : ISetupBootstrapService, IDisposable
 {
-    private const string PythonReleasesApiUrl = "https://www.python.org/api/v2/downloads/release/?is_published=true";
-    private const string PythonReleaseFilesApiUrl = "https://www.python.org/api/v2/downloads/release_file/?release=";
     private static readonly PythonInstallerPackage PythonFallbackInstallerPackage = new(
         new Version(3, 12, 10),
         "python-3.12.10-amd64.exe",
@@ -220,10 +218,10 @@ public sealed class SetupBootstrapService : ISetupBootstrapService, IDisposable
         var localReport = BuildStatusReport(
             readiness,
             localContext,
-            new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase),
-            _latestPythonInstallerPackage,
-            Array.Empty<EncoderUpdatePackage>(),
-            Array.Empty<ExternalToolUpdatePackage>(),
+            await GetLatestPyPiVersionsAsync(cancellationToken),
+            PythonFallbackInstallerPackage,
+            LegacyToolchainBaseline.EncoderPackages(),
+            LegacyToolchainBaseline.ToolPackages(),
             DateTimeOffset.Now);
 
         return MergeRemoteMetadata(localReport, previousReport);
@@ -288,7 +286,21 @@ public sealed class SetupBootstrapService : ISetupBootstrapService, IDisposable
             BuildToolStatus(readiness, SetupDependencyKind.OpusExt, RegisteredToolKind.OpusExt)
         };
 
-        return new SetupDependencyStatusReport(checkedAt, dependencies);
+        return new SetupDependencyStatusReport(checkedAt, dependencies.Select(AnnotateBaseline).ToArray());
+    }
+
+    private static SetupDependencyStatus AnnotateBaseline(SetupDependencyStatus status)
+    {
+        if (string.IsNullOrWhiteSpace(status.LatestVersion)) return status;
+        var mismatch = !string.IsNullOrWhiteSpace(status.InstalledVersion)
+            && !IsInstalledVersionVerified(status.Kind, status.InstalledVersion, status.LatestVersion);
+        var detail = LegacyToolchainBaseline.Notice
+            + (mismatch ? " The detected version differs from this baseline and has not been validated for FlowEncode 2.0. Use the baseline installer to restore it." : string.Empty);
+        return status with
+        {
+            Detail = detail + Environment.NewLine + status.Detail,
+            UpdateAvailable = mismatch || status.UpdateAvailable
+        };
     }
 
     private SetupDependencyStatusReport MergeRemoteMetadata(
@@ -711,7 +723,7 @@ public sealed class SetupBootstrapService : ISetupBootstrapService, IDisposable
         var installedPython = installations
             .Where(static item => item.Is64Bit)
             .OrderByDescending(static item => item.Version)
-            .FirstOrDefault(item => item.Version >= package.Version);
+            .FirstOrDefault(item => item.Version == package.Version);
         if (installedPython is null)
         {
             throw new InvalidOperationException($"Python {package.Version} x64 installation finished, but the interpreter could not be detected afterwards.");
@@ -794,23 +806,8 @@ public sealed class SetupBootstrapService : ISetupBootstrapService, IDisposable
             ["vsrepo"]);
         await EnsureVsrepoArchiveExtractorAsync(pythonPath, progress, cancellationToken);
         await EnsureVsrepoUserSiteDirectoryAsync(pythonPath, cancellationToken);
-        ReportProgress(progress, SetupDependencyKind.VsPluginBundle, 5, "Updating vsrepo package definitions...");
-        try
-        {
-            await RunProcessAsync(
-                pythonPath,
-                ["-m", "vsrepo.vsrepo", "-t", GetVsrepoTarget(), "update"],
-                cancellationToken,
-                timeoutMs: 120_000,
-                onOutput: line => ReportProgress(progress, SetupDependencyKind.VsPluginBundle, 10, line),
-                onError: line => ReportProgress(progress, SetupDependencyKind.VsPluginBundle, 10, line));
-        }
-        catch (Exception ex) when (ex is not OperationCanceledException)
-        {
-            throw new InvalidOperationException(
-                "Unable to update vsrepo package definitions. Check the network connection and try again.",
-                ex);
-        }
+        PrepareVsrepoBaseline();
+        ReportProgress(progress, SetupDependencyKind.VsPluginBundle, 5, "Using the pinned FlowEncode 2.0 plugin manifest...");
 
         var packagesBeforeUpdate = await QueryVsrepoInstalledPackagesAsync(
             pythonPath,
@@ -838,7 +835,7 @@ public sealed class SetupBootstrapService : ISetupBootstrapService, IDisposable
 
             await RunProcessAsync(
                 pythonPath,
-                ["-m", "vsrepo.vsrepo", "-t", GetVsrepoTarget(), operation, .. packages],
+                BuildVsrepoBaselineArguments(operation, packages),
                 cancellationToken,
                 timeoutMs: 600_000,
                 onOutput: line => ReportProgress(
@@ -1118,7 +1115,7 @@ public sealed class SetupBootstrapService : ISetupBootstrapService, IDisposable
         ReportProgress(progress, SetupDependencyKind.VsPluginBundle, 10, "Removing VS plugin bundle...");
         await RunProcessAsync(
             pythonPath,
-            ["-m", "vsrepo.vsrepo", "-t", GetVsrepoTarget(), "uninstall", .. packages],
+            BuildVsrepoBaselineArguments("uninstall", packages),
             cancellationToken,
             timeoutMs: 600_000,
             onOutput: line =>
@@ -1221,10 +1218,12 @@ public sealed class SetupBootstrapService : ISetupBootstrapService, IDisposable
             distributionName,
             cancellationToken);
         await EnsurePipCliLauncherAsync(pythonPath, cancellationToken);
-        ReportProgress(progress, kind, 10, "Preparing pip install...");
+        var constraintsPath = Path.Combine(_paths.DownloadsRootPath, "legacy-vs-constraints.txt");
+        PersistentFileWriter.WriteAllText(constraintsPath, VapourSynthToolchainPolicy.Constraints, new System.Text.UTF8Encoding(false));
+        ReportProgress(progress, kind, 10, "Installing the FlowEncode 2.0 compatibility baseline...");
         await RunProcessAsync(
             pythonPath,
-            ["-m", "pip", "install", "--upgrade", "--disable-pip-version-check", "--progress-bar", "off", packageSpec],
+            VapourSynthToolchainPolicy.InstallArguments(packageSpec, constraintsPath),
             cancellationToken,
             timeoutMs: 600_000,
             onOutput: line => ReportProgress(progress, kind, MapPipProgress(line, finishPercent), line),
@@ -1239,9 +1238,10 @@ public sealed class SetupBootstrapService : ISetupBootstrapService, IDisposable
             pythonPath,
             distributionName,
             cancellationToken);
-        if (string.IsNullOrWhiteSpace(installedVersion))
+        var expectedVersion = VapourSynthToolchainPolicy.PackageSpec(distributionName).Split("==").Last();
+        if (!string.Equals(installedVersion, expectedVersion, StringComparison.OrdinalIgnoreCase))
         {
-            throw new InvalidOperationException($"pip completed, but distribution '{distributionName}' could not be verified.");
+            throw new InvalidOperationException($"pip did not install the pinned '{distributionName}' version {expectedVersion}; detected '{installedVersion}'.");
         }
 
         _cliEnvironmentIntegrationService.RecordComponentOwnership(
@@ -1268,7 +1268,7 @@ public sealed class SetupBootstrapService : ISetupBootstrapService, IDisposable
             .FirstOrDefault(static item => PythonRuntimeCompatibility.IsSupportedRuntime(item.Version, item.Is64Bit));
 
         return target?.ExecutablePath
-            ?? throw new InvalidOperationException("Python 3.12 or newer x64 was not detected. Install a supported x64 Python first.");
+            ?? throw new InvalidOperationException("Python 3.12 x64 was not detected. Install a supported x64 Python first.");
     }
 
     private async Task<string> ResolvePreferredPythonAsync(CancellationToken cancellationToken)
@@ -1623,36 +1623,17 @@ public sealed class SetupBootstrapService : ISetupBootstrapService, IDisposable
         }
     }
 
-    private async Task<IReadOnlyDictionary<string, string>> GetLatestPyPiVersionsAsync(CancellationToken cancellationToken)
+    private Task<IReadOnlyDictionary<string, string>> GetLatestPyPiVersionsAsync(CancellationToken cancellationToken)
     {
-        var packageNames = new[] { "vapoursynth", "vsrepo", "awsmfunc", "vsjetpack" };
-        var tasks = packageNames.ToDictionary(
-            static packageName => packageName,
-            packageName => GetLatestPyPiVersionAsync(packageName, cancellationToken));
-
-        await Task.WhenAll(tasks.Values);
-
-        return tasks.ToDictionary(
-            static pair => pair.Key,
-            static pair => pair.Value.Result,
-            StringComparer.OrdinalIgnoreCase);
-    }
-
-    private async Task<string> GetLatestPyPiVersionAsync(string packageName, CancellationToken cancellationToken)
-    {
-        try
+        cancellationToken.ThrowIfCancellationRequested();
+        IReadOnlyDictionary<string, string> versions = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
         {
-            using var response = await _apiHttpClient.GetAsync($"https://pypi.org/pypi/{packageName}/json", cancellationToken);
-            response.EnsureSuccessStatusCode();
-
-            await using var stream = await response.Content.ReadAsStreamAsync(cancellationToken);
-            var payload = await JsonSerializer.DeserializeAsync<PyPiPackageResponse>(stream, JsonOptions, cancellationToken);
-            return payload?.Info?.Version ?? string.Empty;
-        }
-        catch
-        {
-            return string.Empty;
-        }
+            ["vapoursynth"] = VapourSynthToolchainPolicy.VapourSynthVersion,
+            ["vsrepo"] = VapourSynthToolchainPolicy.VsrepoVersion,
+            ["awsmfunc"] = VapourSynthToolchainPolicy.AwsmfuncVersion,
+            ["vsjetpack"] = VapourSynthToolchainPolicy.VsjetpackVersion
+        };
+        return Task.FromResult(versions);
     }
 
     private async Task<IReadOnlyList<EncoderUpdatePackage>> SafeGetEncoderUpdatesAsync(CancellationToken cancellationToken)
@@ -1736,7 +1717,7 @@ public sealed class SetupBootstrapService : ISetupBootstrapService, IDisposable
 
             var result = await RunProcessAsync(
                 pythonPath,
-                ["-m", "vsrepo.vsrepo", "-t", GetVsrepoTarget(), "installed"],
+                BuildVsrepoBaselineArguments("installed", []),
                 cancellationToken,
                 timeoutMs: 30_000);
             if (result.ExitCode != 0)
@@ -1752,112 +1733,22 @@ public sealed class SetupBootstrapService : ISetupBootstrapService, IDisposable
         }
     }
 
-    private async Task TryUpdateVsrepoPackageDefinitionsAsync(
-        string pythonPath,
-        CancellationToken cancellationToken)
+    private Task TryUpdateVsrepoPackageDefinitionsAsync(string pythonPath, CancellationToken cancellationToken)
     {
-        try
-        {
-            await EnsureVsrepoUserSiteDirectoryAsync(pythonPath, cancellationToken);
-            await RunProcessAsync(
-                pythonPath,
-                ["-m", "vsrepo.vsrepo", "-t", GetVsrepoTarget(), "update"],
-                cancellationToken,
-                timeoutMs: 120_000);
-        }
-        catch (Exception ex)
-        {
-            AppDiagnosticsLog.Write(
-                _paths,
-                nameof(SetupBootstrapService),
-                $"Failed to update vsrepo package definitions. {ex.GetType().Name}: {ex.Message}",
-                AppDiagnosticSeverity.Warning,
-                exception: ex);
-        }
+        cancellationToken.ThrowIfCancellationRequested();
+        PrepareVsrepoBaseline();
+        return Task.CompletedTask;
     }
 
-    private async Task<PythonInstallerPackage> SafeGetLatestPythonInstallerPackageAsync(CancellationToken cancellationToken)
+    private void PrepareVsrepoBaseline() => LegacyVsrepoBaseline.Prepare(_paths);
+
+    private IReadOnlyList<string> BuildVsrepoBaselineArguments(string operation, IReadOnlyList<string> packages) =>
+        LegacyVsrepoBaseline.Arguments(_paths, GetVsrepoTarget(), operation, packages);
+
+    private Task<PythonInstallerPackage> SafeGetLatestPythonInstallerPackageAsync(CancellationToken cancellationToken)
     {
-        try
-        {
-            var package = await GetLatestPythonInstallerPackageAsync(cancellationToken);
-            _latestPythonInstallerPackage = package;
-            return package;
-        }
-        catch (Exception ex) when (ex is not OperationCanceledException)
-        {
-            AppDiagnosticsLog.Write(
-                _paths,
-                nameof(SetupBootstrapService),
-                $"Failed to resolve the latest Python Windows installer. {ex.GetType().Name}: {ex.Message}",
-                AppDiagnosticSeverity.Warning,
-                exception: ex);
-            return _latestPythonInstallerPackage;
-        }
-    }
-
-    private async Task<PythonInstallerPackage> GetLatestPythonInstallerPackageAsync(CancellationToken cancellationToken)
-    {
-        using var releasesResponse = await _apiHttpClient.GetAsync(PythonReleasesApiUrl, cancellationToken);
-        releasesResponse.EnsureSuccessStatusCode();
-        await using var releasesStream = await releasesResponse.Content.ReadAsStreamAsync(cancellationToken);
-        var releases = await JsonSerializer.DeserializeAsync<List<PythonReleaseResponse>>(
-                releasesStream,
-                JsonOptions,
-                cancellationToken)
-            ?? [];
-
-        var candidates = releases
-            .Where(static release => release.IsPublished && !release.PreRelease)
-            .Select(release => new
-            {
-                Release = release,
-                Version = Version.TryParse(ExtractVersionFromText(release.Name), out var version) ? version : null
-            })
-            .Where(static candidate => IsPythonReleaseEligible(
-                candidate.Version,
-                candidate.Release.IsPublished,
-                candidate.Release.PreRelease))
-            .OrderByDescending(static candidate => candidate.Version)
-            .ToArray();
-
-        foreach (var candidate in candidates)
-        {
-            cancellationToken.ThrowIfCancellationRequested();
-            var releaseId = ExtractTrailingResourceId(candidate.Release.ResourceUri);
-            if (string.IsNullOrWhiteSpace(releaseId))
-            {
-                continue;
-            }
-
-            using var filesResponse = await _apiHttpClient.GetAsync(PythonReleaseFilesApiUrl + releaseId, cancellationToken);
-            filesResponse.EnsureSuccessStatusCode();
-            await using var filesStream = await filesResponse.Content.ReadAsStreamAsync(cancellationToken);
-            var files = await JsonSerializer.DeserializeAsync<List<PythonReleaseFileResponse>>(
-                    filesStream,
-                    JsonOptions,
-                    cancellationToken)
-                ?? [];
-            var installer = files.FirstOrDefault(static file => IsPythonInstallerFileEligible(
-                file.Name,
-                file.Url,
-                file.Sha256Sum));
-            if (installer is null || string.IsNullOrWhiteSpace(installer.Url))
-            {
-                continue;
-            }
-
-            return new PythonInstallerPackage(
-                candidate.Version!,
-                Path.GetFileName(new Uri(installer.Url).LocalPath),
-                installer.Url,
-                PackageIntegrityVerifier.NormalizeSha256Digest(installer.Sha256Sum) ?? string.Empty,
-                string.IsNullOrWhiteSpace(candidate.Release.Slug)
-                    ? "https://www.python.org/downloads/windows/"
-                    : $"https://www.python.org/downloads/release/{candidate.Release.Slug}/");
-        }
-
-        throw new InvalidOperationException("Python.org did not return a supported Windows x64 installer.");
+        cancellationToken.ThrowIfCancellationRequested();
+        return Task.FromResult(PythonFallbackInstallerPackage);
     }
 
     internal static bool IsPythonReleaseEligible(Version? version, bool isPublished, bool isPreRelease)
@@ -1912,7 +1803,7 @@ public sealed class SetupBootstrapService : ISetupBootstrapService, IDisposable
 
         await RunProcessAsync(
             pythonPath,
-            ["-m", "pip", "install", "--upgrade", "--force-reinstall", "--disable-pip-version-check", "--progress-bar", "off", "pip"],
+            ["-m", "pip", "install", "--upgrade", "--force-reinstall", "--disable-pip-version-check", "--progress-bar", "off", "pip==25.0.1"],
             cancellationToken,
             timeoutMs: 600_000);
         if (!await IsCliCommandHealthyAsync(pipPath, ["--version"], cancellationToken))
@@ -1925,17 +1816,18 @@ public sealed class SetupBootstrapService : ISetupBootstrapService, IDisposable
     {
         var scriptsDirectory = Path.Combine(Path.GetDirectoryName(pythonPath) ?? string.Empty, "Scripts");
         var vsrepoPath = Path.Combine(scriptsDirectory, "vsrepo.exe");
-        if (await IsCliCommandHealthyAsync(vsrepoPath, ["installed"], cancellationToken))
+        if (await QueryPythonDistributionVersionAsync(pythonPath, "vsrepo", cancellationToken) == VapourSynthToolchainPolicy.VsrepoVersion
+            && await IsCliCommandHealthyAsync(vsrepoPath, ["--help"], cancellationToken))
         {
             return;
         }
 
         await RunProcessAsync(
             pythonPath,
-            ["-m", "pip", "install", "--upgrade", "--force-reinstall", "--no-deps", "--disable-pip-version-check", "--progress-bar", "off", "vsrepo"],
+            ["-m", "pip", "install", "--upgrade", "--force-reinstall", "--no-deps", "--disable-pip-version-check", "--progress-bar", "off", VapourSynthToolchainPolicy.PackageSpec("vsrepo")],
             cancellationToken,
             timeoutMs: 600_000);
-        if (!await IsCliCommandHealthyAsync(vsrepoPath, ["installed"], cancellationToken))
+        if (!await IsCliCommandHealthyAsync(vsrepoPath, ["--help"], cancellationToken))
         {
             throw new InvalidOperationException($"vsrepo was installed for '{pythonPath}', but the vsrepo command-line launcher is not usable.");
         }
@@ -1952,7 +1844,7 @@ public sealed class SetupBootstrapService : ISetupBootstrapService, IDisposable
 
         await RunProcessAsync(
             pythonPath,
-            ["-m", "pip", "install", "--upgrade", "--force-reinstall", "--no-deps", "--disable-pip-version-check", "--progress-bar", "off", "vapoursynth"],
+            ["-m", "pip", "install", "--upgrade", "--force-reinstall", "--no-deps", "--disable-pip-version-check", "--progress-bar", "off", VapourSynthToolchainPolicy.PackageSpec("vapoursynth")],
             cancellationToken,
             timeoutMs: 600_000);
         await RunProcessAsync(
