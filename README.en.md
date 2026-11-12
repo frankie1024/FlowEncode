@@ -14,7 +14,7 @@
 
   <p>
     <img alt="Platform" src="https://img.shields.io/badge/platform-Windows%20x64-0078d4">
-    <img alt="Version" src="https://img.shields.io/badge/version-2.0.1-167a7f">
+    <img alt="Version" src="https://img.shields.io/badge/version-2.0.2-167a7f">
     <img alt="Framework" src="https://img.shields.io/badge/.NET-8.0-512bd4">
     <img alt="UI" src="https://img.shields.io/badge/UI-WinUI%203-0d6efd">
     <img alt="License" src="https://img.shields.io/badge/license-GPL--3.0--only-blue">
@@ -118,6 +118,8 @@ In-app automatic installation or updates mainly cover `Python 3.12`, `VapourSynt
 ### Download
 
 Download the latest Windows x64 installer from [GitHub Releases](https://github.com/frankie1024/FlowEncode/releases).
+
+> **Version support: 2.0.2 is the final patch release in the 2.0 series and the last release supporting legacy deew (the 3.x / DEE 5.2.1 toolchain).** Version 3.0 will move to deew 5.x. Keep 2.0.2 if you need legacy deew support. See the [3.0 roadmap](docs/ROADMAP-3.0.md) for the development plan.
 
 Current release assets are installer-based:
 
