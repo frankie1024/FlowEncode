@@ -14,7 +14,7 @@
 
   <p>
     <img alt="Platform" src="https://img.shields.io/badge/platform-Windows%20x64-0078d4">
-    <img alt="Version" src="https://img.shields.io/badge/version-2.0.3-167a7f">
+    <img alt="Version" src="https://img.shields.io/badge/version-3.0.0-167a7f">
     <img alt="Framework" src="https://img.shields.io/badge/.NET-8.0-512bd4">
     <img alt="UI" src="https://img.shields.io/badge/UI-WinUI%203-0d6efd">
     <img alt="License" src="https://img.shields.io/badge/license-GPL--3.0--only-blue">
@@ -22,6 +22,8 @@
 </div>
 
 ---
+
+3.0 正式版带来 deew 5.1 音频流程、本地 MCP 与共享任务服务，并优化主要页面布局、依赖检查与并发安装。参阅 [MCP 接入](docs/MCP.md)、[deew 验收](docs/DEEW5-VALIDATION.md) 与 [工具链兼容性](docs/TOOLCHAIN-COMPATIBILITY-3.0.md)。旧 deew 工具链请使用 2.0.3 兼容维护版。
 
 FlowEncode 是一个面向 Windows x64 的桌面端编码工作流前端，围绕 `x264`、`x265`、`SVT-AV1`、`Av1an`、`FFmpeg`、`VapourSynth`、`VSPipe` 与相关公开工具链，提供蓝光解复用、脚本编辑与预览、视频压制、音频转码、自动压制、队列执行、日志查看、模板复用，以及面向视频、音频和蓝光目录的拖放入口。
 
@@ -105,13 +107,13 @@ flowchart LR
 | 蓝光解复用 | `DGDemux`、`eac3to` |
 | 音频处理 | `eac3to`、`deew`、`opusenc` / `Opus Encoder`、`FFmpeg`；DDP 输出需要用户自行提供已授权的 `Dolby Encoding Engine` / `DEE` |
 | 媒体探测与管线 | `FFmpeg`、`FFprobe` |
-| 脚本环境 | `Python 3.12`、`VapourSynth`、`vsrepo`、公开可用的 VapourSynth 插件 |
+| 脚本环境 | `Python 3.14`（新安装）/ `Python 3.12`（保留已有环境）、`VapourSynth R79`、`vsrepo`、公开可用的 VapourSynth 插件 |
 | 输入桥接 | `VSPipe`、`Avs2PipeMod` |
 | 应用框架 | `.NET 8`、`WinUI 3`、`Windows App SDK` |
 
 对具体工具的支持深度取决于上游版本、本机运行时状态、插件完整性和用户环境配置。FlowEncode 会尽量提供检测和引导，但不替代上游项目自身的安装说明和许可证。
 
-其中，应用内自动安装或更新主要覆盖 `Python 3.12`、`VapourSynth` / `vsrepo` 及公开插件包、`awsmfunc`、`vsjetpack`、`FFmpeg`、`x264`、`x265`、`SVT-AV1`，以及在托管兼容包可用时的 `Av1an`。`Avs2PipeMod`、`DGDemux`、`eac3to`、`deew`、`Dolby Encoding Engine` / `DEE`、`opusenc` / `Opus Encoder` 属于用户自行获取并遵守各自许可证的外部工具；FlowEncode 只负责检测、手动导入、固定路径和调用，不随安装包分发，也不授予这些工具的使用许可。
+其中，应用内自动安装或更新主要覆盖 `Python 3.14`、`VapourSynth` / `vsrepo` 及公开插件包、`awsmfunc`、`vsjetpack`、`FFmpeg`、`x264`、`x265`、`SVT-AV1`，以及在托管兼容包可用时的 `Av1an`。已有可用的 Python 3.12 环境可以继续保留。`Avs2PipeMod`、`DGDemux`、`eac3to`、`deew`、`Dolby Encoding Engine` / `DEE`、`opusenc` / `Opus Encoder` 属于用户自行获取并遵守各自许可证的外部工具；FlowEncode 只负责检测、手动导入、固定路径和调用，不随安装包分发，也不授予这些工具的使用许可。
 
 ## 安装与运行要求
 
@@ -119,9 +121,7 @@ flowchart LR
 
 前往 [GitHub Releases](https://github.com/frankie1024/FlowEncode/releases) 下载最新的 Windows x64 安装包。
 
-> **版本支持说明：2.0.3 是 2.0 系列最后一个补丁版本，也是最后一个支持旧版 deew（3.x / DEE 5.2.1 工具链）的版本。** 3.0 将转向 deew 5.x 新工具链；需要继续使用旧版 deew 的用户，请保留 2.0.3。3.0 开发计划见 [路线图](docs/ROADMAP-3.0.md)。
-
-工具链安装和更新固定到 [2.0 兼容基线](docs/TOOLCHAIN-BASELINE-2.0.md)。请先升级主程序到 2.0.3，避免旧版自动更新策略继续下载不兼容的新工具。
+> **版本支持说明：2.0.3 是旧工具链的兼容维护版，支持 deew 3.x / DEE 5.2.1。** 3.0 使用 deew ≥5.1.0 / DEE ≥6.7.0；需要继续使用旧版 deew 的用户，请使用 2.0.3。工具链差异见 [2.0 基线](docs/TOOLCHAIN-BASELINE-2.0.md)。
 
 当前发布资产以安装版为主：
 

@@ -77,9 +77,9 @@ public sealed class SettingsDependenciesViewModel : ModuleViewModelBase, ISetupD
         return SetupGuide.GetSetupDependencyCurrentPath(kind);
     }
 
-    public Task<string?> InstallSetupDependencyAsync(SetupDependencyKind kind)
+    public Task<string?> InstallSetupDependencyAsync(SetupDependencyKind kind, bool updateBeyondBaseline = false)
     {
-        return SetupGuide.InstallSetupDependencyAsync(kind);
+        return SetupGuide.InstallSetupDependencyAsync(kind, updateBeyondBaseline);
     }
 
     public Task<string?> ImportSetupDependencyBinaryAsync(SetupDependencyKind kind, string sourcePath)

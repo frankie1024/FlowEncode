@@ -12,8 +12,8 @@ function ConvertTo-VersionInfo {
         [string]$Version
     )
 
-    if ($Version -match '^(?<major>\d+)\.(?<minor>\d+)\.(?<patch>\d+)(?:\.(?<revision>\d+))?$') {
-        $revision = if ($Matches["revision"]) { $Matches["revision"] } else { "0" }
+    if ($Version -match '^(?<major>\d+)\.(?<minor>\d+)\.(?<patch>\d+)(?:\.(?<revision>\d+)|-(?:alpha|beta|rc)\.(?<pre>\d+))?$') {
+        $revision = if ($Matches["revision"]) { $Matches["revision"] } elseif ($Matches["pre"]) { $Matches["pre"] } else { "0" }
         return [string]::Format(
             "{0}.{1}.{2}.{3}",
             $Matches["major"],
@@ -22,7 +22,7 @@ function ConvertTo-VersionInfo {
             $revision)
     }
 
-    throw "FlowEncodeVersion must use 'major.minor.patch' or 'major.minor.patch.revision': $Version"
+    throw "FlowEncodeVersion must use a numeric version or major.minor.patch-alpha/beta/rc.N: $Version"
 }
 
 function Assert-FlowEncodeVersionInfoConsistency {

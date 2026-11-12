@@ -17,6 +17,21 @@
     <ProjectReference Include="..\FlowEncode.Domain\FlowEncode.Domain.csproj" />
     <ProjectReference Include="..\FlowEncode.Application\FlowEncode.Application.csproj" />
     <ProjectReference Include="..\FlowEncode.Infrastructure\FlowEncode.Infrastructure.csproj" />
+    <ProjectReference Include="..\FlowEncode.ToolStub\FlowEncode.ToolStub.csproj" ReferenceOutputAssembly="false" />
   </ItemGroup>
+
+  <Target Name="CopyToolStub" AfterTargets="Build">
+    <MSBuild Projects="$(MSBuildThisFileDirectory)..\FlowEncode.ToolStub\FlowEncode.ToolStub.csproj"
+             Targets="GetTargetPath" Properties="Configuration=$(Configuration);TargetFramework=net8.0">
+      <Output TaskParameter="TargetOutputs" ItemName="ToolStubAssembly" />
+    </MSBuild>
+    <PropertyGroup>
+      <ToolStubDirectory>@(ToolStubAssembly->'%(RootDir)%(Directory)')</ToolStubDirectory>
+    </PropertyGroup>
+    <ItemGroup>
+      <ToolStubFiles Include="$(ToolStubDirectory)FlowEncode.ToolStub*" />
+    </ItemGroup>
+    <Copy SourceFiles="@(ToolStubFiles)" DestinationFolder="$(OutDir)ToolStub" />
+  </Target>
 
 </Project>

@@ -11,4 +11,5 @@ public sealed record AutoCompressionRequest(
     string VideoParameters,
     string BackendArguments,
     int? Workers,
-    AutoCompressionSearchProfile? SearchProfile = null);
+    AutoCompressionSearchProfile? SearchProfile = null,
+    bool OverwriteOutput = true);

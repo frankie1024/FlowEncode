@@ -46,6 +46,21 @@ internal sealed class ParallelVideoEncodingAv1anRunner
             .DisplayCommand;
     }
 
+    internal string BuildValidatedDisplayCommand(EncodingJobRequest request, CancellationToken token)
+    {
+        RequestValidation.ValidateEncodingJobRequest(request);
+        var parallel = RequestValidation.CreateParallelVideoEncodingRequest(request);
+        LegacyAv1anCliFallbackRunner.EnsureAv1anRuntimeReadyAsync(_toolLocator.ResolveAv1an(), GetLanguage(), token).GetAwaiter().GetResult();
+        var source = ProbeSourceInfo(request, true, RequiresSourceMetadata(parallel), token);
+        var profile = new EncodingProfile(parallel.EncoderKind, "", "", parallel.Preset, parallel.Tune, parallel.Profile,
+            RateControlMode.Crf, parallel.Crf, null, "mkv", parallel.VideoParameters, parallel.UhdParameters);
+        var ffmpeg = _toolLocator.ResolveFfmpeg(); var ffprobe = _toolLocator.ResolveFfprobe();
+        FfmpegCapabilityProbe.ValidatePair(ffmpeg, ffprobe, token);
+        FfmpegCapabilityProbe.RequireVideo(ffmpeg, token);
+        EncoderRuntimeValidation.Validate(ResolveEncoderForValidation(parallel.EncoderKind), ffprobe, profile, source, token);
+        return ParallelVideoAv1anArgumentBuilder.BuildCommand(parallel, _toolLocator.ResolveAv1an(), GetTempDirectory(request), request.OutputPath, source).DisplayCommand;
+    }
+
     public void Abort(Guid jobId)
     {
         if (_activeExecutions.TryRemove(jobId, out var execution))
@@ -92,6 +107,17 @@ internal sealed class ParallelVideoEncodingAv1anRunner
             request.OutputPath,
             sourceInfo).DisplayCommand;
 
+        var encoderProfile = new EncodingProfile(parallelRequest.EncoderKind, string.Empty, string.Empty,
+            parallelRequest.Preset, parallelRequest.Tune, parallelRequest.Profile, RateControlMode.Crf,
+            parallelRequest.Crf, null, "mkv", parallelRequest.VideoParameters, parallelRequest.UhdParameters);
+        var encoderPath = ResolveEncoderForValidation(parallelRequest.EncoderKind);
+        var ffmpegPath = _toolLocator.ResolveFfmpeg();
+        var ffprobePath = _toolLocator.ResolveFfprobe();
+        FfmpegCapabilityProbe.ValidatePair(ffmpegPath, ffprobePath, cancellationToken);
+        FfmpegCapabilityProbe.RequireVideo(ffmpegPath, cancellationToken);
+        EncoderRuntimeValidation.Validate(encoderPath, _toolLocator.ResolveFfprobe(), encoderProfile, sourceInfo, cancellationToken);
+        var outputContract = VideoOutputContract.Resolve(encoderProfile, sourceInfo);
+
         var rawLogPath = CreateTemporaryRawLogPath(request, tempDirectory);
         var av1anLogPath = CreateAv1anLogPath(request, tempDirectory);
         var executionCommand = ParallelVideoAv1anArgumentBuilder.BuildCommand(
@@ -109,6 +135,7 @@ internal sealed class ParallelVideoEncodingAv1anRunner
         double? currentProgress = null;
         var currentSummary = T(language, "Av1an parallel encoding started", "Av1an 并行压制已启动");
         var outputFinalized = false;
+        var preserveStagedOutput = false;
         var finalExitCode = -1;
         var startedAt = Stopwatch.GetTimestamp();
 
@@ -225,6 +252,11 @@ internal sealed class ParallelVideoEncodingAv1anRunner
                 av1anPath,
                 executionCommand.Arguments,
                 GetWorkingDirectory(request, av1anPath));
+            var validatedToolDirectories = new[] { encoderPath, ffmpegPath, ffprobePath }
+                .Select(Path.GetDirectoryName).Distinct(StringComparer.OrdinalIgnoreCase);
+            process.StartInfo.Environment.TryGetValue("PATH", out var inheritedPath);
+            process.StartInfo.Environment["PATH"] = string.Join(Path.PathSeparator, validatedToolDirectories)
+                + Path.PathSeparator + inheritedPath;
             process.Start();
             activeExecution = new ManagedProcessExecution(
                 message => WriteDiagnostic($"Parallel video encoding job {request.JobId}: {message}"),
@@ -247,13 +279,14 @@ internal sealed class ParallelVideoEncodingAv1anRunner
                 try
                 {
                     _outputVerifier.VerifyVideoOutput(stagedOutputPath, language, cancellationToken);
+                    EncodedMediaVerifier.VerifyVideo(_toolLocator.ResolveFfprobe(), stagedOutputPath, outputContract, cancellationToken);
                     var completionSnapshot = BuildCompletionSnapshot(request, stagedOutputPath, startedAt, cancellationToken);
                     var reportLine = BuildPostEncodeReportLine(language, completionSnapshot);
                     AppendLine(reportLine);
                     AppendAv1anFileLog(av1anLogPath, AppendLine);
                     await rawLogWriter.FlushAsync();
                     visibleLog = visibleLogBuilder.ToString();
-                    FinalizeOutputFile(stagedOutputPath, request.OutputPath, request.JobId);
+                    FinalizeOutputFile(stagedOutputPath, request.OutputPath, request.JobId, request.OverwriteOutput);
 
                     currentProgress = 1.0;
                     progress?.Report(new EncodingJobProgress(
@@ -264,13 +297,14 @@ internal sealed class ParallelVideoEncodingAv1anRunner
                         reportLine,
                         completionSnapshot));
                 }
-                catch (Exception ex)
+                catch (Exception ex) when (ex is not OperationCanceledException)
                 {
+                    preserveStagedOutput = true;
                     currentState = EncodingJobState.Failed;
                     var finalizationFailureSummary = T(
                         language,
-                        $"Av1an parallel encoding finished but output verification failed: {ex.Message}",
-                        $"Av1an 并行压制已结束，但输出校验失败：{ex.Message}");
+                        $"Av1an output verification failed: {ex.Message}. Recovery file: {stagedOutputPath}",
+                        $"Av1an 输出校验失败：{ex.Message}。恢复文件：{stagedOutputPath}");
                     AppendLine(finalizationFailureSummary);
                     await CloseRawLogWriterAsync();
                     visibleLog = visibleLogBuilder.ToString();
@@ -370,14 +404,14 @@ internal sealed class ParallelVideoEncodingAv1anRunner
             activeExecution?.Dispose();
             process?.Dispose();
             await CloseRawLogWriterAsync();
-            if (!outputFinalized)
+            if (!outputFinalized && !preserveStagedOutput)
             {
                 ExecutionOutputStaging.CleanupStagedFile(stagedOutputPath, request.OutputPath, request.JobId, WriteDiagnostic);
             }
 
             CleanupTemporaryRawLog(rawLogPath);
             CleanupTemporaryRawLog(av1anLogPath);
-            CleanupJobTempDirectory(tempDirectory);
+            if (!preserveStagedOutput) CleanupJobTempDirectory(tempDirectory);
         }
     }
 
@@ -390,6 +424,14 @@ internal sealed class ParallelVideoEncodingAv1anRunner
             new ProcessOutputPumpOptions(
                 StripControlCharacters: true,
                 NormalizeLine: ConsoleOutputLineNormalizer.Normalize));
+    }
+
+    private string ResolveEncoderForValidation(EncoderKind kind)
+    {
+        var setting = _settingsService.Load();
+        var discovery = new LocalEncoderDiscoveryService(_appPaths, _settingsService);
+        return discovery.ResolveEncoder(kind, EncoderArchitecture.X64, setting.PreferSystemEncoders)?.ExecutablePath
+            ?? throw new FileNotFoundException($"{kind} was not found. / 未找到编码器 {kind}。");
     }
 
     private static EncodingJobState MapStructuredState(AutoCompressionExecutionStage stage)
@@ -623,11 +665,11 @@ internal sealed class ParallelVideoEncodingAv1anRunner
         return Path.GetDirectoryName(fileName) ?? AppContext.BaseDirectory;
     }
 
-    private static void FinalizeOutputFile(string stagedOutputPath, string finalOutputPath, Guid jobId)
+    private static void FinalizeOutputFile(string stagedOutputPath, string finalOutputPath, Guid jobId, bool overwrite)
     {
         try
         {
-            ExecutionOutputStaging.FinalizeFile(stagedOutputPath, finalOutputPath, jobId);
+            ExecutionOutputStaging.FinalizeFile(stagedOutputPath, finalOutputPath, jobId, overwrite);
         }
         catch (IOException ex)
         {

@@ -14,7 +14,8 @@ internal sealed record SourceVideoInfo(
     string? ColorMatrix = null,
     string? ChromaLocation = null,
     string? MasteringDisplay = null,
-    string? ContentLightLevel = null)
+    string? ContentLightLevel = null,
+    bool IsFrameCountEstimated = false)
 {
     public double? FramesPerSecond =>
         FpsNumerator is > 0 && FpsDenominator is > 0

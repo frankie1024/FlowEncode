@@ -1,3 +1,6 @@
+using System.Net;
+using System.Text.Json;
+using FlowEncode.Domain;
 using FlowEncode.Infrastructure;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 
@@ -6,6 +9,46 @@ namespace FlowEncode.Domain.Tests;
 [TestClass]
 public sealed class LocalExternalToolServiceTests
 {
+    [TestMethod]
+    public async Task BaselineAv1an_UsesExactMaintainedReleaseAndRejectsChangedDigest()
+    {
+        using var root = new SharedTaskCoordinatorTests.TestRoot();
+        var factory = new Av1anReleaseFixture();
+        using var service = new LocalExternalToolService(new LocalAppPaths(root.Path), factory);
+        var package = (await service.GetBaselinePackagesAsync()).Single();
+        Assert.AreEqual(ExternalToolKind.Av1an, package.Kind);
+        Assert.AreEqual("0.6.0-flowencode.1", package.ReleaseName);
+        StringAssert.Contains(package.DownloadUrl, "/releases/download/v0.6.0-flowencode.1/av1an.exe");
+        Assert.IsTrue(package.IsAutomatic);
+        factory.Digest = new string('a', 64);
+        Assert.AreEqual(0, (await service.GetBaselinePackagesAsync()).Count);
+        CollectionAssert.Contains(factory.Paths, "/repos/frankie1024/Av1an/releases/tags/v0.6.0-flowencode.1");
+    }
+
+    private sealed class Av1anReleaseFixture : HttpMessageHandler, IFlowEncodeHttpClientFactory
+    {
+        public string Digest = "ded80fced3cbcbd80ee31fe6243eca6c8970c48367a47064a61698e2e288df6b";
+        public List<string> Paths { get; } = [];
+        public HttpClient CreateClient(FlowEncodeHttpClientProfile profile) => new(this, disposeHandler: false);
+        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken token)
+        {
+            Paths.Add(request.RequestUri!.AbsolutePath);
+            if (request.RequestUri.AbsolutePath != "/repos/frankie1024/Av1an/releases/tags/v0.6.0-flowencode.1")
+                return Task.FromResult(new HttpResponseMessage(HttpStatusCode.NotFound));
+            return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK)
+            {
+                Content = new StringContent(JsonSerializer.Serialize(new
+                {
+                    tag_name = "v0.6.0-flowencode.1", draft = false, prerelease = false,
+                    html_url = "https://github.com/frankie1024/Av1an/releases/tag/v0.6.0-flowencode.1",
+                    published_at = "2026-11-12T06:00:00Z",
+                    assets = new[] { new { name = "av1an.exe", digest = "sha256:" + Digest,
+                        browser_download_url = "https://github.com/frankie1024/Av1an/releases/download/v0.6.0-flowencode.1/av1an.exe" } }
+                }))
+            });
+        }
+    }
+
     [TestMethod]
     public void GetManagedAv1anRepositoryCandidates_WithoutOverride_ReturnsManagedForkRepository()
     {

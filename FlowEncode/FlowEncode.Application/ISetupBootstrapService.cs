@@ -22,6 +22,10 @@ public interface ISetupBootstrapService
         IProgress<SetupInstallProgress>? progress = null,
         CancellationToken cancellationToken = default);
 
+    Task UpdateBeyondBaselineAsync(SetupDependencyKind kind,
+        IProgress<SetupInstallProgress>? progress = null, CancellationToken cancellationToken = default)
+        => Task.FromException(new NotSupportedException("Updating beyond the tested baseline is not supported by this provider."));
+
     Task UninstallAsync(
         SetupDependencyKind kind,
         IProgress<SetupInstallProgress>? progress = null,

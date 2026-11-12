@@ -13,6 +13,7 @@ public sealed partial class TaskStatusPanel : UserControl
     public static readonly DependencyProperty ProgressBorderBrushProperty = RegisterBrushProperty(nameof(ProgressBorderBrush));
     public static readonly DependencyProperty ProgressFillBrushProperty = RegisterBrushProperty(nameof(ProgressFillBrush));
     public static readonly DependencyProperty ProgressValueProperty = DependencyProperty.Register(nameof(ProgressValue), typeof(double), typeof(TaskStatusPanel), new PropertyMetadata(0d));
+    public static readonly DependencyProperty ProgressHeightProperty = DependencyProperty.Register(nameof(ProgressHeight), typeof(double), typeof(TaskStatusPanel), new PropertyMetadata(48d));
     public static readonly DependencyProperty ProgressTextProperty = RegisterStringProperty(nameof(ProgressText));
     public static readonly DependencyProperty SecondaryTextProperty = RegisterStringProperty(nameof(SecondaryText));
     public static readonly DependencyProperty SecondaryVisibilityProperty = DependencyProperty.Register(nameof(SecondaryVisibility), typeof(Visibility), typeof(TaskStatusPanel), new PropertyMetadata(Visibility.Collapsed));
@@ -31,6 +32,7 @@ public sealed partial class TaskStatusPanel : UserControl
     public Brush? ProgressBorderBrush { get => (Brush?)GetValue(ProgressBorderBrushProperty); set => SetValue(ProgressBorderBrushProperty, value); }
     public Brush? ProgressFillBrush { get => (Brush?)GetValue(ProgressFillBrushProperty); set => SetValue(ProgressFillBrushProperty, value); }
     public double ProgressValue { get => (double)GetValue(ProgressValueProperty); set => SetValue(ProgressValueProperty, value); }
+    public double ProgressHeight { get => (double)GetValue(ProgressHeightProperty); set => SetValue(ProgressHeightProperty, value); }
     public string ProgressText { get => (string)GetValue(ProgressTextProperty); set => SetValue(ProgressTextProperty, value); }
     public string SecondaryText { get => (string)GetValue(SecondaryTextProperty); set => SetValue(SecondaryTextProperty, value); }
     public Visibility SecondaryVisibility { get => (Visibility)GetValue(SecondaryVisibilityProperty); set => SetValue(SecondaryVisibilityProperty, value); }

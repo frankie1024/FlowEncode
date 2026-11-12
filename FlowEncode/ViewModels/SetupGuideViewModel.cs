@@ -5,6 +5,7 @@ using System.Globalization;
 using System.IO;
 using System.Linq;
 using System.Text.RegularExpressions;
+using System.Threading;
 using System.Threading.Tasks;
 using CommunityToolkit.Mvvm.ComponentModel;
 using FlowEncode.Application;
@@ -20,6 +21,9 @@ public sealed class SetupGuideViewModel : ObservableObject, ISetupDependencyModu
     private readonly ISetupGuideCacheService _setupGuideCacheService;
     private readonly IToolRegistryService _toolRegistryService;
     private readonly LocalAppPaths _appPaths;
+    private readonly SetupDependencyInstallCoordinator _installCoordinator = new();
+    private readonly Dictionary<SetupDependencyKind, SetupGuideDependencyItemViewModel> _installingDependencies = [];
+    private readonly SemaphoreSlim _dependencyRefreshGate = new(1, 1);
 
     private SetupDependencyStatusReport? _setupGuideStatusReport;
     private bool _isSetupGuideOpen;
@@ -149,11 +153,11 @@ public sealed class SetupGuideViewModel : ObservableObject, ISetupDependencyModu
 
     public bool CanExecuteSetupGuideUpdateCheckAction => CanExecuteSetupGuideAction;
 
-    private bool CanExecuteSetupGuideAction => !_isSetupGuideInstallRunning
+    private bool CanExecuteSetupGuideAction => !IsSetupGuideInstallRunning
         && !_isRefreshingSetupGuide
         && !_isCheckingSetupDependencyUpdates;
 
-    internal bool IsSetupGuideInstallRunning => _isSetupGuideInstallRunning;
+    internal bool IsSetupGuideInstallRunning => _isSetupGuideInstallRunning || _installingDependencies.Count > 0;
 
     internal string AppRootPath => _appPaths.RootPath;
 
@@ -309,38 +313,45 @@ public sealed class SetupGuideViewModel : ObservableObject, ISetupDependencyModu
             preferCachedSnapshot: true);
     }
 
-    public async Task<string?> InstallSetupDependencyAsync(SetupDependencyKind kind)
+    public async Task<string?> InstallSetupDependencyAsync(SetupDependencyKind kind, bool updateBeyondBaseline = false)
     {
-        var selectedCardIndex = SelectedSetupGuideCardIndex;
         var item = FindSetupGuideDependency(kind);
         if (item is null)
         {
             return Texts.Pick("未找到对应的首启依赖项。", "Setup dependency item was not found.");
         }
 
-        if (_isSetupGuideInstallRunning)
+        if (_isSetupGuideInstallRunning || _installingDependencies.ContainsKey(kind))
         {
             return Texts.InstallAlreadyRunning;
         }
 
-        if (HasManualPinnedSetupDependency(kind) && !RequiresSetupDependencyManualImport(kind))
+        if (kind != SetupDependencyKind.Python312 && HasManualPinnedSetupDependency(kind) && !RequiresSetupDependencyManualImport(kind))
         {
             return Texts.ManualToolPinnedUpdateBlocked(GetSetupDependencyTitle(kind));
         }
 
-        _isSetupGuideInstallRunning = true;
-        _host.NotifyBusyChanged();
+        var status = ResolveSetupStatus(kind);
+        if (!status.IsInstallSupported || !status.IsInstallEnabled)
+        {
+            return Texts.Pick("请先安装此依赖所需的前置组件。", "Install the required prerequisites first.");
+        }
+
+        _installingDependencies.Add(kind, item);
         item.BeginOperation();
-        var shouldRefreshSetupGuideStatus = false;
+        RaiseSetupGuideStatePropertyChanges();
         string? errorMessage = null;
 
         try
         {
             var progress = new Progress<SetupInstallProgress>(item.ReportProgress);
-            await _setupBootstrapService.InstallAsync(kind, progress);
-            _host.InvalidateToolProbeCache();
-            await _host.RefreshAsync(Texts.Pick("首启依赖操作完成。", "Setup dependency action completed."), includeUpdates: false);
-            shouldRefreshSetupGuideStatus = true;
+            await _installCoordinator.RunAsync(
+                kind,
+                cancellationToken => updateBeyondBaseline
+                    ? _setupBootstrapService.UpdateBeyondBaselineAsync(kind, progress, cancellationToken)
+                    : _setupBootstrapService.InstallAsync(kind, progress, cancellationToken),
+                () => item.ReportProgress(new SetupInstallProgress(kind, 0,
+                    Texts.Pick("等待安装空位或前置组件完成...", "Waiting for an install slot or prerequisites..."), true)));
         }
         catch (Exception ex)
         {
@@ -348,17 +359,40 @@ public sealed class SetupGuideViewModel : ObservableObject, ISetupDependencyModu
         }
         finally
         {
-            item.FinishOperation();
-            _isSetupGuideInstallRunning = false;
-            _host.NotifyBusyChanged();
+            try
+            {
+                // Serialize scans, but let other downloads and installs keep running.
+                await _dependencyRefreshGate.WaitAsync();
+                try
+                {
+                    _host.InvalidateToolProbeCache();
+                    await _host.RefreshAsync(includeUpdates: false);
+                    await RefreshSetupGuideStatusAsync(
+                        includeRemoteMetadata: false,
+                        statusOverride: null,
+                        openWhenFinished: false,
+                        forceEnvironmentScan: false,
+                        preferCachedSnapshot: false,
+                        allowDuringInstall: true);
+                }
+                finally
+                {
+                    _dependencyRefreshGate.Release();
+                }
+            }
+            catch (Exception ex)
+            {
+                errorMessage ??= ex.Message;
+            }
+            finally
+            {
+                _installingDependencies.Remove(kind);
+                item.FinishOperation();
+                RefreshSetupGuideCards();
+                RaiseSetupGuideStatePropertyChanges();
+            }
         }
 
-        if (shouldRefreshSetupGuideStatus)
-        {
-            await RefreshSetupGuideAfterDependencyMutationAsync();
-        }
-
-        RestoreSetupGuideCardSelection(selectedCardIndex);
         return errorMessage;
     }
 
@@ -413,6 +447,11 @@ public sealed class SetupGuideViewModel : ObservableObject, ISetupDependencyModu
 
     public async Task<string?> PinSetupDependencyBinaryAsync(SetupDependencyKind kind, string sourcePath)
     {
+        if (IsSetupGuideInstallRunning)
+        {
+            return Texts.InstallAlreadyRunning;
+        }
+
         var selectedCardIndex = SelectedSetupGuideCardIndex;
         if (!CanManuallySelectSetupDependency(kind))
         {
@@ -461,6 +500,11 @@ public sealed class SetupGuideViewModel : ObservableObject, ISetupDependencyModu
 
     public async Task<string?> ClearManualPinnedSetupDependencyAsync(SetupDependencyKind kind, bool refreshAfterClear = true)
     {
+        if (IsSetupGuideInstallRunning)
+        {
+            return Texts.InstallAlreadyRunning;
+        }
+
         var selectedCardIndex = SelectedSetupGuideCardIndex;
         var keys = GetManualPathKeys(kind);
         if (keys.Count == 0)
@@ -516,7 +560,7 @@ public sealed class SetupGuideViewModel : ObservableObject, ISetupDependencyModu
             return Texts.Pick("未找到对应的首启依赖项。", "Setup dependency item was not found.");
         }
 
-        if (_isSetupGuideInstallRunning)
+        if (IsSetupGuideInstallRunning)
         {
             return Texts.InstallAlreadyRunning;
         }
@@ -566,7 +610,7 @@ public sealed class SetupGuideViewModel : ObservableObject, ISetupDependencyModu
             return Texts.Pick("未找到对应的首启依赖项。", "Setup dependency item was not found.");
         }
 
-        if (_isSetupGuideInstallRunning)
+        if (IsSetupGuideInstallRunning)
         {
             return Texts.InstallAlreadyRunning;
         }
@@ -639,14 +683,17 @@ public sealed class SetupGuideViewModel : ObservableObject, ISetupDependencyModu
             preferCachedSnapshot: false);
     }
 
+    internal Task RefreshFromEnvironmentAsync() => RefreshSetupGuideAfterDependencyMutationAsync();
+
     private async Task RefreshSetupGuideStatusAsync(
         bool includeRemoteMetadata,
         string? statusOverride,
         bool openWhenFinished,
         bool forceEnvironmentScan,
-        bool preferCachedSnapshot)
+        bool preferCachedSnapshot,
+        bool allowDuringInstall = false)
     {
-        if (_isSetupGuideInstallRunning
+        if ((!allowDuringInstall && IsSetupGuideInstallRunning)
             || _isRefreshingSetupGuide
             || _isCheckingSetupDependencyUpdates)
         {
@@ -681,6 +728,10 @@ public sealed class SetupGuideViewModel : ObservableObject, ISetupDependencyModu
 
             if (forceEnvironmentScan || _host.EnvironmentReadinessReport is null)
             {
+                if (forceEnvironmentScan)
+                {
+                    _host.InvalidateToolProbeCache();
+                }
                 await _host.RefreshAsync(includeUpdates: false);
             }
 
@@ -695,9 +746,14 @@ public sealed class SetupGuideViewModel : ObservableObject, ISetupDependencyModu
                 return;
             }
 
+            // A recommendation check uses the existing local snapshot; refresh is the explicit rescan action.
             _setupGuideStatusReport = includeRemoteMetadata
-                ? await _setupBootstrapService.GetStatusReportAsync(_host.EnvironmentReadinessReport)
-                : await _setupBootstrapService.GetLocalStatusReportAsync(_host.EnvironmentReadinessReport, previousReport);
+                && previousReport is not null
+                && previousReport.CheckedAt >= _host.EnvironmentReadinessReport.CheckedAt
+                    ? previousReport with { CheckedAt = DateTimeOffset.Now }
+                    : includeRemoteMetadata
+                        ? await _setupBootstrapService.GetStatusReportAsync(_host.EnvironmentReadinessReport)
+                        : await _setupBootstrapService.GetLocalStatusReportAsync(_host.EnvironmentReadinessReport, previousReport);
 
             if (includeRemoteMetadata)
             {
@@ -780,7 +836,7 @@ public sealed class SetupGuideViewModel : ObservableObject, ISetupDependencyModu
                 0,
                 Texts.Pick("Python", "Python"),
                 Texts.Pick("首个必须项。后续所有 Python 侧安装动作都依赖这里。", "The first required step. All Python-side installs depend on this card."),
-                Texts.Pick("固定安装 Python 3.12.10 x64；2.0 的 VapourSynth 插件基线仅使用 Python 3.12 ABI。", "Installs the pinned Python 3.12.10 x64 release. The 2.0 VapourSynth baseline uses the Python 3.12 ABI."),
+                Texts.Pick("自动选择 Python 官方当前受支持的 Windows x64 安装器；Python 3.12 或更新的 x64 版本均可使用。", "FlowEncode selects a currently supported official Windows x64 installer. Python 3.12 or newer x64 is supported."),
                 [BuildSetupDependencyItem(SetupDependencyKind.Python312)]),
             CreateCard(
                 1,
@@ -816,7 +872,6 @@ public sealed class SetupGuideViewModel : ObservableObject, ISetupDependencyModu
                     BuildSetupDependencyItem(SetupDependencyKind.DgDemux),
                     BuildSetupDependencyItem(SetupDependencyKind.Eac3To),
                     BuildSetupDependencyItem(SetupDependencyKind.Deew),
-                    BuildSetupDependencyItem(SetupDependencyKind.Dee),
                     BuildSetupDependencyItem(SetupDependencyKind.OpusExt)
                 ])
         };
@@ -884,7 +939,8 @@ public sealed class SetupGuideViewModel : ObservableObject, ISetupDependencyModu
     private bool TryRestoreSetupGuideSnapshot()
     {
         var snapshot = _setupGuideCacheService.Load();
-        if (snapshot?.StatusReport is null)
+        if (snapshot?.StatusReport is null
+            || snapshot.StatusReport.CheckedAt < snapshot.EnvironmentCheckedAt)
         {
             return false;
         }
@@ -907,12 +963,16 @@ public sealed class SetupGuideViewModel : ObservableObject, ISetupDependencyModu
             return;
         }
 
+        var environmentSnapshot = _setupGuideCacheService.Load();
         _setupGuideCacheService.Save(new SetupGuideCacheSnapshot(
             SetupGuideCacheSnapshot.CurrentSchemaVersion,
             DateTimeOffset.Now,
             _setupGuideLocalCheckedAt,
             _setupGuideRemoteCheckedAt,
-            BuildSetupGuideCacheStatusReport(_setupGuideStatusReport)));
+            BuildSetupGuideCacheStatusReport(_setupGuideStatusReport),
+            environmentSnapshot?.EnvironmentTools,
+            environmentSnapshot?.EnvironmentSignature ?? string.Empty,
+            environmentSnapshot?.EnvironmentCheckedAt));
     }
 
     private SetupDependencyStatusReport RestoreSetupGuideStatusReport(SetupGuideCacheStatusReport report)
@@ -1010,14 +1070,17 @@ public sealed class SetupGuideViewModel : ObservableObject, ISetupDependencyModu
 
     private string BuildSetupDependencyUpdateStatus(SetupDependencyStatusReport report)
     {
-        var updateCount = report.Dependencies.Count(status => HasSetupDependencyUpdate(status.Kind, status));
-        return updateCount > 0
-            ? Texts.SetupDependencyUpdatesFoundStatus(updateCount)
-            : Texts.NoSetupDependencyUpdatesStatus;
+        return Texts.Pick("推荐版本已核对。现有工具可用时，可继续使用当前环境。", "Recommended versions checked. Keep the current environment while it works.");
     }
 
     private SetupGuideDependencyItemViewModel BuildSetupDependencyItem(SetupDependencyKind kind)
     {
+        // Keep progress bindings attached when a different install refreshes the cards.
+        if (_installingDependencies.TryGetValue(kind, out var installingItem))
+        {
+            return installingItem;
+        }
+
         var status = ResolveSetupStatus(kind);
         var title = GetSetupDependencyTitle(kind);
         var description = GetSetupDependencyDescription(kind);
@@ -1039,9 +1102,11 @@ public sealed class SetupGuideViewModel : ObservableObject, ISetupDependencyModu
             string.IsNullOrWhiteSpace(status.InstalledVersion)
                 ? string.Empty
                 : Texts.Pick($"已装：{status.InstalledVersion}", $"Installed: {status.InstalledVersion}"),
-            kind == SetupDependencyKind.VsPluginBundle || string.IsNullOrWhiteSpace(status.LatestVersion)
+            ToolchainBaseline.HasBaseline(kind)
+                ? Texts.Pick($"推荐版本：{ToolchainBaseline.VersionFor(kind)}", $"Recommended version: {ToolchainBaseline.VersionFor(kind)}")
+                : kind == SetupDependencyKind.VsPluginBundle || string.IsNullOrWhiteSpace(status.LatestVersion)
                 ? string.Empty
-                : Texts.Pick($"2.0 兼容基线：{status.LatestVersion}", $"2.0 baseline: {status.LatestVersion}"),
+                : Texts.Pick($"最新：{status.LatestVersion}", $"Latest: {status.LatestVersion}"),
             warningText,
             status.Detail,
             status.ExecutablePath,
@@ -1052,7 +1117,13 @@ public sealed class SetupGuideViewModel : ObservableObject, ISetupDependencyModu
             isInstalled,
             canUninstall,
             CanManuallySelectSetupDependency(kind),
-            isManualPinned);
+            isManualPinned,
+            Texts.Pick("更多", "More"),
+            Texts.Pick("更新工具（不推荐）", "Update tool (not recommended)"),
+            isInstalled && ShouldShowSetupPrimaryAction(status, isInstalled, hasUpdateAvailable)
+                && !ToolchainBaseline.HasBaseline(kind) && !RequiresSetupDependencyManualImport(kind),
+            ToolchainBaseline.HasBaseline(kind) ? Texts.RecommendedVersionHelp : string.Empty,
+            BuildPythonUpgradeHelp(kind, isInstalled));
     }
 
     private SetupGuideDependencyItemViewModel? FindSetupGuideDependency(SetupDependencyKind kind)
@@ -1197,7 +1268,7 @@ public sealed class SetupGuideViewModel : ObservableObject, ISetupDependencyModu
     {
         return kind switch
         {
-            SetupDependencyKind.Python312 => "Python 3.12",
+            SetupDependencyKind.Python312 => "Python",
             SetupDependencyKind.VapourSynth => "VapourSynth",
             SetupDependencyKind.Vsrepo => "vsrepo",
             SetupDependencyKind.VsPluginBundle => Texts.Pick("VS 插件包", "VS Plugin Bundle"),
@@ -1222,7 +1293,7 @@ public sealed class SetupGuideViewModel : ObservableObject, ISetupDependencyModu
     {
         return kind switch
         {
-            SetupDependencyKind.Python312 => Texts.Pick("官方 Windows x64 安装器；首启自动安装的基线运行时。", "Official Windows x64 installer; the baseline runtime for guided installs."),
+            SetupDependencyKind.Python312 => Texts.Pick("官方 Windows x64 安装器；首次安装时使用的推荐版本。", "Official Windows x64 installer; the recommended runtime for guided installs."),
             SetupDependencyKind.VapourSynth => Texts.Pick("主视频脚本运行时，负责 .vpy 输入和 vspipe。", "Primary script runtime for .vpy input and vspipe."),
             SetupDependencyKind.Vsrepo => Texts.Pick("VS 插件安装器与包清单工具。", "VS package installer and manifest tool."),
             SetupDependencyKind.VsPluginBundle => Texts.Pick("ffms2、fpng、libp2p、lsmas、placebo、mvsfunc、havsfunc。", "ffms2, fpng, libp2p, lsmas, placebo, mvsfunc, and havsfunc."),
@@ -1236,8 +1307,8 @@ public sealed class SetupGuideViewModel : ObservableObject, ISetupDependencyModu
             SetupDependencyKind.Avs2PipeMod => Texts.Pick("AviSynth 输入桥接工具。", "Bridge tool for AviSynth input."),
             SetupDependencyKind.DgDemux => Texts.Pick("蓝光播放列表扫描与解复用默认后端。", "Default backend for Blu-ray playlist scanning and demux."),
             SetupDependencyKind.Eac3To => Texts.Pick("音频扫描与 FLAC 转换。", "Audio scanning and FLAC conversion."),
-            SetupDependencyKind.Deew => Texts.Pick("多声道转 DDP。", "Multichannel audio to DDP."),
-            SetupDependencyKind.Dee => Texts.Pick("deew 的本地 DEE 依赖。", "Local DEE dependency for deew."),
+            SetupDependencyKind.Deew => Texts.Pick("需要 deew ≥5.1.0，位于用户可写便携目录。把完整 DEE ≥6.7.0 工具集放在实际 deew.exe 相邻的 dee 文件夹（或 PATH 标准文件名）；Atmos 按格式还需 truehdd / dee_shim。deew -gt 不包含 DEE。", "Requires deew >=5.1.0 in a writable portable directory. Put the complete DEE >=6.7.0 toolset in the dee folder next to the actual deew.exe (or standard filenames on PATH). Atmos may also require truehdd / dee_shim. deew -gt does not include DEE."),
+            SetupDependencyKind.Dee => Texts.Pick("DEE 6.7 工具集由 deew 目录托管；旧 dee.exe 不适用于 3.0。", "The DEE 6.7 toolset is managed in the deew directory; legacy dee.exe is not used by 3.0."),
             SetupDependencyKind.OpusExt => Texts.Pick("Opus 命令行编码器。", "Command-line Opus encoder."),
             _ => string.Empty
         };
@@ -1293,13 +1364,13 @@ public sealed class SetupGuideViewModel : ObservableObject, ISetupDependencyModu
         if (!string.IsNullOrWhiteSpace(status.InstalledVersion))
         {
             return Texts.Pick(
-                $"当前检测到的 Python 版本为 {status.InstalledVersion}，VapourSynth 栈需要 Python 3.12 x64。",
-                $"The detected Python version is {status.InstalledVersion}, but the VapourSynth stack requires Python 3.12 x64.");
+                $"当前检测到的 Python 版本为 {status.InstalledVersion}，VapourSynth 栈需要 Python 3.12+ x64。",
+                $"The detected Python version is {status.InstalledVersion}, but the VapourSynth stack requires Python 3.12+ x64.");
         }
 
         return Texts.Pick(
-            "未检测到 Python 3.12 x64。建议先安装官方 Windows x64 版本。",
-            "Python 3.12 x64 was not detected. Install the official Windows x64 build first.");
+            "未检测到 Python 3.12+ x64。建议先安装官方 Windows x64 版本。",
+            "Python 3.12+ x64 was not detected. Install the official Windows x64 build first.");
     }
 
     private string BuildPythonDependentStatusText(SetupDependencyStatus status, string readyText, string missingText)
@@ -1330,6 +1401,11 @@ public sealed class SetupGuideViewModel : ObservableObject, ISetupDependencyModu
         };
     }
 
+    private string BuildPythonUpgradeHelp(SetupDependencyKind kind, bool isInstalled)
+        => kind == SetupDependencyKind.Python312 && isInstalled
+            ? Texts.Pick("现有 Python 3.12 可继续使用。升级步骤：\n①点击“安装推荐版本”并排安装 Python 3.14.10 x64；\n②在本卡“更多 → 固定外部工具”选择新目录的 python.exe；\n③刷新环境，为新解释器安装推荐版 VapourSynth、vsrepo、VS 插件包、awsmfunc 和 vsjetpack；\n④用短片段验证自己的脚本。\n若手动固定过 vspipe，也需改为新环境的 vspipe.exe。\n旧环境会保留，重新选择旧 python.exe / vspipe.exe 即可回退。", "You can keep Python 3.12. To upgrade:\n1) Install recommended version to add Python 3.14.10 x64 alongside it.\n2) Choose the new python.exe via More > Pin external tool.\n3) Refresh and install the recommended VapourSynth, vsrepo, VS plugin bundle, awsmfunc and vsjetpack for that interpreter.\n4) Test your scripts on a short clip.\nIf vspipe is pinned, select the new environment’s vspipe.exe too.\nSelect the old python.exe / vspipe.exe again to roll back.")
+            : string.Empty;
+
     private string BuildSetupWarningText(
         SetupDependencyKind kind,
         SetupDependencyStatus status,
@@ -1351,17 +1427,17 @@ public sealed class SetupGuideViewModel : ObservableObject, ISetupDependencyModu
                 "The current Python runtime does not satisfy the complete environment requirements. Use automatic install to repair or update it."));
         }
 
-        if (hasUpdateAvailable && kind == SetupDependencyKind.VsPluginBundle)
+        if (hasUpdateAvailable && !ToolchainBaseline.HasBaseline(kind) && kind == SetupDependencyKind.VsPluginBundle)
         {
             warnings.Add(Texts.Pick(
                 "检测到可用的 VS 插件更新，版本明细见下方。",
                 "VS plugin updates are available. See the version details below."));
         }
-        else if (hasUpdateAvailable && !string.IsNullOrWhiteSpace(status.LatestVersion))
+        else if (hasUpdateAvailable && !ToolchainBaseline.HasBaseline(kind) && !string.IsNullOrWhiteSpace(status.LatestVersion))
         {
             warnings.Add(Texts.Pick(
-                $"可安装 2.0 兼容基线：{status.LatestVersion}",
-                $"2.0 compatibility baseline available: {status.LatestVersion}"));
+                $"检测到可用新版本：{status.LatestVersion}",
+                $"A newer version is available: {status.LatestVersion}"));
         }
 
         if (status.IsInstallSupported
@@ -1397,6 +1473,12 @@ public sealed class SetupGuideViewModel : ObservableObject, ISetupDependencyModu
         bool isInstalled,
         bool hasUpdateAvailable)
     {
+        if (ToolchainBaseline.HasBaseline(kind))
+            return ToolchainBaseline.IsRecommendedInstallation(status)
+                ? Texts.Pick("已是推荐版本", "Recommended version installed")
+                : Texts.Pick(isInstalled && kind != SetupDependencyKind.Python312 ? "修复为推荐版本" : "安装推荐版本",
+                    isInstalled && kind != SetupDependencyKind.Python312 ? "Restore recommended version" : "Install recommended version");
+
         if (kind == SetupDependencyKind.Python312)
         {
             var targetVersion = string.IsNullOrWhiteSpace(status.LatestVersion)
@@ -1422,6 +1504,7 @@ public sealed class SetupGuideViewModel : ObservableObject, ISetupDependencyModu
         SetupDependencyStatus status,
         bool isInstalled)
     {
+        if (ToolchainBaseline.IsRecommendedInstallation(status)) return false;
         if (RequiresSetupDependencyManualImport(kind))
         {
             return true;
@@ -1440,7 +1523,7 @@ public sealed class SetupGuideViewModel : ObservableObject, ISetupDependencyModu
         bool isInstalled,
         bool hasUpdateAvailable)
     {
-        if (!isInstalled)
+        if (ToolchainBaseline.HasBaseline(status.Kind) || !isInstalled)
         {
             return true;
         }

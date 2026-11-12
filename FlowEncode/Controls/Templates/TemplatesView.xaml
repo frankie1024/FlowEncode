@@ -9,7 +9,7 @@
     xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
     mc:Ignorable="d">
-    <ScrollViewer VerticalScrollBarVisibility="Auto">
+    <ScrollViewer x:Name="TemplatesScroller" VerticalScrollBarVisibility="Auto">
         <StackPanel x:Name="ContentStack" Padding="{StaticResource AppPagePadding}" Spacing="{StaticResource AppSpacingL}">
             <Grid x:Name="TemplatesWorkspaceGrid" ColumnSpacing="{StaticResource AppSpacingL}" RowSpacing="{StaticResource AppSpacingL}">
                 <Grid.RowDefinitions>
@@ -22,11 +22,16 @@
                 </Grid.ColumnDefinitions>
 
                 <Border x:Name="TemplateLibraryPanel" Grid.Row="0" Grid.Column="0" Padding="{StaticResource AppCardPadding}" Background="{ThemeResource CardBrush}" BorderBrush="{ThemeResource CardBorderBrush}" BorderThickness="{StaticResource AppCardBorderThickness}" CornerRadius="{StaticResource AppLargeCornerRadius}" DataContext="{Binding Library}">
-                    <StackPanel Spacing="{StaticResource AppSpacingM}">
+                    <Grid RowSpacing="{StaticResource AppSpacingM}">
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="*" />
+                        </Grid.RowDefinitions>
                         <TextBlock FontFamily="{StaticResource AppDisplayFont}" FontSize="{StaticResource AppSubsectionTitleFontSize}" FontWeight="SemiBold" Text="{Binding Texts.TemplateLibraryTitle}" />
-                        <TextBox PlaceholderText="{Binding Texts.TemplateSearchPlaceholder}" Text="{Binding TemplateSearchText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
-                        <Grid>
-                            <ListView x:Name="TemplateLibraryList" MinHeight="220" ItemsSource="{Binding TemplateLibraryItems}" SelectionChanged="TemplateLibraryList_SelectionChanged" SelectionMode="Single">
+                        <TextBox Grid.Row="1" PlaceholderText="{Binding Texts.TemplateSearchPlaceholder}" Text="{Binding TemplateSearchText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                        <Grid Grid.Row="2">
+                            <ListView x:Name="TemplateLibraryList" MinHeight="160" ItemsSource="{Binding TemplateLibraryItems}" SelectionChanged="TemplateLibraryList_SelectionChanged" SelectionMode="Single" ScrollViewer.VerticalScrollBarVisibility="Auto">
                                 <ListView.ItemContainerTransitions>
                                     <TransitionCollection>
                                         <AddDeleteThemeTransition />
@@ -97,10 +102,11 @@
                                 </Button>
                             </StackPanel>
                         </Grid>
-                    </StackPanel>
+                    </Grid>
                 </Border>
 
                 <Border x:Name="TemplateEditorPanel" Grid.Row="0" Grid.Column="1" Padding="{StaticResource AppCardPadding}" Background="{ThemeResource CardBrush}" BorderBrush="{ThemeResource CardBorderBrush}" BorderThickness="{StaticResource AppCardBorderThickness}" CornerRadius="{StaticResource AppLargeCornerRadius}" DataContext="{Binding Editor}">
+                    <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
                     <StackPanel Spacing="{StaticResource AppSpacingM}">
                         <Grid x:Name="TemplateEditorHeaderGrid" ColumnSpacing="{StaticResource AppSpacingM}" RowSpacing="{StaticResource AppSpacingM}">
                             <Grid.RowDefinitions>
@@ -120,9 +126,19 @@
                             </CommandBar>
                         </Grid>
 
-                        <TextBlock Foreground="{ThemeResource SubtleTextBrush}" Text="{Binding SelectedProfileCaption}" TextWrapping="WrapWholeWords" />
-                        <TextBox Header="{Binding Texts.TemplateNameHeader}" IsEnabled="{Binding CanEditTemplateDraft}" Text="{Binding DraftTemplateName, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
-                        <TextBox Header="{Binding Texts.NotesHeader}" AcceptsReturn="True" IsEnabled="{Binding CanEditTemplateDraft}" MinHeight="96" Text="{Binding DraftTemplateNotes, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" TextWrapping="Wrap" />
+                        <TextBlock Foreground="{ThemeResource SubtleTextBrush}" Text="{Binding SelectedProfileCaption}" MaxLines="2" TextTrimming="CharacterEllipsis" TextWrapping="WrapWholeWords" ToolTipService.ToolTip="{Binding SelectedProfileCaption}" />
+                        <Grid x:Name="TemplateMetadataGrid" ColumnSpacing="{StaticResource AppSpacingM}" RowSpacing="{StaticResource AppSpacingM}">
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
+                            </Grid.RowDefinitions>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition x:Name="TemplateNotesColumn" Width="*" />
+                            </Grid.ColumnDefinitions>
+                            <TextBox Header="{Binding Texts.TemplateNameHeader}" IsEnabled="{Binding CanEditTemplateDraft}" Text="{Binding DraftTemplateName, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                            <TextBox x:Name="TemplateNotesTextBox" Grid.Column="1" Header="{Binding Texts.NotesHeader}" AcceptsReturn="True" IsEnabled="{Binding CanEditTemplateDraft}" Height="64" ScrollViewer.VerticalScrollBarVisibility="Auto" Text="{Binding DraftTemplateNotes, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" TextWrapping="Wrap" />
+                        </Grid>
 
                         <Grid x:Name="TemplateEncoderFormatGrid" ColumnSpacing="{StaticResource AppSpacingM}" RowSpacing="{StaticResource AppSpacingM}">
                             <Grid.RowDefinitions>
@@ -181,17 +197,19 @@
                             </Grid>
                         </Grid>
 
-                        <TextBox Header="{Binding Texts.AdditionalArgumentsHeader}" AcceptsReturn="True" IsEnabled="{Binding CanEditTemplateDraft}" MinHeight="120" Text="{Binding DraftAdditionalArguments, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" TextWrapping="Wrap" />
+                        <TextBox Header="{Binding Texts.AdditionalArgumentsHeader}" AcceptsReturn="True" IsEnabled="{Binding CanEditTemplateDraft}" Height="96" ScrollViewer.VerticalScrollBarVisibility="Auto" Text="{Binding DraftAdditionalArguments, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" TextWrapping="Wrap" />
                         <InfoBar HorizontalAlignment="Stretch" IsClosable="False" IsOpen="True" Message="{Binding DraftConstraintWarningText}" Severity="Warning" Visibility="{Binding DraftConstraintWarningVisibility}" />
 
-                        <TextBox Header="{Binding Texts.UhdArgumentsHeader}" AcceptsReturn="True" IsEnabled="{Binding CanEditTemplateDraft}" MinHeight="88" Text="{Binding DraftUhdParameters, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" TextWrapping="Wrap" Visibility="{Binding X265UhdVisibility}" />
+                        <TextBox Header="{Binding Texts.UhdArgumentsHeader}" AcceptsReturn="True" IsEnabled="{Binding CanEditTemplateDraft}" Height="88" ScrollViewer.VerticalScrollBarVisibility="Auto" Text="{Binding DraftUhdParameters, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" TextWrapping="Wrap" Visibility="{Binding X265UhdVisibility}" />
 
                         <shared:CommandPreviewBox
                             Header="{Binding Texts.CommandPreviewTitle}"
-                            PreviewMinHeight="280"
+                            PreviewMinHeight="96"
+                            PreviewHeight="120"
                             Text="{Binding PreviewCommandLine, Mode=OneWay}"
                             Texts="{Binding Texts}" />
                     </StackPanel>
+                    </ScrollViewer>
                 </Border>
             </Grid>
         </StackPanel>

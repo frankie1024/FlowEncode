@@ -162,6 +162,7 @@ public sealed class LegacyAv1anCliFallbackRunner : IAutoCompressionRunner
         Task pumpError = Task.CompletedTask;
         var finalExitCode = -1;
         var outputFinalized = false;
+        var preserveStagedOutput = false;
 
         try
         {
@@ -191,8 +192,10 @@ public sealed class LegacyAv1anCliFallbackRunner : IAutoCompressionRunner
                         request.OutputPath,
                         language,
                         WriteDiagnostic,
-                        out var failureSummary))
+                        out var failureSummary,
+                        request.OverwriteOutput))
                 {
+                    preserveStagedOutput = File.Exists(stagedOutputPath);
                     progress?.Report(new AutoCompressionProgress(
                         request.JobId,
                         EncodingJobState.Failed,
@@ -278,9 +281,9 @@ public sealed class LegacyAv1anCliFallbackRunner : IAutoCompressionRunner
         {
             _activeExecutions.TryRemove(request.JobId, out _);
             activeExecution?.Dispose();
-            ExecutionOutputStaging.CleanupStagedFile(stagedOutputPath, request.OutputPath, request.JobId, WriteDiagnostic);
+            if (!preserveStagedOutput) ExecutionOutputStaging.CleanupStagedFile(stagedOutputPath, request.OutputPath, request.JobId, WriteDiagnostic);
             CleanupPartialOutputFile(request, outputFinalized, WriteDiagnostic);
-            CleanupJobTempDirectory(request, WriteDiagnostic);
+            if (!preserveStagedOutput) CleanupJobTempDirectory(request, WriteDiagnostic);
         }
     }
 
@@ -336,7 +339,8 @@ public sealed class LegacyAv1anCliFallbackRunner : IAutoCompressionRunner
         if (request.SearchProfile is { InterpolationMethod: { Length: > 0 } interpolationMethod })
         {
             args.Add("--interp-method");
-            args.Add(interpolationMethod);
+            // The protocol's display spelling contains a hyphen; upstream uses '-' between rounds.
+            args.Add(interpolationMethod.Replace("cubic-polynomial", "cubicpolynomial", StringComparison.OrdinalIgnoreCase));
         }
 
         if (request.SearchProfile is { ProbingStatistic: { Length: > 0 } probingStatistic })

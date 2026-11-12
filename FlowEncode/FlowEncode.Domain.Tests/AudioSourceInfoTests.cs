@@ -83,7 +83,8 @@ public sealed class AudioSourceInfoTests
     [DataRow(8, true)]
     [DataRow(0, false)]
     [DataRow(4, false)]
-    [DataRow(7, false)]
+    [DataRow(5, true)]
+    [DataRow(7, true)]
     [DataRow(10, false)]
     public void IsDeewChannelCountSupported_MatchesBackendInputCapabilities(int channels, bool expected)
     {

@@ -7,6 +7,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using FlowEncode.Controls.Shared;
 using FlowEncode.Domain;
+using FlowEncode.Infrastructure;
 using Microsoft.UI;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Media;
@@ -50,6 +51,30 @@ public partial class MainWindowViewModel
     private bool _isAudioProcessingCancellationRequested;
     private AudioProcessingMode? _activeAudioProcessingMode;
     private AudioSourceInfo? _audioSourceInfo;
+    private string? _deewPreflightError;
+    private AudioProcessingResult? _lastAudioResult;
+
+    internal DeewOptions? LoadDeewOptions() => _settingsService.Load().DeewOptions;
+
+    internal void DeewOptionsChanged()
+    {
+        var form = AudioProcessingModule?.Form;
+        if (form is null) return;
+        _settingsService.Save(_settingsService.Load() with { DeewOptions = form.Deew.Stored });
+        CancelAudioSourceProbeForPendingInputRefresh();
+        ScheduleAudioProcessingInputRefresh(probeSource: true);
+    }
+
+    internal Visibility AudioDeewOptionsVisibility => SelectedAudioWorkflow?.Value == AudioProcessingMode.Ddp ? Visibility.Visible : Visibility.Collapsed;
+    internal string? AudioMediaPath => _lastAudioResult is { State: EncodingJobState.Completed } ? _lastAudioResult.OutputFiles?.FirstOrDefault(File.Exists) : null;
+    internal string? AudioDiagnosticsPath => _lastAudioResult?.DiagnosticFiles?.FirstOrDefault(File.Exists);
+    internal string? AudioRetainedPath => _lastAudioResult?.RetainedTempPath is string path && Directory.Exists(path) ? path : null;
+    internal bool CanOpenAudioMedia => AudioMediaPath is not null;
+    internal bool CanOpenAudioDiagnostics => AudioDiagnosticsPath is not null;
+    internal bool CanOpenAudioRetained => AudioRetainedPath is not null;
+    internal string AudioResultPaths => _lastAudioResult is null ? "" : string.Join(Environment.NewLine,
+        (_lastAudioResult.OutputFiles ?? []).Concat(_lastAudioResult.DiagnosticFiles ?? [])
+            .Concat(_lastAudioResult.RetainedTempPath is string path ? [Texts.Pick("保留临时目录（失败/取消时可能不完整）：", "Retained temporary directory (may be incomplete after failure/cancellation): ") + path] : []));
     private bool _isAudioSourceInfoLoading;
     private string? _audioSourceInfoError;
     private CancellationTokenSource? _audioSourceProbeCancellationTokenSource;
@@ -123,6 +148,9 @@ public partial class MainWindowViewModel
                 OnPropertyChanged(nameof(AudioSourceInfoText));
                 OnPropertyChanged(nameof(AudioEac3ToOptionsVisibility));
                 OnPropertyChanged(nameof(AudioOpusOptionsVisibility));
+                OnPropertyChanged(nameof(AudioDeewOptionsVisibility));
+                CancelAudioSourceProbeForPendingInputRefresh();
+                ScheduleAudioProcessingInputRefresh(probeSource: true);
                 OnPropertyChanged(nameof(AudioProcessingProgressPrimaryText));
                 RefreshAudioProcessingCommandPreview();
             }
@@ -280,6 +308,7 @@ public partial class MainWindowViewModel
         && SelectedAudioWorkflow is not null
         && !string.IsNullOrWhiteSpace(AudioProcessingSourcePath)
         && !string.IsNullOrWhiteSpace(AudioProcessingOutputPath)
+        && (SelectedAudioWorkflow?.Value != AudioProcessingMode.Ddp || _deewPreflightError is null && !_isAudioSourceInfoLoading && !_isAudioProcessingInputRefreshPending)
         && GetSelectedAudioCapabilityState() == ReadinessState.Ready
         && string.IsNullOrWhiteSpace(ValidateAudioProcessingConfiguration(requireSourceExists: false, out _));
 
@@ -414,6 +443,7 @@ public partial class MainWindowViewModel
     {
         get
         {
+            if (SelectedAudioWorkflow?.Value == AudioProcessingMode.Ddp && _deewPreflightError is not null) return _deewPreflightError;
             var workflow = SelectedAudioWorkflow;
             if (workflow is null)
             {
@@ -516,6 +546,11 @@ public partial class MainWindowViewModel
 
         DisposeAudioProcessingCancellation();
         SetAudioProcessingRunningState(false, null);
+        _lastAudioResult = result;
+        OnPropertyChanged(nameof(AudioResultPaths));
+        OnPropertyChanged(nameof(CanOpenAudioMedia));
+        OnPropertyChanged(nameof(CanOpenAudioDiagnostics));
+        OnPropertyChanged(nameof(CanOpenAudioRetained));
 
         if (string.IsNullOrWhiteSpace(AudioProcessingLog))
         {
@@ -532,7 +567,8 @@ public partial class MainWindowViewModel
                     UsesCompactAudioProcessingLog(_activeAudioProcessingMode)
                         ? LastMeaningfulAudioProcessingStageLine(result.Log, result.Summary)
                         : LastMeaningfulAudioProcessingLine(AudioProcessingLog, result.Summary));
-                AudioProcessingStatusText = Texts.AudioProcessingCompletedStatus(Texts.AudioWorkflowLabel(_activeAudioProcessingMode ?? SelectedAudioWorkflow?.Value ?? AudioProcessingMode.Ddp));
+                AudioProcessingStatusText = result.LoudnessDb.HasValue ? Texts.Pick($"实测响度：{result.LoudnessDb:0.##} dB", $"Measured loudness: {result.LoudnessDb:0.##} dB")
+                    : Texts.AudioProcessingCompletedStatus(Texts.AudioWorkflowLabel(_activeAudioProcessingMode ?? SelectedAudioWorkflow?.Value ?? AudioProcessingMode.Ddp));
                 StatusText = AudioProcessingStatusText;
                 return null;
 
@@ -724,17 +760,21 @@ public partial class MainWindowViewModel
                 break;
 
             case AudioProcessingMode.Ddp:
+                AudioSourceSupport.ValidateDeewInput(normalizedSource, AudioProcessingModule.Form.Deew.Build());
                 if (_isAudioSourceInfoLoading)
                 {
                     throw new InvalidOperationException(Texts.AudioSourceInspectingStatus);
                 }
 
                 if (_audioSourceInfo is { Channels: > 0 }
+                    && !AudioProcessingModule.Form.Deew.Build().Format.EndsWith("-atmos", StringComparison.Ordinal)
                     && !AudioSourceInfo.IsDeewChannelCountSupported(_audioSourceInfo.Channels)
                     && !_audioSourceInfo.RequiresDdpDtsCompatibilityInput())
                 {
                     throw new InvalidOperationException(Texts.AudioDdpUnsupportedChannels(_audioSourceInfo));
                 }
+
+                if (requireSourceExists && _deewPreflightError is not null) throw new InvalidOperationException(_deewPreflightError);
 
                 break;
 
@@ -764,7 +804,8 @@ public partial class MainWindowViewModel
             _audioSourceInfo?.Channels,
             _audioSourceInfo?.ChannelLayout,
             opusBitrateKbps,
-            AudioOpusUseMappingFamily1);
+            AudioOpusUseMappingFamily1,
+            SelectedAudioWorkflow.Value == AudioProcessingMode.Ddp ? AudioProcessingModule.Form.Deew.Build() : null);
         RequestValidation.ValidateAudioProcessingRequest(request);
         return request;
     }
@@ -862,7 +903,6 @@ public partial class MainWindowViewModel
             EnvironmentCapabilityKind.AudioDdp =>
             [
                 BuildCachedAudioRequirement(RegisteredToolKind.Deew),
-                BuildCachedAudioRequirement(RegisteredToolKind.Dee),
                 BuildCachedAudioRequirement(RegisteredToolKind.Ffmpeg),
                 BuildCachedAudioRequirement(RegisteredToolKind.Ffprobe)
             ],
@@ -988,8 +1028,7 @@ public partial class MainWindowViewModel
                 _ => "flac"
             },
             AudioProcessingMode.Opus => "opus",
-            AudioProcessingMode.Ddp when IsDdpEb3Output() => "eb3",
-            AudioProcessingMode.Ddp => "ec3",
+            AudioProcessingMode.Ddp => AudioProcessingModule.Form.Deew.Profile.Extension?.TrimStart('.') ?? "",
             _ => "audio"
         };
     }
@@ -1032,6 +1071,7 @@ public partial class MainWindowViewModel
             }
 
             var normalizedSource = Path.GetFullPath(AudioProcessingSourcePath.Trim());
+            if (SelectedAudioWorkflow.Value == AudioProcessingMode.Ddp && AudioProcessingModule.Form.Deew.Build().MeasureOnly) return null;
             var outputDirectory = !string.IsNullOrWhiteSpace(AudioProcessingOutputPath)
                 ? Path.GetFullPath(AudioProcessingOutputPath.Trim())
                 : Path.GetDirectoryName(normalizedSource) ?? Environment.CurrentDirectory;
@@ -1074,7 +1114,7 @@ public partial class MainWindowViewModel
 
     private bool IsDdpEb3Output()
     {
-        return _audioSourceInfo?.Channels == 8;
+        return AudioProcessingModule.Form.Deew.Profile.Extension == ".eb3";
     }
 
     private string? ResolveExistingAudioProcessingOutputPath(AudioProcessingRequest request)
@@ -1084,14 +1124,15 @@ public partial class MainWindowViewModel
             return File.Exists(request.OutputPath) ? request.OutputPath : null;
         }
 
-        var preferredExtension = IsDdpEb3Output() ? "eb3" : "ec3";
+        var preferredExtension = GetAudioProcessingSuggestedExtension();
+        if (string.IsNullOrEmpty(preferredExtension)) return null;
         var baseName = Path.GetFileNameWithoutExtension(request.SourcePath);
         if (string.IsNullOrWhiteSpace(baseName))
         {
             return null;
         }
 
-        foreach (var extension in EnumeratePreferredDdpExtensions(preferredExtension))
+        foreach (var extension in new[] { preferredExtension })
         {
             var candidatePath = Path.Combine(request.OutputPath, $"{baseName}.{extension}");
             if (File.Exists(candidatePath))
@@ -1232,6 +1273,7 @@ public partial class MainWindowViewModel
 
         _isAudioProcessingInputRefreshPending = isPending;
         OnPropertyChanged(nameof(AudioProcessingOutputPreviewText));
+        OnPropertyChanged(nameof(CanStartAudioProcessing));
     }
 
     private void CancelAudioSourceProbeForPendingInputRefresh()
@@ -1282,13 +1324,33 @@ public partial class MainWindowViewModel
                 return;
             }
 
-            var info = await _audioSourceInfoService.ProbeAsync(sourcePath, cancellationToken);
+            AudioSourceInfo? info;
+            if (SelectedAudioWorkflow?.Value == AudioProcessingMode.Ddp)
+            {
+                try
+                {
+                    var snapshot = await new DeewPlanningService(_toolProbeService).InspectAsync(sourcePath, AudioProcessingModule.Form.Deew.Build(), cancellationToken);
+                    if (version != _audioSourceProbeVersion) return;
+                    AudioProcessingModule.Form.Deew.SetSourceChannels(snapshot.Source.Channels);
+                    AudioProcessingModule.Form.Deew.SetDefaults(snapshot.DefaultDdpMode, snapshot.DefaultAtmosMode, snapshot.DefaultBitrates);
+                    _deewPreflightError = null;
+                    info = snapshot.Source;
+                }
+                catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) { throw; }
+                catch (Exception ex)
+                {
+                    _deewPreflightError = ex.Message;
+                    info = await _audioSourceInfoService.ProbeAsync(sourcePath, (int)AudioProcessingModule.Form.Deew.TrackIndex, cancellationToken);
+                }
+            }
+            else info = await _audioSourceInfoService.ProbeAsync(sourcePath, cancellationToken);
             if (version != _audioSourceProbeVersion)
             {
                 return;
             }
 
             _audioSourceInfo = info;
+            if (info is not null) AudioProcessingModule.Form.Deew.SetSourceChannels(info.Channels);
             _audioSourceInfoError = null;
             AudioOpusUseMappingFamily1 = info?.HasSurround51Or71Channels() == true;
         }

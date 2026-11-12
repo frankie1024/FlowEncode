@@ -16,7 +16,7 @@ function Get-UpdatedReadmeBadgeContent {
 
     return [System.Text.RegularExpressions.Regex]::Replace(
         $Content,
-        'https://img\.shields\.io/badge/version-[^-"]+-167a7f',
+        'https://img\.shields\.io/badge/version-[^"\s)]+-167a7f',
         "https://img.shields.io/badge/version-$Version-167a7f")
 }
 

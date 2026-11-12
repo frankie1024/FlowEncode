@@ -11,4 +11,6 @@ public sealed record AudioProcessingRequest(
     int? SourceChannelCount,
     string? SourceChannelLayout,
     int? OpusBitrateKbps,
-    bool UseOpusMappingFamily1);
+    bool UseOpusMappingFamily1,
+    DeewOptions? Deew = null,
+    bool OverwriteOutput = true);

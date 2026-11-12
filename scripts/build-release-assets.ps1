@@ -13,8 +13,16 @@ $ErrorActionPreference = "Stop"
 function Remove-DirectoryIfExists {
     param([string]$Path)
 
-    if (Test-Path $Path) {
-        Remove-Item -Path $Path -Recurse -Force
+    $resolvedTarget = [System.IO.Path]::GetFullPath($Path).TrimEnd('\', '/')
+    $allowedTargets = @($publishRoot, $resolvedOutputRoot) | ForEach-Object { [System.IO.Path]::GetFullPath($_).TrimEnd('\', '/') }
+    if ($resolvedTarget -notin $allowedTargets -or $resolvedTarget -eq $repoRoot -or
+        $resolvedTarget -eq [System.IO.Path]::GetPathRoot($resolvedTarget).TrimEnd('\', '/') -or
+        $repoRoot.StartsWith($resolvedTarget + '\', [System.StringComparison]::OrdinalIgnoreCase)) {
+        throw "Refusing to remove unsafe release directory: $resolvedTarget"
+    }
+    if (Test-Path -LiteralPath $resolvedTarget) {
+        if ((Get-Item -LiteralPath $resolvedTarget).Attributes -band [System.IO.FileAttributes]::ReparsePoint) { throw "Release directory is a reparse point: $resolvedTarget" }
+        Remove-Item -LiteralPath $resolvedTarget -Recurse -Force
     }
 }
 
@@ -130,6 +138,13 @@ if (-not (Test-Path (Join-Path $publishRoot "FlowEncode.exe"))) {
 
 Sanitize-ReleaseLayout -RootPath $publishRoot -SatelliteLanguageDirectories $SatelliteLanguageDirectories
 
+$mcpPublishRoot = Join-Path $publishRoot "mcp"
+& dotnet publish (Join-Path $repoRoot "FlowEncode\FlowEncode.Mcp\FlowEncode.Mcp.csproj") -c $Configuration -r win-x64 --self-contained true -o $mcpPublishRoot --nologo
+if ($LASTEXITCODE -ne 0) { throw "MCP publish failed." }
+if (-not (Test-Path -LiteralPath (Join-Path $mcpPublishRoot "FlowEncode.Mcp.exe"))) { throw "MCP executable missing." }
+$portablePath = Join-Path $resolvedOutputRoot "FlowEncode_Portable_v$resolvedVersion.zip"
+Compress-Archive -Path (Join-Path $publishRoot '*') -DestinationPath $portablePath -CompressionLevel Optimal
+
 & $installerBuildScript `
     -SourceDirectoryPath $publishRoot `
     -Version $resolvedVersion `
@@ -145,9 +160,27 @@ if (-not (Test-Path $installerArtifactPath)) {
 }
 
 $installerHash = Get-Sha256Hash -Path $installerArtifactPath
+# Republish the exact verified multilib binary and matching source/license bundle
+# alongside the stable app: its managed x265 baseline resolves assets from this release.
+$x265Assets = @(
+    @{ Name = 'x265-4.3-x64.zip'; Sha256 = '499913e1e898b64078a795c9edcd0ea8805fe05417091ce9abad0572f70f0b3d' },
+    @{ Name = 'x265-4.3-multilib-source-license.zip'; Sha256 = 'db428fc8cdba3110ead30155207e7e529fcaacf0a1f8fc5e23ea698092b83077' }
+)
+foreach ($asset in $x265Assets) {
+    $assetPath = Join-Path $resolvedOutputRoot $asset.Name
+    Invoke-WebRequest -Uri ("https://github.com/frankie1024/FlowEncode/releases/download/v3.0.0-beta.1/" + $asset.Name) -OutFile $assetPath
+    if ((Get-Sha256Hash -Path $assetPath) -ne $asset.Sha256) {
+        throw "Verified x265 release asset checksum mismatch: $($asset.Name)"
+    }
+}
+$checksums = @($installerArtifactPath, $portablePath) + @($x265Assets | ForEach-Object { Join-Path $resolvedOutputRoot $_.Name }) | ForEach-Object {
+    "{0} *{1}" -f (Get-Sha256Hash -Path $_).ToLowerInvariant(), [System.IO.Path]::GetFileName($_)
+}
+$checksums | Set-Content -LiteralPath (Join-Path $resolvedOutputRoot 'SHA256SUMS.txt') -Encoding ascii
 
 [pscustomobject]@{
     Version = $resolvedVersion
     InstallerExe = $installerArtifactPath
     InstallerExeSha256 = $installerHash
+    PortableZip = $portablePath
 } | Format-List

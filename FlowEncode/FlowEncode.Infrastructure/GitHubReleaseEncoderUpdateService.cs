@@ -26,10 +26,56 @@ public sealed class GitHubReleaseEncoderUpdateService : IEncoderUpdateService, I
         _downloadHttpClient = httpClientFactory.CreateClient(FlowEncodeHttpClientProfile.Download);
     }
 
-    public Task<IReadOnlyList<EncoderUpdatePackage>> GetAvailableUpdatesAsync(CancellationToken cancellationToken = default)
+    public async Task<IReadOnlyList<EncoderUpdatePackage>> GetAvailableUpdatesAsync(CancellationToken cancellationToken = default)
+        => await GetPackagesAsync(useBaseline: false, cancellationToken);
+
+    public async Task<IReadOnlyList<EncoderUpdatePackage>> GetBaselinePackagesAsync(CancellationToken cancellationToken = default)
+        => await GetPackagesAsync(useBaseline: true, cancellationToken);
+
+    private async Task<IReadOnlyList<EncoderUpdatePackage>> GetPackagesAsync(bool useBaseline, CancellationToken cancellationToken)
     {
-        cancellationToken.ThrowIfCancellationRequested();
-        return Task.FromResult(LegacyToolchainBaseline.EncoderPackages());
+        var packages = new List<EncoderUpdatePackage>();
+
+        var x264 = await GetLatestPackageAsync(
+            EncoderKind.X264,
+            EncoderArchitecture.X64,
+            "frankie1024/x264-windows-builds",
+            static asset => IsExpectedEncoderAssetName(asset.Name, "x264"),
+            static asset => ScoreX264Asset(asset.Name),
+            "默认使用 FlowEncode x264 Windows x64 发布包。",
+            cancellationToken, useBaseline ? "stable-20250608-b35605ace3dd" : null);
+        if (x264 is not null)
+        {
+            packages.Add(x264);
+        }
+
+        var x265 = await GetLatestPackageAsync(
+            EncoderKind.X265,
+            EncoderArchitecture.X64,
+            useBaseline ? "frankie1024/FlowEncode" : "frankie1024/x265-windows-builds",
+            static asset => IsExpectedEncoderAssetName(asset.Name, "x265"),
+            static asset => ScoreX265Asset(asset.Name),
+            "默认使用 FlowEncode x265 Windows x64 发布包。",
+            cancellationToken, useBaseline ? "v3.0.0" : null);
+        if (x265 is not null)
+        {
+            packages.Add(useBaseline ? x265 with { ReleaseName = "4.3 (8+10-bit multilib)" } : x265);
+        }
+
+        var svt = await GetLatestPackageAsync(
+            EncoderKind.SvtAv1,
+            EncoderArchitecture.X64,
+            "frankie1024/svt-av1-windows-builds",
+            static asset => IsExpectedEncoderAssetName(asset.Name, "svt-av1"),
+            static asset => ScoreSvtAsset(asset.Name),
+            "默认使用 FlowEncode SVT-AV1 Windows x64 发布包。",
+            cancellationToken, useBaseline ? "v4.3.0" : null);
+        if (svt is not null)
+        {
+            packages.Add(svt);
+        }
+
+        return packages;
     }
 
     public async Task<string> InstallUpdateAsync(
@@ -37,12 +83,6 @@ public sealed class GitHubReleaseEncoderUpdateService : IEncoderUpdateService, I
         CancellationToken cancellationToken = default,
         IProgress<PackageDownloadProgress>? downloadProgress = null)
     {
-        if (package.Architecture != EncoderArchitecture.X64 || !LegacyToolchainBaseline.Matches(
-            LegacyToolchainBaseline.Encoder(package.Kind), package.AssetName, package.DownloadUrl, package.Sha256))
-        {
-            throw new InvalidOperationException("FlowEncode 2.0 only installs its pinned compatibility baseline. Upgrade the app to use newer tools.");
-        }
-
         if (string.IsNullOrWhiteSpace(package.Sha256))
         {
             throw new InvalidOperationException("更新包未提供 SHA256 摘要，已拒绝自动安装。请改为手动下载并完成校验。");
@@ -269,6 +309,79 @@ public sealed class GitHubReleaseEncoderUpdateService : IEncoderUpdateService, I
             $"^{Regex.Escape(expectedPrefix)}-(?!.*(?:^|-)x64-)(?!.*(?:^|-)windows(?:-|\\.))(?!.*(?:^|-)x86(?:-|\\.))[A-Za-z0-9._-]+-x64\\.zip$",
             RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
     }
+
+    private async Task<EncoderUpdatePackage?> GetLatestPackageAsync(
+        EncoderKind kind,
+        EncoderArchitecture architecture,
+        string repository,
+        Func<GitHubReleaseAsset, bool> assetFilter,
+        Func<GitHubReleaseAsset, int> scoreSelector,
+        string notes,
+        CancellationToken cancellationToken,
+        string? baselineTag = null,
+        bool allowPinnedPrerelease = false)
+    {
+        using var response = await _apiHttpClient.GetAsync($"https://api.github.com/repos/{repository}/releases/"
+            + (baselineTag is null ? "latest" : "tags/" + baselineTag), cancellationToken);
+        if (response.StatusCode == System.Net.HttpStatusCode.NotFound) return null;
+        response.EnsureSuccessStatusCode();
+
+        await using var contentStream = await response.Content.ReadAsStreamAsync(cancellationToken);
+        var release = await JsonSerializer.DeserializeAsync<GitHubRelease>(contentStream, JsonOptions, cancellationToken);
+        if (release is null || release.Draft || release.Prerelease && !allowPinnedPrerelease
+            || LocalExternalToolService.ContainsUnstableReleaseMarker(release.TagName) && !allowPinnedPrerelease
+            || baselineTag is not null && release.TagName != baselineTag)
+        {
+            return null;
+        }
+
+        var assetSelection = (release.Assets ?? [])
+            .Where(assetFilter)
+            .Select(asset => new
+            {
+                Asset = asset,
+                Compatibility = EncoderCpuCompatibilityPolicy.Evaluate(asset.Name, _cpuProfile)
+            })
+            .Where(candidate => candidate.Compatibility.IsCompatible)
+            .OrderByDescending(candidate => candidate.Compatibility.Preference)
+            .ThenByDescending(candidate => scoreSelector(candidate.Asset))
+            .ThenBy(candidate => candidate.Asset.Name, StringComparer.OrdinalIgnoreCase)
+            .FirstOrDefault();
+        if (assetSelection is null)
+        {
+            return null;
+        }
+
+        var asset = assetSelection.Asset;
+        var sha256 = PackageIntegrityVerifier.NormalizeSha256Digest(asset.Digest);
+        if (baselineTag is not null && !IsBaselineDigest(kind, sha256)) return null;
+        var isAutomatic = !string.IsNullOrWhiteSpace(sha256);
+        var compatibilityNote = EncoderCpuCompatibilityPolicy.BuildSelectionNote(_cpuProfile, assetSelection.Compatibility);
+        var resolvedNotes = isAutomatic
+            ? $"{notes} {compatibilityNote} 已自动选择资产：{asset.Name}"
+            : $"{notes} {compatibilityNote} 当前资源未提供 SHA256 摘要，已禁用自动安装。";
+
+        return new EncoderUpdatePackage(
+            kind,
+            architecture,
+            ResolveGitHubReleaseLabel(release, asset.Name),
+            asset.Name,
+            release.HtmlUrl,
+            asset.BrowserDownloadUrl,
+            release.PublishedAt,
+            resolvedNotes,
+            sha256,
+            isAutomatic);
+    }
+
+    internal static bool IsBaselineDigest(EncoderKind kind, string? digest) => digest == kind switch
+    {
+        EncoderKind.X264 => "3f60ff87f577307c1d452ff4a221b833d0978627b8ada96819b8d1f2d970cbbb",
+        EncoderKind.SvtAv1 => "caf4df0ac5393436e4e63455d1be09b935bb8bfe7acd013653cd34fa228c05bb",
+        // Exact optimized multilib artifact from validated CI run 43147776097.
+        EncoderKind.X265 => "499913e1e898b64078a795c9edcd0ea8805fe05417091ce9abad0572f70f0b3d",
+        _ => string.Empty
+    };
 
     private static string ResolveGitHubReleaseLabel(GitHubRelease release, string? assetName = null)
     {

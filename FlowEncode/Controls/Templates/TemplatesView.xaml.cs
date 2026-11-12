@@ -17,6 +17,7 @@ public sealed partial class TemplatesView : UserControl
 {
     private const string TemplateExchangeFileExtension = ".profile";
     private bool _selectionSyncInProgress;
+    private bool _stackedWorkspace;
 
     internal ITemplatesViewHost? Host { get; set; }
 
@@ -27,26 +28,48 @@ public sealed partial class TemplatesView : UserControl
     public TemplatesView()
     {
         InitializeComponent();
+        TemplatesScroller.SizeChanged += (_, _) => UpdateWorkspaceHeight();
     }
 
     public void ApplyLayout(bool stackedWorkspace, bool compactForms, Thickness contentPadding)
     {
         ContentStack.Padding = contentPadding;
+        _stackedWorkspace = stackedWorkspace;
         TemplatesWorkspaceGrid.ColumnSpacing = stackedWorkspace ? 0 : UiTokens.SpacingL;
-        TemplatesPrimaryColumn.Width = new GridLength(stackedWorkspace ? 1 : 0.94, GridUnitType.Star);
+        TemplatesWorkspaceGrid.RowSpacing = stackedWorkspace ? UiTokens.SpacingL : 0;
+        TemplatesPrimaryColumn.Width = new GridLength(1, GridUnitType.Star);
         TemplatesSecondaryColumn.Width = stackedWorkspace
             ? new GridLength(0)
-            : new GridLength(1.06, GridUnitType.Star);
+            : new GridLength(1, GridUnitType.Star);
 
         Grid.SetRow(TemplateEditorPanel, stackedWorkspace ? 1 : 0);
         Grid.SetColumn(TemplateEditorPanel, stackedWorkspace ? 0 : 1);
         Grid.SetColumnSpan(TemplateEditorPanel, stackedWorkspace ? 2 : 1);
 
         ConfigureTwoItemGrid(TemplateEditorHeaderGrid, TemplateEditorActionsColumn, TemplateEditorCommandBar, compactForms, GridLength.Auto);
+        ConfigureTwoItemGrid(TemplateMetadataGrid, TemplateNotesColumn, TemplateNotesTextBox, compactForms, new GridLength(1, GridUnitType.Star));
         ConfigureTwoItemGrid(TemplateEncoderFormatGrid, TemplateOutputColumn, TemplateOutputComboBox, compactForms, new GridLength(1, GridUnitType.Star));
         ConfigureThreeItemGrid(TemplateRatePresetTuneGrid, TemplatePresetColumn, TemplateTuneColumn, TemplatePresetComboBox, TemplateTuneComboBox, compactForms);
         ConfigureTwoItemGrid(TemplateProfileQualityGrid, TemplateQualityGroupColumn, TemplateQualityBitrateGrid, compactForms, new GridLength(1, GridUnitType.Star));
         ConfigureTwoItemGrid(TemplateQualityBitrateGrid, TemplateBitrateColumn, TemplateBitrateContainer, compactForms, new GridLength(1, GridUnitType.Star));
+        // Quality and bitrate are mutually exclusive; let the active field fill its group.
+        TemplateBitrateColumn.Width = new GridLength(0);
+        Grid.SetRow(TemplateBitrateContainer, 0);
+        Grid.SetColumn(TemplateBitrateContainer, 0);
+        TemplateQualityBitrateGrid.RowSpacing = 0;
+        UpdateWorkspaceHeight();
+    }
+
+    private void UpdateWorkspaceHeight()
+    {
+        var availableHeight = TemplatesScroller.ActualHeight - ContentStack.Padding.Top - ContentStack.Padding.Bottom;
+        if (availableHeight <= 0) return;
+
+        // Keep both cards aligned while long libraries and advanced settings
+        // scroll independently, without moving the entire page.
+        var height = Math.Max(520, Math.Floor(availableHeight));
+        TemplateLibraryPanel.Height = _stackedWorkspace ? Math.Clamp(availableHeight * 0.42, 260, 360) : height;
+        TemplateEditorPanel.Height = _stackedWorkspace ? double.NaN : height;
     }
 
     public void InitializeSelectionIfLoaded()
@@ -648,6 +671,7 @@ public sealed partial class TemplatesView : UserControl
         GridLength expandedSecondColumnWidth)
     {
         grid.ColumnSpacing = stacked ? 0 : UiTokens.SpacingM;
+        grid.RowSpacing = stacked ? UiTokens.SpacingM : 0;
         secondColumn.Width = stacked ? new GridLength(0) : expandedSecondColumnWidth;
         Grid.SetRow(secondItem, stacked ? 1 : 0);
         Grid.SetColumn(secondItem, stacked ? 0 : 1);
@@ -662,6 +686,7 @@ public sealed partial class TemplatesView : UserControl
         bool stacked)
     {
         grid.ColumnSpacing = stacked ? 0 : UiTokens.SpacingM;
+        grid.RowSpacing = stacked ? UiTokens.SpacingM : 0;
         secondColumn.Width = stacked ? new GridLength(0) : new GridLength(1, GridUnitType.Star);
         thirdColumn.Width = stacked ? new GridLength(0) : new GridLength(1, GridUnitType.Star);
         Grid.SetRow(secondItem, stacked ? 1 : 0);

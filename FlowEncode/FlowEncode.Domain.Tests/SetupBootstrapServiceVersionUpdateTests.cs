@@ -32,9 +32,10 @@ public sealed class SetupBootstrapServiceVersionUpdateTests
     }
 
     [TestMethod]
-    [DataRow("3.12.10", true, false, true)]
+    [DataRow("3.12.10", true, false, false)]
     [DataRow("3.13.9", true, false, false)]
-    [DataRow("3.14.0", true, false, false)]
+    [DataRow("3.14.0", true, false, true)]
+    [DataRow("3.15.2", true, false, false)]
     [DataRow("4.0.0", true, false, false)]
     [DataRow("3.13.9", true, true, false)]
     [DataRow("3.13.9", false, false, false)]

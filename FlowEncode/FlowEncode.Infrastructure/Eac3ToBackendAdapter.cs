@@ -185,6 +185,7 @@ public sealed class Eac3ToBackendAdapter : CliBluRayDemuxBackendAdapterBase
 
         startInfo.ArgumentList.Add("-progressnumbers");
 
+        var preserveStagedOutput = false;
         try
         {
             var result = await RunProcessAsync(
@@ -202,14 +203,16 @@ public sealed class Eac3ToBackendAdapter : CliBluRayDemuxBackendAdapterBase
 
             if (result.State == EncodingJobState.Completed)
             {
-                FinalizeStagedOutputDirectory(stagedRequest.OutputDirectory, request.OutputDirectory);
+                preserveStagedOutput = true;
+                FinalizeStagedOutputDirectory(stagedRequest.OutputDirectory, request.OutputDirectory, request.OverwriteOutput);
+                preserveStagedOutput = false;
             }
 
             return result;
         }
         finally
         {
-            CleanupStagedOutputDirectory(stagedRequest.OutputDirectory);
+            if (!preserveStagedOutput) CleanupStagedOutputDirectory(stagedRequest.OutputDirectory);
         }
     }
 
@@ -321,11 +324,11 @@ public sealed class Eac3ToBackendAdapter : CliBluRayDemuxBackendAdapterBase
         };
     }
 
-    private static void FinalizeStagedOutputDirectory(string stagedOutputDirectory, string finalOutputDirectory)
+    private static void FinalizeStagedOutputDirectory(string stagedOutputDirectory, string finalOutputDirectory, bool overwrite)
     {
         try
         {
-            ExecutionOutputStaging.FinalizeDirectory(stagedOutputDirectory, finalOutputDirectory);
+            ExecutionOutputStaging.FinalizeDirectory(stagedOutputDirectory, finalOutputDirectory, overwrite);
         }
         catch (IOException ex)
         {

@@ -46,8 +46,9 @@ public sealed class LocalEncodingJobRunner : IEncodingJobRunner
         return BuildPlan(
             request,
             encoderPath,
-            includeSourceMetadata: request.Profile.Kind == EncoderKind.SvtAv1,
-            allowCachedSourceInfo: true).DisplayCommand;
+            includeSourceMetadata: true,
+            allowCachedSourceInfo: true,
+            validateRuntime: false).DisplayCommand;
     }
 
     public void AbortJob(Guid jobId)
@@ -58,6 +59,14 @@ public sealed class LocalEncodingJobRunner : IEncodingJobRunner
         }
 
         _parallelVideoAv1anRunner.Abort(jobId);
+    }
+
+    internal string BuildValidatedDisplayCommand(EncodingJobRequest request, CancellationToken token)
+    {
+        RequestValidation.ValidateEncodingJobRequest(request);
+        if (request.UseAv1anParallelVideoEncoding) return _parallelVideoAv1anRunner.BuildValidatedDisplayCommand(request, token);
+        return BuildPlan(request, ResolveEncoderPath(request), includeSourceMetadata: true,
+            cancellationToken: token, allowCachedSourceInfo: false, validateRuntime: true).DisplayCommand;
     }
 
     public async Task<EncodingJobResult> RunAsync(
@@ -90,6 +99,7 @@ public sealed class LocalEncodingJobRunner : IEncodingJobRunner
         Process? activeSourceProcess = null;
         ManagedProcessExecution? activeExecution = null;
         EncodingExecutionPlan? plan = null;
+        var preserveStagedOutput = false;
         var displayCommand = string.Empty;
 
         if (!string.IsNullOrWhiteSpace(outputDirectory))
@@ -456,7 +466,20 @@ public sealed class LocalEncodingJobRunner : IEncodingJobRunner
                 }
             }
 
-            FinalizeOutputFile(stagedOutputPath, request.OutputPath, request.JobId);
+            progress?.Report(new EncodingJobProgress(request.JobId, EncodingJobState.Running, null,
+                T(language, "Verifying encoded video", "正在校验编码产物"), string.Empty));
+            try
+            {
+                EncodedMediaVerifier.VerifyVideo(_toolLocator.ResolveFfprobe(), stagedOutputPath, plan.OutputContract!, cancellationToken);
+            }
+            catch (Exception ex) when (ex is not OperationCanceledException)
+            {
+                preserveStagedOutput = true;
+                throw new InvalidOperationException($"{ex.Message} Recovery file / 恢复文件：{stagedOutputPath}", ex);
+            }
+            preserveStagedOutput = true;
+            FinalizeOutputFile(stagedOutputPath, request.OutputPath, request.JobId, request.OverwriteOutput);
+            preserveStagedOutput = false;
             currentState = EncodingJobState.Completed;
             var summary = T(language, "Encoding completed", "编码完成");
             var visibleLog = visibleLogBuilder.ToString();
@@ -519,13 +542,23 @@ public sealed class LocalEncodingJobRunner : IEncodingJobRunner
                 cancelledLog,
                 cancelledLogPath);
         }
+        catch (Exception ex)
+        {
+            currentState = EncodingJobState.Failed;
+            visibleLogBuilder.AppendLine(ex.Message);
+            if (!rawLogWriterClosed) rawLogWriter.WriteLine(ex.Message);
+            await CloseRawLogWriterAsync();
+            var failureLogPath = await _logWriter.WriteSidecarLogAsync(request, displayCommand, currentState, -1, rawLogPath);
+            progress?.Report(new(request.JobId, currentState, null, ex.Message, ex.Message));
+            return new(request.JobId, currentState, -1, ex.Message, visibleLogBuilder.ToString(), failureLogPath);
+        }
         finally
         {
             _activeExecutions.TryRemove(request.JobId, out _);
             activeExecution?.Dispose();
             activeSourceProcess?.Dispose();
             CleanupPlanArtifacts(plan);
-            CleanupStagedOutput(stagedOutputPath, request.OutputPath, request.JobId);
+            if (!preserveStagedOutput) CleanupStagedOutput(stagedOutputPath, request.OutputPath, request.JobId);
 
             if (!rawLogWriterClosed)
             {
@@ -533,7 +566,7 @@ public sealed class LocalEncodingJobRunner : IEncodingJobRunner
             }
 
             CleanupTemporaryRawLog(rawLogPath);
-            CleanupJobTempDirectory(request);
+            if (!preserveStagedOutput) CleanupJobTempDirectory(request);
         }
     }
 
@@ -564,15 +597,21 @@ public sealed class LocalEncodingJobRunner : IEncodingJobRunner
         Action<string>? sourceProbeProgress = null,
         CancellationToken cancellationToken = default,
         bool allowCachedSourceInfo = false,
-        string? outputPathOverride = null)
+        string? outputPathOverride = null,
+        bool validateRuntime = true)
     {
         var profile = request.Profile;
         var pipelineKind = pipelineKindOverride ?? ResolvePipelineKind(request);
+        if (validateRuntime && pipelineKind == InputPipelineKind.FfmpegPipe)
+        {
+            FfmpegCapabilityProbe.RequireVideo(_toolLocator.ResolveFfmpeg(), cancellationToken);
+            FfmpegCapabilityProbe.ValidatePair(_toolLocator.ResolveFfmpeg(), _toolLocator.ResolveFfprobe(), cancellationToken);
+        }
         var sourceInfo = includeSourceMetadata
             ? ResolveSourceInfo(
                 request,
                 pipelineKind,
-                profile.Kind == EncoderKind.SvtAv1 && pipelineKind != InputPipelineKind.RawYuvFile,
+                (validateRuntime || profile.Kind == EncoderKind.SvtAv1) && pipelineKind != InputPipelineKind.RawYuvFile,
                 allowCachedSourceInfo,
                 sourceProbeProgress,
                 cancellationToken)
@@ -580,6 +619,8 @@ public sealed class LocalEncodingJobRunner : IEncodingJobRunner
         var statsPath = profile.RateControl == RateControlMode.TwoPass
             ? BuildMultipassStatsPath(request, profile.Kind)
             : null;
+        if (validateRuntime)
+            EncoderRuntimeValidation.Validate(encoderPath, _toolLocator.ResolveFfprobe(), profile, sourceInfo, cancellationToken);
         return _commandBuilder.BuildPlan(request, encoderPath, pipelineKind, sourceInfo, statsPath, outputPathOverride);
     }
 
@@ -620,7 +661,7 @@ public sealed class LocalEncodingJobRunner : IEncodingJobRunner
                 return sourceInfo;
             }
         }
-        catch when (!required)
+        catch when (!required && !cancellationToken.IsCancellationRequested)
         {
         }
 
@@ -978,18 +1019,19 @@ public sealed class LocalEncodingJobRunner : IEncodingJobRunner
         return ExecutionOutputStaging.CreateStagedFilePath(GetJobTempDirectory(request), request.OutputPath, request.JobId);
     }
 
-    private void FinalizeOutputFile(string stagedOutputPath, string finalOutputPath, Guid jobId)
+    private void FinalizeOutputFile(string stagedOutputPath, string finalOutputPath, Guid jobId, bool overwrite)
     {
         try
         {
-            ExecutionOutputStaging.FinalizeFile(stagedOutputPath, finalOutputPath, jobId);
+            var failure = ExecutionOutputStaging.FinalizeFileOrPreserve(stagedOutputPath, finalOutputPath, jobId, overwrite, WriteDiagnostic);
+            if (failure is not null) throw new IOException(failure.Describe(GetLanguage()), failure.Exception);
         }
         catch (IOException ex)
         {
             throw new InvalidOperationException(T(
                 GetLanguage(),
                 $"Encoding completed but the output file could not be finalized: {finalOutputPath}",
-                $"编码已完成，但无法完成输出文件落盘：{finalOutputPath}"), ex);
+                $"编码已完成，但无法完成输出文件落盘：{finalOutputPath}") + " " + ex.Message, ex);
         }
     }
 

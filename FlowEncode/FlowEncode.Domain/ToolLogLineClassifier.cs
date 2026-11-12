@@ -20,7 +20,6 @@ public static class ToolLogLineClassifier
         return mode switch
         {
             AudioProcessingMode.Eac3To => normalized.StartsWith("process:", StringComparison.OrdinalIgnoreCase),
-            AudioProcessingMode.Ddp => LooksLikeDeewConsoleProgressLine(normalized),
             AudioProcessingMode.Opus => normalized.StartsWith("process:", StringComparison.OrdinalIgnoreCase)
                 || LooksLikeOpusCliProgressLine(normalized),
             _ => false
@@ -96,20 +95,6 @@ public static class ToolLogLineClassifier
         }
 
         return false;
-    }
-
-    public static bool LooksLikeDeewConsoleProgressLine(string? line)
-    {
-        var normalized = ConsoleOutputLineNormalizer.Normalize(line);
-        if (string.IsNullOrWhiteSpace(normalized))
-        {
-            return false;
-        }
-
-        return normalized.StartsWith("Stage progress:", StringComparison.OrdinalIgnoreCase)
-            || (normalized.IndexOf('%') >= 0
-                && normalized.IndexOf('[') >= 0
-                && normalized.IndexOf(']') >= 0);
     }
 
     private static bool LooksLikeOpusCliProgressLine(string? line)

@@ -35,6 +35,7 @@ public sealed class ProcessToolProbeService : IToolProbeService
     {
         return Task.Run<IReadOnlyList<ToolProbeResult>>(() =>
         {
+            using var discoveryScope = PythonRuntimeCompatibility.BeginDiscoveryScope();
             cancellationToken.ThrowIfCancellationRequested();
             var vsrepoInstalledCache = new Dictionary<string, VsrepoInstalledProbeResult>(StringComparer.OrdinalIgnoreCase);
 
@@ -49,6 +50,7 @@ public sealed class ProcessToolProbeService : IToolProbeService
     {
         return Task.Run(() =>
         {
+            using var discoveryScope = PythonRuntimeCompatibility.BeginDiscoveryScope();
             var definition = _toolRegistryService.GetTool(kind);
             var vsrepoInstalledCache = new Dictionary<string, VsrepoInstalledProbeResult>(StringComparer.OrdinalIgnoreCase);
             return ProbeCached(definition, cancellationToken, vsrepoInstalledCache);
@@ -215,6 +217,13 @@ public sealed class ProcessToolProbeService : IToolProbeService
             }
 
             var ready = CreateReadyResult(definition, candidate, ResolveVersionText(definition, candidate.Path, output));
+            if (definition.Kind == RegisteredToolKind.Deew)
+            {
+                var deewLine = output.Split('\n').FirstOrDefault(l => l.TrimStart().StartsWith("deew ", StringComparison.OrdinalIgnoreCase)) ?? output;
+                if (!DeewToolchain.IsSupportedVersion(deewLine))
+                    return CreateMisconfiguredResult(definition, candidate, "FlowEncode 3.0 requires deew >=5.1.0. Upgrade the writable portable deew directory; legacy deew remains supported in FlowEncode 2.0.3.");
+                return ready with { BackendCompatibilityDetail = "deew 5.1 contract; format-specific DEE >=6.7.0 tools and writable adjacent config are validated for each request." };
+            }
             return definition.Kind == RegisteredToolKind.Av1an
                 ? EnrichAv1anBackendCompatibility(ready, candidate.Path)
                 : ready;
@@ -306,7 +315,7 @@ public sealed class ProcessToolProbeService : IToolProbeService
         {
             StartInfo = CreatePythonModuleProcessStartInfo(
                 candidate.Path,
-                LegacyVsrepoBaseline.Arguments(_paths, GetVsrepoTarget(), "installed", []))
+                ["-m", "vsrepo.vsrepo", "-t", GetVsrepoTarget(), "installed"])
         };
 
         using var _ = ErrorDialogSuppression.Enter();
@@ -456,24 +465,16 @@ public sealed class ProcessToolProbeService : IToolProbeService
         return startInfo;
     }
 
-    internal static bool IsUnsupportedDeewVersion(string version)
-    {
-        var match = Regex.Match(version, @"(?<!\d)(?<major>\d+)\.\d+(?:\.\d+)?");
-        return match.Success && int.TryParse(match.Groups["major"].Value, out var major) && major >= 5;
-    }
-
     private ToolProbeResult CreateReadyResult(ToolDefinition definition, ToolCandidate candidate, string version)
     {
-        var isNewDeew = definition.Kind == RegisteredToolKind.Deew
-            && IsUnsupportedDeewVersion(version);
         return new ToolProbeResult(
             definition.Kind,
-            isNewDeew ? ReadinessState.Misconfigured : ReadinessState.Ready,
+            ReadinessState.Ready,
             candidate.Source,
             candidate.SourceLabel,
             candidate.Path,
             version,
-            isNewDeew ? "FlowEncode 2.0 requires legacy deew 3.x / DEE 5.2.1. Upgrade FlowEncode for deew 5.x." : string.Empty,
+            string.Empty,
             definition.ReleaseUrl,
             definition.ManagedExternalToolKind);
     }
@@ -513,7 +514,7 @@ public sealed class ProcessToolProbeService : IToolProbeService
                 return CreateMisconfiguredResult(
                     definition,
                     candidate,
-                    $"Python {version} {(is64Bit ? "x64" : "x86")} is not compatible with the VapourSynth stack. Python 3.12 x64 is required.");
+                    $"Python {version} {(is64Bit ? "x64" : "x86")} is not compatible with the VapourSynth stack. Python 3.12+ x64 is required.");
             }
 
             var executablePath = lines.Count > 1 && File.Exists(lines[1])
@@ -1081,6 +1082,52 @@ public sealed class ProcessToolProbeService : IToolProbeService
             {
                 yield return candidate;
             }
+        }
+
+        if (definition.SearchLocations.HasFlag(ToolSearchLocation.KnownPythonInstallations))
+        {
+            // Module probes share the explicitly selected interpreter, including
+            // a 2.0 environment retained when a newer Python is installed.
+            if (manualToolPaths.TryGetValue(ManualToolPathKeys.ForRegisteredTool(RegisteredToolKind.Python), out var manualPython))
+            {
+                var resolvedPython = PythonRuntimeCompatibility.ResolvePythonExecutablePath(manualPython);
+                if (resolvedPython is not null)
+                {
+                    if (seen.Add(resolvedPython)) yield return new ToolCandidate(resolvedPython, ToolDetectionSource.ManualSelection, "Python binding");
+                    yield break;
+                }
+            }
+            if (manualToolPaths.TryGetValue(ManualToolPathKeys.ForRegisteredTool(RegisteredToolKind.Vspipe), out var boundVspipe)
+                && PythonRuntimeCompatibility.FindOwningPython(boundVspipe) is { } owner)
+            {
+                if (seen.Add(owner)) yield return new ToolCandidate(owner, ToolDetectionSource.ManualSelection, "VapourSynth environment binding");
+                yield break;
+            }
+            var python = PythonRuntimeCompatibility.EnumerateCompatiblePythonExecutablePaths().FirstOrDefault();
+            if (python is not null)
+            {
+                if (seen.Add(python)) yield return new ToolCandidate(python, ToolDetectionSource.SpecialLocation, "Retained Python environment");
+                yield break;
+            }
+        }
+
+        if (definition.Kind is RegisteredToolKind.Vspipe or RegisteredToolKind.Pip or RegisteredToolKind.VsrepoCli)
+        {
+            foreach (var candidate in EnumerateEnvironmentVariableCandidates(definition))
+                if (seen.Add(candidate.Path)) yield return candidate;
+            var python = manualToolPaths.TryGetValue(ManualToolPathKeys.ForRegisteredTool(RegisteredToolKind.Python), out var manual)
+                ? PythonRuntimeCompatibility.ResolvePythonExecutablePath(manual)
+                : manualToolPaths.TryGetValue(ManualToolPathKeys.ForRegisteredTool(RegisteredToolKind.Vspipe), out var vspipe)
+                ? PythonRuntimeCompatibility.FindOwningPython(vspipe)
+                : PythonRuntimeCompatibility.EnumerateCompatiblePythonExecutablePaths().FirstOrDefault();
+            if (python is not null)
+                foreach (var directory in PythonRuntimeCompatibility.EnumeratePythonRuntimeDirectories(python))
+                    foreach (var name in definition.ExecutableNames)
+                    {
+                        var executable = Path.Combine(directory, name);
+                        if (File.Exists(executable) && seen.Add(executable))
+                            yield return new ToolCandidate(executable, ToolDetectionSource.SpecialLocation, "Selected Python environment");
+                    }
         }
 
         if (definition.SearchLocations.HasFlag(ToolSearchLocation.LocalToolsRoot))

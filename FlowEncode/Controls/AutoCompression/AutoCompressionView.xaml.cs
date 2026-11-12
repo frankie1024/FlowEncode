@@ -20,11 +20,35 @@ public sealed partial class AutoCompressionView : UserControl
     {
         InitializeComponent();
         Loaded += AutoCompressionView_Loaded;
+        RootScrollViewer.SizeChanged += (_, e) =>
+        {
+            ContentStack.MinHeight = Math.Max(0, Math.Floor(e.NewSize.Height));
+            AutoTaskStatusPanel.ProgressHeight = Math.Clamp(e.NewSize.Height * 0.1, 64, 96);
+            ScheduleDiagnosticsLayout();
+        };
+        Loaded += (_, _) => ScheduleDiagnosticsLayout();
+        AutoFormPanel.SizeChanged += (_, _) => ScheduleDiagnosticsLayout();
+        AutoTaskStatusPanel.SizeChanged += (_, _) => ScheduleDiagnosticsLayout();
     }
 
     public void ApplyLayout(bool compactForms, int optionColumnCount, int advancedOptionColumnCount, Thickness contentPadding)
     {
         ContentStack.Padding = contentPadding;
+        var splitPaths = ActualWidth - contentPadding.Left - contentPadding.Right >= 840;
+        AutoPathsGrid.RowSpacing = splitPaths ? 0 : UiTokens.SpacingM;
+        AutoPathsGrid.ColumnDefinitions[1].Width = splitPaths ? new GridLength(1, GridUnitType.Star) : new GridLength(0);
+        Grid.SetRow(AutoOutputPathGrid, splitPaths ? 0 : 1);
+        Grid.SetColumn(AutoOutputPathGrid, splitPaths ? 1 : 0);
+        AutoStatusGrid.ColumnDefinitions[1].Width = compactForms ? new GridLength(0) : new GridLength(1, GridUnitType.Star);
+        AutoStatusGrid.RowSpacing = compactForms ? UiTokens.SpacingM : 0;
+        if (AutoStatusGrid.RowDefinitions.Count != (compactForms ? 2 : 1))
+        {
+            AutoStatusGrid.RowDefinitions.Clear();
+            AutoStatusGrid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+            if (compactForms) AutoStatusGrid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+        }
+        Grid.SetRow(AutoLogExpander, compactForms ? 1 : 0);
+        Grid.SetColumn(AutoLogExpander, compactForms ? 0 : 1);
         ConfigureTwoItemGrid(AutoSourcePathGrid, AutoSourcePathActionColumn, AutoSourceBrowseButton, false, GridLength.Auto);
         ConfigureTwoItemGrid(AutoOutputPathGrid, AutoOutputPathActionColumn, AutoOutputBrowseButton, false, GridLength.Auto);
         AutoSourcePathGrid.RowSpacing = 0;
@@ -53,6 +77,26 @@ public sealed partial class AutoCompressionView : UserControl
         ConfigureFourAdvancedItemsGrid(AutoCompressionAdvancedOptionsGrid, advancedOptionColumnCount);
 
         AutoCompressionActionBar.IsStacked = compactForms;
+        ScheduleDiagnosticsLayout();
+    }
+
+    private void ScheduleDiagnosticsLayout() => DispatcherQueue.TryEnqueue(UpdateDiagnosticsLayout);
+
+    private void UpdateDiagnosticsLayout()
+    {
+        if (!IsLoaded || AutoFormPanel.ActualHeight <= 0 || AutoAdvancedParametersExpander.IsExpanded) return;
+
+        // Fit the default form. Expanding advanced options simply pushes these panes down.
+        var stacked = AutoStatusGrid.ColumnDefinitions[1].Width.Value == 0;
+        var top = AutoStatusGrid.TransformToVisual(ContentStack).TransformPoint(new Windows.Foundation.Point()).Y;
+        var chrome = Math.Max(60, Math.Max(
+            AutoCommandPreviewBox.ActualHeight - AutoCommandPreviewBox.PreviewHeight,
+            AutoLogExpander.ActualHeight - AutoLogTextBox.ActualHeight));
+        var remaining = RootScrollViewer.ActualHeight - top - ContentStack.Padding.Bottom
+            - AutoFormCard.Padding.Bottom - 2;
+        var bodyHeight = stacked ? 120 : Math.Max(80, Math.Floor(remaining - chrome));
+        AutoCommandPreviewBox.PreviewHeight = bodyHeight;
+        AutoLogTextBox.Height = bodyHeight;
     }
 
     private void AutoCompressionView_Loaded(object sender, RoutedEventArgs e)

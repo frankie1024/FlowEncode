@@ -14,7 +14,9 @@ public sealed record AppSettings(
     int MaxConcurrentEncodingJobs = 1,
     QueueCompletionAction QueueCompletionAction = QueueCompletionAction.None,
     string PreviewScalingAlgorithm = "nearest",
-    string LastFileDialogDirectory = "")
+    string LastFileDialogDirectory = "",
+    DeewOptions? DeewOptions = null,
+    bool EnableMcpAutomation = false)
 {
     public static AppSettings Default { get; } = new(
         PreferSystemEncoders: true,

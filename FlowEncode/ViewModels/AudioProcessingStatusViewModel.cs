@@ -34,4 +34,9 @@ public sealed class AudioProcessingStatusViewModel : ModuleViewModelBase
     public string AudioProcessingCommandLine => Owner.AudioProcessingCommandLine;
 
     public string AudioProcessingLog => Owner.AudioProcessingLog;
+    public string AudioResultPaths => Owner.AudioResultPaths;
+    public bool CanOpenAudioMedia => Owner.CanOpenAudioMedia;
+    public bool CanOpenAudioDiagnostics => Owner.CanOpenAudioDiagnostics;
+    public bool CanOpenAudioRetained => Owner.CanOpenAudioRetained;
+    public string? ArtifactPath(string kind) => kind switch { "media" => Owner.AudioMediaPath, "logs" => Owner.AudioDiagnosticsPath, _ => Owner.AudioRetainedPath };
 }

@@ -58,9 +58,9 @@ function Resolve-IsccPath {
 function Resolve-VersionInfoVersion {
     param([string]$Text)
 
-    if ($Text -match '^(?<major>\d+)\.(?<minor>\d+)\.(?<patch>\d+)(?:\.(?<revision>\d+))?') {
-        $revision = if ($Matches["revision"].Success) { $Matches["revision"].Value } else { "0" }
-        return "{0}.{1}.{2}.{3}" -f $Matches["major"].Value, $Matches["minor"].Value, $Matches["patch"].Value, $revision
+    if ($Text -match '^(?<major>\d+)\.(?<minor>\d+)\.(?<patch>\d+)(?:\.(?<revision>\d+)|-(?:alpha|beta|rc)\.(?<pre>\d+))?$') {
+        $revision = if ($Matches["revision"]) { $Matches["revision"] } elseif ($Matches["pre"]) { $Matches["pre"] } else { "0" }
+        return "{0}.{1}.{2}.{3}" -f $Matches["major"], $Matches["minor"], $Matches["patch"], $revision
     }
 
     throw "VersionInfoVersion could not be resolved from version '$Text'."
@@ -183,6 +183,15 @@ else {
 
 $stagingParent = Join-Path $resolvedOutputRoot ".installer-staging"
 $stagingRoot = Join-Path $stagingParent $resolvedArtifactName
+$resolvedStagingParent = [System.IO.Path]::GetFullPath($stagingParent).TrimEnd('\', '/')
+$resolvedStagingRoot = [System.IO.Path]::GetFullPath($stagingRoot).TrimEnd('\', '/')
+if (-not $resolvedStagingRoot.StartsWith($resolvedStagingParent + '\', [System.StringComparison]::OrdinalIgnoreCase) -or
+    [System.IO.Path]::GetDirectoryName($resolvedStagingRoot) -ne $resolvedStagingParent) {
+    throw "Unsafe installer staging directory: $resolvedStagingRoot"
+}
+if ((Test-Path -LiteralPath $resolvedStagingRoot) -and ((Get-Item -LiteralPath $resolvedStagingRoot).Attributes -band [System.IO.FileAttributes]::ReparsePoint)) {
+    throw "Installer staging directory is a reparse point: $resolvedStagingRoot"
+}
 $payloadRoot = Join-Path $stagingRoot "payload"
 $prerequisitesRoot = Join-Path $stagingRoot "prerequisites"
 $webView2BootstrapperPath = Join-Path $prerequisitesRoot "MicrosoftEdgeWebView2Setup.exe"
@@ -205,7 +214,7 @@ if (Test-Path $outputExePath) {
 }
 
 if (Test-Path $stagingRoot) {
-    Remove-Item -Path $stagingRoot -Recurse -Force
+    Remove-Item -LiteralPath $resolvedStagingRoot -Recurse -Force
 }
 
 New-Item -ItemType Directory -Path $payloadRoot -Force | Out-Null
@@ -236,7 +245,7 @@ try {
 }
 finally {
     if (Test-Path $stagingRoot) {
-        Remove-Item -Path $stagingRoot -Recurse -Force -ErrorAction SilentlyContinue
+        Remove-Item -LiteralPath $resolvedStagingRoot -Recurse -Force -ErrorAction SilentlyContinue
     }
 
     if (Test-Path $stagingParent) {

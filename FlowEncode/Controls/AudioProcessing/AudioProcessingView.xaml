@@ -8,69 +8,123 @@
     xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
     mc:Ignorable="d">
-    <ScrollViewer VerticalScrollBarVisibility="Auto">
-        <StackPanel x:Name="ContentStack" Padding="{StaticResource AppPagePadding}" Spacing="{StaticResource AppSpacingL}">
-            <Border Padding="{StaticResource AppCardPadding}" Background="{ThemeResource CardBrush}" BorderBrush="{ThemeResource CardBorderBrush}" BorderThickness="{StaticResource AppCardBorderThickness}" CornerRadius="{StaticResource AppLargeCornerRadius}">
-                <StackPanel Spacing="{StaticResource AppSpacingM}">
-                    <StackPanel Spacing="{StaticResource AppSpacingM}" DataContext="{Binding Form}">
+    <ScrollViewer x:Name="RootScrollViewer" VerticalScrollBarVisibility="Auto">
+        <Grid x:Name="ContentStack" Padding="{StaticResource AppPagePadding}">
+            <Border x:Name="AudioFormCard" Padding="{StaticResource AppCardPadding}" Background="{ThemeResource CardBrush}" BorderBrush="{ThemeResource CardBorderBrush}" BorderThickness="{StaticResource AppCardBorderThickness}" CornerRadius="{StaticResource AppLargeCornerRadius}">
+                <Grid x:Name="AudioWorkspaceGrid" RowSpacing="{StaticResource AppSpacingM}">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="*" />
+                        <RowDefinition Height="Auto" />
+                    </Grid.RowDefinitions>
+                    <StackPanel x:Name="AudioFormPanel" Spacing="{StaticResource AppSpacingM}" DataContext="{Binding Form}">
                         <TextBlock FontFamily="{StaticResource AppDisplayFont}" FontSize="{StaticResource AppSectionTitleFontSize}" FontWeight="SemiBold" Text="{Binding Texts.AudioProcessingTitle}" />
 
-                        <Grid x:Name="AudioSourcePathGrid" ColumnSpacing="{StaticResource AppSpacingM}" RowSpacing="{StaticResource AppSpacingM}">
+                        <Grid x:Name="AudioPathsGrid" ColumnSpacing="{StaticResource AppSpacingM}" RowSpacing="{StaticResource AppSpacingM}">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
                             <Grid.RowDefinitions>
                                 <RowDefinition Height="Auto" />
                                 <RowDefinition Height="Auto" />
                             </Grid.RowDefinitions>
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition x:Name="AudioSourcePathInputColumn" Width="*" />
-                                <ColumnDefinition x:Name="AudioSourcePathActionColumn" Width="Auto" />
-                            </Grid.ColumnDefinitions>
-                            <TextBox x:Name="AudioSourcePathTextBox" Header="{Binding Texts.SourceHeader}" Text="{Binding AudioProcessingSourcePath, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
-                            <Button x:Name="AudioSourceBrowseButton" Grid.Column="1" HorizontalAlignment="Right" VerticalAlignment="Bottom" AutomationProperties.Name="{Binding Texts.BrowseButton}" Click="BrowseAudioSourceButton_Click" ToolTipService.ToolTip="{Binding Texts.BrowseButton}">
-                                <StackPanel Orientation="Horizontal" Spacing="{StaticResource AppCommandIconTextSpacing}">
-                                    <SymbolIcon Symbol="OpenFile" />
-                                    <TextBlock Text="{Binding Texts.BrowseButton}" />
-                                </StackPanel>
-                            </Button>
+                            <Grid x:Name="AudioSourcePathGrid" ColumnSpacing="{StaticResource AppSpacingM}" RowSpacing="{StaticResource AppSpacingM}">
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
+                                </Grid.RowDefinitions>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition x:Name="AudioSourcePathInputColumn" Width="*" />
+                                    <ColumnDefinition x:Name="AudioSourcePathActionColumn" Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <TextBox x:Name="AudioSourcePathTextBox" Header="{Binding Texts.SourceHeader}" Text="{Binding AudioProcessingSourcePath, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                                <Button x:Name="AudioSourceBrowseButton" Grid.Column="1" HorizontalAlignment="Right" VerticalAlignment="Bottom" AutomationProperties.Name="{Binding Texts.BrowseButton}" Click="BrowseAudioSourceButton_Click" ToolTipService.ToolTip="{Binding Texts.BrowseButton}">
+                                    <StackPanel Orientation="Horizontal" Spacing="{StaticResource AppCommandIconTextSpacing}">
+                                        <SymbolIcon Symbol="OpenFile" />
+                                        <TextBlock Text="{Binding Texts.BrowseButton}" />
+                                    </StackPanel>
+                                </Button>
+                                <TextBlock Grid.Row="1" Grid.ColumnSpan="2" Foreground="{ThemeResource SubtleTextBrush}" Text="{Binding AudioSourceInfoText}" TextWrapping="WrapWholeWords" />
+                            </Grid>
+
+                            <Grid x:Name="AudioOutputPathGrid" Grid.Column="1" ColumnSpacing="{StaticResource AppSpacingM}" RowSpacing="{StaticResource AppSpacingM}">
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
+                                </Grid.RowDefinitions>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition x:Name="AudioOutputPathInputColumn" Width="*" />
+                                    <ColumnDefinition x:Name="AudioOutputPathActionColumn" Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <TextBox x:Name="AudioOutputPathTextBox" Header="{Binding AudioProcessingOutputHeader}" Text="{Binding AudioProcessingOutputPath, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                                <Button x:Name="AudioOutputBrowseButton" Grid.Column="1" HorizontalAlignment="Right" VerticalAlignment="Bottom" AutomationProperties.Name="{Binding AudioProcessingOutputBrowseButtonText}" Click="BrowseAudioOutputButton_Click" ToolTipService.ToolTip="{Binding AudioProcessingOutputBrowseButtonText}">
+                                    <StackPanel Orientation="Horizontal" Spacing="{StaticResource AppCommandIconTextSpacing}">
+                                        <SymbolIcon Symbol="Folder" />
+                                        <TextBlock Text="{Binding AudioProcessingOutputBrowseButtonText}" />
+                                    </StackPanel>
+                                </Button>
+                                <TextBlock x:Name="AudioOutputPreviewTextBlock" Grid.Row="1" Grid.ColumnSpan="2" FontFamily="{StaticResource AppMonoFont}" Foreground="{ThemeResource SubtleTextBrush}" Text="{Binding AudioProcessingOutputPreviewText}" TextWrapping="Wrap" />
+                            </Grid>
                         </Grid>
 
-                        <TextBlock Foreground="{ThemeResource SubtleTextBrush}" Text="{Binding AudioSourceInfoText}" TextWrapping="WrapWholeWords" />
-
-                        <Grid x:Name="AudioOutputPathGrid" ColumnSpacing="{StaticResource AppSpacingM}" RowSpacing="{StaticResource AppSpacingM}">
-                            <Grid.RowDefinitions>
-                                <RowDefinition Height="Auto" />
-                                <RowDefinition Height="Auto" />
-                            </Grid.RowDefinitions>
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition x:Name="AudioOutputPathInputColumn" Width="*" />
-                                <ColumnDefinition x:Name="AudioOutputPathActionColumn" Width="Auto" />
-                            </Grid.ColumnDefinitions>
-                            <TextBox x:Name="AudioOutputPathTextBox" Header="{Binding AudioProcessingOutputHeader}" Text="{Binding AudioProcessingOutputPath, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
-                            <Button x:Name="AudioOutputBrowseButton" Grid.Column="1" HorizontalAlignment="Right" VerticalAlignment="Bottom" AutomationProperties.Name="{Binding AudioProcessingOutputBrowseButtonText}" Click="BrowseAudioOutputButton_Click" ToolTipService.ToolTip="{Binding AudioProcessingOutputBrowseButtonText}">
-                                <StackPanel Orientation="Horizontal" Spacing="{StaticResource AppCommandIconTextSpacing}">
-                                    <SymbolIcon Symbol="Folder" />
-                                    <TextBlock Text="{Binding AudioProcessingOutputBrowseButtonText}" />
-                                </StackPanel>
-                            </Button>
-                            <TextBlock x:Name="AudioOutputPreviewTextBlock" Grid.Row="1" Grid.ColumnSpan="2" FontFamily="{StaticResource AppMonoFont}" Foreground="{ThemeResource SubtleTextBrush}" Text="{Binding AudioProcessingOutputPreviewText}" TextWrapping="Wrap" />
-                        </Grid>
+                        <TextBlock Foreground="{ThemeResource SubtleTextBrush}" FontSize="12" Text="{Binding AudioCapabilitySummary}" TextWrapping="Wrap" />
 
                         <Grid x:Name="AudioProcessingOptionsGrid" ColumnSpacing="{StaticResource AppSpacingM}" RowSpacing="{StaticResource AppSpacingM}">
-                            <Grid.RowDefinitions>
-                                <RowDefinition Height="Auto" />
-                                <RowDefinition Height="Auto" />
-                                <RowDefinition Height="Auto" />
-                            </Grid.RowDefinitions>
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition x:Name="AudioWorkflowColumn" Width="*" />
-                                <ColumnDefinition x:Name="AudioSecondaryOptionColumn" Width="*" />
-                                <ColumnDefinition x:Name="AudioTertiaryOptionColumn" Width="*" />
-                            </Grid.ColumnDefinitions>
                             <ComboBox x:Name="AudioWorkflowComboBox" Header="{Binding Texts.AudioWorkflowHeader}" DisplayMemberPath="Label" HorizontalAlignment="Stretch" ItemsSource="{Binding AudioWorkflowOptions}" SelectedItem="{Binding SelectedAudioWorkflow, Mode=TwoWay}" />
-                            <ComboBox x:Name="AudioEac3ToOutputFormatComboBox" Grid.Column="1" Header="{Binding Texts.AudioEac3ToOutputFormatHeader}" DisplayMemberPath="Label" HorizontalAlignment="Stretch" ItemsSource="{Binding AudioEac3ToOutputFormatOptions}" SelectedItem="{Binding SelectedAudioEac3ToOutputFormat, Mode=TwoWay}" Visibility="{Binding AudioEac3ToOptionsVisibility}" shared:UiMotion.AnimateOnVisible="True" />
-                            <TextBox x:Name="AudioEac3ToAdditionalArgumentsTextBox" Grid.Column="2" Header="{Binding Texts.AudioEac3ToAdditionalArgumentsHeader}" PlaceholderText="{Binding Texts.AudioEac3ToAdditionalArgumentsPlaceholder}" Text="{Binding AudioProcessingAdditionalArguments, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Visibility="{Binding AudioEac3ToOptionsVisibility}" shared:UiMotion.AnimateOnVisible="True" />
-                            <ComboBox x:Name="AudioOpusBitrateComboBox" Grid.Column="1" Header="{Binding Texts.AudioOpusBitrateHeader}" DisplayMemberPath="Label" HorizontalAlignment="Stretch" ItemsSource="{Binding AudioOpusBitrateOptions}" SelectedItem="{Binding SelectedAudioOpusBitrate, Mode=TwoWay}" Visibility="{Binding AudioOpusOptionsVisibility}" shared:UiMotion.AnimateOnVisible="True" />
-                            <ToggleSwitch x:Name="AudioOpusMappingFamilyToggle" Grid.Column="2" Header="{Binding Texts.AudioOpusMappingFamilyHeader}" IsOn="{Binding AudioOpusUseMappingFamily1, Mode=TwoWay}" OnContent="{Binding Texts.ToggleOnLabel}" OffContent="{Binding Texts.ToggleOffLabel}" ToolTipService.ToolTip="{Binding Texts.AudioOpusMappingFamilyTooltip}" Visibility="{Binding AudioOpusOptionsVisibility}" shared:UiMotion.AnimateOnVisible="True" />
+                            <Grid>
+                                <ComboBox Header="{Binding Texts.DeewFormatHeader}" ItemsSource="{Binding Deew.FormatOptions}" SelectedItem="{Binding Deew.Format, Mode=TwoWay}" Visibility="{Binding AudioDeewOptionsVisibility}" HorizontalAlignment="Stretch" />
+                                <ComboBox Header="{Binding Texts.DeewFormatHeader}" DisplayMemberPath="Label" HorizontalAlignment="Stretch" ItemsSource="{Binding AudioEac3ToOutputFormatOptions}" SelectedItem="{Binding SelectedAudioEac3ToOutputFormat, Mode=TwoWay}" Visibility="{Binding AudioEac3ToOptionsVisibility}" />
+                                <ComboBox Header="{Binding Texts.AudioOpusBitrateHeader}" DisplayMemberPath="Label" HorizontalAlignment="Stretch" ItemsSource="{Binding AudioOpusBitrateOptions}" SelectedItem="{Binding SelectedAudioOpusBitrate, Mode=TwoWay}" Visibility="{Binding AudioOpusOptionsVisibility}" />
+                            </Grid>
+                            <Border MinHeight="32" VerticalAlignment="Bottom" Visibility="{Binding AudioOpusOptionsVisibility}">
+                                <CheckBox Content="{Binding Texts.AudioOpusMappingFamilyHeader}" IsChecked="{Binding AudioOpusUseMappingFamily1, Mode=TwoWay}" ToolTipService.ToolTip="{Binding Texts.AudioOpusMappingFamilyTooltip}" Visibility="{Binding AudioOpusOptionsVisibility}" />
+                            </Border>
                         </Grid>
+
+                        <shared:AnimatedExpander x:Name="AudioAdvancedParametersExpander" HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch">
+                            <shared:AnimatedExpander.HeaderContent><TextBlock Text="{Binding Texts.DeewAdvancedHeader}" /></shared:AnimatedExpander.HeaderContent>
+                            <shared:AnimatedExpander.BodyContent>
+                                <StackPanel Spacing="{StaticResource AppSpacingM}">
+                                    <TextBlock Text="{Binding Texts.AudioOpusNoAdvancedOptionsHint}" Visibility="{Binding AudioOpusOptionsVisibility}" TextWrapping="Wrap" Foreground="{ThemeResource SubtleTextBrush}" />
+                                    <Grid x:Name="AudioAdvancedOptionsGrid" ColumnSpacing="{StaticResource AppSpacingM}" RowSpacing="{StaticResource AppSpacingM}">
+                                        <NumberBox Header="{Binding Texts.DeewTrackHeader}" Minimum="0" SmallChange="1" Value="{Binding Deew.TrackIndex, Mode=TwoWay}" Visibility="{Binding AudioDeewOptionsVisibility}" />
+                                        <ComboBox Header="{Binding Texts.DeewDdpModeHeader}" ItemsSource="{Binding Deew.DdpModes}" SelectedItem="{Binding Deew.DdpMode, Mode=TwoWay}" Visibility="{Binding DeewDdpModeVisibility}" HorizontalAlignment="Stretch" />
+                                        <ComboBox Header="{Binding Texts.DeewAtmosModeHeader}" ItemsSource="{Binding Deew.AtmosModes}" SelectedItem="{Binding Deew.AtmosMode, Mode=TwoWay}" Visibility="{Binding DeewAtmosModeVisibility}" HorizontalAlignment="Stretch" />
+                                        <TextBox Header="{Binding Texts.AudioEac3ToAdditionalArgumentsHeader}" PlaceholderText="{Binding Texts.AudioEac3ToAdditionalArgumentsPlaceholder}" Text="{Binding AudioProcessingAdditionalArguments, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Visibility="{Binding AudioEac3ToOptionsVisibility}" />
+                                    </Grid>
+
+                                    <StackPanel Visibility="{Binding AudioDeewOptionsVisibility}" Spacing="8">
+                                        <Grid x:Name="DeewEncodingGrid" ColumnSpacing="12" RowSpacing="8">
+                                            <ComboBox Header="{Binding Texts.DeewBitrateHeader}" ItemsSource="{Binding Deew.BitrateOptions}" SelectedItem="{Binding Deew.Bitrate, Mode=TwoWay}" Visibility="{Binding Deew.BitrateVisibility}" HorizontalAlignment="Stretch" />
+                                            <ComboBox Header="{Binding Texts.DeewDownmixHeader}" ItemsSource="{Binding Deew.DownmixOptions}" SelectedItem="{Binding Deew.Downmix, Mode=TwoWay}" Visibility="{Binding Deew.DownmixVisibility}" HorizontalAlignment="Stretch" />
+                                            <ComboBox Header="DRC" ItemsSource="{Binding Deew.DrcOptions}" SelectedItem="{Binding Deew.Drc, Mode=TwoWay}" HorizontalAlignment="Stretch" />
+                                        </Grid>
+                                        <Grid x:Name="DeewSignalGrid" ColumnSpacing="12" RowSpacing="8">
+                                            <NumberBox Header="Dialnorm (-31..0)" Minimum="-31" Maximum="0" SmallChange="1" Value="{Binding Deew.Dialnorm, Mode=TwoWay}" Visibility="{Binding Deew.DialnormVisibility}" />
+                                            <TextBox Header="{Binding Texts.DeewDelayHeader}" Text="{Binding Deew.Delay, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                                            <TextBox Header="{Binding Texts.DeewInstancesHeader}" Text="{Binding Deew.Instances, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" PlaceholderText="50%" />
+                                        </Grid>
+                                        <Grid x:Name="DeewFlagsGrid" ColumnSpacing="16" RowSpacing="0">
+                                            <CheckBox Content="{Binding Texts.DeewLfeHeader}" IsChecked="{Binding Deew.DisableLfe, Mode=TwoWay}" Visibility="{Binding Deew.LfeVisibility}" FontSize="13" />
+                                            <CheckBox Content="{Binding Texts.DeewKeepTempHeader}" IsChecked="{Binding Deew.KeepTemp, Mode=TwoWay}" FontSize="13" />
+                                            <CheckBox Content="{Binding Texts.DeewKeepLogHeader}" IsChecked="{Binding Deew.KeepLog, Mode=TwoWay}" FontSize="13" />
+                                            <CheckBox Content="{Binding Texts.DeewMeasureOnlyHeader}" IsChecked="{Binding Deew.MeasureOnly, Mode=TwoWay}" Visibility="{Binding Deew.MeasureOnlyVisibility}" FontSize="13" />
+                                        </Grid>
+                                        <TextBlock Text="{Binding Deew.EffectiveDescription}" FontSize="12" TextWrapping="Wrap" Foreground="{ThemeResource SubtleTextBrush}" />
+                                        <Grid x:Name="DeewTempGrid" ColumnSpacing="12" RowSpacing="8">
+                                            <ComboBox ToolTipService.ToolTip="{Binding Texts.DeewOutputHint}" Header="{Binding Texts.DeewTempHeader}" ItemsSource="{Binding Deew.TempModes}" SelectedIndex="{Binding Deew.TempModeIndex, Mode=TwoWay}" HorizontalAlignment="Stretch" />
+                                            <TextBox Header="{Binding Texts.DeewTempRootHeader}" Text="{Binding Deew.CustomTempRoot, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Visibility="{Binding Deew.CustomTempVisibility}" />
+                                        </Grid>
+                                        <TextBox Header="{Binding Texts.DeewAdditionalHeader}" Text="{Binding Deew.AdditionalArguments, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" MinHeight="56" AcceptsReturn="True" PlaceholderText="--ddp-mode bluray -r film_light" TextWrapping="Wrap" />
+                                    </StackPanel>
+                                </StackPanel>
+                            </shared:AnimatedExpander.BodyContent>
+                        </shared:AnimatedExpander>
+                        <StackPanel>
+                            <InfoBar IsOpen="True" IsClosable="False" Severity="Warning" Message="{Binding Deew.Warning}" Visibility="{Binding DeewWarningVisibility}" />
+                        </StackPanel>
 
                         <shared:TaskActionBar x:Name="AudioProcessingActionBar">
                             <shared:TaskActionBar.PrimaryContent>
@@ -100,8 +154,7 @@
                         </shared:TaskActionBar>
                     </StackPanel>
 
-                    <StackPanel Spacing="{StaticResource AppSpacingM}" DataContext="{Binding Status}">
-                        <shared:TaskStatusPanel
+                    <shared:TaskStatusPanel x:Name="AudioTaskStatusPanel" Grid.Row="1" DataContext="{Binding Status}"
                             PresentationState="{Binding AudioProcessingPresentationState}"
                             ProgressBorderBrush="{Binding AudioProcessingProgressBorderBrush}"
                             ProgressFillBrush="{Binding AudioProcessingProgressFillBrush}"
@@ -113,24 +166,41 @@
                             StatusText="{Binding AudioProcessingStatusText}"
                             Title="{Binding Texts.AudioProcessingStatusTitle}" />
 
+                    <Grid x:Name="AudioStatusGrid" Grid.Row="2" ColumnSpacing="{StaticResource AppSpacingM}" DataContext="{Binding Status}">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto" />
+                        </Grid.RowDefinitions>
                         <shared:CommandPreviewBox
                             x:Name="AudioCommandPreviewBox"
+                            PreviewHeight="96" PreviewMinHeight="80"
                             Header="{Binding Texts.AudioProcessingCommandTitle}"
                             PlaceholderText="{Binding Texts.AudioProcessingCommandPlaceholder}"
                             Text="{Binding AudioProcessingCommandLine}"
                             Texts="{Binding Texts}" />
 
-                        <shared:AnimatedExpander x:Name="AudioLogExpander" HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch">
+                        <shared:AnimatedExpander x:Name="AudioLogExpander" Grid.Column="1" HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch">
                             <shared:AnimatedExpander.HeaderContent>
                                 <TextBlock FontFamily="{StaticResource AppDisplayFont}" FontSize="{StaticResource AppBodyLargeFontSize}" FontWeight="SemiBold" Text="{Binding Texts.AudioProcessingLogTitle}" />
                             </shared:AnimatedExpander.HeaderContent>
                             <shared:AnimatedExpander.BodyContent>
-                                <TextBox MinHeight="120" MaxHeight="420" Background="Transparent" BorderThickness="0" FontFamily="{StaticResource AppMonoFont}" IsReadOnly="True" IsTabStop="False" PlaceholderText="{Binding Texts.AudioProcessingLogPlaceholder}" ScrollViewer.VerticalScrollBarVisibility="Auto" Text="{Binding AudioProcessingLog}" TextWrapping="Wrap" />
+                                <TextBox x:Name="AudioLogTextBox" Height="96" MinHeight="80" Background="Transparent" BorderThickness="0" FontFamily="{StaticResource AppMonoFont}" IsReadOnly="True" PlaceholderText="{Binding Texts.AudioProcessingLogPlaceholder}" ScrollViewer.VerticalScrollBarVisibility="Auto" Text="{Binding AudioProcessingLog}" TextWrapping="Wrap" />
                             </shared:AnimatedExpander.BodyContent>
                         </shared:AnimatedExpander>
-                    </StackPanel>
-                </StackPanel>
+                    </Grid>
+                        <StackPanel x:Name="AudioResultsPanel" Grid.Row="3" DataContext="{Binding Status}" Spacing="8" Visibility="Collapsed">
+                        <TextBox x:Name="AudioResultPathsTextBox" Header="{Binding Texts.DeewResultHeader}" Text="{Binding AudioResultPaths}" IsReadOnly="True" TextWrapping="Wrap" />
+                        <StackPanel Orientation="Horizontal" Spacing="8">
+                            <Button Content="{Binding Texts.DeewOpenMedia}" Tag="media" IsEnabled="{Binding CanOpenAudioMedia}" Click="OpenAudioArtifact_Click" />
+                            <Button Content="{Binding Texts.DeewOpenLogs}" Tag="logs" IsEnabled="{Binding CanOpenAudioDiagnostics}" Click="OpenAudioArtifact_Click" />
+                            <Button Content="{Binding Texts.DeewOpenRetained}" Tag="retained" IsEnabled="{Binding CanOpenAudioRetained}" Click="OpenAudioArtifact_Click" />
+                        </StackPanel>
+                        </StackPanel>
+                </Grid>
             </Border>
-        </StackPanel>
+        </Grid>
     </ScrollViewer>
 </UserControl>

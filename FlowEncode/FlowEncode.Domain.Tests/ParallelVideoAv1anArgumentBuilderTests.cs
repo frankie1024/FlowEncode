@@ -150,7 +150,7 @@ public sealed class ParallelVideoAv1anArgumentBuilderTests
             EncoderArchitecture.X64,
             UseAv1anParallelVideoEncoding: true);
         var av1anTempDirectory = Path.Combine(
-            "D:\\work",
+            Path.Combine(Path.GetTempPath(), "FlowEncodeAv1anLogsTests"),
             ".flowencode-temp",
             "av1an-parallel",
             jobId.ToString("N"));

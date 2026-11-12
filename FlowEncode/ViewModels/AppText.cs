@@ -79,6 +79,7 @@ public sealed class AppText
     public string RateControlHeader => Pick("码率控制", "Rate Control");
     public string OutputFormatHeader => Pick("输出格式", "Output");
     public string AdditionalArgumentsHeader => Pick("定制压制参数", "Custom Arguments");
+    public string AdditionalArgumentsSideHeader => Pick("定制\n压制\n参数", "Custom\nArguments");
     public string VideoEncodingModeHeader => Pick("压制方式", "Encoding Mode");
     public string TraditionalVideoEncodingMode => Pick("传统单进程压制", "Traditional single-process encode");
     public string Av1anParallelVideoMode => Pick("Av1an 分块并行压制", "Av1an chunked parallel encode");
@@ -157,6 +158,7 @@ public sealed class AppText
     public string AudioEac3ToAdditionalArgumentsHeader => Pick("额外参数", "Extra Arguments");
     public string AudioEac3ToAdditionalArgumentsPlaceholder => Pick("可选：-down16 -mono", "Optional: -down16 -mono");
     public string AudioOpusBitrateHeader => Pick("Opus 码率", "Opus Bitrate");
+    public string AudioOpusNoAdvancedOptionsHint => Pick("Opus 的码率和环绕映射已显示在主页面，无需额外设置。", "Opus bitrate and surround mapping are available on the main page. No additional settings are needed.");
     public string AudioOpusMappingFamilyHeader => Pick("环绕映射", "Surround Mapping");
     public string AudioOpusMappingFamilyTooltip => Pick(
         "开启：使用正确的环绕声道映射。关闭：保持标准映射。立体声保持关闭，5.1/7.1 建议开启。",
@@ -505,12 +507,17 @@ public sealed class AppText
     public string SetupGuideSwipeHint => Pick("可左右滑动浏览卡片，也可以使用左右按钮切换。", "Swipe left or right to browse cards, or use the navigation buttons.");
     public string SetupGuideRefreshButton => Pick("重新检测", "Recheck");
     public string SetupGuideRefreshingButton => Pick("检测中...", "Checking...");
-    public string SetupGuideCheckUpdatesButton => Pick("检查依赖更新", "Check Dependency Updates");
+    public string OpenWorkspaceFolderButton => Pick("打开目录", "Open folder");
+    public string SettingsWorkspaceAndMcpTitle => Pick("工作目录与 MCP", "Workspace & MCP");
+
+    public string RecommendedVersionHelp => Pick("推荐版本已通过配套兼容性验证，通常无需更新。", "The recommended versions have been tested together; routine updates are usually unnecessary.");
+    public string PythonUpgradeHelpTitle => Pick("Python 升级与回退指引", "Python upgrade and rollback guide");
+    public string SetupGuideCheckUpdatesButton => Pick("核对推荐版本", "Check Recommended Versions");
     public string SetupGuideCloseButton => Pick("进入工作台", "Enter Workspace");
     public string SetupGuidePreviousButton => Pick("上一页", "Previous");
     public string SetupGuideNextButton => Pick("下一页", "Next");
     public string SetupGuideLocalCheckIdleStatus => Pick("本地环境状态：尚未检测。", "Local environment status has not been checked.");
-    public string SetupGuideRemoteCheckIdleStatus => Pick("依赖更新：尚未检查。", "Dependency updates have not been checked.");
+    public string SetupGuideRemoteCheckIdleStatus => Pick("推荐版本：随程序提供，无需联网检查。", "Recommended versions ship with the app; no online check is needed.");
     public string SetupGuideLocalRefreshCompletedStatus => Pick("本地环境状态已更新。", "Local environment status refreshed.");
     public string SetupGuideLocalCheckedAtLabel(DateTimeOffset time) =>
         IsChinese
@@ -519,8 +526,8 @@ public sealed class AppText
 
     public string SetupGuideRemoteCheckedAtLabel(DateTimeOffset time) =>
         IsChinese
-            ? $"依赖更新：{time.ToLocalTime():yyyy-MM-dd HH:mm:ss}"
-            : $"Dependency updates: {time.ToLocalTime():yyyy-MM-dd HH:mm:ss}";
+            ? $"推荐版本核对：{time.ToLocalTime():yyyy-MM-dd HH:mm:ss}"
+            : $"Recommended version check: {time.ToLocalTime():yyyy-MM-dd HH:mm:ss}";
     public string SetupGuidePortableSectionTitle => Pick("工作目录布局", "Workspace Layout");
     public string SetupGuidePortableSectionDescription => Pick(
         "托管工具、下载缓存、编码器和 Templates 模板目录位于工作目录；轻量设置、日志和首启引导缓存仍保留在 %LocalAppData%\\FlowEncode\\data。",
@@ -958,6 +965,16 @@ public sealed class AppText
 
     public string AudioProcessingTelemetrySummary(AudioProcessingTelemetry telemetry)
     {
+        if (telemetry.DeewDb.HasValue)
+        {
+            var label = telemetry.DeewDbSource switch
+            {
+                DeewDbSource.Measured => Pick("实测响度", "Measured loudness"),
+                DeewDbSource.SpecifiedDialnorm => Pick("指定 dialnorm", "Specified dialnorm"),
+                _ => Pick("dB（来源未知）", "dB (unknown source)")
+            };
+            return $"{label}: {telemetry.DeewDb:0.##} dB";
+        }
         var speedText = telemetry.SpeedMultiplier.HasValue && telemetry.SpeedMultiplier.Value > 0
             ? $"{telemetry.SpeedMultiplier.Value:0.#}x"
             : "--";
@@ -975,6 +992,44 @@ public sealed class AppText
             ? $"速度 {speedText} · 码率 {bitrateText} · 剩余 {remainingText} · 预估 {sizeText}"
             : $"Speed {speedText} · Bitrate {bitrateText} · ETA {remainingText} · Est. {sizeText}";
     }
+
+    public string DeewFormatHeader => Pick("输出格式", "Output format");
+    public string DeewDdpModeHeader => Pick("DDP 档位", "DDP mode");
+    public string DeewAtmosModeHeader => Pick("DDP Atmos 档位", "DDP Atmos mode");
+    public string DeewBitrateHeader => Pick("码率 (kbps)", "Bitrate (kbps)");
+    public string DeewDownmixHeader => Pick("声道混合", "Downmix channels");
+    public string DeewLfeHeader => Pick("禁用 LFE", "Disable LFE");
+    public string DeewDelayHeader => Pick("延迟（如 -5ms）", "Delay (e.g. -5ms)");
+    public string DeewTrackHeader => Pick("音轨索引（从 0 开始）", "Track index (zero-based)");
+    public string DeewAdvancedHeader => Pick("高级参数", "Advanced parameters");
+    public string DeewMeasureOnlyHeader => Pick("仅测响度 (-mo)", "Measure only (-mo)");
+    public string DeewKeepLogHeader => Pick("保留诊断日志 (-kl)", "Keep diagnostic logs (-kl)");
+    public string DeewKeepTempHeader => Pick("保留临时文件 (-k)", "Keep temporary files (-k)");
+    public string DeewInstancesHeader => Pick("并行实例（如 50%）", "Instances (e.g. 50%)");
+    public string DeewAdditionalHeader => Pick("额外编码参数（覆盖面板值）", "Additional encoding arguments (override panel values)");
+    public string DeewTempHeader => Pick("临时目录模式", "Temporary directory mode");
+    public string DeewTempRootHeader => Pick("自定义临时根目录", "Custom temporary root");
+    public string DeewOutputHint => Pick("预览 -o 为最终目录；运行时先写任务暂存目录，验收后迁移媒体。", "Preview -o shows the final directory. Execution stages and validates media before publishing.");
+    public string DeewResultHeader => Pick("本次媒体、日志与保留文件", "Media, logs and retained files from this job");
+    public string DeewOpenMedia => Pick("打开媒体", "Open media");
+    public string DeewOpenLogs => Pick("打开日志", "Open logs");
+    public string DeewOpenRetained => Pick("打开保留目录", "Open retained folder");
+    public string PinExternalToolButton => Pick("固定外部工具…", "Pin external tool…");
+    public string ToolGuidePageButton => Pick("工具主页 / 安装指引", "Tool website / setup guide");
+    public string McpConnectionHelpHeader => Pick("MCP 连接设置", "MCP connection settings");
+    public string McpConnectionHelpTooltip => Pick("MCP 连接设置：点击查看连接说明，并一键复制客户端配置。", "MCP connection settings: view instructions and copy the client configuration.");
+    public string McpCopyConfigButton => Pick("复制连接配置", "Copy connection configuration");
+    public string McpConfigCopied => Pick("已复制", "Copied");
+    public string McpConfigCopyFailed => Pick("复制失败，请选中上方配置手动复制。", "Could not copy. Select the configuration above and copy it manually.");
+    public string McpConnectionConfigHeader => Pick("AI 客户端连接配置", "AI client connection configuration");
+    public string McpEnableHeader => Pick("允许本机 MCP 自动化", "Enable local MCP automation");
+    public string McpConnectionHint => Pick("开启后，同一 Windows 用户的 AI 客户端可提交和取消编码任务。将下方配置加入客户端；关闭开关不会中断已接受任务。", "When enabled, AI clients running as the same Windows user can submit and cancel tasks. Add the configuration below to your client. Disabling this switch leaves accepted tasks running.");
+    public string JobStateLabel(EncodingJobState state) => state switch
+    {
+        EncodingJobState.Queued => Pick("排队中", "Queued"), EncodingJobState.Running => Pick("处理中", "Running"),
+        EncodingJobState.Completed => Pick("已完成", "Completed"), EncodingJobState.Cancelled => Pick("已取消", "Cancelled"),
+        _ => Pick("失败", "Failed")
+    };
 
     public string UserCaption(string name) => $"{name} · {Pick("用户模板", "User Template")}";
 

@@ -189,6 +189,7 @@ public sealed class StructuredAv1anRunner : IAutoCompressionRunner
         Task pumpError = Task.CompletedTask;
         var finalExitCode = -1;
         var outputFinalized = false;
+        var preserveStagedOutput = false;
 
         try
         {
@@ -221,8 +222,10 @@ public sealed class StructuredAv1anRunner : IAutoCompressionRunner
                         request.OutputPath,
                         language,
                         WriteDiagnostic,
-                        out var finalizationFailureSummary))
+                        out var finalizationFailureSummary,
+                        request.OverwriteOutput))
                 {
+                    preserveStagedOutput = File.Exists(stagedOutputPath);
                     currentState = EncodingJobState.Failed;
                     currentStage = AutoCompressionExecutionStage.Failed;
                     currentSummary = finalizationFailureSummary;
@@ -344,9 +347,9 @@ public sealed class StructuredAv1anRunner : IAutoCompressionRunner
         {
             _activeExecutions.TryRemove(request.JobId, out _);
             activeExecution?.Dispose();
-            ExecutionOutputStaging.CleanupStagedFile(stagedOutputPath, request.OutputPath, request.JobId, WriteDiagnostic);
+            if (!preserveStagedOutput) ExecutionOutputStaging.CleanupStagedFile(stagedOutputPath, request.OutputPath, request.JobId, WriteDiagnostic);
             LegacyAv1anCliFallbackRunner.CleanupPartialOutputFile(request, outputFinalized, WriteDiagnostic);
-            LegacyAv1anCliFallbackRunner.CleanupJobTempDirectory(request, WriteDiagnostic);
+            if (!preserveStagedOutput) LegacyAv1anCliFallbackRunner.CleanupJobTempDirectory(request, WriteDiagnostic);
         }
     }
 

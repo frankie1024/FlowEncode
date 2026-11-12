@@ -14,7 +14,7 @@
 
   <p>
     <img alt="Platform" src="https://img.shields.io/badge/platform-Windows%20x64-0078d4">
-    <img alt="Version" src="https://img.shields.io/badge/version-2.0.3-167a7f">
+    <img alt="Version" src="https://img.shields.io/badge/version-3.0.0-167a7f">
     <img alt="Framework" src="https://img.shields.io/badge/.NET-8.0-512bd4">
     <img alt="UI" src="https://img.shields.io/badge/UI-WinUI%203-0d6efd">
     <img alt="License" src="https://img.shields.io/badge/license-GPL--3.0--only-blue">
@@ -22,6 +22,8 @@
 </div>
 
 ---
+
+The 3.0 stable release adds deew 5.1 audio workflows, local MCP automation and a shared task service, with improved page layouts, dependency checks and concurrent installation. See [MCP setup](docs/MCP.md), [deew acceptance](docs/DEEW5-VALIDATION.md), and [toolchain compatibility](docs/TOOLCHAIN-COMPATIBILITY-3.0.md). Use the 2.0.3 compatibility release for the legacy deew toolchain.
 
 FlowEncode is a Windows x64 desktop frontend for video encoding workflows. It coordinates `x264`, `x265`, `SVT-AV1`, `Av1an`, `FFmpeg`, `VapourSynth`, `VSPipe` and related public toolchains through one interface for Blu-ray demuxing, script editing and preview, video encoding, audio transcoding, auto encoding, queue execution, log inspection, template reuse, and drag-and-drop entry points for video, audio, and Blu-ray sources.
 
@@ -105,13 +107,13 @@ Common usage patterns:
 | Blu-ray demuxing | `DGDemux`, `eac3to` |
 | Audio processing | `eac3to`, `deew`, `opusenc` / `Opus Encoder`, `FFmpeg`; DDP output requires a user-supplied, properly licensed `Dolby Encoding Engine` / `DEE` |
 | Media probing and pipelines | `FFmpeg`, `FFprobe` |
-| Script runtime | `Python 3.12`, `VapourSynth`, `vsrepo`, public VapourSynth plugins |
+| Script runtime | `Python 3.14` for new installations / retained `Python 3.12` environments, `VapourSynth R79`, `vsrepo`, public VapourSynth plugins |
 | Input bridge | `VSPipe`, `Avs2PipeMod` |
 | Application framework | `.NET 8`, `WinUI 3`, `Windows App SDK` |
 
 Support depth depends on upstream versions, local runtime state, plugin availability and user environment configuration. FlowEncode provides detection and guidance where possible, but it does not replace upstream installation instructions or licenses.
 
-In-app automatic installation or updates mainly cover `Python 3.12`, `VapourSynth` / `vsrepo` and public plugin packages, `awsmfunc`, `vsjetpack`, `FFmpeg`, `x264`, `x265`, `SVT-AV1`, and `Av1an` when a managed compatible package is available. `Avs2PipeMod`, `DGDemux`, `eac3to`, `deew`, `Dolby Encoding Engine` / `DEE`, and `opusenc` / `Opus Encoder` are user-supplied external tools governed by their own licenses; FlowEncode only detects them, imports local binaries, pins paths and invokes them. It does not distribute those tools in the installer or grant rights to use them.
+In-app automatic installation or updates mainly cover `Python 3.14`, `VapourSynth` / `vsrepo` and public plugin packages, `awsmfunc`, `vsjetpack`, `FFmpeg`, `x264`, `x265`, `SVT-AV1`, and `Av1an` when a managed compatible package is available. Existing compatible Python 3.12 environments can be retained. `Avs2PipeMod`, `DGDemux`, `eac3to`, `deew`, `Dolby Encoding Engine` / `DEE`, and `opusenc` / `Opus Encoder` are user-supplied external tools governed by their own licenses; FlowEncode only detects them, imports local binaries, pins paths and invokes them. It does not distribute those tools in the installer or grant rights to use them.
 
 ## Installation and Runtime Requirements
 
@@ -119,9 +121,7 @@ In-app automatic installation or updates mainly cover `Python 3.12`, `VapourSynt
 
 Download the latest Windows x64 installer from [GitHub Releases](https://github.com/frankie1024/FlowEncode/releases).
 
-> **Version support: 2.0.3 is the final patch release in the 2.0 series and the last release supporting legacy deew (the 3.x / DEE 5.2.1 toolchain).** Version 3.0 will move to deew 5.x. Keep 2.0.3 if you need legacy deew support. See the [3.0 roadmap](docs/ROADMAP-3.0.md) for the development plan.
-
-Tool installation and updates are pinned to the [2.0 compatibility baseline](docs/TOOLCHAIN-BASELINE-2.0.md). Upgrade the app to 2.0.3 to receive this policy.
+> **Version support: 2.0.3 is the compatibility maintenance release for deew 3.x / DEE 5.2.1.** Version 3.0 requires deew ≥5.1.0 / DEE ≥6.7.0. Use 2.0.3 for legacy deew support. See the [2.0 toolchain baseline](docs/TOOLCHAIN-BASELINE-2.0.md).
 
 Current release assets are installer-based:
 

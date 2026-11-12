@@ -24,7 +24,7 @@ internal static class EncoderManifestCatalog
             [
                 new EncoderUpdateChannel(
                     "FlowEncode x264 Windows Builds",
-                    "https://github.com/frankie1024/x264-windows-builds/releases/tag/stable-20250608-b35605ace3dd",
+                    "https://github.com/frankie1024/x264-windows-builds/releases/latest",
                     "FlowEncode 默认使用这个 x264 Windows x64 发布源，统一自动更新与手动导入策略。"),
                 new EncoderUpdateChannel(
                     "VideoLAN 源码",
@@ -43,7 +43,7 @@ internal static class EncoderManifestCatalog
             [
                 new EncoderUpdateChannel(
                     "FlowEncode x265 Windows Builds",
-                    "https://github.com/frankie1024/x265-windows-builds/releases/tag/4.2",
+                    "https://github.com/frankie1024/x265-windows-builds/releases/latest",
                     "FlowEncode 默认使用这个 x265 Windows x64 发布源。"),
                 new EncoderUpdateChannel(
                     "MulticoreWare 仓库",
@@ -54,15 +54,15 @@ internal static class EncoderManifestCatalog
             EncoderKind.SvtAv1,
             "AV1 编码通道。preset、tune 与 profile 集合已对齐 SVT-AV1 官方参数定义，并为后续扩展到更完整的 AV1 工作流预留结构。",
             ["13", "12", "11", "10", "9", "8", "7", "6", "5", "4", "3", "2", "1", "0", "-1"],
-            ["VQ", "PSNR", "SSIM", "IQ", "MS-SSIM"],
-            ["main", "high", "professional"],
+            ["VQ", "PSNR", "SSIM", "MS-SSIM"],
+            ["main"],
             [RateControlMode.Crf, RateControlMode.Qp, RateControlMode.TwoPass, RateControlMode.Vbr],
             ["ivf", "mkv"],
             true,
             [
                 new EncoderUpdateChannel(
                     "FlowEncode SVT-AV1 Windows Builds",
-                    "https://github.com/frankie1024/svt-av1-windows-builds/releases/tag/v4.1.0",
+                    "https://github.com/frankie1024/svt-av1-windows-builds/releases/latest",
                     "FlowEncode 默认使用这个 SVT-AV1 EncApp Windows x64 发布源。"),
                 new EncoderUpdateChannel(
                     "AOMedia GitLab",

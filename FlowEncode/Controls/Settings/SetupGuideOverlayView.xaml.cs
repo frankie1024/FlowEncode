@@ -339,6 +339,13 @@ public sealed partial class SetupGuideOverlayView : UserControl
             });
     }
 
+    private void MoreDependencyActionsButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is not FrameworkElement { DataContext: SetupGuideDependencyItemViewModel item } button) return;
+        if (ViewModel is null) return;
+        SetupDependencyInteractionHelper.ShowMoreDependencyActions(ViewModel, this, button, item, nameof(SetupGuideOverlayView));
+    }
+
     private async void InstallSetupDependencyButton_Click(object sender, RoutedEventArgs e)
     {
         if (sender is not FrameworkElement { Tag: SetupDependencyKind kind } || ViewModel is null)
@@ -349,26 +356,6 @@ public sealed partial class SetupGuideOverlayView : UserControl
         await SetupDependencyInteractionHelper.InstallSetupDependencyAsync(ViewModel, this, kind, nameof(SetupGuideOverlayView));
     }
 
-    private async void ManualSelectSetupDependencyButton_Click(object sender, RoutedEventArgs e)
-    {
-        if (sender is not FrameworkElement { Tag: SetupDependencyKind kind } || ViewModel is null)
-        {
-            return;
-        }
-
-        await SetupDependencyInteractionHelper.ManualSelectSetupDependencyAsync(ViewModel, this, kind, nameof(SetupGuideOverlayView));
-    }
-
-    private async void ClearManualPinnedSetupDependencyButton_Click(object sender, RoutedEventArgs e)
-    {
-        if (sender is not FrameworkElement { Tag: SetupDependencyKind kind } || ViewModel is null)
-        {
-            return;
-        }
-
-        await SetupDependencyInteractionHelper.ClearManualPinnedSetupDependencyAsync(ViewModel, this, kind, nameof(SetupGuideOverlayView));
-    }
-
     private async void UninstallSetupDependencyButton_Click(object sender, RoutedEventArgs e)
     {
         if (sender is not FrameworkElement { Tag: SetupDependencyKind kind } || ViewModel is null)
@@ -377,14 +364,6 @@ public sealed partial class SetupGuideOverlayView : UserControl
         }
 
         await SetupDependencyInteractionHelper.UninstallSetupDependencyAsync(ViewModel, this, kind, nameof(SetupGuideOverlayView));
-    }
-
-    private void OpenUrlButton_Click(object sender, RoutedEventArgs e)
-    {
-        if (sender is FrameworkElement { Tag: string url })
-        {
-            SetupDependencyInteractionHelper.OpenUrl(url);
-        }
     }
 
     private void ScheduleLayoutRefresh()

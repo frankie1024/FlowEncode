@@ -470,6 +470,8 @@ public static class UiMotion
             _element.PointerExited += Element_PointerExited;
             _element.PointerPressed += Element_PointerPressed;
             _element.PointerReleased += Element_PointerReleased;
+            _element.GotFocus += Element_GotFocus;
+            _element.LostFocus += Element_LostFocus;
             _element.Unloaded += Element_Unloaded;
         }
 
@@ -479,6 +481,8 @@ public static class UiMotion
             _element.PointerExited -= Element_PointerExited;
             _element.PointerPressed -= Element_PointerPressed;
             _element.PointerReleased -= Element_PointerReleased;
+            _element.GotFocus -= Element_GotFocus;
+            _element.LostFocus -= Element_LostFocus;
             _element.Unloaded -= Element_Unloaded;
         }
 
@@ -510,12 +514,25 @@ public static class UiMotion
             ApplyHoverOffset(0);
         }
 
+        private void Element_GotFocus(object sender, RoutedEventArgs e)
+        {
+            if (_element is Control { FocusState: FocusState.Keyboard })
+            {
+                ApplyHoverOffset(-UiTokens.MotionHoverLiftY);
+            }
+        }
+
+        private void Element_LostFocus(object sender, RoutedEventArgs e)
+        {
+            ApplyHoverOffset(_isPointerOver ? -UiTokens.MotionHoverLiftY : 0);
+        }
+
         private void ApplyHoverOffset(double offset)
         {
             var transform = EnsureCompositeTransform(_element);
             if (!AnimationsEnabled)
             {
-                transform.TranslateY = offset;
+                transform.TranslateY = 0;
                 return;
             }
 
@@ -532,12 +549,14 @@ public static class UiMotion
         {
             _element = element;
             _visibilityToken = _element.RegisterPropertyChangedCallback(UIElement.VisibilityProperty, OnVisibilityChanged);
+            _element.Loaded += Element_Loaded;
             _element.Unloaded += Element_Unloaded;
         }
 
         public void Detach()
         {
             _element.UnregisterPropertyChangedCallback(UIElement.VisibilityProperty, _visibilityToken);
+            _element.Loaded -= Element_Loaded;
             _element.Unloaded -= Element_Unloaded;
         }
 
@@ -550,6 +569,14 @@ public static class UiMotion
             else
             {
                 ResetEntranceState(_element);
+            }
+        }
+
+        private void Element_Loaded(object sender, RoutedEventArgs e)
+        {
+            if (_element.Visibility == Visibility.Visible)
+            {
+                PlayEntrance(_element, UiTokens.MotionFieldOffsetY);
             }
         }
 

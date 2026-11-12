@@ -534,8 +534,7 @@ public sealed class CliEnvironmentIntegrationService
             return Path.GetFullPath(configuredPath);
         }
 
-        return PythonRuntimeCompatibility.EnumerateKnownPythonExecutablePaths()
-            .Concat(PythonRuntimeCompatibility.EnumerateEnvironmentPythonExecutablePaths())
+        return PythonRuntimeCompatibility.EnumerateCompatiblePythonExecutablePaths()
             .FirstOrDefault(File.Exists);
     }
 

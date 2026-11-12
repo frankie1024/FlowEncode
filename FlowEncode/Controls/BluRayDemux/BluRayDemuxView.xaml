@@ -109,7 +109,7 @@
                             <ListView
                                 x:Name="BluRayPlaylistListView"
                                 Grid.Row="2"
-                                MinHeight="280"
+                                MinHeight="140"
                                 ItemsSource="{Binding BluRayPlaylists}"
                                 ScrollViewer.VerticalScrollBarVisibility="Auto"
                                 SelectedItem="{Binding SelectedBluRayPlaylist, Mode=TwoWay, FallbackValue=''}"
@@ -130,7 +130,7 @@
                 </Grid>
 
                 <Border x:Name="SecondaryPanel" Grid.Column="1" Padding="{StaticResource AppCardPadding}" Background="{ThemeResource CardBrush}" BorderBrush="{ThemeResource CardBorderBrush}" BorderThickness="{StaticResource AppCardBorderThickness}" CornerRadius="{StaticResource AppLargeCornerRadius}" VerticalAlignment="Top" DataContext="{Binding Task}">
-                    <StackPanel Spacing="{StaticResource AppSpacingM}">
+                    <StackPanel x:Name="BluRayExportStack" Spacing="{StaticResource AppSpacingM}">
                         <Grid x:Name="BluRayTrackHeaderGrid" ColumnSpacing="{StaticResource AppSpacingM}" RowSpacing="{StaticResource AppSpacingM}">
                             <Grid.RowDefinitions>
                                 <RowDefinition Height="Auto" />
@@ -161,7 +161,7 @@
 
                         <ListView
                             x:Name="BluRayTrackListView"
-                            MinHeight="260"
+                            MinHeight="140"
                             IsItemClickEnabled="True"
                             ItemsSource="{Binding BluRayTracks}"
                             ScrollViewer.VerticalScrollBarVisibility="Auto"

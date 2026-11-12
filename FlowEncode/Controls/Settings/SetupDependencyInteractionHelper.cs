@@ -14,6 +14,63 @@ namespace FlowEncode.Controls.Settings;
 
 internal static class SetupDependencyInteractionHelper
 {
+    public static void ShowMoreDependencyActions(
+        ISetupDependencyModuleViewModel viewModel,
+        FrameworkElement owner,
+        FrameworkElement button,
+        SetupGuideDependencyItemViewModel item,
+        string diagnosticSource)
+    {
+        var texts = viewModel.Texts;
+        var menu = new MenuFlyout();
+        if (item.IsManualSelectVisible)
+        {
+            var pinItem = new MenuFlyoutItem
+            {
+                Text = texts.PinExternalToolButton,
+                IsEnabled = item.ManualSelectEnabled,
+                Icon = new SymbolIcon(Symbol.OpenFile)
+            };
+            pinItem.Click += async (_, _) => await ManualSelectSetupDependencyAsync(viewModel, owner, item.Kind, diagnosticSource);
+            menu.Items.Add(pinItem);
+        }
+        if (item.IsManualPinned)
+        {
+            var unpinItem = new MenuFlyoutItem
+            {
+                Text = texts.ClearManualPinButton,
+                IsEnabled = item.ClearManualPinEnabled,
+                Icon = new SymbolIcon(Symbol.UnPin)
+            };
+            unpinItem.Click += async (_, _) => await ClearManualPinnedSetupDependencyAsync(viewModel, owner, item.Kind, diagnosticSource);
+            menu.Items.Add(unpinItem);
+        }
+        var hasBaseline = ToolchainBaseline.HasBaseline(item.Kind);
+        if (hasBaseline || item.IsUpdateAction)
+        {
+            var updateItem = new MenuFlyoutItem
+            {
+                Text = hasBaseline ? item.AdvancedUpdateText : item.PrimaryActionText,
+                IsEnabled = hasBaseline ? item.AdvancedUpdateEnabled : item.PrimaryActionEnabled,
+                Icon = new SymbolIcon(Symbol.Refresh)
+            };
+            updateItem.Click += async (_, _) => await InstallSetupDependencyAsync(viewModel, owner, item.Kind, diagnosticSource, updateBeyondBaseline: hasBaseline);
+            menu.Items.Add(updateItem);
+        }
+        if (!string.IsNullOrWhiteSpace(item.ReleaseUrl))
+        {
+            if (menu.Items.Count > 0) menu.Items.Add(new MenuFlyoutSeparator());
+            var guideItem = new MenuFlyoutItem
+            {
+                Text = texts.ToolGuidePageButton,
+                Icon = new SymbolIcon(Symbol.Link)
+            };
+            guideItem.Click += (_, _) => OpenUrl(item.ReleaseUrl);
+            menu.Items.Add(guideItem);
+        }
+        if (menu.Items.Count > 0) menu.ShowAt(button);
+    }
+
     public static async Task RunGuardedAsync(
         ISetupDependencyModuleViewModel viewModel,
         FrameworkElement owner,
@@ -35,10 +92,22 @@ internal static class SetupDependencyInteractionHelper
         ISetupDependencyModuleViewModel viewModel,
         FrameworkElement owner,
         SetupDependencyKind kind,
-        string diagnosticSource)
+        string diagnosticSource,
+        bool updateBeyondBaseline = false)
     {
         try
         {
+            if (updateBeyondBaseline)
+            {
+                var confirmed = await ShowConfirmationAsync(viewModel, owner,
+                    viewModel.Texts.Pick("不建议更新工具", "Tool updates are not recommended"),
+                    viewModel.Texts.Pick(
+                        $"当前推荐版本：{ToolchainBaseline.VersionFor(kind)}。更新到其他正式版本也可能引起参数、插件或脚本不兼容。建议保留当前环境。Python 更新只会并排安装，不自动迁移 2.0 环境。仍要继续更新吗？",
+                        $"Recommended version: {ToolchainBaseline.VersionFor(kind)}. Other stable releases can still break parameters, plugins or scripts. Keep the working environment unless you need a specific fix. Python installs alongside the 2.0 environment without migrating it. Continue?"),
+                    viewModel.Texts.Pick("仍然更新", "Update anyway"),
+                    viewModel.Texts.Pick("保留当前环境", "Keep current environment"), ContentDialogButton.Close);
+                if (!confirmed) return;
+            }
             string? error;
             if (viewModel.RequiresSetupDependencyManualImport(kind))
             {
@@ -52,7 +121,7 @@ internal static class SetupDependencyInteractionHelper
             }
             else
             {
-                if (viewModel.HasManualPinnedSetupDependency(kind))
+                if (kind != SetupDependencyKind.Python312 && viewModel.HasManualPinnedSetupDependency(kind))
                 {
                     var dependencyLabel = viewModel.GetSetupDependencyDisplayName(kind);
                     var confirmed = await ShowConfirmationAsync(
@@ -76,7 +145,7 @@ internal static class SetupDependencyInteractionHelper
                     }
                 }
 
-                error = await viewModel.InstallSetupDependencyAsync(kind);
+                error = await viewModel.InstallSetupDependencyAsync(kind, updateBeyondBaseline);
             }
 
             if (!string.IsNullOrWhiteSpace(error))

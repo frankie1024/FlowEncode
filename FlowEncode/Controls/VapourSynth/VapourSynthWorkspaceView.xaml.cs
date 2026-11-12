@@ -54,6 +54,7 @@ public sealed partial class VapourSynthWorkspaceView : UserControl, IDisposable
         var appPaths = App.GetService<LocalAppPaths>();
         _editorWebViewUserDataFolderPath = Path.Combine(appPaths.DataRootPath, "vapoursynth-workspace", "webview2");
         InitializeComponent();
+        SizeChanged += (_, _) => UpdateWorkspaceDensity();
 
         DataContext = ViewModel;
         LeftEditorPane.PaneKind = VapourSynthWorkspacePaneKind.Left;
@@ -111,6 +112,7 @@ public sealed partial class VapourSynthWorkspaceView : UserControl, IDisposable
 
     private async void UserControl_Loaded(object sender, RoutedEventArgs e)
     {
+        UpdateWorkspaceDensity();
         if (_isLoaded)
         {
             return;
@@ -136,6 +138,14 @@ public sealed partial class VapourSynthWorkspaceView : UserControl, IDisposable
     {
         CancelPendingDiagnostics();
         StopEditorPaneLayoutTransition();
+    }
+
+    private void UpdateWorkspaceDensity()
+    {
+        WorkspaceRoot.Margin = ActualWidth < 700 ? new Thickness(12) : UiTokens.PagePadding;
+        DocumentStatusText.MaxWidth = Math.Clamp(ActualWidth * 0.3, 120, 360);
+        // Expanded diagnostics keep a useful portion of the script editor visible.
+        LogViewportRow.Height = new GridLength(Math.Clamp(ActualHeight * 0.22, 80, 160));
     }
 
     private async Task InitializeEditorAsync(bool forceReload = false)

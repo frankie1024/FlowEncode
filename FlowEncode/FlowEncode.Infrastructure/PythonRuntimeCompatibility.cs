@@ -2,17 +2,28 @@ namespace FlowEncode.Infrastructure;
 
 internal static class PythonRuntimeCompatibility
 {
+    private static readonly AsyncLocal<Lazy<IReadOnlyList<PythonRuntimeProbe>>?> DiscoveryCache = new();
+
+    // Candidate lookup and child-process PATH enrichment both discover Python.
+    // Share that discovery within a scan, including concurrent async continuations.
+    internal static IDisposable BeginDiscoveryScope()
+    {
+        var previous = DiscoveryCache.Value;
+        DiscoveryCache.Value ??= new Lazy<IReadOnlyList<PythonRuntimeProbe>>(DiscoverCompatiblePythonRuntimes);
+        return new DiscoveryScope(previous);
+    }
+
     public static readonly Version MinimumSupportedVersion = new(3, 12);
     public static readonly IReadOnlyList<string> EnvironmentVariableNames = ["FLOWENCODE_PYTHON", "PYTHON_PATH", "PYTHON_EXE", "PYTHON"];
 
     public static bool IsSupportedVersion(Version version)
     {
-        return version.Major == 3 && version.Minor == 12 && version >= MinimumSupportedVersion;
+        return version.Major == 3 && version >= MinimumSupportedVersion;
     }
 
     public static bool IsTargetMinor(Version version)
     {
-        return version.Major == 3 && version.Minor == 12;
+        return version.Major == 3 && version.Minor == 14;
     }
 
     public static bool IsSupportedRuntime(Version version, bool is64Bit)
@@ -28,7 +39,9 @@ internal static class PythonRuntimeCompatibility
             "print('.'.join(map(str, sys.version_info[:3])))",
             "print(sys.executable)",
             "print(struct.calcsize('P') * 8)",
-            "print(platform.machine())");
+            "print(platform.machine())",
+            "import importlib.util",
+            "print('VS_PRESENT' if importlib.util.find_spec('vapoursynth') else 'VS_ABSENT')");
     }
 
     public static IEnumerable<string> EnumerateKnownPythonExecutablePaths()
@@ -147,9 +160,13 @@ internal static class PythonRuntimeCompatibility
     }
 
     private static IReadOnlyList<PythonRuntimeProbe> BuildCompatiblePythonRuntimes()
+        => DiscoveryCache.Value?.Value ?? DiscoverCompatiblePythonRuntimes();
+
+    private static IReadOnlyList<PythonRuntimeProbe> DiscoverCompatiblePythonRuntimes()
     {
-        var candidates = EnumerateKnownPythonExecutablePaths()
-            .Concat(EnumerateEnvironmentPythonExecutablePaths())
+        var candidates = EnumerateEnvironmentPythonExecutablePaths()
+            .Concat(EnumeratePathPythonExecutablePaths())
+            .Concat(EnumerateKnownPythonExecutablePaths())
             .Distinct(StringComparer.OrdinalIgnoreCase);
         var results = new List<PythonRuntimeProbe>();
 
@@ -162,9 +179,44 @@ internal static class PythonRuntimeCompatibility
             }
         }
 
+        var bindings = EnumerateEnvironmentPythonExecutablePaths().ToArray();
+        var pathRuntimes = EnumeratePathPythonExecutablePaths().ToArray();
         return results
-            .OrderByDescending(static item => item.Version)
+            .OrderBy(item => SelectionRank(item.ExecutablePath, item.HasVapourSynth, item.Version, bindings, pathRuntimes))
+            .ThenByDescending(static item => item.Version)
             .ToArray();
+    }
+
+    // An existing binding wins. Otherwise keep a VS environment before choosing
+    // the fresh-install baseline; installing another Python must not migrate it.
+    internal static int SelectionRank(string path, bool hasVapourSynth, Version version,
+        IReadOnlyList<string> bindings, IReadOnlyList<string> pathRuntimes)
+    {
+        for (var index = 0; index < bindings.Count; index++)
+            if (string.Equals(path, bindings[index], StringComparison.OrdinalIgnoreCase)) return index;
+        if (hasVapourSynth)
+            return bindings.Count + (pathRuntimes.Contains(path, StringComparer.OrdinalIgnoreCase) ? 0 : 1);
+        return bindings.Count + (IsTargetMinor(version) ? 2 : 3);
+    }
+
+    internal static IEnumerable<string> EnumeratePathPythonExecutablePaths()
+    {
+        return (Environment.GetEnvironmentVariable("PATH") ?? string.Empty)
+            .Split(Path.PathSeparator, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .Select(root => Path.Combine(root, "python.exe"))
+            .Where(File.Exists).Select(Path.GetFullPath).Distinct(StringComparer.OrdinalIgnoreCase);
+    }
+
+    internal static string? FindOwningPython(string? toolPath)
+    {
+        if (string.IsNullOrWhiteSpace(toolPath)) return null;
+        var directory = Directory.Exists(toolPath) ? new DirectoryInfo(toolPath) : new FileInfo(toolPath).Directory;
+        for (var level = 0; directory is not null && level < 6; level++, directory = directory.Parent)
+        {
+            var candidate = Path.Combine(directory.FullName, "python.exe");
+            if (File.Exists(candidate)) return candidate;
+        }
+        return null;
     }
 
     private static PythonRuntimeProbe? ProbePythonRuntime(string pythonPath)
@@ -205,7 +257,7 @@ internal static class PythonRuntimeCompatibility
             var executablePath = File.Exists(lines[1])
                 ? Path.GetFullPath(lines[1])
                 : Path.GetFullPath(pythonPath);
-            return new PythonRuntimeProbe(version, executablePath, pointerSize == 64);
+            return new PythonRuntimeProbe(version, executablePath, pointerSize == 64, lines.Contains("VS_PRESENT"));
         }
         catch
         {
@@ -213,7 +265,7 @@ internal static class PythonRuntimeCompatibility
         }
     }
 
-    private static string? ResolvePythonExecutablePath(string? value)
+    internal static string? ResolvePythonExecutablePath(string? value)
     {
         if (string.IsNullOrWhiteSpace(value))
         {
@@ -238,5 +290,10 @@ internal static class PythonRuntimeCompatibility
         return null;
     }
 
-    private sealed record PythonRuntimeProbe(Version Version, string ExecutablePath, bool Is64Bit);
+    private sealed record PythonRuntimeProbe(Version Version, string ExecutablePath, bool Is64Bit, bool HasVapourSynth);
+
+    private sealed class DiscoveryScope(Lazy<IReadOnlyList<PythonRuntimeProbe>>? previous) : IDisposable
+    {
+        public void Dispose() => DiscoveryCache.Value = previous;
+    }
 }

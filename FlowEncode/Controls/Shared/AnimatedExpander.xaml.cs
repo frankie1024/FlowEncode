@@ -41,7 +41,7 @@ public sealed partial class AnimatedExpander : UserControl
         nameof(HeaderPadding),
         typeof(Thickness),
         typeof(AnimatedExpander),
-        new PropertyMetadata(new Thickness(12, 10, 8, 10)));
+        new PropertyMetadata(new Thickness(12, 4, 8, 4)));
 
     public static readonly DependencyProperty ContentMarginProperty = DependencyProperty.Register(
         nameof(ContentMargin),
@@ -116,6 +116,16 @@ public sealed partial class AnimatedExpander : UserControl
     private void ChevronButton_Click(object sender, RoutedEventArgs e)
     {
         ToggleExpansion();
+    }
+
+    private void HeaderBorder_PointerEntered(object sender, PointerRoutedEventArgs e)
+    {
+        VisualStateManager.GoToState(this, "Hovered", UiMotionPolicy.AreCustomAnimationsEnabled());
+    }
+
+    private void HeaderBorder_PointerExited(object sender, PointerRoutedEventArgs e)
+    {
+        VisualStateManager.GoToState(this, "Resting", UiMotionPolicy.AreCustomAnimationsEnabled());
     }
 
     private void HeaderBorder_Tapped(object sender, TappedRoutedEventArgs e)
