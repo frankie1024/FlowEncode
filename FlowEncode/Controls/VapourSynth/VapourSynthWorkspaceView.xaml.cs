@@ -667,6 +667,7 @@ public sealed partial class VapourSynthWorkspaceView : UserControl, IDisposable
             ViewModel.AppendPreviewLog(tab, new VapourSynthPreviewLogEntry(
                 DateTimeOffset.Now, VapourSynthPreviewLogLevel.Information, "VapourSynth", line))));
         mainWindow.NavigateToEncodingPage(sourcePath);
+        ViewModel.SetWorkspaceStatus(tab, static texts => texts.VapourSynthEditorReadyStatus);
     }
 
     private async void UndoButton_Click(object sender, RoutedEventArgs e)
@@ -845,9 +846,13 @@ public sealed partial class VapourSynthWorkspaceView : UserControl, IDisposable
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
+            TryWriteDiagnosticException(preparingEncode ? "Prepare encoding" : "Open preview", ex);
             ViewModel.AppendPreviewLog(tab, new VapourSynthPreviewLogEntry(
                 DateTimeOffset.Now, VapourSynthPreviewLogLevel.Error, "FlowEncode", ex.Message));
-            throw;
+            ViewModel.SetWorkspaceStatus(tab, texts => preparingEncode
+                ? texts.VapourSynthEncodePreparationFailedStatus
+                : texts.VapourSynthPreviewEvaluationFailedStatus);
+            await FocusEditorIfStillBoundAsync(GetActiveEditorPane(), tab);
         }
         finally
         {

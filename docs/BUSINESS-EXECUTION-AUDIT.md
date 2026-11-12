@@ -17,4 +17,12 @@ This review follows the missing-script-dependency/F9 failure and covers the desk
 
 Reverse review checked that completion is emitted after artifact publication, old files survive empty/invalid output, failure events stay authoritative, queue capacity is released after preflight failure, and real child processes are terminated on cancellation/reader failure. A temporary Windows executable lock in a new fixture was corrected by bounded cleanup retries for both IO and access-denied errors.
 
+## 3.0.2 republication: error presentation regression
+
+The initial 3.0.2 build exposed full multiline script diagnostics in the workspace header. `TextWrapping="NoWrap"` does not suppress explicit newlines, so the Auto-sized header consumed the editor's remaining height. This UI path was not exercised by the initial backend tests.
+
+The corrected build bounds the header with `MaxLines="1"`, summarizes existing multiline status values at presentation time, and reports F9 failures on the originating tab with a short localized status and full diagnostic log. It also bounds inline status text in preview, shared task panels and dashboard cards. Successful F9 preparation clears an earlier failure status.
+
+Manual verification with the actual Release application covered the original missing-source script, a synthetic eighty-line error, repeated F9 failure, F5 evaluation failure, scrolling to the final diagnostic line, editing and saving after failure, successful F9 retry, navigating back to the editor, successful F5 retry, preview frame stepping and returning to the editor. Closing the saved test tab restored the original script without modifying it. The 596 non-external-tool tests passed again, and final Release compilation completed with zero warnings and zero errors. Real UI checks supplement the backend suite; they are not claimed to exhaust every visual state.
+
 Validation: all 596 non-external-tool tests passed in Release configuration; desktop Release compilation completed with zero warnings and zero errors. Tests use controllable child executables alongside the existing regression suite. These tests do not replace licensed DEE acceptance runs or testing every physical Blu-ray disc and codec combination. The demux/audio checks establish presence and nonzero size; video additionally uses ffprobe to confirm a readable stream. Detailed deew coverage and limitations remain in DEEW5-VALIDATION.md.

@@ -179,6 +179,7 @@
                         Spacing="12">
                         <TextBlock
                             x:Name="DocumentStatusText"
+                            MaxLines="1"
                             MaxWidth="360"
                             VerticalAlignment="Center"
                             FontFamily="{StaticResource AppMonoFont}"

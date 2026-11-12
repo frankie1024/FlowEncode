@@ -471,6 +471,7 @@
                     <TextBlock
                         Foreground="{ThemeResource SubtleTextBrush}"
                         Text="{Binding StatusText}"
+                        MaxLines="1"
                         TextTrimming="CharacterEllipsis" />
                     <TextBlock Grid.Column="1" Foreground="{ThemeResource SubtleTextBrush}" Text="{Binding FrameProgressText}" />
                     <TextBlock Grid.Column="2" Foreground="{ThemeResource SubtleTextBrush}" Text="{Binding CurrentTimeText}" />

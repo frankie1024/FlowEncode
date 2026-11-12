@@ -106,8 +106,16 @@ public sealed class VapourSynthWorkspaceViewModel : ObservableObject
     public string EditorStatusText => ActiveTab?.EditorStatusText ?? Texts.VapourSynthEditorCursorStatus(1, 1, 1, 0, false);
 
     public string HeaderStatusText => WorkspaceStatusVisibility == Visibility.Visible
-        ? $"{WorkspaceStatusText}   |   {EditorStatusText}"
+        ? $"{FirstStatusLine(WorkspaceStatusText)}   |   {EditorStatusText}"
         : EditorStatusText;
+
+    private static string FirstStatusLine(string status)
+    {
+        // NoWrap does not suppress explicit line breaks. Restored sessions can also
+        // contain old multiline errors, so constrain the header at presentation time.
+        var lines = status.Split(['\r', '\n', '\u0085', '\u2028', '\u2029'], StringSplitOptions.RemoveEmptyEntries);
+        return lines.FirstOrDefault(static line => !string.IsNullOrWhiteSpace(line))?.Trim() ?? string.Empty;
+    }
 
     public bool CanReload => ActiveTab?.CanReload ?? false;
 

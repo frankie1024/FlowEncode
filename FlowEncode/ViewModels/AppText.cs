@@ -429,6 +429,9 @@ public sealed class AppText
     public string VapourSynthPreviewEvaluationFailedStatus => Pick(
         "脚本求值失败，预览未打开。详见下方日志。",
         "Script evaluation failed. Preview was not opened. See the log below.");
+    public string VapourSynthEncodePreparationFailedStatus => Pick(
+        "压制准备失败。详见下方日志。",
+        "Encode preparation failed. See the log below.");
     public string VapourSynthPreviewPlaybackStatus => Pick("正在播放预览。", "Playing preview.");
     public string VapourSynthPreviewSnapshotFileTypeDescription => Pick("PNG 图像", "PNG Image");
     public string VapourSynthPreviewSnapshotSavedStatus(string filePath) =>
