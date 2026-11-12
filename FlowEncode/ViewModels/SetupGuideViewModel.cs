@@ -5,6 +5,7 @@ using System.Globalization;
 using System.IO;
 using System.Linq;
 using System.Text.RegularExpressions;
+using System.Threading;
 using System.Threading.Tasks;
 using CommunityToolkit.Mvvm.ComponentModel;
 using FlowEncode.Application;
@@ -20,6 +21,9 @@ public sealed class SetupGuideViewModel : ObservableObject, ISetupDependencyModu
     private readonly ISetupGuideCacheService _setupGuideCacheService;
     private readonly IToolRegistryService _toolRegistryService;
     private readonly LocalAppPaths _appPaths;
+    private readonly SetupDependencyInstallCoordinator _installCoordinator = new();
+    private readonly Dictionary<SetupDependencyKind, SetupGuideDependencyItemViewModel> _installingDependencies = [];
+    private readonly SemaphoreSlim _dependencyRefreshGate = new(1, 1);
 
     private SetupDependencyStatusReport? _setupGuideStatusReport;
     private bool _isSetupGuideOpen;
@@ -149,11 +153,11 @@ public sealed class SetupGuideViewModel : ObservableObject, ISetupDependencyModu
 
     public bool CanExecuteSetupGuideUpdateCheckAction => CanExecuteSetupGuideAction;
 
-    private bool CanExecuteSetupGuideAction => !_isSetupGuideInstallRunning
+    private bool CanExecuteSetupGuideAction => !IsSetupGuideInstallRunning
         && !_isRefreshingSetupGuide
         && !_isCheckingSetupDependencyUpdates;
 
-    internal bool IsSetupGuideInstallRunning => _isSetupGuideInstallRunning;
+    internal bool IsSetupGuideInstallRunning => _isSetupGuideInstallRunning || _installingDependencies.Count > 0;
 
     internal string AppRootPath => _appPaths.RootPath;
 
@@ -311,14 +315,13 @@ public sealed class SetupGuideViewModel : ObservableObject, ISetupDependencyModu
 
     public async Task<string?> InstallSetupDependencyAsync(SetupDependencyKind kind, bool updateBeyondBaseline = false)
     {
-        var selectedCardIndex = SelectedSetupGuideCardIndex;
         var item = FindSetupGuideDependency(kind);
         if (item is null)
         {
             return Texts.Pick("未找到对应的首启依赖项。", "Setup dependency item was not found.");
         }
 
-        if (_isSetupGuideInstallRunning)
+        if (_isSetupGuideInstallRunning || _installingDependencies.ContainsKey(kind))
         {
             return Texts.InstallAlreadyRunning;
         }
@@ -328,20 +331,27 @@ public sealed class SetupGuideViewModel : ObservableObject, ISetupDependencyModu
             return Texts.ManualToolPinnedUpdateBlocked(GetSetupDependencyTitle(kind));
         }
 
-        _isSetupGuideInstallRunning = true;
-        _host.NotifyBusyChanged();
+        var status = ResolveSetupStatus(kind);
+        if (!status.IsInstallSupported || !status.IsInstallEnabled)
+        {
+            return Texts.Pick("请先安装此依赖所需的前置组件。", "Install the required prerequisites first.");
+        }
+
+        _installingDependencies.Add(kind, item);
         item.BeginOperation();
-        var shouldRefreshSetupGuideStatus = false;
+        RaiseSetupGuideStatePropertyChanges();
         string? errorMessage = null;
 
         try
         {
             var progress = new Progress<SetupInstallProgress>(item.ReportProgress);
-            if (updateBeyondBaseline) await _setupBootstrapService.UpdateBeyondBaselineAsync(kind, progress);
-            else await _setupBootstrapService.InstallAsync(kind, progress);
-            _host.InvalidateToolProbeCache();
-            await _host.RefreshAsync(Texts.Pick("首启依赖操作完成。", "Setup dependency action completed."), includeUpdates: false);
-            shouldRefreshSetupGuideStatus = true;
+            await _installCoordinator.RunAsync(
+                kind,
+                cancellationToken => updateBeyondBaseline
+                    ? _setupBootstrapService.UpdateBeyondBaselineAsync(kind, progress, cancellationToken)
+                    : _setupBootstrapService.InstallAsync(kind, progress, cancellationToken),
+                () => item.ReportProgress(new SetupInstallProgress(kind, 0,
+                    Texts.Pick("等待安装空位或前置组件完成...", "Waiting for an install slot or prerequisites..."), true)));
         }
         catch (Exception ex)
         {
@@ -349,17 +359,40 @@ public sealed class SetupGuideViewModel : ObservableObject, ISetupDependencyModu
         }
         finally
         {
-            item.FinishOperation();
-            _isSetupGuideInstallRunning = false;
-            _host.NotifyBusyChanged();
+            try
+            {
+                // Serialize scans, but let other downloads and installs keep running.
+                await _dependencyRefreshGate.WaitAsync();
+                try
+                {
+                    _host.InvalidateToolProbeCache();
+                    await _host.RefreshAsync(includeUpdates: false);
+                    await RefreshSetupGuideStatusAsync(
+                        includeRemoteMetadata: false,
+                        statusOverride: null,
+                        openWhenFinished: false,
+                        forceEnvironmentScan: false,
+                        preferCachedSnapshot: false,
+                        allowDuringInstall: true);
+                }
+                finally
+                {
+                    _dependencyRefreshGate.Release();
+                }
+            }
+            catch (Exception ex)
+            {
+                errorMessage ??= ex.Message;
+            }
+            finally
+            {
+                _installingDependencies.Remove(kind);
+                item.FinishOperation();
+                RefreshSetupGuideCards();
+                RaiseSetupGuideStatePropertyChanges();
+            }
         }
 
-        if (shouldRefreshSetupGuideStatus)
-        {
-            await RefreshSetupGuideAfterDependencyMutationAsync();
-        }
-
-        RestoreSetupGuideCardSelection(selectedCardIndex);
         return errorMessage;
     }
 
@@ -414,6 +447,11 @@ public sealed class SetupGuideViewModel : ObservableObject, ISetupDependencyModu
 
     public async Task<string?> PinSetupDependencyBinaryAsync(SetupDependencyKind kind, string sourcePath)
     {
+        if (IsSetupGuideInstallRunning)
+        {
+            return Texts.InstallAlreadyRunning;
+        }
+
         var selectedCardIndex = SelectedSetupGuideCardIndex;
         if (!CanManuallySelectSetupDependency(kind))
         {
@@ -462,6 +500,11 @@ public sealed class SetupGuideViewModel : ObservableObject, ISetupDependencyModu
 
     public async Task<string?> ClearManualPinnedSetupDependencyAsync(SetupDependencyKind kind, bool refreshAfterClear = true)
     {
+        if (IsSetupGuideInstallRunning)
+        {
+            return Texts.InstallAlreadyRunning;
+        }
+
         var selectedCardIndex = SelectedSetupGuideCardIndex;
         var keys = GetManualPathKeys(kind);
         if (keys.Count == 0)
@@ -517,7 +560,7 @@ public sealed class SetupGuideViewModel : ObservableObject, ISetupDependencyModu
             return Texts.Pick("未找到对应的首启依赖项。", "Setup dependency item was not found.");
         }
 
-        if (_isSetupGuideInstallRunning)
+        if (IsSetupGuideInstallRunning)
         {
             return Texts.InstallAlreadyRunning;
         }
@@ -567,7 +610,7 @@ public sealed class SetupGuideViewModel : ObservableObject, ISetupDependencyModu
             return Texts.Pick("未找到对应的首启依赖项。", "Setup dependency item was not found.");
         }
 
-        if (_isSetupGuideInstallRunning)
+        if (IsSetupGuideInstallRunning)
         {
             return Texts.InstallAlreadyRunning;
         }
@@ -640,14 +683,17 @@ public sealed class SetupGuideViewModel : ObservableObject, ISetupDependencyModu
             preferCachedSnapshot: false);
     }
 
+    internal Task RefreshFromEnvironmentAsync() => RefreshSetupGuideAfterDependencyMutationAsync();
+
     private async Task RefreshSetupGuideStatusAsync(
         bool includeRemoteMetadata,
         string? statusOverride,
         bool openWhenFinished,
         bool forceEnvironmentScan,
-        bool preferCachedSnapshot)
+        bool preferCachedSnapshot,
+        bool allowDuringInstall = false)
     {
-        if (_isSetupGuideInstallRunning
+        if ((!allowDuringInstall && IsSetupGuideInstallRunning)
             || _isRefreshingSetupGuide
             || _isCheckingSetupDependencyUpdates)
         {
@@ -682,6 +728,10 @@ public sealed class SetupGuideViewModel : ObservableObject, ISetupDependencyModu
 
             if (forceEnvironmentScan || _host.EnvironmentReadinessReport is null)
             {
+                if (forceEnvironmentScan)
+                {
+                    _host.InvalidateToolProbeCache();
+                }
                 await _host.RefreshAsync(includeUpdates: false);
             }
 
@@ -696,9 +746,14 @@ public sealed class SetupGuideViewModel : ObservableObject, ISetupDependencyModu
                 return;
             }
 
+            // A recommendation check uses the existing local snapshot; refresh is the explicit rescan action.
             _setupGuideStatusReport = includeRemoteMetadata
-                ? await _setupBootstrapService.GetStatusReportAsync(_host.EnvironmentReadinessReport)
-                : await _setupBootstrapService.GetLocalStatusReportAsync(_host.EnvironmentReadinessReport, previousReport);
+                && previousReport is not null
+                && previousReport.CheckedAt >= _host.EnvironmentReadinessReport.CheckedAt
+                    ? previousReport with { CheckedAt = DateTimeOffset.Now }
+                    : includeRemoteMetadata
+                        ? await _setupBootstrapService.GetStatusReportAsync(_host.EnvironmentReadinessReport)
+                        : await _setupBootstrapService.GetLocalStatusReportAsync(_host.EnvironmentReadinessReport, previousReport);
 
             if (includeRemoteMetadata)
             {
@@ -884,7 +939,8 @@ public sealed class SetupGuideViewModel : ObservableObject, ISetupDependencyModu
     private bool TryRestoreSetupGuideSnapshot()
     {
         var snapshot = _setupGuideCacheService.Load();
-        if (snapshot?.StatusReport is null)
+        if (snapshot?.StatusReport is null
+            || snapshot.StatusReport.CheckedAt < snapshot.EnvironmentCheckedAt)
         {
             return false;
         }
@@ -907,12 +963,16 @@ public sealed class SetupGuideViewModel : ObservableObject, ISetupDependencyModu
             return;
         }
 
+        var environmentSnapshot = _setupGuideCacheService.Load();
         _setupGuideCacheService.Save(new SetupGuideCacheSnapshot(
             SetupGuideCacheSnapshot.CurrentSchemaVersion,
             DateTimeOffset.Now,
             _setupGuideLocalCheckedAt,
             _setupGuideRemoteCheckedAt,
-            BuildSetupGuideCacheStatusReport(_setupGuideStatusReport)));
+            BuildSetupGuideCacheStatusReport(_setupGuideStatusReport),
+            environmentSnapshot?.EnvironmentTools,
+            environmentSnapshot?.EnvironmentSignature ?? string.Empty,
+            environmentSnapshot?.EnvironmentCheckedAt));
     }
 
     private SetupDependencyStatusReport RestoreSetupGuideStatusReport(SetupGuideCacheStatusReport report)
@@ -1015,6 +1075,12 @@ public sealed class SetupGuideViewModel : ObservableObject, ISetupDependencyModu
 
     private SetupGuideDependencyItemViewModel BuildSetupDependencyItem(SetupDependencyKind kind)
     {
+        // Keep progress bindings attached when a different install refreshes the cards.
+        if (_installingDependencies.TryGetValue(kind, out var installingItem))
+        {
+            return installingItem;
+        }
+
         var status = ResolveSetupStatus(kind);
         var title = GetSetupDependencyTitle(kind);
         var description = GetSetupDependencyDescription(kind);

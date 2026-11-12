@@ -56,7 +56,7 @@ public sealed class GitHubReleaseEncoderUpdateService : IEncoderUpdateService, I
             static asset => IsExpectedEncoderAssetName(asset.Name, "x265"),
             static asset => ScoreX265Asset(asset.Name),
             "默认使用 FlowEncode x265 Windows x64 发布包。",
-            cancellationToken, useBaseline ? "v3.0.0-beta.1" : null, allowPinnedPrerelease: useBaseline);
+            cancellationToken, useBaseline ? "v3.0.0" : null);
         if (x265 is not null)
         {
             packages.Add(useBaseline ? x265 with { ReleaseName = "4.3 (8+10-bit multilib)" } : x265);

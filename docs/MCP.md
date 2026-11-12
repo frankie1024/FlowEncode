@@ -44,7 +44,7 @@ Accepted work continues after the MCP client disconnects. The shared task servic
 }
 ```
 
-Track indexes count audio streams from zero. Omitted options follow the portable deew configuration. `measureOnly` returns loudness without media. Set `keepTemp` to retain task intermediates and `keepLog` to save diagnostics. Use only deew ≥5.1.0 with the required licensed DEE ≥6.7 components. Atmos paths have parameter/dependency checks but no genuine Atmos media acceptance in beta.1; they remain experimental.
+Track indexes count audio streams from zero. Omitted options follow the portable deew configuration. `measureOnly` returns loudness without media. Set `keepTemp` to retain task intermediates and `keepLog` to save diagnostics. Use only deew ≥5.1.0 with the required licensed DEE ≥6.7 components. Atmos paths have parameter/dependency checks but no genuine Atmos media acceptance in 3.0.0; they remain experimental.
 
 ## Tool list
 

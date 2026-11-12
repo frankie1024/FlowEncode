@@ -45,7 +45,7 @@ internal static class DeewToolchain
         var environment = StartInfo(deew, ffmpeg, ffprobe);
         var version = await ProbeAsync(environment, "--version", token);
         var deewLine = version.Split('\n').FirstOrDefault(l => Regex.IsMatch(l.TrimStart(), @"^deew\s", RegexOptions.IgnoreCase)) ?? "";
-        if (!IsSupportedVersion(deewLine)) throw new InvalidOperationException("FlowEncode 3.0 requires deew >=5.1.0. Upgrade the portable toolchain; legacy deew is supported by FlowEncode 2.0.2. " + deewLine);
+        if (!IsSupportedVersion(deewLine)) throw new InvalidOperationException("FlowEncode 3.0 requires deew >=5.1.0. Upgrade the portable toolchain; legacy deew is supported by FlowEncode 2.0.3. " + deewLine);
         foreach (var name in new[] { "ffmpeg", "ffprobe" }.Concat(profile.RequiredTools))
         {
             var actual = Resolve(deew, name, environment.Environment["PATH"] ?? "");

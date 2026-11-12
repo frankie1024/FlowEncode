@@ -5,7 +5,10 @@ public sealed record SetupGuideCacheSnapshot(
     DateTimeOffset SavedAt,
     DateTimeOffset? LocalCheckedAt,
     DateTimeOffset? RemoteCheckedAt,
-    SetupGuideCacheStatusReport? StatusReport)
+    SetupGuideCacheStatusReport? StatusReport,
+    ToolProbeResult[]? EnvironmentTools = null,
+    string EnvironmentSignature = "",
+    DateTimeOffset? EnvironmentCheckedAt = null)
 {
     public const int CurrentSchemaVersion = 4;
 }

@@ -1123,17 +1123,26 @@ public partial class MainWindowViewModel : CommunityToolkit.Mvvm.ComponentModel.
     public async Task InitializeAsync()
     {
         LoadSettings();
+        var cachedEnvironment = _environmentReadinessService.TryGetCachedReport();
+        if (cachedEnvironment is not null)
+        {
+            ApplyEnvironmentReadiness(cachedEnvironment);
+        }
         var restoredSetupGuideSnapshot = SetupGuideModule.TryRestoreCachedSnapshot();
         await RefreshAsync(
             Texts.InitializationStatus,
             includeUpdates: AutoCheckUpdatesOnStartup,
-            refreshEnvironmentReadiness: !restoredSetupGuideSnapshot);
+            refreshEnvironmentReadiness: cachedEnvironment is null);
+
+        if (!restoredSetupGuideSnapshot || cachedEnvironment is null)
+        {
+            await SetupGuideModule.RefreshFromEnvironmentAsync();
+        }
 
         RunInitialVsPluginDependencyUpdateIfNeeded();
 
         if (!_hasCompletedSetupGuide)
         {
-            await SetupGuideModule.RefreshSetupGuideAsync(openWhenFinished: false);
             SetupGuideModule.OpenSetupGuide();
         }
     }

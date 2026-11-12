@@ -49,7 +49,9 @@ public sealed class DesktopAutomationServer : IAsyncDisposable
 
         try
         {
-            await Task.WhenAll(pending.Append(_acceptLoop ?? Task.CompletedTask)).WaitAsync(TimeSpan.FromSeconds(2));
+            // DesktopTaskHost also disposes synchronously from the UI thread.
+            await Task.WhenAll(pending.Append(_acceptLoop ?? Task.CompletedTask))
+                .WaitAsync(TimeSpan.FromSeconds(2)).ConfigureAwait(false);
         }
         catch (Exception ex) when (ex is OperationCanceledException or TimeoutException or IOException)
         {

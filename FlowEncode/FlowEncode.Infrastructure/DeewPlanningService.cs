@@ -29,7 +29,7 @@ public sealed class DeewPlanningService(IToolProbeService probes) : IDeewPlannin
             throw new InvalidOperationException("A deew config recovery backup is pending. Complete recovery before previewing a new plan: " + config);
         var snapshot = File.Exists(config) ? new DeewConfigEditor(await File.ReadAllBytesAsync(config, cancellationToken)) : null;
         var logs = new List<string>();
-        if (o.Format.EndsWith("-atmos", StringComparison.Ordinal)) logs.Add("Experimental Atmos output: genuine Atmos media acceptance is pending for beta.1.");
+        if (o.Format.EndsWith("-atmos", StringComparison.Ordinal)) logs.Add("Experimental Atmos output: genuine Atmos media acceptance is pending for 3.0.0.");
         var profile = DeewBitrates.Apply(DeewArguments.Resolve(o, source.RequiresDdpDtsCompatibilityInput() ? 8 : source.Channels,
             snapshot?.DdpMode ?? "standard", snapshot?.AtmosMode ?? "streaming", logs), snapshot?.Bitrates);
         if (o.Format.EndsWith("-atmos", StringComparison.Ordinal)

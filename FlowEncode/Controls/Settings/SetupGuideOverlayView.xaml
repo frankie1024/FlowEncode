@@ -113,20 +113,8 @@
                                                                     </StackPanel>
 
                                                                     <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="{StaticResource AppSpacingS}" HorizontalAlignment="Right" VerticalAlignment="Top">
-                                                                        <Button AutomationProperties.Name="{Binding DataContext.Texts.ManualSelectButton, ElementName=RootView}" Tag="{Binding Kind}" Click="ManualSelectSetupDependencyButton_Click" IsEnabled="{Binding ManualSelectEnabled}" Visibility="{Binding ManualSelectVisibility}" ToolTipService.ToolTip="{Binding DataContext.Texts.ManualSelectButton, ElementName=RootView}">
-                                                                            <StackPanel Orientation="Horizontal" Spacing="{StaticResource AppCommandIconTextSpacing}">
-                                                                                <SymbolIcon Symbol="OpenFile" />
-                                                                                <TextBlock Text="{Binding DataContext.Texts.ManualSelectButton, ElementName=RootView}" />
-                                                                            </StackPanel>
-                                                                        </Button>
-                                                                        <Button AutomationProperties.Name="{Binding DataContext.Texts.ClearManualPinButton, ElementName=RootView}" Tag="{Binding Kind}" Click="ClearManualPinnedSetupDependencyButton_Click" IsEnabled="{Binding ClearManualPinEnabled}" Visibility="{Binding ClearManualPinVisibility}" ToolTipService.ToolTip="{Binding DataContext.Texts.ClearManualPinButton, ElementName=RootView}">
-                                                                            <StackPanel Orientation="Horizontal" Spacing="{StaticResource AppCommandIconTextSpacing}">
-                                                                                <SymbolIcon Symbol="UnPin" />
-                                                                                <TextBlock Text="{Binding DataContext.Texts.ClearManualPinButton, ElementName=RootView}" />
-                                                                            </StackPanel>
-                                                                        </Button>
-                                                                        <Button Content="{Binding MoreActionText}" Visibility="{Binding AdvancedUpdateVisibility}" IsEnabled="{Binding AdvancedUpdateEnabled}" Click="MoreDependencyActionsButton_Click" />
-                                                                        <Border Background="Transparent" Visibility="{Binding PrimaryActionVisibility}">
+                                                                        <Button Content="{Binding MoreActionText}" AutomationProperties.Name="{Binding MoreActionText}" Visibility="{Binding MoreActionsVisibility}" IsEnabled="{Binding AdvancedUpdateEnabled}" Click="MoreDependencyActionsButton_Click" />
+                                                                        <Border Background="Transparent" Visibility="{Binding SettingsPrimaryActionVisibility}">
                                                                             <ToolTipService.ToolTip>
                                                                                 <ToolTip MaxWidth="420"><TextBlock Text="{Binding PrimaryActionToolTip}" TextWrapping="Wrap" /></ToolTip>
                                                                             </ToolTipService.ToolTip>
@@ -137,18 +125,12 @@
                                                                                 </StackPanel>
                                                                             </Button>
                                                                         </Border>
-                                                                        <Button AutomationProperties.Name="{Binding DataContext.Texts.UninstallButton, ElementName=RootView}" Tag="{Binding Kind}" Click="UninstallSetupDependencyButton_Click" IsEnabled="{Binding UninstallActionEnabled}" Visibility="{Binding UninstallVisibility}" ToolTipService.ToolTip="{Binding DataContext.Texts.UninstallButton, ElementName=RootView}">
+                                                                        <Button AutomationProperties.Name="{Binding DataContext.Texts.UninstallButton, ElementName=RootView}" Tag="{Binding Kind}" Click="UninstallSetupDependencyButton_Click" IsEnabled="{Binding UninstallActionEnabled}" Visibility="{Binding UninstallVisibility}" ToolTipService.ToolTip="{Binding DataContext.Texts.UninstallTooltip, ElementName=RootView}">
                                                                             <StackPanel Orientation="Horizontal" Spacing="{StaticResource AppCommandIconTextSpacing}">
                                                                                 <SymbolIcon Symbol="Delete" />
                                                                                 <TextBlock Text="{Binding DataContext.Texts.UninstallButton, ElementName=RootView}" />
                                                                             </StackPanel>
                                                                         </Button>
-                                                                        <HyperlinkButton AutomationProperties.Name="{Binding DataContext.Texts.ReleasePageButton, ElementName=RootView}" Tag="{Binding ReleaseUrl}" Click="OpenUrlButton_Click" Visibility="{Binding ReleaseVisibility}" ToolTipService.ToolTip="{Binding DataContext.Texts.ReleasePageButton, ElementName=RootView}">
-                                                                            <StackPanel Orientation="Horizontal" Spacing="{StaticResource AppCommandIconTextSpacing}">
-                                                                                <SymbolIcon Symbol="Link" />
-                                                                                <TextBlock Text="{Binding DataContext.Texts.ReleasePageButton, ElementName=RootView}" />
-                                                                            </StackPanel>
-                                                                        </HyperlinkButton>
                                                                     </StackPanel>
                                                                 </Grid>
 

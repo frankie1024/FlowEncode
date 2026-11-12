@@ -7,6 +7,43 @@ namespace FlowEncode.Domain.Tests;
 public sealed class PythonRuntimeCompatibilityTests
 {
     [TestMethod]
+    [DoNotParallelize]
+    public async Task DiscoveryScope_ReusesRuntimeSelectionAndPathEnrichmentUntilNextScan()
+    {
+        using var root = new SharedTaskCoordinatorTests.TestRoot();
+        foreach (var file in Directory.EnumerateFiles(Path.Combine(AppContext.BaseDirectory, "ToolStub")))
+            File.Copy(file, Path.Combine(root.Path, Path.GetFileName(file)));
+        var extension = OperatingSystem.IsWindows() ? ".exe" : "";
+        var python = Path.Combine(root.Path, "python" + extension);
+        File.Copy(Path.Combine(root.Path, "FlowEncode.ToolStub" + extension), python);
+        if (!OperatingSystem.IsWindows())
+            File.SetUnixFileMode(python, UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute);
+        var previous = Environment.GetEnvironmentVariable("FLOWENCODE_PYTHON");
+        try
+        {
+            Environment.SetEnvironmentVariable("FLOWENCODE_PYTHON", python);
+            using (PythonRuntimeCompatibility.BeginDiscoveryScope())
+            {
+                Assert.AreEqual(python, PythonRuntimeCompatibility.EnumerateCompatiblePythonExecutablePaths().First());
+                using (PythonRuntimeCompatibility.BeginDiscoveryScope())
+                    VapourSynthRuntimePathResolver.CollectSearchDirectories();
+                await Task.WhenAll(Enumerable.Range(0, 4).Select(_ => Task.Run(() =>
+                    PythonRuntimeCompatibility.EnumerateCompatiblePythonExecutablePaths().ToArray())));
+                VapourSynthRuntimePathResolver.CollectPythonScriptDirectories();
+                Assert.AreEqual(1, File.ReadAllLines(Path.Combine(root.Path, "python-probes.log")).Length);
+            }
+
+            using (PythonRuntimeCompatibility.BeginDiscoveryScope())
+                PythonRuntimeCompatibility.EnumerateCompatiblePythonExecutablePaths().ToArray();
+            Assert.AreEqual(2, File.ReadAllLines(Path.Combine(root.Path, "python-probes.log")).Length);
+        }
+        finally
+        {
+            Environment.SetEnvironmentVariable("FLOWENCODE_PYTHON", previous);
+        }
+    }
+
+    [TestMethod]
     [DataRow(3, 12, true, true)]
     [DataRow(3, 13, true, true)]
     [DataRow(3, 12, false, false)]

@@ -38,7 +38,7 @@ public sealed partial class MainWindow : Window, ISettingsViewHost, IShellNaviga
     private const int WindowClassLongIcon = -14;
     private const int WindowClassLongSmallIcon = -34;
     private const int SystemColorGrayText = 17;
-    private const double StackedWorkspaceWidth = 1000;
+    private const double StackedWorkspaceWidth = 960;
     private const double CompactFormsWidth = 700;
     private readonly AppLaunchActivation _launchActivation;
     private readonly LocalAppSettingsService _localAppSettingsService;
@@ -289,7 +289,7 @@ public sealed partial class MainWindow : Window, ISettingsViewHost, IShellNaviga
             [MainShellSections.Settings] = new(
                 ShellSectionLifetime.Sticky,
                 () => CreateSectionView<SettingsView>(ViewModel.SettingsModule, view => view.Host = this),
-                static (control, _, contentPadding, _, compactForms) => ((SettingsView)control).ApplyLayout(compactForms, contentPadding),
+                static (control, width, contentPadding, _, compactForms) => ((SettingsView)control).ApplyLayout(width, compactForms, contentPadding),
                 null,
                 static async (_, window) => await window.ViewModel.SetupGuideModule.EnsureCardsAsync())
         };

@@ -45,6 +45,7 @@
             <Setter Property="UseSystemFocusVisuals" Value="True" />
             <Setter Property="HorizontalContentAlignment" Value="Stretch" />
             <Setter Property="VerticalContentAlignment" Value="Stretch" />
+            <Setter Property="VerticalAlignment" Value="Stretch" />
             <Setter Property="shared:UiElevation.Level" Value="E1" />
             <Setter Property="shared:UiElevation.HoverLevel" Value="E2" />
             <Setter Property="shared:UiMotion.HoverLiftEnabled" Value="True" />
@@ -117,7 +118,11 @@
     </UserControl.Resources>
 
     <ScrollViewer x:Name="DashboardScroller" VerticalScrollBarVisibility="Auto">
-        <StackPanel x:Name="DashboardContentStack" Padding="{StaticResource AppPagePadding}" Spacing="{StaticResource AppSpacingXXL}">
+        <Grid x:Name="DashboardContentStack" Padding="{StaticResource AppPagePadding}" RowSpacing="{StaticResource AppSpacingL}">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="*" />
+            </Grid.RowDefinitions>
             <Border x:Name="DashboardHeroCard" MinHeight="148" Padding="{StaticResource AppCardPadding}" Background="{ThemeResource HeroBrush}" BorderBrush="{ThemeResource ThemeBorderHeroBrush}" BorderThickness="{StaticResource AppCardBorderThickness}" CornerRadius="{StaticResource AppLargeCornerRadius}" Shadow="{StaticResource HeroShadow}">
                 <Border.Transitions>
                     <TransitionCollection>
@@ -144,7 +149,7 @@
                 </Grid>
             </Border>
 
-            <Grid x:Name="DashboardCardGrid" ColumnSpacing="{StaticResource AppSpacingL}" RowSpacing="{StaticResource AppSpacingL}" VerticalAlignment="Stretch">
+            <Grid x:Name="DashboardCardGrid" Grid.Row="1" ColumnSpacing="{StaticResource AppSpacingL}" RowSpacing="{StaticResource AppSpacingL}" VerticalAlignment="Stretch">
                 <Grid.RowDefinitions>
                     <RowDefinition x:Name="DashboardRow0" Height="Auto" />
                     <RowDefinition x:Name="DashboardRow1" Height="Auto" />
@@ -389,6 +394,6 @@
                     </Grid>
                 </Button>
             </Grid>
-        </StackPanel>
+        </Grid>
     </ScrollViewer>
 </UserControl>

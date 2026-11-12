@@ -5,6 +5,16 @@
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
     <Grid>
+        <VisualStateManager.VisualStateGroups>
+            <VisualStateGroup x:Name="InteractionStates">
+                <VisualState x:Name="Resting" />
+                <VisualState x:Name="Hovered">
+                    <VisualState.Setters>
+                        <Setter Target="HeaderBorder.Background" Value="{ThemeResource AppAccentSoftBrush}" />
+                    </VisualState.Setters>
+                </VisualState>
+            </VisualStateGroup>
+        </VisualStateManager.VisualStateGroups>
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />
@@ -12,11 +22,16 @@
 
         <Border
             x:Name="HeaderBorder"
-            Background="Transparent"
+            Background="{ThemeResource CardAltBrush}"
             BorderBrush="{ThemeResource CardBorderBrush}"
             BorderThickness="{StaticResource AppCardBorderThickness}"
             CornerRadius="{StaticResource AppControlCornerRadius}"
-            Tapped="HeaderBorder_Tapped">
+            Tapped="HeaderBorder_Tapped"
+            PointerEntered="HeaderBorder_PointerEntered"
+            PointerExited="HeaderBorder_PointerExited">
+            <Border.BackgroundTransition>
+                <BrushTransition Duration="0:0:0.12" />
+            </Border.BackgroundTransition>
             <Grid
                 x:Name="HeaderHitTarget"
                 Padding="{Binding HeaderPadding, ElementName=Root}"

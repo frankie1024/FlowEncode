@@ -20,7 +20,7 @@ public sealed partial class CliAudioProcessingRunner
         // Version validation precedes config initialization: never ask legacy deew to generate a config.
         var version = await DeewToolchain.ProbeAsync(DeewToolchain.StartInfo(deew, ffmpeg, ffprobe), "--version", token);
         var deewLine = version.Split('\n').FirstOrDefault(l => l.TrimStart().StartsWith("deew ", StringComparison.OrdinalIgnoreCase)) ?? "";
-        if (!DeewToolchain.IsSupportedVersion(deewLine)) throw new InvalidOperationException("FlowEncode 3.0 requires deew >=5.1.0. Legacy tools require FlowEncode 2.0.2. " + deewLine);
+        if (!DeewToolchain.IsSupportedVersion(deewLine)) throw new InvalidOperationException("FlowEncode 3.0 requires deew >=5.1.0. Legacy tools require FlowEncode 2.0.3. " + deewLine);
         var environment = DeewToolchain.StartInfo(deew, ffmpeg, ffprobe);
         var actualProbe = DeewToolchain.Resolve(deew, "ffprobe", environment.Environment["PATH"] ?? "");
         var actualFfmpeg = DeewToolchain.Resolve(deew, "ffmpeg", environment.Environment["PATH"] ?? "");
@@ -129,11 +129,19 @@ public sealed partial class CliAudioProcessingRunner
                 {
                     // Validate the entire manifest before publishing any file. Never publish diagnostics as media.
                     mediaMigrationFailed = true;
-                    foreach (var file in media)
+                    var manifest = media.Select(file => (Source: file,
+                        Target: Path.Combine(outputRoot, Path.GetRelativePath(staging, file)))).ToArray();
+                    foreach (var file in manifest)
                     {
-                        var target = Path.Combine(outputRoot, Path.GetRelativePath(staging, file));
-                        ExecutionOutputStaging.FinalizeFile(file, target, request.JobId, request.OverwriteOutput);
-                        outputs.Add(target);
+                        if (Directory.Exists(file.Target) || !request.OverwriteOutput && File.Exists(file.Target))
+                            throw new IOException("An output path already exists: " + file.Target);
+                        for (var parent = Path.GetDirectoryName(file.Target); parent is not null; parent = Path.GetDirectoryName(parent))
+                            if (File.Exists(parent)) throw new IOException("An output directory is occupied by a file: " + parent);
+                    }
+                    foreach (var file in manifest)
+                    {
+                        ExecutionOutputStaging.FinalizeFile(file.Source, file.Target, request.JobId, request.OverwriteOutput);
+                        outputs.Add(file.Target);
                     }
                     mediaMigrationFailed = false;
                     state = EncodingJobState.Completed;

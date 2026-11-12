@@ -160,7 +160,20 @@ if (-not (Test-Path $installerArtifactPath)) {
 }
 
 $installerHash = Get-Sha256Hash -Path $installerArtifactPath
-$checksums = @($installerArtifactPath, $portablePath) | ForEach-Object {
+# Republish the exact verified multilib binary and matching source/license bundle
+# alongside the stable app: its managed x265 baseline resolves assets from this release.
+$x265Assets = @(
+    @{ Name = 'x265-4.3-x64.zip'; Sha256 = '499913e1e898b64078a795c9edcd0ea8805fe05417091ce9abad0572f70f0b3d' },
+    @{ Name = 'x265-4.3-multilib-source-license.zip'; Sha256 = 'db428fc8cdba3110ead30155207e7e529fcaacf0a1f8fc5e23ea698092b83077' }
+)
+foreach ($asset in $x265Assets) {
+    $assetPath = Join-Path $resolvedOutputRoot $asset.Name
+    Invoke-WebRequest -Uri ("https://github.com/frankie1024/FlowEncode/releases/download/v3.0.0-beta.1/" + $asset.Name) -OutFile $assetPath
+    if ((Get-Sha256Hash -Path $assetPath) -ne $asset.Sha256) {
+        throw "Verified x265 release asset checksum mismatch: $($asset.Name)"
+    }
+}
+$checksums = @($installerArtifactPath, $portablePath) + @($x265Assets | ForEach-Object { Join-Path $resolvedOutputRoot $_.Name }) | ForEach-Object {
     "{0} *{1}" -f (Get-Sha256Hash -Path $_).ToLowerInvariant(), [System.IO.Path]::GetFileName($_)
 }
 $checksums | Set-Content -LiteralPath (Join-Path $resolvedOutputRoot 'SHA256SUMS.txt') -Encoding ascii

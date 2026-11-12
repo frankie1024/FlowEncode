@@ -8,13 +8,27 @@
     xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
     mc:Ignorable="d">
-    <ScrollViewer VerticalScrollBarVisibility="Auto">
-        <StackPanel x:Name="ContentStack" Padding="{StaticResource AppPagePadding}" Spacing="{StaticResource AppSpacingL}">
-            <Border Padding="{StaticResource AppCardPadding}" Background="{ThemeResource CardBrush}" BorderBrush="{ThemeResource CardBorderBrush}" BorderThickness="{StaticResource AppCardBorderThickness}" CornerRadius="{StaticResource AppLargeCornerRadius}">
-                <StackPanel Spacing="{StaticResource AppSpacingM}">
-                    <StackPanel Spacing="{StaticResource AppSpacingM}" DataContext="{Binding Form}">
+    <ScrollViewer x:Name="RootScrollViewer" VerticalScrollBarVisibility="Auto">
+        <Grid x:Name="ContentStack" Padding="{StaticResource AppPagePadding}">
+            <Border x:Name="AutoFormCard" Padding="{StaticResource AppCardPadding}" Background="{ThemeResource CardBrush}" BorderBrush="{ThemeResource CardBorderBrush}" BorderThickness="{StaticResource AppCardBorderThickness}" CornerRadius="{StaticResource AppLargeCornerRadius}">
+                <Grid x:Name="AutoWorkspaceGrid" RowSpacing="{StaticResource AppSpacingM}">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="*" />
+                    </Grid.RowDefinitions>
+                    <StackPanel x:Name="AutoFormPanel" Spacing="{StaticResource AppSpacingM}" DataContext="{Binding Form}">
                         <TextBlock FontFamily="{StaticResource AppDisplayFont}" FontSize="{StaticResource AppSectionTitleFontSize}" FontWeight="SemiBold" Text="{Binding Texts.AutoCompressionTitle}" />
 
+                        <Grid x:Name="AutoPathsGrid" ColumnSpacing="{StaticResource AppSpacingM}" RowSpacing="{StaticResource AppSpacingM}">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
+                            </Grid.RowDefinitions>
                         <Grid x:Name="AutoSourcePathGrid" ColumnSpacing="{StaticResource AppSpacingM}" RowSpacing="{StaticResource AppSpacingM}">
                             <Grid.RowDefinitions>
                                 <RowDefinition Height="Auto" />
@@ -33,7 +47,7 @@
                             </Button>
                         </Grid>
 
-                        <Grid x:Name="AutoOutputPathGrid" ColumnSpacing="{StaticResource AppSpacingM}" RowSpacing="{StaticResource AppSpacingM}">
+                        <Grid x:Name="AutoOutputPathGrid" Grid.Column="1" ColumnSpacing="{StaticResource AppSpacingM}" RowSpacing="{StaticResource AppSpacingM}">
                             <Grid.RowDefinitions>
                                 <RowDefinition Height="Auto" />
                                 <RowDefinition Height="Auto" />
@@ -50,6 +64,8 @@
                                 </StackPanel>
                             </Button>
                             <TextBlock Grid.Row="1" Grid.ColumnSpan="2" FontFamily="{StaticResource AppMonoFont}" Foreground="{ThemeResource SubtleTextBrush}" Text="{Binding AutoCompressionOutputPreviewText}" TextWrapping="Wrap" />
+                        </Grid>
+
                         </Grid>
 
                         <Grid x:Name="AutoCompressionOptionsGrid" ColumnSpacing="{StaticResource AppSpacingM}" RowSpacing="{StaticResource AppSpacingM}">
@@ -81,7 +97,7 @@
                             PlaceholderText="--preset 6 --film-grain 8"
                             Text="{Binding AutoCompressionVideoParameters, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
 
-                        <shared:AnimatedExpander HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch" IsExpanded="{Binding IsAutoCompressionAdvancedOptionsExpanded, Mode=TwoWay}">
+                        <shared:AnimatedExpander x:Name="AutoAdvancedParametersExpander" HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch" IsExpanded="{Binding IsAutoCompressionAdvancedOptionsExpanded, Mode=TwoWay}">
                             <shared:AnimatedExpander.HeaderContent>
                                 <TextBlock FontWeight="SemiBold" Text="{Binding Texts.AutoCompressionAdvancedHeader}" />
                             </shared:AnimatedExpander.HeaderContent>
@@ -134,8 +150,7 @@
                         </shared:TaskActionBar>
                     </StackPanel>
 
-                    <StackPanel Spacing="{StaticResource AppSpacingM}" DataContext="{Binding Status}">
-                        <shared:TaskStatusPanel
+                    <shared:TaskStatusPanel x:Name="AutoTaskStatusPanel" Grid.Row="1" DataContext="{Binding Status}"
                             PresentationState="{Binding AutoCompressionPresentationState}"
                             ProgressBorderBrush="{Binding AutoCompressionProgressBorderBrush}"
                             ProgressFillBrush="{Binding AutoCompressionProgressFillBrush}"
@@ -147,23 +162,32 @@
                             StatusText="{Binding AutoCompressionStatusText}"
                             Title="{Binding Texts.AutoCompressionStatusTitle}" />
 
+                    <Grid x:Name="AutoStatusGrid" Grid.Row="2" ColumnSpacing="{StaticResource AppSpacingM}" DataContext="{Binding Status}">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto" />
+                        </Grid.RowDefinitions>
                         <shared:CommandPreviewBox
+                            x:Name="AutoCommandPreviewBox" PreviewHeight="96" PreviewMinHeight="80"
                             Header="{Binding Texts.AutoCompressionCommandTitle}"
                             PlaceholderText="{Binding Texts.AutoCompressionCommandPlaceholder}"
                             Text="{Binding AutoCompressionCommandLine}"
                             Texts="{Binding Texts}" />
 
-                        <shared:AnimatedExpander HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch">
+                        <shared:AnimatedExpander x:Name="AutoLogExpander" Grid.Column="1" HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch">
                             <shared:AnimatedExpander.HeaderContent>
                                 <TextBlock FontFamily="{StaticResource AppDisplayFont}" FontSize="{StaticResource AppBodyLargeFontSize}" FontWeight="SemiBold" Text="{Binding Texts.AutoCompressionLogTitle}" />
                             </shared:AnimatedExpander.HeaderContent>
                             <shared:AnimatedExpander.BodyContent>
-                                <TextBox MinHeight="120" MaxHeight="320" Background="Transparent" BorderThickness="0" FontFamily="{StaticResource AppMonoFont}" IsReadOnly="True" IsTabStop="False" PlaceholderText="{Binding Texts.AutoCompressionLogPlaceholder}" ScrollViewer.VerticalScrollBarVisibility="Auto" Text="{Binding AutoCompressionLog}" TextWrapping="Wrap" />
+                                <TextBox x:Name="AutoLogTextBox" Height="96" MinHeight="80" Background="Transparent" BorderThickness="0" FontFamily="{StaticResource AppMonoFont}" IsReadOnly="True" PlaceholderText="{Binding Texts.AutoCompressionLogPlaceholder}" ScrollViewer.VerticalScrollBarVisibility="Auto" Text="{Binding AutoCompressionLog}" TextWrapping="Wrap" />
                             </shared:AnimatedExpander.BodyContent>
                         </shared:AnimatedExpander>
-                    </StackPanel>
-                </StackPanel>
+                    </Grid>
+                </Grid>
             </Border>
-        </StackPanel>
+        </Grid>
     </ScrollViewer>
 </UserControl>

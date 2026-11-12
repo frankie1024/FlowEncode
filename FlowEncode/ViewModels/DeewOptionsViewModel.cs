@@ -93,7 +93,7 @@ public sealed class DeewOptionsViewModel : ObservableObject
             var warnings = new List<string>();
             var profile = DeewBitrates.Apply(DeewArguments.Resolve(Build(warnings), _channels, _defaultMode, _defaultAtmos, warnings), _bitrates);
             _warning = string.Join(Environment.NewLine, warnings);
-            if (Atmos) _warning += Texts.Pick("\nAtmos 为实验功能，beta.1 尚无真实 Atmos 素材验收。", "\nAtmos is experimental; beta.1 has not passed genuine Atmos media acceptance.");
+            if (Atmos) _warning += Texts.Pick("\nAtmos 为实验功能，3.0.0 尚无真实 Atmos 素材验收。", "\nAtmos is experimental; 3.0.0 has not passed genuine Atmos media acceptance.");
             EffectiveDescription = profile.Options.MeasureOnly ? Texts.Pick("仅测量响度，不生成媒体文件", "Measure loudness only; no media output")
                 : $"{profile.Options.Format} · {profile.OutputSlots} slots · DRC {profile.Drc} · {profile.Mode} · {profile.EffectiveBitrateKbps?.ToString() ?? "lossless"} kbps · {profile.Extension}";
             if (_options.TempMode == DeewTempMode.DeewSettings) _warning += Texts.Pick("\n使用 deew 自管临时目录；取消后可能有残留，FlowEncode 不递归清理该目录。", "\nThe deew-managed temporary directory may retain files after cancellation; FlowEncode never recursively cleans it.");

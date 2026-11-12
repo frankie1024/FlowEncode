@@ -17,7 +17,7 @@
             HorizontalAlignment="Stretch"
             HorizontalContentAlignment="Stretch">
             <shared:AnimatedExpander.HeaderContent>
-                <Grid MinHeight="52" ColumnSpacing="{StaticResource AppSpacingM}">
+                <Grid MinHeight="44" ColumnSpacing="{StaticResource AppSpacingM}">
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="*" />
                         <ColumnDefinition Width="Auto" />

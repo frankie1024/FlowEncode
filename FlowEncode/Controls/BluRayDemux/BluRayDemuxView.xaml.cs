@@ -1,4 +1,5 @@
 using System;
+using System.Linq;
 using System.Threading.Tasks;
 using FlowEncode.Controls.Shared;
 using FlowEncode.ViewModels;
@@ -10,15 +11,15 @@ namespace FlowEncode.Controls.BluRayDemux;
 
 public sealed partial class BluRayDemuxView : UserControl
 {
-    private const double BluRayPlaylistListMinHeight = 280;
-    private const double BluRayPlaylistListMaxHeightCompact = 560;
-    private const double BluRayPlaylistListMaxHeightWide = 1120;
-    private const double BluRayTrackListMinHeight = 260;
+    private const double BluRayPlaylistListMinHeight = 140;
+    private const double BluRayPlaylistListMaxHeightCompact = 360;
+    private const double BluRayTrackListMinHeight = 140;
     private const double BluRayTrackListMaxHeightCompact = 420;
     private const double BluRayTrackListMaxHeightWide = 620;
 
     private bool _interactionsInitialized;
     private bool _isStackedWorkspaceLayout;
+    private bool _heightRefreshQueued;
 
     private BluRayDemuxViewModel? ViewModel => DataContext as BluRayDemuxViewModel;
     private BluRayDemuxDiscViewModel? DiscViewModel => ViewModel?.Disc;
@@ -28,6 +29,7 @@ public sealed partial class BluRayDemuxView : UserControl
     {
         InitializeComponent();
         Loaded += BluRayDemuxView_Loaded;
+        RootScrollViewer.SizeChanged += (_, _) => ScheduleWorkspaceHeightRefresh();
     }
 
     public void ApplyLayout(bool stackedWorkspace, bool compactForms, Thickness contentPadding)
@@ -36,8 +38,8 @@ public sealed partial class BluRayDemuxView : UserControl
         ContentStack.Padding = contentPadding;
         WorkspaceGrid.ColumnSpacing = stackedWorkspace ? 0 : UiTokens.SpacingL;
         WorkspaceGrid.RowSpacing = stackedWorkspace ? UiTokens.SpacingL : 0;
-        PrimaryColumn.Width = new GridLength(stackedWorkspace ? 1 : 0.92, GridUnitType.Star);
-        SecondaryColumn.Width = stackedWorkspace ? new GridLength(0) : new GridLength(1.08, GridUnitType.Star);
+        PrimaryColumn.Width = new GridLength(1, GridUnitType.Star);
+        SecondaryColumn.Width = stackedWorkspace ? new GridLength(0) : new GridLength(1, GridUnitType.Star);
         WorkspacePrimaryRow.Height = GridLength.Auto;
         WorkspaceSecondaryRow.Height = stackedWorkspace ? GridLength.Auto : new GridLength(0);
 
@@ -51,10 +53,12 @@ public sealed partial class BluRayDemuxView : UserControl
         ConfigureTwoItemGrid(BluRaySourcePathGrid, BluRaySourcePathActionColumn, BluRaySourceBrowseButton, false, GridLength.Auto);
         ConfigureTwoItemGrid(BluRayOutputPathGrid, BluRayOutputPathActionColumn, BluRayOutputBrowseButton, false, GridLength.Auto);
         BluRaySourcePathGrid.RowSpacing = 0;
+        BluRayOutputPathGrid.RowSpacing = UiTokens.SpacingXS;
         ConfigureTwoItemGrid(BluRayBackendActionGrid, BluRayBackendActionColumn, ScanBluRayButton, compactForms, GridLength.Auto);
         ConfigureTwoItemGrid(BluRayTrackHeaderGrid, BluRayTrackHeaderActionColumn, BluRayTrackSelectionActionsPanel, compactForms, GridLength.Auto);
+        BluRayBackendActionGrid.RowSpacing = compactForms ? UiTokens.SpacingM : 0;
+        BluRayTrackHeaderGrid.RowSpacing = compactForms ? UiTokens.SpacingM : 0;
         BluRayDemuxActionBar.IsStacked = compactForms;
-        ApplyScrollableRegions(stackedWorkspace);
         ScheduleWorkspaceHeightRefresh();
     }
 
@@ -79,12 +83,26 @@ public sealed partial class BluRayDemuxView : UserControl
                 ? Math.Clamp(rootHeight * 0.44, BluRayPlaylistListMinHeight, BluRayPlaylistListMaxHeightCompact)
                 : BluRayPlaylistListMaxHeightCompact)
             : double.PositiveInfinity;
-        var trackMaxHeight = rootHeight > 0
-            ? Math.Clamp(rootHeight * (stackedWorkspace ? 0.34 : 0.42), BluRayTrackListMinHeight, stackedWorkspace ? BluRayTrackListMaxHeightCompact : BluRayTrackListMaxHeightWide)
-            : (stackedWorkspace ? BluRayTrackListMaxHeightCompact : BluRayTrackListMaxHeightWide);
-
         BluRayPlaylistListView.MaxHeight = playlistMaxHeight;
-        BluRayTrackListView.MaxHeight = trackMaxHeight;
+        if (stackedWorkspace)
+        {
+            BluRayTrackListView.Height = double.NaN;
+            BluRayTrackListView.MaxHeight = Math.Clamp(rootHeight * 0.34, BluRayTrackListMinHeight, BluRayTrackListMaxHeightCompact);
+            return;
+        }
+
+        var visibleSections = BluRayExportStack.Children.OfType<FrameworkElement>()
+            .Where(section => section.Visibility == Visibility.Visible).ToArray();
+        var chromeHeight = SecondaryPanel.Padding.Top + SecondaryPanel.Padding.Bottom + 2
+            + (Math.Max(0, visibleSections.Length - 1) * BluRayExportStack.Spacing)
+            + visibleSections.Where(section => section != BluRayTrackListView).Sum(section => section.ActualHeight);
+        var availableHeight = rootHeight - ContentStack.Padding.Top - ContentStack.Padding.Bottom;
+        var listHeight = Math.Clamp(Math.Floor(availableHeight - chromeHeight - 2), BluRayTrackListMinHeight, BluRayTrackListMaxHeightWide);
+        BluRayTrackListView.MaxHeight = BluRayTrackListMaxHeightWide;
+        if (double.IsNaN(BluRayTrackListView.Height) || Math.Abs(BluRayTrackListView.Height - listHeight) > 1)
+        {
+            BluRayTrackListView.Height = listHeight;
+        }
     }
 
     private void SecondaryPanel_SizeChanged(object sender, SizeChangedEventArgs e)
@@ -94,11 +112,18 @@ public sealed partial class BluRayDemuxView : UserControl
 
     private void ScheduleWorkspaceHeightRefresh()
     {
-        DispatcherQueue.TryEnqueue(UpdateWorkspaceHeight);
+        if (_heightRefreshQueued) return;
+        _heightRefreshQueued = DispatcherQueue.TryEnqueue(() =>
+        {
+            _heightRefreshQueued = false;
+            UpdateWorkspaceHeight();
+        });
     }
 
     private void UpdateWorkspaceHeight()
     {
+        if (RootScrollViewer.ActualHeight <= 0) return;
+        ApplyScrollableRegions(_isStackedWorkspaceLayout);
         if (_isStackedWorkspaceLayout || Visibility != Visibility.Visible)
         {
             ClearWorkspaceHeight();
@@ -110,7 +135,12 @@ public sealed partial class BluRayDemuxView : UserControl
             return;
         }
 
-        PrimaryPanel.Height = Math.Ceiling(SecondaryPanel.ActualHeight);
+        var availableHeight = RootScrollViewer.ActualHeight - ContentStack.Padding.Top - ContentStack.Padding.Bottom;
+        var targetHeight = Math.Max(Math.Floor(availableHeight), Math.Ceiling(SecondaryPanel.ActualHeight));
+        if (double.IsNaN(PrimaryPanel.Height) || Math.Abs(PrimaryPanel.Height - targetHeight) > 1)
+        {
+            PrimaryPanel.Height = targetHeight;
+        }
     }
 
     private void ClearWorkspaceHeight()

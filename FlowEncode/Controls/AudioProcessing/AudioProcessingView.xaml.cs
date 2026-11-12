@@ -21,8 +21,18 @@ public sealed partial class AudioProcessingView : UserControl
     {
         InitializeComponent();
         Loaded += AudioProcessingView_Loaded;
+        RootScrollViewer.SizeChanged += (_, e) =>
+        {
+            ContentStack.MinHeight = Math.Max(0, Math.Floor(e.NewSize.Height));
+            AudioTaskStatusPanel.ProgressHeight = Math.Clamp(e.NewSize.Height * 0.1, 64, 96);
+            ScheduleDiagnosticsLayout();
+        };
+        Loaded += (_, _) => ScheduleDiagnosticsLayout();
+        AudioFormPanel.SizeChanged += (_, _) => ScheduleDiagnosticsLayout();
+        AudioTaskStatusPanel.SizeChanged += (_, _) => ScheduleDiagnosticsLayout();
+        AudioResultsPanel.SizeChanged += (_, _) => ScheduleDiagnosticsLayout();
         SizeChanged += (_, _) => ApplyResponsiveLayout();
-        foreach (var grid in new[] { AudioProcessingOptionsGrid, DeewEncodingGrid, DeewSignalGrid, DeewFlagsGrid, DeewTempGrid })
+        foreach (var grid in new[] { AudioProcessingOptionsGrid, AudioAdvancedOptionsGrid, DeewEncodingGrid, DeewSignalGrid, DeewFlagsGrid, DeewTempGrid })
             foreach (var child in grid.Children.OfType<FrameworkElement>())
                 child.RegisterPropertyChangedCallback(VisibilityProperty, (_, _) => ApplyResponsiveLayout());
         AudioResultPathsTextBox.RegisterPropertyChangedCallback(TextBox.TextProperty, (_, _) =>
@@ -44,19 +54,49 @@ public sealed partial class AudioProcessingView : UserControl
         var width = AudioFormCard.ActualWidth - AudioFormCard.Padding.Left - AudioFormCard.Padding.Right;
         if (width <= 0) return;
         var splitPaths = width >= 840;
+        AudioPathsGrid.RowSpacing = splitPaths ? 0 : UiTokens.SpacingM;
         AudioPathsGrid.ColumnDefinitions[1].Width = splitPaths ? new GridLength(1, GridUnitType.Star) : new GridLength(0);
         Grid.SetRow(AudioOutputPathGrid, splitPaths ? 0 : 1);
         Grid.SetColumn(AudioOutputPathGrid, splitPaths ? 1 : 0);
-        ConfigureVisibleFields(AudioProcessingOptionsGrid, width, 4, 190);
+        ConfigureVisibleFields(AudioProcessingOptionsGrid, width, 3, 190);
+        ConfigureVisibleFields(AudioAdvancedOptionsGrid, width, 3, 190);
         ConfigureVisibleFields(DeewEncodingGrid, width, 3, 190);
         ConfigureVisibleFields(DeewSignalGrid, width, 3, 190);
         ConfigureVisibleFields(DeewFlagsGrid, width, 4, 200);
         ConfigureVisibleFields(DeewTempGrid, width, 2, 260);
         AudioProcessingActionBar.IsStacked = width < 480;
-        var splitFeedback = width >= 740;
-        AudioFeedbackGrid.ColumnDefinitions[1].Width = splitFeedback ? new GridLength(1, GridUnitType.Star) : new GridLength(0);
-        Grid.SetColumn(AudioDiagnosticsStack, splitFeedback ? 1 : 0);
-        Grid.SetRow(AudioDiagnosticsStack, splitFeedback ? 0 : 1);
+        var stackedStatus = width < 680;
+        AudioStatusGrid.RowSpacing = stackedStatus ? UiTokens.SpacingM : 0;
+        AudioStatusGrid.ColumnDefinitions[1].Width = stackedStatus ? new GridLength(0) : new GridLength(1, GridUnitType.Star);
+        if (AudioStatusGrid.RowDefinitions.Count != (stackedStatus ? 2 : 1))
+        {
+            AudioStatusGrid.RowDefinitions.Clear();
+            AudioStatusGrid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+            if (stackedStatus) AudioStatusGrid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+        }
+        Grid.SetRow(AudioLogExpander, stackedStatus ? 1 : 0);
+        Grid.SetColumn(AudioLogExpander, stackedStatus ? 0 : 1);
+        ScheduleDiagnosticsLayout();
+    }
+
+    private void ScheduleDiagnosticsLayout() => DispatcherQueue.TryEnqueue(UpdateDiagnosticsLayout);
+
+    private void UpdateDiagnosticsLayout()
+    {
+        if (!IsLoaded || AudioFormPanel.ActualHeight <= 0 || AudioAdvancedParametersExpander.IsExpanded) return;
+
+        // Fit the default form. Expanding advanced options simply pushes these panes down.
+        var stacked = AudioStatusGrid.ColumnDefinitions[1].Width.Value == 0;
+        var top = AudioStatusGrid.TransformToVisual(ContentStack).TransformPoint(new Windows.Foundation.Point()).Y;
+        var chrome = Math.Max(60, Math.Max(
+            AudioCommandPreviewBox.ActualHeight - AudioCommandPreviewBox.PreviewHeight,
+            AudioLogExpander.ActualHeight - AudioLogTextBox.ActualHeight));
+        var resultsHeight = AudioResultsPanel.Visibility == Visibility.Visible ? AudioResultsPanel.ActualHeight : 0;
+        var remaining = RootScrollViewer.ActualHeight - top - ContentStack.Padding.Bottom
+            - AudioFormCard.Padding.Bottom - 2 - AudioWorkspaceGrid.RowSpacing - resultsHeight;
+        var bodyHeight = stacked ? 120 : Math.Max(80, Math.Floor(remaining - chrome));
+        AudioCommandPreviewBox.PreviewHeight = bodyHeight;
+        AudioLogTextBox.Height = bodyHeight;
     }
 
     private void AudioProcessingView_Loaded(object sender, RoutedEventArgs e)
@@ -241,8 +281,7 @@ public sealed partial class AudioProcessingView : UserControl
 
     private void ConfigureOutputPathGrid()
     {
-        AudioOutputPathGrid.RowSpacing = 6;
-        AudioSourcePathGrid.RowSpacing = 6;
+        AudioOutputPathGrid.RowSpacing = UiTokens.SpacingM;
         Grid.SetRow(AudioOutputPreviewTextBlock, 1);
         Grid.SetColumn(AudioOutputPreviewTextBlock, 0);
         Grid.SetColumnSpan(AudioOutputPreviewTextBlock, 2);

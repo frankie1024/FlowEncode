@@ -79,6 +79,7 @@ public sealed class AppText
     public string RateControlHeader => Pick("码率控制", "Rate Control");
     public string OutputFormatHeader => Pick("输出格式", "Output");
     public string AdditionalArgumentsHeader => Pick("定制压制参数", "Custom Arguments");
+    public string AdditionalArgumentsSideHeader => Pick("定制\n压制\n参数", "Custom\nArguments");
     public string VideoEncodingModeHeader => Pick("压制方式", "Encoding Mode");
     public string TraditionalVideoEncodingMode => Pick("传统单进程压制", "Traditional single-process encode");
     public string Av1anParallelVideoMode => Pick("Av1an 分块并行压制", "Av1an chunked parallel encode");
@@ -157,6 +158,7 @@ public sealed class AppText
     public string AudioEac3ToAdditionalArgumentsHeader => Pick("额外参数", "Extra Arguments");
     public string AudioEac3ToAdditionalArgumentsPlaceholder => Pick("可选：-down16 -mono", "Optional: -down16 -mono");
     public string AudioOpusBitrateHeader => Pick("Opus 码率", "Opus Bitrate");
+    public string AudioOpusNoAdvancedOptionsHint => Pick("Opus 的码率和环绕映射已显示在主页面，无需额外设置。", "Opus bitrate and surround mapping are available on the main page. No additional settings are needed.");
     public string AudioOpusMappingFamilyHeader => Pick("环绕映射", "Surround Mapping");
     public string AudioOpusMappingFamilyTooltip => Pick(
         "开启：使用正确的环绕声道映射。关闭：保持标准映射。立体声保持关闭，5.1/7.1 建议开启。",
@@ -515,7 +517,7 @@ public sealed class AppText
     public string SetupGuidePreviousButton => Pick("上一页", "Previous");
     public string SetupGuideNextButton => Pick("下一页", "Next");
     public string SetupGuideLocalCheckIdleStatus => Pick("本地环境状态：尚未检测。", "Local environment status has not been checked.");
-    public string SetupGuideRemoteCheckIdleStatus => Pick("依赖更新：尚未检查。", "Dependency updates have not been checked.");
+    public string SetupGuideRemoteCheckIdleStatus => Pick("推荐版本：随程序提供，无需联网检查。", "Recommended versions ship with the app; no online check is needed.");
     public string SetupGuideLocalRefreshCompletedStatus => Pick("本地环境状态已更新。", "Local environment status refreshed.");
     public string SetupGuideLocalCheckedAtLabel(DateTimeOffset time) =>
         IsChinese
@@ -524,8 +526,8 @@ public sealed class AppText
 
     public string SetupGuideRemoteCheckedAtLabel(DateTimeOffset time) =>
         IsChinese
-            ? $"依赖更新：{time.ToLocalTime():yyyy-MM-dd HH:mm:ss}"
-            : $"Dependency updates: {time.ToLocalTime():yyyy-MM-dd HH:mm:ss}";
+            ? $"推荐版本核对：{time.ToLocalTime():yyyy-MM-dd HH:mm:ss}"
+            : $"Recommended version check: {time.ToLocalTime():yyyy-MM-dd HH:mm:ss}";
     public string SetupGuidePortableSectionTitle => Pick("工作目录布局", "Workspace Layout");
     public string SetupGuidePortableSectionDescription => Pick(
         "托管工具、下载缓存、编码器和 Templates 模板目录位于工作目录；轻量设置、日志和首启引导缓存仍保留在 %LocalAppData%\\FlowEncode\\data。",
@@ -999,7 +1001,7 @@ public sealed class AppText
     public string DeewLfeHeader => Pick("禁用 LFE", "Disable LFE");
     public string DeewDelayHeader => Pick("延迟（如 -5ms）", "Delay (e.g. -5ms)");
     public string DeewTrackHeader => Pick("音轨索引（从 0 开始）", "Track index (zero-based)");
-    public string DeewAdvancedHeader => Pick("高级参数与临时目录", "Advanced arguments and temporary files");
+    public string DeewAdvancedHeader => Pick("高级参数", "Advanced parameters");
     public string DeewMeasureOnlyHeader => Pick("仅测响度 (-mo)", "Measure only (-mo)");
     public string DeewKeepLogHeader => Pick("保留诊断日志 (-kl)", "Keep diagnostic logs (-kl)");
     public string DeewKeepTempHeader => Pick("保留临时文件 (-k)", "Keep temporary files (-k)");

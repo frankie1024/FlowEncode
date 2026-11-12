@@ -17,9 +17,20 @@ public sealed class TaskHistoryStore : ITaskHistoryStore
             try
             {
                 var record = JsonSerializer.Deserialize<TaskHistoryRecord>(File.ReadAllBytes(path));
-                if (record is not null) { record.Workload.Validate(); records.Add(record); }
+                if (record?.Snapshot is not { } snapshot || record.Workload is not { } workload)
+                    throw new InvalidDataException("Task history is missing its receipt or request.");
+                workload.Validate();
+                if (snapshot.TaskId != workload.TaskId || snapshot.Kind != workload.Kind
+                    || !Enum.IsDefined(snapshot.State) || !Enum.IsDefined(snapshot.Origin)
+                    || snapshot.Log is null || snapshot.Summary is null || snapshot.Stage is null
+                    || snapshot.Artifacts is null || snapshot.Artifacts.Any(a => a is null || string.IsNullOrWhiteSpace(a.Path))
+                    || !string.Equals(snapshot.SourcePath, workload.SourcePath, StringComparison.OrdinalIgnoreCase)
+                    || !string.Equals(snapshot.OutputPath, workload.OutputPath, StringComparison.OrdinalIgnoreCase))
+                    throw new InvalidDataException("Task history receipt does not match its request.");
+                records.Add(record);
             }
-            catch (Exception ex) when (ex is IOException or JsonException or ArgumentException or InvalidOperationException)
+            catch (Exception ex) when (ex is IOException or InvalidDataException or UnauthorizedAccessException or JsonException
+                or ArgumentException or InvalidOperationException or NullReferenceException)
             { Debug.WriteLine("Task history preserved but unreadable: " + path + " — " + ex.Message); }
         return records;
     }

@@ -2,6 +2,17 @@ namespace FlowEncode.Infrastructure;
 
 internal static class PythonRuntimeCompatibility
 {
+    private static readonly AsyncLocal<Lazy<IReadOnlyList<PythonRuntimeProbe>>?> DiscoveryCache = new();
+
+    // Candidate lookup and child-process PATH enrichment both discover Python.
+    // Share that discovery within a scan, including concurrent async continuations.
+    internal static IDisposable BeginDiscoveryScope()
+    {
+        var previous = DiscoveryCache.Value;
+        DiscoveryCache.Value ??= new Lazy<IReadOnlyList<PythonRuntimeProbe>>(DiscoverCompatiblePythonRuntimes);
+        return new DiscoveryScope(previous);
+    }
+
     public static readonly Version MinimumSupportedVersion = new(3, 12);
     public static readonly IReadOnlyList<string> EnvironmentVariableNames = ["FLOWENCODE_PYTHON", "PYTHON_PATH", "PYTHON_EXE", "PYTHON"];
 
@@ -149,6 +160,9 @@ internal static class PythonRuntimeCompatibility
     }
 
     private static IReadOnlyList<PythonRuntimeProbe> BuildCompatiblePythonRuntimes()
+        => DiscoveryCache.Value?.Value ?? DiscoverCompatiblePythonRuntimes();
+
+    private static IReadOnlyList<PythonRuntimeProbe> DiscoverCompatiblePythonRuntimes()
     {
         var candidates = EnumerateEnvironmentPythonExecutablePaths()
             .Concat(EnumeratePathPythonExecutablePaths())
@@ -277,4 +291,9 @@ internal static class PythonRuntimeCompatibility
     }
 
     private sealed record PythonRuntimeProbe(Version Version, string ExecutablePath, bool Is64Bit, bool HasVapourSynth);
+
+    private sealed class DiscoveryScope(Lazy<IReadOnlyList<PythonRuntimeProbe>>? previous) : IDisposable
+    {
+        public void Dispose() => DiscoveryCache.Value = previous;
+    }
 }

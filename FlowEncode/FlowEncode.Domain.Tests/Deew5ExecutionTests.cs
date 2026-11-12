@@ -11,6 +11,29 @@ namespace FlowEncode.Domain.Tests;
 public sealed class Deew5ExecutionTests
 {
     [TestMethod]
+    public async Task OutputCollision_PreflightsAllMediaBeforePublishingAnyFile()
+    {
+        using var fixture = new Fixture();
+        var request = fixture.Request(scenario: "collision") with { OverwriteOutput = false };
+        var source = Path.Combine(fixture.InputDirectory, "a-source.wav");
+        File.Move(request.SourcePath, source);
+        request = request with { SourcePath = source };
+        Directory.CreateDirectory(request.OutputPath);
+        var existing = Path.Combine(request.OutputPath, "z-conflict.ec3");
+        await File.WriteAllTextAsync(existing, "existing output");
+
+        var result = await fixture.Runner.RunAsync(request);
+
+        Assert.AreEqual(EncodingJobState.Failed, result.State, result.Log);
+        Assert.AreEqual("existing output", await File.ReadAllTextAsync(existing));
+        Assert.IsFalse(File.Exists(Path.Combine(request.OutputPath,
+            Path.GetFileNameWithoutExtension(request.SourcePath) + ".ec3")));
+        Assert.AreEqual(0, result.OutputFiles!.Count);
+        StringAssert.Contains(result.Summary, "Recoverable output retained:");
+        Assert.AreEqual(Deew5ContractTests.Config, await File.ReadAllTextAsync(fixture.ConfigPath));
+    }
+
+    [TestMethod]
     public async Task Encoding_PublishesOnlyNewMediaAndRestoresConfig()
     {
         using var fixture = new Fixture();

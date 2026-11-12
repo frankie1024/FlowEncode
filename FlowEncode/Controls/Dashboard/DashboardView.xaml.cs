@@ -1,4 +1,5 @@
 using System;
+using System.Linq;
 using System.Numerics;
 using FlowEncode.Controls.Shared;
 using Microsoft.UI.Xaml;
@@ -20,6 +21,7 @@ public sealed partial class DashboardView : UserControl
         InitializeComponent();
         SizeChanged += DashboardView_SizeChanged;
         DashboardScroller.SizeChanged += DashboardScroller_SizeChanged;
+        DashboardCardGrid.SizeChanged += (_, _) => UpdateCardDensity();
         Loaded += DashboardView_Loaded;
     }
 
@@ -58,15 +60,15 @@ public sealed partial class DashboardView : UserControl
 
         _lastWidth = width;
         DashboardContentStack.Padding = contentPadding;
-        DashboardContentStack.Spacing = width < 1100 ? UiTokens.SpacingXL : UiTokens.SpacingXXL;
+        DashboardContentStack.RowSpacing = UiTokens.SpacingL;
         DashboardHeroCard.Padding = UiTokens.CardPadding;
-        DashboardHeroCard.MinHeight = width < 1100 ? 132 : 148;
+        DashboardHeroCard.MinHeight = 104;
         DashboardHeaderTitle.FontSize = width < 1100 ? UiTokens.DisplayFontSizeCompact : UiTokens.DisplayFontSize;
         DashboardHeaderPanel.MaxWidth = width < 1100 ? 720 : 960;
-        DashboardHeaderPanel.Margin = new Thickness(GetDashboardHeroTextOffset(width), 0, 0, 0);
+        DashboardHeaderPanel.Margin = new Thickness(0);
         DashboardHeroGrid.ColumnSpacing = width < 1100 ? UiTokens.SpacingL : UiTokens.SpacingXL;
 
-        var dashboardHeroIconSize = width < 1100 ? 108 : 136;
+        var dashboardHeroIconSize = width < 1100 ? 72 : 80;
         DashboardHeroIconFrame.Width = dashboardHeroIconSize;
         DashboardHeroIconFrame.Height = dashboardHeroIconSize;
         DashboardHeroIconFrame.Visibility = width < 760 ? Visibility.Collapsed : Visibility.Visible;
@@ -92,28 +94,25 @@ public sealed partial class DashboardView : UserControl
         }
     }
 
-    private static double GetDashboardHeroTextOffset(double width)
-    {
-        if (width < 1100)
-        {
-            return 0;
-        }
-
-        return Math.Clamp((width - 1100) * 0.12, 0, 120);
-    }
-
     private void ApplyDashboardCardLayout(double width)
     {
-        var columnCount = width >= 1180
+        var columnCount = width >= 960
             ? 3
             : width >= 700
                 ? 2
                 : 1;
         var rowCount = (int)Math.Ceiling((double)DashboardCardCount / columnCount);
-        var rowSpacing = width < 1100 ? UiTokens.SpacingL : UiTokens.SpacingXL;
+        var rowSpacing = UiTokens.SpacingL;
 
         DashboardCardGrid.ColumnSpacing = columnCount == 1 ? 0 : rowSpacing;
         DashboardCardGrid.RowSpacing = rowSpacing;
+        if (DashboardCardGrid.ColumnDefinitions.Count != columnCount)
+        {
+            DashboardCardGrid.ColumnDefinitions.Clear();
+            DashboardCardGrid.ColumnDefinitions.Add(DashboardPrimaryColumn);
+            if (columnCount >= 2) DashboardCardGrid.ColumnDefinitions.Add(DashboardSecondaryColumn);
+            if (columnCount >= 3) DashboardCardGrid.ColumnDefinitions.Add(DashboardTertiaryColumn);
+        }
         DashboardPrimaryColumn.Width = new GridLength(1, GridUnitType.Star);
         DashboardSecondaryColumn.Width = columnCount >= 2
             ? new GridLength(1, GridUnitType.Star)
@@ -122,7 +121,7 @@ public sealed partial class DashboardView : UserControl
             ? new GridLength(1, GridUnitType.Star)
             : new GridLength(0);
 
-        var cardHeight = width < 1100 ? 216 : 248;
+        var cardHeight = columnCount >= 3 ? 176 : 164;
         DashboardDemuxButton.MinHeight = cardHeight;
         DashboardVapourSynthButton.MinHeight = cardHeight;
         DashboardVideoEncodeButton.MinHeight = cardHeight;
@@ -130,9 +129,10 @@ public sealed partial class DashboardView : UserControl
         DashboardAutoCompressionButton.MinHeight = cardHeight;
         DashboardSettingsButton.MinHeight = cardHeight;
 
-        var stretchedCardGridHeight = ResolveDashboardCardGridHeight(rowCount, rowSpacing, cardHeight, columnCount, width);
-        DashboardCardGrid.Height = stretchedCardGridHeight ?? double.NaN;
-        ConfigureDashboardRows(rowCount, stretchedCardGridHeight.HasValue);
+        // The Grid divides the current viewport between its star rows. Narrow
+        // layouts retain their natural content height and scroll instead.
+        DashboardContentStack.MinHeight = columnCount > 1 ? Math.Floor(DashboardScroller.ActualHeight) : 0;
+        ConfigureDashboardRows(rowCount, columnCount > 1);
 
         ArrangeDashboardCard(DashboardDemuxButton, 0, columnCount);
         ArrangeDashboardCard(DashboardVapourSynthButton, 1, columnCount);
@@ -140,6 +140,7 @@ public sealed partial class DashboardView : UserControl
         ArrangeDashboardCard(DashboardAudioButton, 3, columnCount);
         ArrangeDashboardCard(DashboardAutoCompressionButton, 4, columnCount);
         ArrangeDashboardCard(DashboardSettingsButton, 5, columnCount);
+        UpdateCardDensity();
     }
 
     private static void ArrangeDashboardCard(FrameworkElement card, int index, int columnCount)
@@ -148,40 +149,40 @@ public sealed partial class DashboardView : UserControl
         Grid.SetColumn(card, index % columnCount);
     }
 
-    private double? ResolveDashboardCardGridHeight(
-        int rowCount,
-        double rowSpacing,
-        double cardMinHeight,
-        int columnCount,
-        double width)
+    private void UpdateCardDensity()
     {
-        if (columnCount == 1 || DashboardScroller.ActualHeight <= 0 || DashboardHeroCard.ActualHeight <= 0)
+        foreach (var card in new[] { DashboardDemuxButton, DashboardVapourSynthButton, DashboardVideoEncodeButton,
+                     DashboardAudioButton, DashboardAutoCompressionButton, DashboardSettingsButton })
         {
-            return null;
+            if (card.Content is not Grid content || card.ActualWidth <= 0 || card.ActualHeight <= 0) continue;
+
+            var scale = Math.Clamp(Math.Min(card.ActualWidth / 360, card.ActualHeight / 220), 1, 1.6);
+            var textScale = Math.Sqrt(scale);
+            card.Padding = new Thickness(UiTokens.CardPadding.Left * scale);
+            content.RowSpacing = UiTokens.SpacingM * scale;
+            // Keep the icon/title group balanced within the card as it grows.
+            content.RowDefinitions[0].Height = new GridLength(1, GridUnitType.Star);
+            content.RowDefinitions[1].Height = GridLength.Auto;
+            content.RowDefinitions[2].Height = new GridLength(1, GridUnitType.Star);
+
+            var iconHost = content.Children.OfType<FrameworkElement>().FirstOrDefault(child => Grid.GetRow(child) == 0);
+            if (iconHost is not null)
+            {
+                iconHost.VerticalAlignment = VerticalAlignment.Bottom;
+                var icon = iconHost as Viewbox ?? (iconHost as Grid)?.Children.OfType<Viewbox>().FirstOrDefault();
+                if (icon is not null) icon.Width = icon.Height = 28 * scale;
+            }
+            var description = content.Children.OfType<StackPanel>().FirstOrDefault(child => Grid.GetRow(child) == 1);
+            if (description is not null)
+            {
+                description.Spacing = UiTokens.SpacingS * scale;
+                var text = description.Children.OfType<TextBlock>().ToArray();
+                if (text.Length > 0) text[0].FontSize = 22 * textScale;
+                if (text.Length > 1) text[1].FontSize = 14 * textScale;
+            }
+            var footer = content.Children.OfType<FrameworkElement>().FirstOrDefault(child => Grid.GetRow(child) == 2);
+            if (footer is not null) footer.VerticalAlignment = VerticalAlignment.Bottom;
         }
-
-        var verticalChrome = DashboardContentStack.Padding.Top
-            + DashboardContentStack.Padding.Bottom
-            + DashboardHeroCard.ActualHeight
-            + DashboardContentStack.Spacing;
-        var availableHeight = DashboardScroller.ActualHeight - verticalChrome;
-        if (availableHeight <= 0)
-        {
-            return null;
-        }
-
-        var minimumGridHeight = (rowCount * cardMinHeight) + ((rowCount - 1) * rowSpacing);
-        if (availableHeight <= minimumGridHeight)
-        {
-            return null;
-        }
-
-        var maxRowHeight = columnCount >= 3
-            ? width >= 1600 ? 328.0 : 304.0
-            : 276.0;
-        var maximumGridHeight = (rowCount * maxRowHeight) + ((rowCount - 1) * rowSpacing);
-
-        return Math.Min(availableHeight, maximumGridHeight);
     }
 
     private void ConfigureDashboardRows(int visibleRows, bool stretch)
@@ -195,6 +196,16 @@ public sealed partial class DashboardView : UserControl
             DashboardRow4,
             DashboardRow5
         };
+
+        // Zero-height definitions still contribute Grid.RowSpacing in WinUI.
+        if (DashboardCardGrid.RowDefinitions.Count != visibleRows)
+        {
+            DashboardCardGrid.RowDefinitions.Clear();
+            for (var index = 0; index < visibleRows; index++)
+            {
+                DashboardCardGrid.RowDefinitions.Add(rowHeights[index]);
+            }
+        }
 
         for (var index = 0; index < rowHeights.Length; index++)
         {

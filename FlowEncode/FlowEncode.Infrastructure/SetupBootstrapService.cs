@@ -51,6 +51,8 @@ public sealed class SetupBootstrapService : ISetupBootstrapService, IDisposable
     private readonly HttpClient _downloadHttpClient;
     private readonly IAppSettingsService _appSettingsService;
     private PythonInstallerPackage _latestPythonInstallerPackage = PythonFallbackInstallerPackage;
+    private EnvironmentReadinessReport? _localContextReadiness;
+    private SetupStatusLocalContext? _localContext;
 
     public SetupBootstrapService(
         LocalAppPaths paths,
@@ -201,22 +203,8 @@ public sealed class SetupBootstrapService : ISetupBootstrapService, IDisposable
         EnvironmentReadinessReport readiness,
         CancellationToken cancellationToken)
     {
-        var localContextTask = BuildLocalStatusContextAsync(readiness, refreshVsrepoPackageDefinitions: true, cancellationToken);
-        var pypiVersionsTask = GetLatestPyPiVersionsAsync(cancellationToken);
-        var pythonInstallerPackageTask = SafeGetLatestPythonInstallerPackageAsync(cancellationToken);
-        var encoderUpdatesTask = SafeGetEncoderUpdatesAsync(cancellationToken);
-        var toolUpdatesTask = SafeGetToolUpdatesAsync(cancellationToken);
-
-        await Task.WhenAll(localContextTask, pypiVersionsTask, pythonInstallerPackageTask, encoderUpdatesTask, toolUpdatesTask);
-
-        return BuildStatusReport(
-            readiness,
-            localContextTask.Result,
-            pypiVersionsTask.Result,
-            pythonInstallerPackageTask.Result,
-            encoderUpdatesTask.Result,
-            toolUpdatesTask.Result,
-            DateTimeOffset.Now);
+        // The recommended versions ship with the app. Resolve release assets only when installing.
+        return await GetLocalStatusReportCoreAsync(readiness, previousReport: null, cancellationToken);
     }
 
     private async Task<SetupDependencyStatusReport> GetLocalStatusReportCoreAsync(
@@ -234,7 +222,7 @@ public sealed class SetupBootstrapService : ISetupBootstrapService, IDisposable
             Array.Empty<ExternalToolUpdatePackage>(),
             DateTimeOffset.Now);
 
-        return MergeRemoteMetadata(localReport, previousReport);
+        return localReport;
     }
 
     private async Task<SetupStatusLocalContext> BuildLocalStatusContextAsync(
@@ -242,28 +230,36 @@ public sealed class SetupBootstrapService : ISetupBootstrapService, IDisposable
         bool refreshVsrepoPackageDefinitions,
         CancellationToken cancellationToken)
     {
-        var pythonInstallations = (await DiscoverPythonInstallationsAsync(readiness, cancellationToken))
-            .OrderByDescending(static item => item.Version)
-            .ToList();
-        var targetPython = OrderPythonInstallations(pythonInstallations).FirstOrDefault(static item => PythonRuntimeCompatibility.IsSupportedRuntime(item.Version, item.Is64Bit));
-        var compatiblePython = targetPython;
-        var highestPython = pythonInstallations.FirstOrDefault();
-        var preferredPythonPath = compatiblePython?.ExecutablePath;
-        var compatiblePythonReady = compatiblePython is not null;
+        if (ReferenceEquals(readiness, _localContextReadiness) && _localContext is not null)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            return _localContext;
+        }
 
-        var vsrepoPackagesTask = QueryVsrepoInstalledPackagesAsync(preferredPythonPath, refreshVsrepoPackageDefinitions, cancellationToken);
-        var awsmfuncVersionTask = QueryPythonDistributionVersionAsync(preferredPythonPath, "awsmfunc", cancellationToken);
-        var vsjetpackVersionTask = QueryPythonDistributionVersionAsync(preferredPythonPath, "vsjetpack", cancellationToken);
+        cancellationToken.ThrowIfCancellationRequested();
+        // The readiness scan already selected and validated Python and read distribution versions.
+        using var discoveryScope = PythonRuntimeCompatibility.BeginDiscoveryScope();
+        var python = GetToolResult(readiness, RegisteredToolKind.Python);
+        var versionMatch = Regex.Match(python.DetectedVersion, @"\d+\.\d+(?:\.\d+)?");
+        var targetPython = python.State == ReadinessState.Ready
+            && python.DetectedVersion.Contains("x64", StringComparison.OrdinalIgnoreCase)
+            && Version.TryParse(versionMatch.Value, out var version)
+            && PythonRuntimeCompatibility.IsSupportedRuntime(version, is64Bit: true)
+                ? new PythonInstallation(version, python.ExecutablePath, true)
+                : null;
+        var vsrepoPackages = await QueryVsrepoInstalledPackagesAsync(
+            targetPython?.ExecutablePath, refreshVsrepoPackageDefinitions, cancellationToken);
 
-        await Task.WhenAll(vsrepoPackagesTask, awsmfuncVersionTask, vsjetpackVersionTask);
-
-        return new SetupStatusLocalContext(
+        var context = new SetupStatusLocalContext(
             targetPython,
-            highestPython,
-            compatiblePythonReady,
-            vsrepoPackagesTask.Result,
-            awsmfuncVersionTask.Result,
-            vsjetpackVersionTask.Result);
+            null,
+            targetPython is not null,
+            vsrepoPackages,
+            GetToolResult(readiness, RegisteredToolKind.PythonModuleAwsmfunc).DetectedVersion,
+            GetToolResult(readiness, RegisteredToolKind.PythonModuleVsjetpack).DetectedVersion);
+        _localContextReadiness = readiness;
+        _localContext = context;
+        return context;
     }
 
     private SetupDependencyStatusReport BuildStatusReport(
@@ -296,59 +292,20 @@ public sealed class SetupBootstrapService : ISetupBootstrapService, IDisposable
             BuildToolStatus(readiness, SetupDependencyKind.OpusExt, RegisteredToolKind.OpusExt)
         };
 
-        return new SetupDependencyStatusReport(checkedAt, dependencies);
-    }
-
-    private SetupDependencyStatusReport MergeRemoteMetadata(
-        SetupDependencyStatusReport localReport,
-        SetupDependencyStatusReport? previousReport)
-    {
-        if (previousReport is null)
+        return new SetupDependencyStatusReport(checkedAt, dependencies.Select(status =>
         {
-            return localReport;
-        }
-
-        var previousMap = previousReport.Dependencies.ToDictionary(static item => item.Kind, static item => item);
-        var mergedDependencies = localReport.Dependencies
-            .Select(localStatus =>
+            if (!ToolchainBaseline.HasBaseline(status.Kind)) return status;
+            return status with
             {
-                if (!previousMap.TryGetValue(localStatus.Kind, out var previousStatus))
-                {
-                    return localStatus;
-                }
-
-                if (!string.IsNullOrWhiteSpace(localStatus.LatestVersion))
-                {
-                    return localStatus;
-                }
-
-                var mergedLatestVersion = previousStatus.LatestVersion;
-                if (string.IsNullOrWhiteSpace(mergedLatestVersion))
-                {
-                    return localStatus;
-                }
-
-                var mergedReleaseUrl = string.IsNullOrWhiteSpace(localStatus.ReleaseUrl)
-                    ? previousStatus.ReleaseUrl
-                    : localStatus.ReleaseUrl;
-
-                var mergedUpdateAvailable = HasSetupDependencyVersionUpdate(localStatus.Kind, localStatus.InstalledVersion, mergedLatestVersion);
-
-                return localStatus with
-                {
-                    LatestVersion = mergedLatestVersion,
-                    UpdateAvailable = mergedUpdateAvailable,
-                    ReleaseUrl = mergedReleaseUrl,
-                    IsInstallSupported = previousStatus.IsInstallSupported,
-                    IsInstallEnabled = previousStatus.IsInstallEnabled
-                };
-            })
-            .ToList();
-
-        return localReport with
-        {
-            Dependencies = mergedDependencies
-        };
+                LatestVersion = ToolchainBaseline.VersionFor(status.Kind),
+                UpdateAvailable = status.State != ReadinessState.Missing
+                    && !ToolchainBaseline.IsRecommendedVersion(status.Kind, status.InstalledVersion),
+                IsInstallSupported = true,
+                IsInstallEnabled = status.Kind is SetupDependencyKind.FfmpegBundle or SetupDependencyKind.X264
+                    or SetupDependencyKind.X265 or SetupDependencyKind.SvtAv1 or SetupDependencyKind.Av1an
+                    || status.IsInstallEnabled
+            };
+        }).ToArray());
     }
 
     private SetupDependencyStatus BuildPythonStatus(
@@ -1723,38 +1680,6 @@ public sealed class SetupBootstrapService : ISetupBootstrapService, IDisposable
         return installations.OrderByDescending(static item => PythonRuntimeCompatibility.IsSupportedRuntime(item.Version, item.Is64Bit))
             .ThenBy(item => PythonRuntimeCompatibility.SelectionRank(item.ExecutablePath, item.HasVapourSynth, item.Version, bindings, pathRuntimes))
             .ThenByDescending(static item => item.Version);
-    }
-
-    private Task<IReadOnlyDictionary<string, string>> GetLatestPyPiVersionsAsync(CancellationToken cancellationToken)
-    {
-        cancellationToken.ThrowIfCancellationRequested();
-        var packageNames = new[] { "vapoursynth", "vsrepo", "awsmfunc", "vsjetpack" };
-        return Task.FromResult<IReadOnlyDictionary<string, string>>(packageNames.ToDictionary(
-            static name => name, static name => VapourSynthToolchainPolicy.RecommendedVersion(name, string.Empty), StringComparer.OrdinalIgnoreCase));
-    }
-
-    private async Task<IReadOnlyList<EncoderUpdatePackage>> SafeGetEncoderUpdatesAsync(CancellationToken cancellationToken)
-    {
-        try
-        {
-            return await _encoderUpdateService.GetBaselinePackagesAsync(cancellationToken);
-        }
-        catch
-        {
-            return Array.Empty<EncoderUpdatePackage>();
-        }
-    }
-
-    private async Task<IReadOnlyList<ExternalToolUpdatePackage>> SafeGetToolUpdatesAsync(CancellationToken cancellationToken)
-    {
-        try
-        {
-            return await _externalToolService.GetBaselinePackagesAsync(cancellationToken);
-        }
-        catch
-        {
-            return Array.Empty<ExternalToolUpdatePackage>();
-        }
     }
 
     private async Task<string> QueryPythonDistributionVersionAsync(

@@ -4,6 +4,12 @@ using System.Text.RegularExpressions;
 // A real child process for lifecycle tests, independent of licensed external tools.
 var tool = Path.GetFileNameWithoutExtension(Environment.ProcessPath!);
 string? Option(string name) { var i = Array.IndexOf(args, name); return i >= 0 && i + 1 < args.Length ? args[i + 1] : null; }
+if (tool == "python" && args.Contains("-c"))
+{
+    await File.AppendAllTextAsync(Path.Combine(AppContext.BaseDirectory, "python-probes.log"), "probe\n");
+    Console.WriteLine($"3.14.10\n{Environment.ProcessPath}\n64\nAMD64\nVS_PRESENT");
+    return 0;
+}
 if (args.Contains("--hold-child")) { await Task.Delay(TimeSpan.FromMinutes(1)); return 0; }
 if (args.Contains("--version") || args.Contains("-version") || args.Contains("--help"))
 {
@@ -64,6 +70,8 @@ if (!measured && scenario != "empty" && scenario != "error-tail")
     var ext = format switch { "dd" => ".ac3", "thd" or "thd-atmos" => ".thd", "ac4" or "ac4-atmos" => ".ac4", "aac" => ".aac", _ => ".ec3" };
     if (format == "ddp" && (channels is 7 or 8 || args.Contains("-ti")) && Option("--ddp-mode") == "bluray") ext = ".eb3";
     await File.WriteAllTextAsync(Path.Combine(output, Path.GetFileNameWithoutExtension(sourcePath) + ext), "encoded media");
+    if (scenario == "collision")
+        await File.WriteAllTextAsync(Path.Combine(output, "z-conflict" + ext), "second encoded media");
 }
 await Event(new { type = "done", job = 0 });
 if (scenario == "error-tail") await Event(new { type = "error", text = "error appended after done" });

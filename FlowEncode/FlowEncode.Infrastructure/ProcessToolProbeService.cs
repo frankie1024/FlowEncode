@@ -35,6 +35,7 @@ public sealed class ProcessToolProbeService : IToolProbeService
     {
         return Task.Run<IReadOnlyList<ToolProbeResult>>(() =>
         {
+            using var discoveryScope = PythonRuntimeCompatibility.BeginDiscoveryScope();
             cancellationToken.ThrowIfCancellationRequested();
             var vsrepoInstalledCache = new Dictionary<string, VsrepoInstalledProbeResult>(StringComparer.OrdinalIgnoreCase);
 
@@ -49,6 +50,7 @@ public sealed class ProcessToolProbeService : IToolProbeService
     {
         return Task.Run(() =>
         {
+            using var discoveryScope = PythonRuntimeCompatibility.BeginDiscoveryScope();
             var definition = _toolRegistryService.GetTool(kind);
             var vsrepoInstalledCache = new Dictionary<string, VsrepoInstalledProbeResult>(StringComparer.OrdinalIgnoreCase);
             return ProbeCached(definition, cancellationToken, vsrepoInstalledCache);
@@ -219,7 +221,7 @@ public sealed class ProcessToolProbeService : IToolProbeService
             {
                 var deewLine = output.Split('\n').FirstOrDefault(l => l.TrimStart().StartsWith("deew ", StringComparison.OrdinalIgnoreCase)) ?? output;
                 if (!DeewToolchain.IsSupportedVersion(deewLine))
-                    return CreateMisconfiguredResult(definition, candidate, "FlowEncode 3.0 requires deew >=5.1.0. Upgrade the writable portable deew directory; legacy deew remains supported in FlowEncode 2.0.2.");
+                    return CreateMisconfiguredResult(definition, candidate, "FlowEncode 3.0 requires deew >=5.1.0. Upgrade the writable portable deew directory; legacy deew remains supported in FlowEncode 2.0.3.");
                 return ready with { BackendCompatibilityDetail = "deew 5.1 contract; format-specific DEE >=6.7.0 tools and writable adjacent config are validated for each request." };
             }
             return definition.Kind == RegisteredToolKind.Av1an

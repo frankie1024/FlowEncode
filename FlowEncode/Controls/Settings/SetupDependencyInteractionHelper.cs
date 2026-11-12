@@ -14,6 +14,63 @@ namespace FlowEncode.Controls.Settings;
 
 internal static class SetupDependencyInteractionHelper
 {
+    public static void ShowMoreDependencyActions(
+        ISetupDependencyModuleViewModel viewModel,
+        FrameworkElement owner,
+        FrameworkElement button,
+        SetupGuideDependencyItemViewModel item,
+        string diagnosticSource)
+    {
+        var texts = viewModel.Texts;
+        var menu = new MenuFlyout();
+        if (item.IsManualSelectVisible)
+        {
+            var pinItem = new MenuFlyoutItem
+            {
+                Text = texts.PinExternalToolButton,
+                IsEnabled = item.ManualSelectEnabled,
+                Icon = new SymbolIcon(Symbol.OpenFile)
+            };
+            pinItem.Click += async (_, _) => await ManualSelectSetupDependencyAsync(viewModel, owner, item.Kind, diagnosticSource);
+            menu.Items.Add(pinItem);
+        }
+        if (item.IsManualPinned)
+        {
+            var unpinItem = new MenuFlyoutItem
+            {
+                Text = texts.ClearManualPinButton,
+                IsEnabled = item.ClearManualPinEnabled,
+                Icon = new SymbolIcon(Symbol.UnPin)
+            };
+            unpinItem.Click += async (_, _) => await ClearManualPinnedSetupDependencyAsync(viewModel, owner, item.Kind, diagnosticSource);
+            menu.Items.Add(unpinItem);
+        }
+        var hasBaseline = ToolchainBaseline.HasBaseline(item.Kind);
+        if (hasBaseline || item.IsUpdateAction)
+        {
+            var updateItem = new MenuFlyoutItem
+            {
+                Text = hasBaseline ? item.AdvancedUpdateText : item.PrimaryActionText,
+                IsEnabled = hasBaseline ? item.AdvancedUpdateEnabled : item.PrimaryActionEnabled,
+                Icon = new SymbolIcon(Symbol.Refresh)
+            };
+            updateItem.Click += async (_, _) => await InstallSetupDependencyAsync(viewModel, owner, item.Kind, diagnosticSource, updateBeyondBaseline: hasBaseline);
+            menu.Items.Add(updateItem);
+        }
+        if (!string.IsNullOrWhiteSpace(item.ReleaseUrl))
+        {
+            if (menu.Items.Count > 0) menu.Items.Add(new MenuFlyoutSeparator());
+            var guideItem = new MenuFlyoutItem
+            {
+                Text = texts.ToolGuidePageButton,
+                Icon = new SymbolIcon(Symbol.Link)
+            };
+            guideItem.Click += (_, _) => OpenUrl(item.ReleaseUrl);
+            menu.Items.Add(guideItem);
+        }
+        if (menu.Items.Count > 0) menu.ShowAt(button);
+    }
+
     public static async Task RunGuardedAsync(
         ISetupDependencyModuleViewModel viewModel,
         FrameworkElement owner,

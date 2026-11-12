@@ -10,19 +10,19 @@
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
     mc:Ignorable="d">
     <ScrollViewer x:Name="OverviewScrollViewer" VerticalScrollBarVisibility="Auto">
-        <StackPanel x:Name="OverviewContentStack" Padding="{StaticResource AppPagePadding}" Spacing="0">
+        <Grid x:Name="OverviewContentStack" Padding="{StaticResource AppPagePadding}">
             <Grid x:Name="OverviewWorkspaceGrid" ColumnSpacing="{StaticResource AppSpacingL}" RowSpacing="{StaticResource AppSpacingL}">
                 <Grid.RowDefinitions>
                     <RowDefinition x:Name="OverviewWorkspacePrimaryRow" Height="Auto" />
                     <RowDefinition x:Name="OverviewWorkspaceSecondaryRow" Height="Auto" />
                 </Grid.RowDefinitions>
                 <Grid.ColumnDefinitions>
-                    <ColumnDefinition x:Name="OverviewPrimaryColumn" Width="0.85*" />
-                    <ColumnDefinition x:Name="OverviewSecondaryColumn" Width="1.15*" />
+                    <ColumnDefinition x:Name="OverviewPrimaryColumn" Width="*" />
+                    <ColumnDefinition x:Name="OverviewSecondaryColumn" Width="*" />
                 </Grid.ColumnDefinitions>
 
                 <Border x:Name="OverviewComposerPanel" Grid.Row="0" Grid.Column="0" Padding="{StaticResource AppCardPadding}" Background="{ThemeResource CardBrush}" BorderBrush="{ThemeResource CardBorderBrush}" BorderThickness="{StaticResource AppCardBorderThickness}" CornerRadius="{StaticResource AppLargeCornerRadius}" VerticalAlignment="Stretch" DataContext="{Binding Composer}">
-                    <Grid RowSpacing="{StaticResource AppSpacingM}">
+                    <Grid x:Name="OverviewComposerGrid" RowSpacing="{StaticResource AppSpacingS}">
                         <Grid.RowDefinitions>
                             <RowDefinition Height="Auto" />
                             <RowDefinition Height="Auto" />
@@ -32,8 +32,7 @@
                             <RowDefinition Height="Auto" />
                             <RowDefinition Height="Auto" />
                             <RowDefinition Height="Auto" />
-                            <RowDefinition Height="Auto" />
-                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="*" />
                         </Grid.RowDefinitions>
 
                         <TextBlock FontFamily="{StaticResource AppDisplayFont}" FontSize="{StaticResource AppSectionTitleFontSize}" FontWeight="SemiBold" Text="{Binding Texts.ComposerTitle}" />
@@ -141,18 +140,33 @@
                         </Grid>
 
                         <Grid x:Name="DraftEncodingModeGrid" Grid.Row="6" ColumnSpacing="{StaticResource AppSpacingM}" RowSpacing="{StaticResource AppSpacingM}">
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
+                            </Grid.RowDefinitions>
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="*" />
-                                <ColumnDefinition Width="220" />
+                                <ColumnDefinition x:Name="DraftParallelWorkersColumn" Width="*" />
                             </Grid.ColumnDefinitions>
-                            <ComboBox
-                                x:Name="DraftVideoEncodingModeComboBox"
-                                Header="{Binding Texts.VideoEncodingModeHeader}"
-                                AutomationProperties.Name="{Binding Texts.VideoEncodingModeHeader}"
-                                AutomationProperties.AutomationId="DraftVideoEncodingModeComboBox"
-                                DisplayMemberPath="Label"
-                                ItemsSource="{Binding VideoEncodingModeOptions}"
-                                SelectedItem="{Binding SelectedVideoEncodingMode, Mode=TwoWay}" />
+                            <Grid x:Name="DraftEncodingModeSelectorGrid" ColumnSpacing="{StaticResource AppSpacingM}" VerticalAlignment="Bottom">
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
+                                </Grid.RowDefinitions>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition x:Name="DraftEncodingModeSelectorColumn" Width="*" />
+                                </Grid.ColumnDefinitions>
+                                <TextBlock VerticalAlignment="Center" Text="{Binding Texts.VideoEncodingModeHeader}" />
+                                <ComboBox
+                                    x:Name="DraftVideoEncodingModeComboBox"
+                                    Grid.Column="1"
+                                    AutomationProperties.Name="{Binding Texts.VideoEncodingModeHeader}"
+                                    AutomationProperties.AutomationId="DraftVideoEncodingModeComboBox"
+                                    DisplayMemberPath="Label"
+                                    ItemsSource="{Binding VideoEncodingModeOptions}"
+                                    SelectedItem="{Binding SelectedVideoEncodingMode, Mode=TwoWay}" />
+                            </Grid>
                             <NumberBox
                                 x:Name="DraftAv1anParallelWorkersNumberBox"
                                 Grid.Column="1"
@@ -175,7 +189,7 @@
                                 </Grid.RowDefinitions>
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition Width="*" />
-                                    <ColumnDefinition x:Name="DraftRateValueInputColumn" Width="240" />
+                                    <ColumnDefinition x:Name="DraftRateValueInputColumn" Width="*" />
                                 </Grid.ColumnDefinitions>
 
                                 <StackPanel Spacing="{StaticResource AppSpacingXS}" VerticalAlignment="Center">
@@ -185,10 +199,10 @@
 
                                 <Grid x:Name="DraftRateValueEditorHost" Grid.Column="1" HorizontalAlignment="Stretch">
                                     <Grid x:Name="DraftQualityContainer" Visibility="{Binding DraftQualityVisibility}">
-                                        <NumberBox Minimum="0" MinWidth="184" SmallChange="0.5" SpinButtonPlacementMode="Inline" Value="{Binding DraftQuality, Mode=TwoWay}" />
+                                        <NumberBox Minimum="0" SmallChange="0.5" SpinButtonPlacementMode="Inline" Value="{Binding DraftQuality, Mode=TwoWay}" />
                                     </Grid>
                                     <Grid x:Name="DraftBitrateContainer" Visibility="{Binding DraftBitrateVisibility}">
-                                        <NumberBox Minimum="1" MinWidth="184" SmallChange="100" SpinButtonPlacementMode="Inline" Value="{Binding DraftBitrate, Mode=TwoWay}" />
+                                        <NumberBox Minimum="1" SmallChange="100" SpinButtonPlacementMode="Inline" Value="{Binding DraftBitrate, Mode=TwoWay}" />
                                     </Grid>
                                 </Grid>
                             </Grid>
@@ -216,7 +230,7 @@
                                 </Grid.ColumnDefinitions>
                                 <ComboBox
                                     x:Name="OverviewTemplatePicker"
-                                    Width="160"
+                                    HorizontalAlignment="Stretch"
                                     MinHeight="40"
                                     DisplayMemberPath="Name"
                                     ItemsSource="{Binding TemplateLibraryItems}"
@@ -230,16 +244,27 @@
                                 </Button>
                             </Grid>
 
-                            <TextBox
-                                x:Name="DraftAdditionalArgumentsTextBox"
-                                Grid.Row="1"
-                                Grid.ColumnSpan="2"
-                                AcceptsReturn="True"
-                                Header="{Binding Texts.AdditionalArgumentsHeader}"
-                                MinHeight="180"
-                                VerticalAlignment="Stretch"
-                                Text="{Binding DraftAdditionalArguments, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                                TextWrapping="Wrap" />
+                            <Grid x:Name="DraftAdditionalArgumentsGrid" Grid.Row="1" Grid.ColumnSpan="2" ColumnSpacing="{StaticResource AppSpacingM}">
+                                <Grid.RowDefinitions>
+                                    <RowDefinition x:Name="DraftAdditionalArgumentsLabelRow" Height="*" />
+                                    <RowDefinition x:Name="DraftAdditionalArgumentsEditorRow" Height="0" />
+                                </Grid.RowDefinitions>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition x:Name="DraftAdditionalArgumentsEditorColumn" Width="*" />
+                                </Grid.ColumnDefinitions>
+                                <TextBlock x:Name="DraftAdditionalArgumentsLabel" VerticalAlignment="Center" Text="{Binding Texts.AdditionalArgumentsSideHeader}" TextAlignment="Center" TextWrapping="Wrap" />
+                                <TextBox
+                                    x:Name="DraftAdditionalArgumentsTextBox"
+                                    Grid.Column="1"
+                                    AcceptsReturn="True"
+                                    AutomationProperties.Name="{Binding Texts.AdditionalArgumentsHeader}"
+                                    MinHeight="72"
+                                    ScrollViewer.VerticalScrollBarVisibility="Auto"
+                                    VerticalAlignment="Stretch"
+                                    Text="{Binding DraftAdditionalArguments, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                    TextWrapping="Wrap" />
+                            </Grid>
 
                             <StackPanel x:Name="OverviewAdvancedOptionsPanel" Grid.Row="2" Grid.ColumnSpan="2" Spacing="{StaticResource AppSpacingM}">
                                 <InfoBar HorizontalAlignment="Stretch" IsClosable="False" IsOpen="True" Message="{Binding DraftConstraintWarningText}" Severity="Warning" Visibility="{Binding DraftConstraintWarningVisibility}" />
@@ -270,22 +295,22 @@
                             </StackPanel>
                         </Grid>
 
-                        <ComboBox x:Name="SavedTemplatesQuickSelect" Grid.Row="9" Visibility="Collapsed" DisplayMemberPath="Name" ItemsSource="{Binding UserTemplates}" SelectionChanged="SavedTemplatesQuickSelect_SelectionChanged" />
+                        <ComboBox x:Name="SavedTemplatesQuickSelect" Grid.Row="8" Visibility="Collapsed" DisplayMemberPath="Name" ItemsSource="{Binding UserTemplates}" SelectionChanged="SavedTemplatesQuickSelect_SelectionChanged" />
                     </Grid>
                 </Border>
 
                 <Border x:Name="OverviewQueuePanel" Grid.Row="0" Grid.Column="1" Padding="{StaticResource AppCardPadding}" Background="{ThemeResource CardBrush}" BorderBrush="{ThemeResource CardBorderBrush}" BorderThickness="{StaticResource AppCardBorderThickness}" CornerRadius="{StaticResource AppLargeCornerRadius}" VerticalAlignment="Stretch" DataContext="{Binding Queue}">
-                    <Grid RowSpacing="{StaticResource AppSpacingM}">
+                    <Grid x:Name="OverviewQueueGrid" RowSpacing="{StaticResource AppSpacingM}">
                         <Grid.RowDefinitions>
                             <RowDefinition Height="Auto" />
-                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="*" />
                             <RowDefinition Height="Auto" />
                         </Grid.RowDefinitions>
 
                         <Grid ColumnSpacing="{StaticResource AppSpacingL}">
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="*" />
-                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="1.2*" />
                             </Grid.ColumnDefinitions>
 
                             <StackPanel Spacing="{StaticResource AppSpacingS}">
@@ -293,30 +318,28 @@
                                 <TextBlock Foreground="{ThemeResource SubtleTextBrush}" Text="{Binding QueueSummary}" TextWrapping="WrapWholeWords" />
                             </StackPanel>
 
-                            <Grid Grid.Column="1" ColumnSpacing="{StaticResource AppSpacingM}" HorizontalAlignment="Right" VerticalAlignment="Top">
+                            <Grid Grid.Column="1" ColumnSpacing="{StaticResource AppSpacingM}" VerticalAlignment="Top">
                                 <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="Auto" />
-                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="1.5*" />
                                 </Grid.ColumnDefinitions>
 
-                                <StackPanel Width="132" HorizontalAlignment="Right" Spacing="{StaticResource AppSpacingS}">
+                                <StackPanel Spacing="{StaticResource AppSpacingS}">
                                     <TextBlock HorizontalAlignment="Right" Foreground="{ThemeResource SubtleTextBrush}" Text="{Binding Texts.MaxConcurrentEncodingJobsHeader}" TextAlignment="Right" TextWrapping="WrapWholeWords" />
                                     <ComboBox
                                         x:Name="QueueConcurrentEncodingJobsComboBox"
-                                        Width="88"
-                                        HorizontalAlignment="Right"
+                                        HorizontalAlignment="Stretch"
                                         DisplayMemberPath="Label"
                                         ItemsSource="{Binding ConcurrentEncodingJobOptions}"
                                         SelectedItem="{Binding SelectedConcurrentEncodingJobOption, Mode=TwoWay}"
                                         SelectionChanged="QueueHeaderComboBox_SelectionChanged" />
                                 </StackPanel>
 
-                                <StackPanel Grid.Column="1" Width="156" HorizontalAlignment="Right" Spacing="{StaticResource AppSpacingS}">
+                                <StackPanel Grid.Column="1" Spacing="{StaticResource AppSpacingS}">
                                     <TextBlock HorizontalAlignment="Right" Foreground="{ThemeResource SubtleTextBrush}" Text="{Binding Texts.QueueCompletionActionHeader}" TextAlignment="Right" TextWrapping="WrapWholeWords" />
                                     <ComboBox
                                         x:Name="QueueCompletionActionComboBox"
-                                        Width="140"
-                                        HorizontalAlignment="Right"
+                                        HorizontalAlignment="Stretch"
                                         DisplayMemberPath="Label"
                                         ItemsSource="{Binding QueueCompletionActionOptions}"
                                         SelectedItem="{Binding SelectedQueueCompletionActionOption, Mode=TwoWay}"
@@ -329,15 +352,15 @@
                             <Grid>
                                 <Grid.RowDefinitions>
                                     <RowDefinition Height="Auto" />
-                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="*" />
                                 </Grid.RowDefinitions>
 
-                                <Grid Padding="12,8" Background="{ThemeResource HeroSecondaryBrush}">
+                                <Grid x:Name="QueueTableHeader" Padding="12,8" Background="{ThemeResource HeroSecondaryBrush}">
                                     <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="2*" />
                                         <ColumnDefinition Width="*" />
-                                        <ColumnDefinition Width="112" />
-                                        <ColumnDefinition Width="120" />
-                                        <ColumnDefinition Width="96" />
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="0.8*" />
                                     </Grid.ColumnDefinitions>
                                     <TextBlock FontWeight="SemiBold" Text="{Binding Texts.QueueTaskColumn}" />
                                     <TextBlock Grid.Column="1" FontWeight="SemiBold" HorizontalAlignment="Center" Text="{Binding Texts.QueueCodecCrfColumn}" />
@@ -346,7 +369,7 @@
                                 </Grid>
 
                                 <Grid Grid.Row="1">
-                                    <ListView x:Name="JobsList" ItemsSource="{Binding Jobs}" MinHeight="320" MaxHeight="360" SelectionMode="Extended" CanDragItems="True" CanReorderItems="True" AllowDrop="True" DragItemsStarting="JobsList_DragItemsStarting" DragItemsCompleted="JobsList_DragItemsCompleted" ContextRequested="JobsList_ContextRequested" SelectionChanged="JobsList_SelectionChanged" shared:UiMotion.AnimateListEntrance="True">
+                                    <ListView x:Name="JobsList" ItemsSource="{Binding Jobs}" MinHeight="140" SelectionMode="Extended" CanDragItems="True" CanReorderItems="True" AllowDrop="True" DragItemsStarting="JobsList_DragItemsStarting" DragItemsCompleted="JobsList_DragItemsCompleted" ContextRequested="JobsList_ContextRequested" SelectionChanged="JobsList_SelectionChanged" shared:UiMotion.AnimateListEntrance="True">
                                         <ListView.ItemTemplate>
                                             <DataTemplate x:DataType="vm:EncodingJobItemViewModel">
                                                 <Grid>
@@ -357,20 +380,20 @@
                                                     <Border Background="{ThemeResource QueueAccentBrush}" Visibility="{Binding ActiveJobAccentVisibility}" />
                                                     <Grid Grid.Row="1" Padding="12,12">
                                                     <Grid.ColumnDefinitions>
+                                                        <ColumnDefinition Width="2*" />
                                                         <ColumnDefinition Width="*" />
-                                                        <ColumnDefinition Width="112" />
-                                                        <ColumnDefinition Width="120" />
-                                                        <ColumnDefinition Width="96" />
+                                                        <ColumnDefinition Width="*" />
+                                                        <ColumnDefinition Width="0.8*" />
                                                     </Grid.ColumnDefinitions>
                                                     <StackPanel Spacing="{StaticResource AppSpacingXS}">
-                                                        <TextBlock FontFamily="{StaticResource AppDisplayFont}" FontSize="{StaticResource AppBodyLargeFontSize}" FontWeight="SemiBold" Text="{Binding Title}" />
+                                                        <TextBlock FontFamily="{StaticResource AppDisplayFont}" FontSize="{StaticResource AppBodyLargeFontSize}" FontWeight="SemiBold" Text="{Binding Title}" TextTrimming="CharacterEllipsis" />
                                                         <TextBlock Style="{ThemeResource SelectableSecondaryTextBlockStyle}" Text="{Binding EncoderLabel}" />
                                                     </StackPanel>
                                                     <TextBlock Grid.Column="1" HorizontalAlignment="Center" VerticalAlignment="Center" Text="{Binding CodecAndCrfLabel}" TextAlignment="Center" TextWrapping="WrapWholeWords" />
                                                     <TextBlock Grid.Column="2" HorizontalAlignment="Center" VerticalAlignment="Center" Text="{Binding StateLabel}" />
                                                     <StackPanel Grid.Column="3" HorizontalAlignment="Center" VerticalAlignment="Center" Spacing="{StaticResource AppSpacingXS}">
                                                         <TextBlock HorizontalAlignment="Center" Text="{Binding ProgressPercentLabel}" />
-                                                        <ProgressBar Width="76" Height="6" Maximum="1" Foreground="{ThemeResource QueueAccentBrush}" IsIndeterminate="{Binding IsProgressIndeterminate}" shared:UiMotion.SmoothProgressValue="{Binding ProgressValue}" />
+                                                        <ProgressBar HorizontalAlignment="Stretch" Height="6" Maximum="1" Foreground="{ThemeResource QueueAccentBrush}" IsIndeterminate="{Binding IsProgressIndeterminate}" shared:UiMotion.SmoothProgressValue="{Binding ProgressValue}" />
                                                     </StackPanel>
                                                     </Grid>
                                                 </Grid>
@@ -399,10 +422,10 @@
                                 </StackPanel>
 
                                 <Border Grid.Row="1" Padding="0" Background="{ThemeResource QueueProgressSoftBrush}" BorderBrush="{ThemeResource QueueProgressFillBrush}" BorderThickness="{StaticResource AppCardBorderThickness}" CornerRadius="{StaticResource AppCardCornerRadius}">
-                                    <Grid Height="72">
+                                    <Grid Height="52">
                                         <Rectangle RadiusX="8" RadiusY="8" Fill="{ThemeResource QueueProgressAreaBrush}" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" RenderTransformOrigin="0,0.5">
                                             <Rectangle.RenderTransform>
-                                                <ScaleTransform ScaleX="{Binding SelectedJobProgressValue, FallbackValue=0}" />
+                                                <ScaleTransform ScaleX="0" shared:UiMotion.SmoothScaleX="{Binding SelectedJobProgressValue, FallbackValue=0}" />
                                             </Rectangle.RenderTransform>
                                         </Rectangle>
                                         <Border Margin="1" Background="{ThemeResource AppProgressOverlayBrush}" CornerRadius="{StaticResource AppCardCornerRadius}" />
@@ -454,6 +477,6 @@
                     </Grid>
                 </Border>
             </Grid>
-        </StackPanel>
+        </Grid>
     </ScrollViewer>
 </UserControl>

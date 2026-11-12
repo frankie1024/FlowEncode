@@ -26,12 +26,18 @@ public sealed partial class SettingsView : UserControl
             SettingsPathStatusText.Visibility = string.IsNullOrWhiteSpace(SettingsPathStatusText.Text) ? Visibility.Collapsed : Visibility.Visible);
     }
 
-    public void ApplyLayout(bool compactLayout, Thickness contentPadding)
+    public void ApplyLayout(double availableWidth, bool compactLayout, Thickness contentPadding)
     {
         ContentStack.Padding = contentPadding;
         SettingsOverviewGrid.ColumnSpacing = compactLayout ? 0 : UiTokens.SpacingXXL;
         SettingsControlsGrid.ColumnSpacing = compactLayout ? 0 : UiTokens.SpacingL;
-        SettingsControlsGrid.RowSpacing = UiTokens.SpacingM;
+        SettingsControlsGrid.RowSpacing = compactLayout ? UiTokens.SpacingM : 0;
+        ConfigureAutoRows(SettingsOverviewGrid, compactLayout ? 3 : 2);
+        ConfigureAutoRows(SettingsControlsGrid, compactLayout ? 3 : 1);
+        // The host applies layout before this view is measured on first navigation.
+        var stackDependencyHeader = compactLayout || availableWidth < 1000;
+        ConfigureAutoRows(SettingsDependencyHeaderGrid, stackDependencyHeader ? 2 : 1);
+        SettingsDependencyHeaderGrid.RowSpacing = stackDependencyHeader ? UiTokens.SpacingM : 0;
 
         SettingsOverviewSecondaryColumn.Width = compactLayout
             ? new GridLength(0)
@@ -60,11 +66,21 @@ public sealed partial class SettingsView : UserControl
         Grid.SetColumn(SettingsWorkspacePanel, compactLayout ? 0 : 2);
         Grid.SetColumnSpan(SettingsWorkspacePanel, 1);
         Grid.SetRow(SettingsWorkspacePanel, compactLayout ? 2 : 0);
-        Grid.SetRow(SettingsDependencyActions, compactLayout ? 1 : 0);
-        Grid.SetColumn(SettingsDependencyActions, compactLayout ? 0 : 1);
-        Grid.SetColumnSpan(SettingsDependencyActions, compactLayout ? 2 : 1);
-        SettingsDependencyActions.HorizontalAlignment = compactLayout ? HorizontalAlignment.Left : HorizontalAlignment.Right;
+        Grid.SetRow(SettingsDependencyActions, stackDependencyHeader ? 1 : 0);
+        Grid.SetColumn(SettingsDependencyActions, stackDependencyHeader ? 0 : 1);
+        Grid.SetColumnSpan(SettingsDependencyActions, stackDependencyHeader ? 2 : 1);
+        SettingsDependencyActions.HorizontalAlignment = stackDependencyHeader ? HorizontalAlignment.Left : HorizontalAlignment.Right;
         SettingsDependencyActions.Orientation = compactLayout ? Orientation.Vertical : Orientation.Horizontal;
+    }
+
+    private static void ConfigureAutoRows(Grid grid, int rowCount)
+    {
+        if (grid.RowDefinitions.Count == rowCount) return;
+        grid.RowDefinitions.Clear();
+        for (var index = 0; index < rowCount; index++)
+        {
+            grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+        }
     }
 
     private async void CheckUpdatesButton_Click(object sender, RoutedEventArgs e)
@@ -141,42 +157,8 @@ public sealed partial class SettingsView : UserControl
     private void MoreDependencyActionsButton_Click(object sender, RoutedEventArgs e)
     {
         if (sender is not FrameworkElement { DataContext: SetupGuideDependencyItemViewModel item } button) return;
-        var texts = DependenciesViewModel?.Texts;
-        if (texts is null) return;
-        var menu = new MenuFlyout();
-        if (item.IsManualSelectVisible)
-        {
-            var pinItem = new MenuFlyoutItem { Text = texts.PinExternalToolButton, Tag = item.Kind, IsEnabled = item.ManualSelectEnabled, Icon = new SymbolIcon(Symbol.OpenFile) };
-            pinItem.Click += ManualSelectSetupDependencyButton_Click;
-            menu.Items.Add(pinItem);
-        }
-        if (item.IsManualPinned)
-        {
-            var unpinItem = new MenuFlyoutItem { Text = texts.ClearManualPinButton, Tag = item.Kind, IsEnabled = item.ClearManualPinEnabled, Icon = new SymbolIcon(Symbol.UnPin) };
-            unpinItem.Click += ClearManualPinnedSetupDependencyButton_Click;
-            menu.Items.Add(unpinItem);
-        }
-        if (ToolchainBaseline.HasBaseline(item.Kind) || item.IsUpdateAction)
-        {
-            var updateItem = new MenuFlyoutItem { Text = ToolchainBaseline.HasBaseline(item.Kind) ? item.AdvancedUpdateText : item.PrimaryActionText, Tag = item.Kind, IsEnabled = ToolchainBaseline.HasBaseline(item.Kind) ? item.AdvancedUpdateEnabled : item.PrimaryActionEnabled, Icon = new SymbolIcon(Symbol.Refresh) };
-            if (ToolchainBaseline.HasBaseline(item.Kind)) updateItem.Click += UpdateBeyondBaselineButton_Click;
-            else updateItem.Click += InstallSetupDependencyButton_Click;
-            menu.Items.Add(updateItem);
-        }
-        if (!string.IsNullOrWhiteSpace(item.ReleaseUrl))
-        {
-            if (menu.Items.Count > 0) menu.Items.Add(new MenuFlyoutSeparator());
-            var guideItem = new MenuFlyoutItem { Text = texts.ToolGuidePageButton, Tag = item.ReleaseUrl, Icon = new SymbolIcon(Symbol.Link) };
-            guideItem.Click += OpenUrlButton_Click;
-            menu.Items.Add(guideItem);
-        }
-        menu.ShowAt(button);
-    }
-
-    private async void UpdateBeyondBaselineButton_Click(object sender, RoutedEventArgs e)
-    {
-        if (sender is not FrameworkElement { Tag: SetupDependencyKind kind } || DependenciesViewModel is null) return;
-        await SetupDependencyInteractionHelper.InstallSetupDependencyAsync(DependenciesViewModel, this, kind, nameof(SettingsView), updateBeyondBaseline: true);
+        if (DependenciesViewModel is null) return;
+        SetupDependencyInteractionHelper.ShowMoreDependencyActions(DependenciesViewModel, this, button, item, nameof(SettingsView));
     }
 
     private async void InstallSetupDependencyButton_Click(object sender, RoutedEventArgs e)
@@ -187,26 +169,6 @@ public sealed partial class SettingsView : UserControl
         }
 
         await SetupDependencyInteractionHelper.InstallSetupDependencyAsync(DependenciesViewModel, this, kind, nameof(SettingsView));
-    }
-
-    private async void ManualSelectSetupDependencyButton_Click(object sender, RoutedEventArgs e)
-    {
-        if (sender is not FrameworkElement { Tag: SetupDependencyKind kind } || DependenciesViewModel is null)
-        {
-            return;
-        }
-
-        await SetupDependencyInteractionHelper.ManualSelectSetupDependencyAsync(DependenciesViewModel, this, kind, nameof(SettingsView));
-    }
-
-    private async void ClearManualPinnedSetupDependencyButton_Click(object sender, RoutedEventArgs e)
-    {
-        if (sender is not FrameworkElement { Tag: SetupDependencyKind kind } || DependenciesViewModel is null)
-        {
-            return;
-        }
-
-        await SetupDependencyInteractionHelper.ClearManualPinnedSetupDependencyAsync(DependenciesViewModel, this, kind, nameof(SettingsView));
     }
 
     private async void UninstallSetupDependencyButton_Click(object sender, RoutedEventArgs e)
@@ -354,14 +316,6 @@ public sealed partial class SettingsView : UserControl
                         await DependenciesViewModel.RefreshSetupGuideAsync();
                     }
                 });
-        }
-    }
-
-    private void OpenUrlButton_Click(object sender, RoutedEventArgs e)
-    {
-        if (sender is FrameworkElement { Tag: string url } && !string.IsNullOrWhiteSpace(url))
-        {
-            SetupDependencyInteractionHelper.OpenUrl(url);
         }
     }
 

@@ -11,6 +11,7 @@
     Loaded="UserControl_Loaded">
     <Grid
         x:Name="WorkspaceRoot"
+        Margin="{StaticResource AppPagePadding}"
         Background="{ThemeResource WindowBackgroundBrush}">
         <Border
             Background="{ThemeResource CardBrush}"
@@ -30,7 +31,7 @@
 
             <CommandBar
                 x:Name="EditorCommandBar"
-                Padding="10,8,10,8"
+                Padding="10,4,10,4"
                 Background="{ThemeResource CardBrush}"
                 DefaultLabelPosition="Right"
                 IsDynamicOverflowEnabled="True"
@@ -155,15 +156,19 @@
                     <StackPanel Spacing="4">
                         <TextBlock
                             FontFamily="{StaticResource AppDisplayFont}"
-                            FontSize="{StaticResource AppCardTitleFontSize}"
+                            FontSize="{StaticResource AppBodyLargeFontSize}"
                             FontWeight="SemiBold"
                             Text="{Binding DocumentTitle}"
-                            TextWrapping="WrapWholeWords" />
+                            TextTrimming="CharacterEllipsis"
+                            TextWrapping="NoWrap"
+                            ToolTipService.ToolTip="{Binding DocumentTitle}" />
                         <TextBlock
                             FontFamily="{StaticResource AppMonoFont}"
                             Foreground="{ThemeResource SubtleTextBrush}"
                             Text="{Binding DocumentPathText}"
-                            TextWrapping="WrapWholeWords" />
+                            TextTrimming="CharacterEllipsis"
+                            TextWrapping="NoWrap"
+                            ToolTipService.ToolTip="{Binding DocumentPathText}" />
                     </StackPanel>
 
                     <StackPanel
@@ -173,11 +178,13 @@
                         VerticalAlignment="Center"
                         Spacing="12">
                         <TextBlock
-                            MaxWidth="560"
+                            x:Name="DocumentStatusText"
+                            MaxWidth="360"
                             VerticalAlignment="Center"
                             FontFamily="{StaticResource AppMonoFont}"
                             Foreground="{ThemeResource SubtleTextBrush}"
                             Text="{Binding HeaderStatusText}"
+                            ToolTipService.ToolTip="{Binding HeaderStatusText}"
                             TextTrimming="CharacterEllipsis"
                             TextWrapping="NoWrap" />
                     </StackPanel>
@@ -239,7 +246,7 @@
                     <Grid MinHeight="0">
                         <Grid.RowDefinitions>
                             <RowDefinition Height="Auto" />
-                            <RowDefinition Height="144" />
+                            <RowDefinition x:Name="LogViewportRow" Height="144" />
                         </Grid.RowDefinitions>
 
                         <Grid

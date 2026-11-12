@@ -152,4 +152,6 @@ jobs:
             ${{ env.FLOWENCODE_CHECKSUM_PATH }}
             artifacts/release/v${{ env.FLOWENCODE_VERSION }}/FlowEncode_Portable_v${{ env.FLOWENCODE_VERSION }}.zip
             artifacts/release/v${{ env.FLOWENCODE_VERSION }}/SHA256SUMS.txt
+            artifacts/release/v${{ env.FLOWENCODE_VERSION }}/x265-4.3-x64.zip
+            artifacts/release/v${{ env.FLOWENCODE_VERSION }}/x265-4.3-multilib-source-license.zip
           overwrite_files: true
