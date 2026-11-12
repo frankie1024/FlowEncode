@@ -110,6 +110,21 @@ public sealed partial class SettingsView : UserControl
         }
     }
 
+    private async void WriteSystemPathButton_Click(object sender, RoutedEventArgs e)
+    {
+        var dependencies = DependenciesViewModel;
+        if (dependencies is not null)
+        {
+            await SetupDependencyInteractionHelper.RunGuardedAsync(
+                dependencies,
+                this,
+                nameof(SettingsView),
+                "Write tool directories to the system PATH",
+                dependencies.Texts.SystemPathErrorTitle,
+                dependencies.WriteSystemPathAsync);
+        }
+    }
+
     private async void InstallSetupDependencyButton_Click(object sender, RoutedEventArgs e)
     {
         if (sender is not FrameworkElement { Tag: SetupDependencyKind kind } || DependenciesViewModel is null)

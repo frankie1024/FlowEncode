@@ -250,6 +250,7 @@ public partial class MainWindowViewModel : CommunityToolkit.Mvvm.ComponentModel.
     internal ObservableCollection<StringChoiceOption> QueueCompletionActionOptions { get; } = [];
 
     internal bool IsBusy => _isChangingWorkspaceRoot
+        || _isWritingSystemPath
         || _isRefreshingCatalog
         || _isCheckingUpdates
         || _isDownloadingAppUpdateInstaller
@@ -3260,6 +3261,7 @@ public partial class MainWindowViewModel : CommunityToolkit.Mvvm.ComponentModel.
             || _isRefreshingCatalog
             || _isCheckingUpdates
             || _isDownloadingAppUpdateInstaller
+            || _isWritingSystemPath
             || _vapourSynthPreviewService.HasActiveSession
             || Volatile.Read(ref _templateLibraryMutationCount) > 0
             || Volatile.Read(ref _initialVsPluginDependencyRefreshCount) > 0

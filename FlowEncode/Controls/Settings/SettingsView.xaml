@@ -132,7 +132,22 @@
                             </Button>
                         </StackPanel>
                     </Grid>
-                    <ItemsControl ItemsSource="{Binding SetupGuideCards}">
+                    <Border Padding="{StaticResource AppInsetPanelPadding}" Background="{ThemeResource CardAltBrush}" CornerRadius="{StaticResource AppCardCornerRadius}">
+                        <StackPanel Spacing="{StaticResource AppSpacingS}">
+                            <TextBlock Foreground="{ThemeResource SubtleTextBrush}" Text="{Binding Texts.SystemPathHint}" TextWrapping="WrapWholeWords" />
+                            <StackPanel Orientation="Horizontal" Spacing="{StaticResource AppSpacingS}">
+                                <Button Style="{StaticResource StandardButtonStyle}" HorizontalAlignment="Left" AutomationProperties.Name="{Binding Texts.WriteSystemPathButton}" Click="WriteSystemPathButton_Click" IsEnabled="{Binding CanWriteSystemPath}">
+                                    <StackPanel Orientation="Horizontal" Spacing="{StaticResource AppCommandIconTextSpacing}">
+                                        <SymbolIcon Symbol="Permissions" />
+                                        <TextBlock Text="{Binding Texts.WriteSystemPathButton}" />
+                                    </StackPanel>
+                                </Button>
+                                <ProgressRing Width="24" Height="24" IsActive="True" Visibility="{Binding SystemPathProgressVisibility}" />
+                            </StackPanel>
+                            <TextBlock Text="{Binding SystemPathStatusText}" TextWrapping="WrapWholeWords" IsTextSelectionEnabled="True" AutomationProperties.LiveSetting="Polite" />
+                        </StackPanel>
+                    </Border>
+                    <ItemsControl ItemsSource="{Binding SetupGuideCards}" IsEnabled="{Binding CanModifyDependencies}">
                         <ItemsControl.ItemTemplate>
                             <DataTemplate x:DataType="vm:SetupGuideCardViewModel">
                                 <shared:AnimatedExpander Margin="{StaticResource AppBottomSpacingM}" HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch" CollapsedCompleted="SetupGuideCardExpander_CollapsedCompleted" ContentMargin="0" IsExpanded="{Binding IsExpanded, Mode=TwoWay}">

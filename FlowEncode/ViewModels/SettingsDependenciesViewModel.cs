@@ -12,6 +12,7 @@ public sealed class SettingsDependenciesViewModel : ModuleViewModelBase, ISetupD
         : base(owner)
     {
         owner.SetupGuideModule.PropertyChanged += SetupGuide_PropertyChanged;
+        owner.PropertyChanged += Owner_SystemPathPropertyChanged;
     }
 
     private SetupGuideViewModel SetupGuide => Owner.SetupGuideModule;
@@ -26,11 +27,21 @@ public sealed class SettingsDependenciesViewModel : ModuleViewModelBase, ISetupD
 
     public string SetupGuideRefreshActionText => SetupGuide.SetupGuideRefreshActionText;
 
-    public bool CanExecuteSetupGuideRefreshAction => SetupGuide.CanExecuteSetupGuideRefreshAction;
+    public bool CanExecuteSetupGuideRefreshAction => CanModifyDependencies && SetupGuide.CanExecuteSetupGuideRefreshAction;
 
     public string SetupGuideUpdateCheckActionText => SetupGuide.SetupGuideUpdateCheckActionText;
 
-    public bool CanExecuteSetupGuideUpdateCheckAction => SetupGuide.CanExecuteSetupGuideUpdateCheckAction;
+    public bool CanExecuteSetupGuideUpdateCheckAction => CanModifyDependencies && SetupGuide.CanExecuteSetupGuideUpdateCheckAction;
+
+    public bool CanWriteSystemPath => !Owner.IsBusy;
+
+    public bool CanModifyDependencies => !Owner.IsWritingSystemPath;
+
+    public Visibility SystemPathProgressVisibility => Owner.SystemPathProgressVisibility;
+
+    public string SystemPathStatusText => Owner.SystemPathStatusText;
+
+    public Task WriteSystemPathAsync() => Owner.WriteSystemPathAsync();
 
     public ObservableCollection<SetupGuideCardViewModel> SetupGuideCards => SetupGuide.SetupGuideCards;
 
@@ -96,9 +107,21 @@ public sealed class SettingsDependenciesViewModel : ModuleViewModelBase, ISetupD
         OnPropertyChanged(e.PropertyName);
     }
 
+    private void Owner_SystemPathPropertyChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName is nameof(Owner.IsBusy) or nameof(Owner.IsWritingSystemPath))
+        {
+            OnPropertyChanged(nameof(CanWriteSystemPath));
+            OnPropertyChanged(nameof(CanModifyDependencies));
+            OnPropertyChanged(nameof(CanExecuteSetupGuideRefreshAction));
+            OnPropertyChanged(nameof(CanExecuteSetupGuideUpdateCheckAction));
+        }
+    }
+
     public override void Dispose()
     {
         Owner.SetupGuideModule.PropertyChanged -= SetupGuide_PropertyChanged;
+        Owner.PropertyChanged -= Owner_SystemPathPropertyChanged;
         base.Dispose();
     }
 }

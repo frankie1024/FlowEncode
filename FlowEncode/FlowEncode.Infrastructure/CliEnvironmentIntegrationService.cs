@@ -1,4 +1,5 @@
 using System.Runtime.InteropServices;
+using System.Runtime.Versioning;
 using System.Diagnostics;
 using System.Text;
 using System.Text.Json;
@@ -89,6 +90,42 @@ public sealed class CliEnvironmentIntegrationService
                 BroadcastEnvironmentChange();
             }
         }
+    }
+
+    [SupportedOSPlatform("windows")]
+    internal SystemPathRegistrationResult RegisterSystemPath(EnvironmentReadinessReport readiness)
+    {
+        lock (_gate)
+        {
+            var directories = BuildSystemPathEntries(readiness);
+            if (directories.Count == 0)
+            {
+                throw new InvalidOperationException("No installed command-line tools were found to add to the system PATH.");
+            }
+
+            var manifest = LoadManifestUnsafe();
+            var previousPath = Environment.GetEnvironmentVariable("PATH", EnvironmentVariableTarget.Machine);
+            var plan = SystemPathIntegration.Apply(manifest.ManagedMachinePathEntries, directories);
+            SaveManifestUnsafe(manifest with { ManagedMachinePathEntries = plan.OwnedDirectories });
+            UpdateProcessPath(directories, manifest.ManagedMachinePathEntries);
+            var changed = !string.Equals(previousPath,
+                Environment.GetEnvironmentVariable("PATH", EnvironmentVariableTarget.Machine), StringComparison.Ordinal);
+            return new SystemPathRegistrationResult(changed, directories);
+        }
+    }
+
+    internal IReadOnlyList<string> BuildSystemPathEntries(EnvironmentReadinessReport readiness)
+    {
+        var pythonPath = readiness.Tools.FirstOrDefault(static tool => tool.Kind == RegisteredToolKind.Python)?.ExecutablePath;
+        var directories = BuildDesiredPathEntries(pythonPath)
+            .Where(static directory => Directory.Exists(directory)
+                && Directory.EnumerateFiles(directory, "*.exe", SearchOption.TopDirectoryOnly).Any());
+        var detectedDirectories = readiness.Tools
+            .Select(static tool => tool.ExecutablePath)
+            .Where(static path => File.Exists(path)
+                && Path.GetExtension(path).Equals(".exe", StringComparison.OrdinalIgnoreCase))
+            .Select(static path => Path.GetDirectoryName(Path.GetFullPath(path))!);
+        return DeduplicatePaths(directories.Concat(detectedDirectories)).ToArray();
     }
 
     private static EnvironmentSnapshot CaptureEnvironmentSnapshot(string currentUserPath)
@@ -666,6 +703,7 @@ public sealed class CliEnvironmentIntegrationService
         return manifest with
         {
             ManagedUserPathEntries = manifest.ManagedUserPathEntries ?? [],
+            ManagedMachinePathEntries = manifest.ManagedMachinePathEntries ?? [],
             PreviousUserEnvironmentVariables = new Dictionary<string, string?>(
                 manifest.PreviousUserEnvironmentVariables ?? new Dictionary<string, string?>(),
                 StringComparer.OrdinalIgnoreCase),
@@ -730,7 +768,7 @@ public sealed class CliEnvironmentIntegrationService
         }
     }
 
-    private static void BroadcastEnvironmentChange()
+    internal static void BroadcastEnvironmentChange()
     {
         try
         {
@@ -745,7 +783,7 @@ public sealed class CliEnvironmentIntegrationService
         }
         catch
         {
-            // The registry update is authoritative; the broadcast only refreshes already-running shells.
+            // The registry update is authoritative; applications decide whether to refresh their environment.
         }
     }
 
@@ -780,6 +818,8 @@ internal sealed record EnvironmentOwnershipManifest(
     IReadOnlyDictionary<string, string?> PreviousUserEnvironmentVariables,
     IReadOnlyDictionary<string, ManagedComponentOwnership> Components)
 {
+    public IReadOnlyList<string> ManagedMachinePathEntries { get; init; } = [];
+
     public static EnvironmentOwnershipManifest Empty { get; } = new(
         SchemaVersion: 1,
         ManagedUserPathEntries: [],

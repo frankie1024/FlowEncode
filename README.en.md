@@ -148,6 +148,8 @@ FlowEncode supports a separate workspace directory for:
 
 The installation directory is intended for application binaries and static resources. Runtime state, large toolchain files and user templates live under local application data or the configured workspace.
 
+Click **Write System PATH** under **Settings → Environment & Dependencies** to add installed and detected encoders, tools, and Python command directories to the system PATH for all users. Windows requests administrator authorization when needed. Repeated clicks do not duplicate entries. Run it again after installing tools or moving the workspace to update directories and remove obsolete entries previously added by this feature. Preexisting system PATH entries are preserved. Reopen terminals or related applications afterward.
+
 ## Local Data and Privacy
 
 FlowEncode is local-first by default:

@@ -571,6 +571,17 @@ public sealed class AppText
         "在浏览器中打开该工具的 GitHub 发布页，可查看版本详情或手动下载。",
         "Opens the tool's GitHub release page in your browser to view version details or download manually.");
     public string EnvironmentAndDependenciesTitle => Pick("环境与依赖", "Environment & Dependencies");
+    public string WriteSystemPathButton => Pick("写入系统 PATH", "Write System PATH");
+    public string SystemPathHint => Pick(
+        "一键将已安装和已检测到的编码器、工具及 Python 命令目录加入系统 PATH，供所有用户使用。需要管理员授权；安装新工具或迁移工作目录后可再次点击更新。",
+        "Add installed and detected encoders, tools, and Python command directories to the system PATH for all users. Administrator authorization is required. Run again after installing tools or moving the workspace.");
+    public string SystemPathWritingStatus => Pick("正在检测工具并写入系统 PATH，请在 Windows 提示时允许管理员授权…", "Detecting tools and updating the system PATH. Allow administrator authorization when Windows prompts…");
+    public string SystemPathWrittenStatus(int count, bool changed) => IsChinese
+        ? $"{(changed ? "已更新系统 PATH" : "系统 PATH 已包含所需目录")}（{count} 个目录）。请重新打开终端或相关应用。"
+        : $"{(changed ? "System PATH updated" : "System PATH already contains the required directories")} ({count} directories). Reopen terminals or related applications.";
+    public string SystemPathCancelledStatus => Pick("已取消管理员授权，系统 PATH 未改动。", "Administrator authorization cancelled. The system PATH was not changed.");
+    public string SystemPathFailedStatus(string detail) => Pick($"写入系统 PATH 失败：{detail}", $"Failed to update the system PATH: {detail}");
+    public string SystemPathErrorTitle => Pick("写入系统 PATH 失败", "System PATH Update Failed");
     public string TemplateSourceUser => Pick("用户", "User");
     public string TemplateSourcePinned => Pick("置顶", "Pinned");
     public string PinTemplateButton => Pick("置顶模板", "Pin Template");
