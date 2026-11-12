@@ -57,6 +57,7 @@
     <Compile Remove="FlowEncode.Application\**\*.cs" />
     <Compile Remove="FlowEncode.Infrastructure\**\*.cs" />
     <Compile Remove="FlowEncode.Domain.Tests\**\*.cs" />
+    <Compile Remove="FlowEncode.Mcp\**\*.cs" />
   </ItemGroup>
   <ItemGroup>
     <Manifest Include="$(ApplicationManifest)" />

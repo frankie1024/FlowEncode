@@ -10,6 +10,9 @@ internal sealed class EncodingJobLogWriter
     private const int RetainedVisibleLogLength = 120_000;
     private const string VisibleLogTruncationMarker = "[Log truncated; only latest output is kept]";
 
+    // The raw log is appended byte-for-byte after the sidecar header, so it must not start with a BOM.
+    private static readonly Encoding RawLogEncoding = new UTF8Encoding(encoderShouldEmitUTF8Identifier: false);
+
     private readonly LocalAppPaths _appPaths;
     private readonly Action<string> _writeDiagnostic;
 
@@ -54,7 +57,7 @@ internal sealed class EncodingJobLogWriter
     internal static StreamWriter CreateRawLogWriter(string path)
     {
         var stream = File.Open(path, FileMode.Create, FileAccess.Write, FileShare.ReadWrite);
-        return new StreamWriter(stream, Encoding.UTF8);
+        return new StreamWriter(stream, RawLogEncoding);
     }
 
     internal static string LastMeaningfulLine(string log)
@@ -144,8 +147,8 @@ internal sealed class EncodingJobLogWriter
             if (File.Exists(rawLogPath))
             {
                 await writer.FlushAsync();
-                using var reader = File.OpenText(rawLogPath);
-                await reader.BaseStream.CopyToAsync(stream);
+                await using var rawLogStream = File.OpenRead(rawLogPath);
+                await rawLogStream.CopyToAsync(stream);
             }
 
             return null;

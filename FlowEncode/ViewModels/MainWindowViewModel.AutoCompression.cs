@@ -448,7 +448,7 @@ public partial class MainWindowViewModel
         }
     }
 
-    internal async Task<string?> StartAutoCompressionAsync()
+    internal async Task<string?> StartAutoCompressionAsync(AutoCompressionRequest? automationRequest = null)
     {
         if (_isChangingWorkspaceRoot)
         {
@@ -465,7 +465,7 @@ public partial class MainWindowViewModel
 
         try
         {
-            var request = CreateAutoCompressionRequest(requireSourceExists: true);
+            var request = automationRequest ?? CreateAutoCompressionRequest(requireSourceExists: true);
             sourceFileName = Path.GetFileName(request.SourcePath);
 
             ResetAutoCompressionLogState();

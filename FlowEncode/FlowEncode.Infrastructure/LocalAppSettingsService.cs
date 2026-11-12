@@ -15,6 +15,7 @@ public sealed class LocalAppSettingsService : IAppSettingsService
     private readonly LocalAppPaths _paths;
     private readonly object _gate = new();
     private AppSettings? _cache;
+    private SettingsFileStamp? _cacheStamp;
     private SettingsLoadRecoveryInfo? _lastLoadRecoveryInfo;
 
     public LocalAppSettingsService(LocalAppPaths paths)
@@ -22,18 +23,26 @@ public sealed class LocalAppSettingsService : IAppSettingsService
         _paths = paths;
     }
 
+    /// <summary>
+    /// Returns the cached settings, re-reading the file when another process (the desktop app or
+    /// the MCP server) has saved it since the cache was filled.
+    /// </summary>
     public AppSettings Load()
     {
         lock (_gate)
         {
-            if (_cache is not null)
+            var currentStamp = SettingsFileStamp.Read(_paths.SettingsPath);
+            // A missing file while a cache exists is a writer mid-replace, not a reset request.
+            if (_cache is not null
+                && (Equals(currentStamp, _cacheStamp) || currentStamp is null || currentStamp == SettingsFileStamp.Unknown))
             {
                 return _cache;
             }
 
-            if (!File.Exists(_paths.SettingsPath))
+            if (currentStamp is null)
             {
                 _cache = AppSettings.Default;
+                _cacheStamp = null;
                 _lastLoadRecoveryInfo = null;
                 return _cache;
             }
@@ -43,7 +52,17 @@ public sealed class LocalAppSettingsService : IAppSettingsService
                 var json = File.ReadAllText(_paths.SettingsPath);
                 _cache = RequestValidation.NormalizeAppSettings(
                     JsonSerializer.Deserialize<AppSettings>(json, JsonOptions) ?? AppSettings.Default);
+                _cacheStamp = currentStamp;
                 _lastLoadRecoveryInfo = null;
+            }
+            catch (Exception ex) when (_cache is not null)
+            {
+                // A reload raced with a writer in another process; keep the last good settings and
+                // retry on the next call instead of treating the file as corrupt.
+                AppDiagnosticsLog.Write(
+                    _paths,
+                    nameof(LocalAppSettingsService),
+                    $"Failed to reload settings from '{_paths.SettingsPath}'; keeping cached settings. {ex.GetType().Name}: {ex.Message}");
             }
             catch (Exception ex)
             {
@@ -53,6 +72,7 @@ public sealed class LocalAppSettingsService : IAppSettingsService
                     nameof(LocalAppSettingsService),
                     $"Failed to load settings from '{_paths.SettingsPath}'. {ex.GetType().Name}: {ex.Message}");
                 _cache = AppSettings.Default;
+                _cacheStamp = SettingsFileStamp.Read(_paths.SettingsPath);
             }
 
             return _cache;
@@ -71,6 +91,7 @@ public sealed class LocalAppSettingsService : IAppSettingsService
                 message => AppDiagnosticsLog.Write(_paths, nameof(LocalAppSettingsService), message));
 
             _cache = settings;
+            _cacheStamp = SettingsFileStamp.Read(_paths.SettingsPath);
         }
     }
 
@@ -140,3 +161,22 @@ public sealed record SettingsLoadRecoveryInfo(
     string? BackupPath,
     string LoadError,
     string? BackupError);
+
+internal sealed record SettingsFileStamp(DateTime LastWriteTimeUtc, long Length)
+{
+    /// <summary>The file could not be inspected; callers keep whatever they already have.</summary>
+    public static SettingsFileStamp Unknown { get; } = new(DateTime.MinValue, -1);
+
+    public static SettingsFileStamp? Read(string path)
+    {
+        try
+        {
+            var info = new FileInfo(path);
+            return info.Exists ? new SettingsFileStamp(info.LastWriteTimeUtc, info.Length) : null;
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            return Unknown;
+        }
+    }
+}

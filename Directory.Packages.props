@@ -9,6 +9,7 @@
     <PackageVersion Include="Microsoft.Graphics.Win2D" Version="1.4.0" />
     <PackageVersion Include="Microsoft.NET.Test.Sdk" Version="18.5.1" />
     <PackageVersion Include="Microsoft.Web.WebView2" Version="1.0.3179.45" />
+    <PackageVersion Include="ModelContextProtocol" Version="2.3.0" />
     <PackageVersion Include="Microsoft.Windows.SDK.BuildTools" Version="10.0.28000.1721" />
     <PackageVersion Include="Microsoft.WindowsAppSDK" Version="1.8.260317003" />
     <PackageVersion Include="MSTest.TestAdapter" Version="4.2.2" />

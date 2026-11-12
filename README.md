@@ -44,6 +44,7 @@ FlowEncode 是一个面向 Windows x64 的桌面端编码工作流前端，围�
 - [安装与运行要求](#安装与运行要求)
 - [本地数据与隐私](#本地数据与隐私)
 - [开发与构建](#开发与构建)
+- [AI 调用（MCP 服务）](#ai-调用mcp-服务)
 - [反馈与许可](#反馈与许可)
 
 ## 核心定位
@@ -172,6 +173,7 @@ FlowEncode 默认面向本地工作流：
 | `FlowEncode.Domain` | 编码配置、任务模型和领域规则。 |
 | `FlowEncode.Infrastructure` | 本地工具探测、运行器、缓存和外部集成。 |
 | `FlowEncode.Domain.Tests` | 领域层测试。 |
+| `FlowEncode.Mcp` | 面向 AI 客户端的 MCP 服务（stdio）。 |
 
 构建注意事项：
 
@@ -196,6 +198,61 @@ FlowEncode 默认面向本地工作流：
 ./scripts/build.ps1 -Configuration Release -RunTests
 ./scripts/build-release-assets.ps1
 ```
+
+## AI 调用（MCP 服务）
+
+`FlowEncode.Mcp` 是一个基于 [Model Context Protocol](https://modelcontextprotocol.io/) 的 stdio 服务，让 Claude、Cursor 等 AI 客户端用自然语言操作 FlowEncode：视频编码队列、音频转码、蓝光解复用、目标质量自动压制、VapourSynth 脚本与预览、模板、设置、依赖维护和应用更新。
+
+**统一任务**：MCP 本身不运行任务。编码、音频、蓝光、自动压制任务以及设置修改、依赖安装和应用更新都通过本机命名管道（仅限当前 Windows 用户）交给 FlowEncode 桌面端执行；桌面端未运行时会自动启动。因此 AI 发起的任务会出现在桌面端队列中，与手动添加的任务共用“最大并发编码任务数”和“队列完成后动作”，并且可以在界面上查看和取消；AI 也能查看、取消、重排和删除用户在桌面端添加的任务。探测、命令预览、模板文件和 VapourSynth 诊断/渲染等只读操作由 MCP 进程直接完成，读写的是同一份 `%LOCALAPPDATA%\FlowEncode` 设置和工作区。
+
+### 接入
+
+安装包会把服务放在安装目录的 `mcp` 子目录（默认 `C:\Program Files\FlowEncode\mcp\FlowEncode.Mcp.exe`）。先运行自检，它会确认能找到桌面端，并打印可直接粘贴的客户端配置：
+
+```powershell
+& "C:\Program Files\FlowEncode\mcp\FlowEncode.Mcp.exe" --check
+```
+
+在 Claude Code 中注册：
+
+```powershell
+claude mcp add flowencode -- "C:\Program Files\FlowEncode\mcp\FlowEncode.Mcp.exe"
+```
+
+或在 Claude Desktop 等客户端的 `mcpServers` 配置中加入：
+
+```json
+{
+  "mcpServers": {
+    "flowencode": {
+      "command": "C:\\Program Files\\FlowEncode\\mcp\\FlowEncode.Mcp.exe"
+    }
+  }
+}
+```
+
+从源码构建时运行 `dotnet publish FlowEncode/FlowEncode.Mcp -c Release --self-contained -o artifacts/mcp`；此时服务找不到相邻的 `FlowEncode.exe`，请设置环境变量 `FLOWENCODE_DESKTOP_EXE` 指向桌面端可执行文件。
+
+### 工具
+
+| 范围 | 工具 |
+| --- | --- |
+| 应用与设置 | `get_app_status`、`launch_desktop_app`、`get_settings`、`update_settings`（编码器偏好、主题、语言、工作区、并发数、队列完成后动作）、`check_app_update`、`install_app_update` |
+| 视频编码队列 | `preview_encoding_command`、`start_encoding_job`、`get_encoding_job`、`list_encoding_jobs`、`cancel_encoding_job`、`start_queued_encoding_job`、`restart_encoding_job`、`remove_encoding_job`、`move_encoding_job` |
+| 音频 | `probe_audio_source`、`preview_audio_command`、`start_audio_task`（DDP / Opus / FLAC / AC3） |
+| 蓝光 | `scan_bluray_disc`、`preview_bluray_demux_command`、`start_bluray_demux`（按轨道导出视频、音频、字幕、章节） |
+| 目标质量自动压制 | `preview_auto_compression_command`、`start_auto_compression`（VMAF / SSIMULACRA2 / Butteraugli / XPSNR，探测次数、采样率、插值、统计方式） |
+| 模块任务 | `get_task_status`、`cancel_task`（audio / bluray / autocompression） |
+| VapourSynth | `vapoursynth_new_script`、`vapoursynth_read_script`、`vapoursynth_save_script`、`vapoursynth_diagnose_script`、`vapoursynth_list_functions`、`vapoursynth_get_outputs`、`vapoursynth_render_frame`（PNG 截图、帧属性、按时间码定位、裁剪预览与 `CropAbs/CropRel` 命令）、`vapoursynth_compare_frames`、`read_chapters`、`write_chapters` |
+| 模板 | `list_templates`、`get_default_profile`、`save_template`、`set_template_pinned`、`delete_template`、`import_template`、`export_template` |
+| 环境与依赖 | `get_environment_status`、`list_encoders`、`probe_video_source`、`list_dependencies`、`manage_dependency`（安装/更新、卸载、导入、手动固定、取消固定）、`refresh_environment`、`get_operation`、`list_operations` |
+
+说明：
+
+- 所有路径都必须是绝对路径；默认不覆盖已存在的输出文件（可传 `overwrite: true`）。同一输出路径已有排队或运行中的任务时会被拒绝，而不是像界面那样自动改名。
+- 音频、蓝光、自动压制模块与界面一样，每个模块同一时间只运行一个任务。
+- 依赖安装和应用更新耗时较长，会返回 `operationId`，用 `get_operation` 查询结果。应用更新会在没有任务运行时启动安装程序并关闭桌面端，安装程序同时会替换 MCP 服务，客户端需要重新连接。
+- 关闭 MCP 客户端不会中止已提交给桌面端的任务。
 
 ## 反馈与许可
 

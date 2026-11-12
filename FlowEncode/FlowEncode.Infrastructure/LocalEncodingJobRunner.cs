@@ -82,6 +82,7 @@ public sealed class LocalEncodingJobRunner : IEncodingJobRunner
         var lineGate = new object();
         var rawLogWriter = EncodingJobLogWriter.CreateRawLogWriter(rawLogPath);
         var rawLogWriterClosed = false;
+        var preserveStagedOutput = false;
         Task pumpOutput = Task.CompletedTask;
         Task pumpError = Task.CompletedTask;
         Task pumpSourceError = Task.CompletedTask;
@@ -456,7 +457,41 @@ public sealed class LocalEncodingJobRunner : IEncodingJobRunner
                 }
             }
 
-            FinalizeOutputFile(stagedOutputPath, request.OutputPath, request.JobId);
+            try
+            {
+                FinalizeOutputFile(stagedOutputPath, request.OutputPath, request.JobId, request.OverwriteOutput);
+            }
+            catch (InvalidOperationException ex)
+            {
+                preserveStagedOutput = File.Exists(stagedOutputPath);
+                currentState = EncodingJobState.Failed;
+                var finalizationFailureSummary = ex.Message;
+                lock (lineGate)
+                {
+                    visibleLogBuilder.AppendLine(finalizationFailureSummary);
+                    rawLogWriter.WriteLine(finalizationFailureSummary);
+                }
+
+                var finalizationFailureLog = visibleLogBuilder.ToString();
+                await CloseRawLogWriterAsync();
+                var finalizationFailureLogPath = await _logWriter.WriteSidecarLogAsync(request, displayCommand, currentState, 0, rawLogPath);
+
+                progress?.Report(new EncodingJobProgress(
+                    request.JobId,
+                    currentState,
+                    1.0,
+                    finalizationFailureSummary,
+                    finalizationFailureSummary));
+
+                return new EncodingJobResult(
+                    request.JobId,
+                    currentState,
+                    0,
+                    finalizationFailureSummary,
+                    finalizationFailureLog,
+                    finalizationFailureLogPath);
+            }
+
             currentState = EncodingJobState.Completed;
             var summary = T(language, "Encoding completed", "编码完成");
             var visibleLog = visibleLogBuilder.ToString();
@@ -524,8 +559,13 @@ public sealed class LocalEncodingJobRunner : IEncodingJobRunner
             _activeExecutions.TryRemove(request.JobId, out _);
             activeExecution?.Dispose();
             activeSourceProcess?.Dispose();
+            // Covers a process whose Start() threw before it was handed to a ManagedProcessExecution.
+            activeProcess?.Dispose();
             CleanupPlanArtifacts(plan);
-            CleanupStagedOutput(stagedOutputPath, request.OutputPath, request.JobId);
+            if (!preserveStagedOutput)
+            {
+                CleanupStagedOutput(stagedOutputPath, request.OutputPath, request.JobId);
+            }
 
             if (!rawLogWriterClosed)
             {
@@ -533,7 +573,10 @@ public sealed class LocalEncodingJobRunner : IEncodingJobRunner
             }
 
             CleanupTemporaryRawLog(rawLogPath);
-            CleanupJobTempDirectory(request);
+            if (!preserveStagedOutput)
+            {
+                CleanupJobTempDirectory(request);
+            }
         }
     }
 
@@ -978,18 +1021,12 @@ public sealed class LocalEncodingJobRunner : IEncodingJobRunner
         return ExecutionOutputStaging.CreateStagedFilePath(GetJobTempDirectory(request), request.OutputPath, request.JobId);
     }
 
-    private void FinalizeOutputFile(string stagedOutputPath, string finalOutputPath, Guid jobId)
+    private void FinalizeOutputFile(string stagedOutputPath, string finalOutputPath, Guid jobId, bool overwrite)
     {
-        try
+        var failure = ExecutionOutputStaging.FinalizeFileOrPreserve(stagedOutputPath, finalOutputPath, jobId, overwrite, WriteDiagnostic);
+        if (failure is not null)
         {
-            ExecutionOutputStaging.FinalizeFile(stagedOutputPath, finalOutputPath, jobId);
-        }
-        catch (IOException ex)
-        {
-            throw new InvalidOperationException(T(
-                GetLanguage(),
-                $"Encoding completed but the output file could not be finalized: {finalOutputPath}",
-                $"编码已完成，但无法完成输出文件落盘：{finalOutputPath}"), ex);
+            throw new InvalidOperationException(failure.Describe(GetLanguage()), failure.Exception);
         }
     }
 

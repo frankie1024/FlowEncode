@@ -15,17 +15,6 @@ namespace FlowEncode.ViewModels;
 
 public partial class MainWindowViewModel
 {
-    private static readonly HashSet<string> UnsupportedDirectAudioContainerExtensions = new(StringComparer.OrdinalIgnoreCase)
-    {
-        ".mkv",
-        ".mp4",
-        ".m2ts",
-        ".ts",
-        ".avi",
-        ".flv",
-        ".mov"
-    };
-
     private string _audioProcessingSourcePath = string.Empty;
     private string _audioProcessingOutputPath = string.Empty;
     private AudioWorkflowOption? _selectedAudioWorkflow;
@@ -441,7 +430,7 @@ public partial class MainWindowViewModel
         return ValidateAudioProcessingConfiguration(requireSourceExists: true, out existingOutputPath);
     }
 
-    internal async Task<string?> StartAudioProcessingAsync()
+    internal async Task<string?> StartAudioProcessingAsync(AudioProcessingRequest? automationRequest = null)
     {
         if (_isChangingWorkspaceRoot)
         {
@@ -458,7 +447,7 @@ public partial class MainWindowViewModel
 
         try
         {
-            var request = CreateAudioProcessingRequest(requireSourceExists: true);
+            var request = automationRequest ?? CreateAudioProcessingRequest(requireSourceExists: true);
             _activeAudioProcessingMode = request.Mode;
             workflowLabel = Texts.AudioWorkflowLabel(request.Mode);
 
@@ -753,8 +742,7 @@ public partial class MainWindowViewModel
 
     private void EnsureDirectAudioSourceSupported(string sourcePath, string workflowLabel)
     {
-        var extension = Path.GetExtension(sourcePath);
-        if (!string.IsNullOrWhiteSpace(extension) && UnsupportedDirectAudioContainerExtensions.Contains(extension))
+        if (AudioProcessingOutputPathPlanner.IsDirectSourceUnsupported(sourcePath))
         {
             throw new InvalidOperationException(Texts.AudioDirectSourceUnsupportedError(workflowLabel));
         }
@@ -982,26 +970,7 @@ public partial class MainWindowViewModel
         AudioProcessingMode workflow,
         AudioEac3ToOutputFormat? eac3ToOutputFormat)
     {
-        if (workflow == AudioProcessingMode.Ddp)
-        {
-            return outputDirectory;
-        }
-
-        var fileName = Path.GetFileNameWithoutExtension(sourcePath);
-        if (string.IsNullOrWhiteSpace(fileName))
-        {
-            fileName = "audio";
-        }
-
-        var extension = workflow switch
-        {
-            AudioProcessingMode.Eac3To when eac3ToOutputFormat == AudioEac3ToOutputFormat.Ac3 => "ac3",
-            AudioProcessingMode.Eac3To => "flac",
-            AudioProcessingMode.Opus => "opus",
-            _ => "audio"
-        };
-
-        return Path.Combine(outputDirectory, $"{fileName}.{extension}");
+        return AudioProcessingOutputPathPlanner.BuildOutputPath(sourcePath, outputDirectory, workflow, eac3ToOutputFormat);
     }
 
     private string? TryResolveAudioProcessingOutputPreviewPath()

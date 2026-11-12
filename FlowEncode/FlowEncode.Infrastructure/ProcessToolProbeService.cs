@@ -1,5 +1,6 @@
 using System.Collections.Concurrent;
 using System.Diagnostics;
+using System.Runtime.ExceptionServices;
 using System.Text.Json;
 using System.Text.RegularExpressions;
 using FlowEncode.Application;
@@ -11,6 +12,7 @@ public sealed class ProcessToolProbeService : IToolProbeService
 {
     private const int ProbeTimeoutMilliseconds = 5000;
     private const int VsrepoInstalledProbeTimeoutMilliseconds = 30000;
+    private static readonly int ProbeParallelism = Math.Clamp(Environment.ProcessorCount, 2, 8);
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
 
     private readonly IToolRegistryService _toolRegistryService;
@@ -36,12 +38,31 @@ public sealed class ProcessToolProbeService : IToolProbeService
         return Task.Run<IReadOnlyList<ToolProbeResult>>(() =>
         {
             cancellationToken.ThrowIfCancellationRequested();
-            var vsrepoInstalledCache = new Dictionary<string, VsrepoInstalledProbeResult>(StringComparer.OrdinalIgnoreCase);
+            var vsrepoInstalledCache = new VsrepoInstalledProbeCache(StringComparer.OrdinalIgnoreCase);
+            var definitions = _toolRegistryService.GetTools();
+            var results = new ToolProbeResult[definitions.Count];
 
-            return _toolRegistryService
-                .GetTools()
-                .Select(definition => ProbeCached(definition, cancellationToken, vsrepoInstalledCache))
-                .ToList();
+            // Each probe spawns its own short-lived process (version flags, Python imports, vsrepo),
+            // so running them one after another made a cold environment check take minutes.
+            try
+            {
+                Parallel.For(
+                    0,
+                    definitions.Count,
+                    new ParallelOptions
+                    {
+                        CancellationToken = cancellationToken,
+                        MaxDegreeOfParallelism = ProbeParallelism
+                    },
+                    index => results[index] = ProbeCached(definitions[index], cancellationToken, vsrepoInstalledCache));
+            }
+            catch (AggregateException ex) when (ex.InnerExceptions.Count == 1)
+            {
+                ExceptionDispatchInfo.Capture(ex.InnerExceptions[0]).Throw();
+                throw;
+            }
+
+            return results;
         }, cancellationToken);
     }
 
@@ -50,7 +71,7 @@ public sealed class ProcessToolProbeService : IToolProbeService
         return Task.Run(() =>
         {
             var definition = _toolRegistryService.GetTool(kind);
-            var vsrepoInstalledCache = new Dictionary<string, VsrepoInstalledProbeResult>(StringComparer.OrdinalIgnoreCase);
+            var vsrepoInstalledCache = new VsrepoInstalledProbeCache(StringComparer.OrdinalIgnoreCase);
             return ProbeCached(definition, cancellationToken, vsrepoInstalledCache);
         }, cancellationToken);
     }
@@ -63,7 +84,7 @@ public sealed class ProcessToolProbeService : IToolProbeService
     private ToolProbeResult ProbeCached(
         ToolDefinition definition,
         CancellationToken cancellationToken,
-        IDictionary<string, VsrepoInstalledProbeResult> vsrepoInstalledCache)
+        VsrepoInstalledProbeCache vsrepoInstalledCache)
     {
         cancellationToken.ThrowIfCancellationRequested();
 
@@ -89,7 +110,7 @@ public sealed class ProcessToolProbeService : IToolProbeService
         ToolDefinition definition,
         AppSettings settings,
         CancellationToken cancellationToken,
-        IDictionary<string, VsrepoInstalledProbeResult> vsrepoInstalledCache,
+        VsrepoInstalledProbeCache vsrepoInstalledCache,
         IReadOnlyDictionary<string, string> manualToolPaths)
     {
         cancellationToken.ThrowIfCancellationRequested();
@@ -246,7 +267,7 @@ public sealed class ProcessToolProbeService : IToolProbeService
     private ToolProbeResult ProbeWithVsrepoInstalledPackage(
         ToolDefinition definition,
         ToolCandidate candidate,
-        IDictionary<string, VsrepoInstalledProbeResult> vsrepoInstalledCache)
+        VsrepoInstalledProbeCache vsrepoInstalledCache)
     {
         if (string.IsNullOrWhiteSpace(definition.ProbeValue))
         {
@@ -295,13 +316,21 @@ public sealed class ProcessToolProbeService : IToolProbeService
 
     private VsrepoInstalledProbeResult GetVsrepoInstalledProbeResult(
         ToolCandidate candidate,
-        IDictionary<string, VsrepoInstalledProbeResult> vsrepoInstalledCache)
+        VsrepoInstalledProbeCache vsrepoInstalledCache)
     {
-        if (vsrepoInstalledCache.TryGetValue(candidate.Path, out var cached))
-        {
-            return cached;
-        }
+        // Several VSRepo package probes share one candidate; Lazy keeps the 30s `vsrepo installed`
+        // call to a single run even when those probes execute in parallel.
+        return vsrepoInstalledCache
+            .GetOrAdd(
+                candidate.Path,
+                _ => new Lazy<VsrepoInstalledProbeResult>(
+                    () => RunVsrepoInstalledProbe(candidate),
+                    LazyThreadSafetyMode.ExecutionAndPublication))
+            .Value;
+    }
 
+    private VsrepoInstalledProbeResult RunVsrepoInstalledProbe(ToolCandidate candidate)
+    {
         using var process = new Process
         {
             StartInfo = CreatePythonModuleProcessStartInfo(
@@ -357,7 +386,6 @@ public sealed class ProcessToolProbeService : IToolProbeService
             }
         }
 
-        vsrepoInstalledCache[candidate.Path] = result;
         return result;
     }
 
@@ -1466,6 +1494,9 @@ public sealed class ProcessToolProbeService : IToolProbeService
         package = new VsrepoInstalledLine(displayName, packageNamespace, identifier);
         return true;
     }
+
+    private sealed class VsrepoInstalledProbeCache(IEqualityComparer<string> comparer)
+        : ConcurrentDictionary<string, Lazy<VsrepoInstalledProbeResult>>(comparer);
 
     private sealed record VsrepoInstalledProbeResult(
         HashSet<string> PackageKeys,

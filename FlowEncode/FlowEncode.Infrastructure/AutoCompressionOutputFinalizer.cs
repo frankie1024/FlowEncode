@@ -25,15 +25,10 @@ internal static class AutoCompressionOutputFinalizer
             return false;
         }
 
-        try
+        var failure = ExecutionOutputStaging.FinalizeFileOrPreserve(stagedOutputPath, finalOutputPath, jobId, overwrite: true, writeDiagnostic);
+        if (failure is not null)
         {
-            ExecutionOutputStaging.FinalizeFile(stagedOutputPath, finalOutputPath, jobId);
-        }
-        catch (Exception ex)
-        {
-            failureSummary = BuildFailureSummary(language, finalOutputPath, ex);
-            writeDiagnostic?.Invoke(
-                $"Failed to finalize auto compression output from '{stagedOutputPath}' to '{finalOutputPath}'. {ex.GetType().Name}: {ex.Message}");
+            failureSummary = BuildFailureSummary(language, finalOutputPath, failure.Exception) + failure.DescribePreservedOutput(language);
             return false;
         }
 

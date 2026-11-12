@@ -74,7 +74,8 @@ internal sealed partial class SourceVideoInfoProbe
         }
         catch
         {
-            _cache.TryRemove(cacheKey, out _);
+            // Lazy caches the exception; evict only this entry so a newer one added concurrently survives.
+            _cache.TryRemove(new KeyValuePair<SourceVideoInfoCacheKey, Lazy<SourceVideoInfo?>>(cacheKey, lazy));
             throw;
         }
     }

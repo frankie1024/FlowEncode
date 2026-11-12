@@ -105,6 +105,63 @@ public sealed class LocalAppSettingsServiceTests
         Assert.IsNull(service.ConsumeLastLoadRecoveryInfo());
     }
 
+    [TestMethod]
+    public void Load_WhenAnotherProcessSavedSettings_ReturnsTheNewSettings()
+    {
+        var paths = CreatePaths();
+        var desktop = new LocalAppSettingsService(paths);
+        var mcp = new LocalAppSettingsService(paths);
+        desktop.Save(AppSettings.Default with { MaxConcurrentEncodingJobs = 1 });
+        Assert.AreEqual(1, mcp.Load().MaxConcurrentEncodingJobs);
+
+        desktop.Save(AppSettings.Default with { MaxConcurrentEncodingJobs = 3, QueueCompletionAction = QueueCompletionAction.Sleep });
+        File.SetLastWriteTimeUtc(paths.SettingsPath, DateTime.UtcNow.AddSeconds(5));
+
+        var reloaded = mcp.Load();
+        Assert.AreEqual(3, reloaded.MaxConcurrentEncodingJobs);
+        Assert.AreEqual(QueueCompletionAction.Sleep, reloaded.QueueCompletionAction);
+    }
+
+    [TestMethod]
+    public void Load_WhenFileIsUnchanged_ReturnsCachedInstance()
+    {
+        var paths = CreatePaths();
+        var service = new LocalAppSettingsService(paths);
+        service.Save(AppSettings.Default with { MaxConcurrentEncodingJobs = 2 });
+
+        Assert.AreSame(service.Load(), service.Load());
+    }
+
+    [TestMethod]
+    public void Load_WhenReloadHitsAPartialWrite_KeepsLastGoodSettingsWithoutBackingUpTheFile()
+    {
+        var paths = CreatePaths();
+        var service = new LocalAppSettingsService(paths);
+        service.Save(AppSettings.Default with { MaxConcurrentEncodingJobs = 4 });
+        Assert.AreEqual(4, service.Load().MaxConcurrentEncodingJobs);
+
+        File.WriteAllText(paths.SettingsPath, "{\"maxConcurrentEncodingJobs\": ");
+        File.SetLastWriteTimeUtc(paths.SettingsPath, DateTime.UtcNow.AddSeconds(5));
+
+        Assert.AreEqual(4, service.Load().MaxConcurrentEncodingJobs);
+        Assert.IsTrue(File.Exists(paths.SettingsPath));
+        Assert.AreEqual(0, Directory.GetFiles(paths.SettingsRootPath, "settings.json.broken-*").Length);
+        Assert.IsNull(service.ConsumeLastLoadRecoveryInfo());
+    }
+
+    [TestMethod]
+    public void Load_WhenFileDisappearsAfterLoading_KeepsCachedSettings()
+    {
+        var paths = CreatePaths();
+        var service = new LocalAppSettingsService(paths);
+        service.Save(AppSettings.Default with { MaxConcurrentEncodingJobs = 2 });
+        Assert.AreEqual(2, service.Load().MaxConcurrentEncodingJobs);
+
+        File.Delete(paths.SettingsPath);
+
+        Assert.AreEqual(2, service.Load().MaxConcurrentEncodingJobs);
+    }
+
     private void AssertNoTemporaryFiles(string targetPath)
     {
         var directory = Path.GetDirectoryName(targetPath)!;
