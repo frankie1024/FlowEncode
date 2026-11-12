@@ -129,12 +129,16 @@ public sealed partial class OverviewView : UserControl
     private void UpdateParallelWorkersColumn()
     {
         var showWorkers = DraftAv1anParallelWorkersNumberBox.Visibility == Visibility.Visible;
-        DraftParallelWorkersColumn.Width = showWorkers && !_compactForms
-            ? new GridLength(1, GridUnitType.Star)
-            : new GridLength(0);
+        var splitWorkers = showWorkers && !_compactForms;
+        if (splitWorkers && !DraftEncodingModeGrid.ColumnDefinitions.Contains(DraftParallelWorkersColumn))
+            DraftEncodingModeGrid.ColumnDefinitions.Add(DraftParallelWorkersColumn);
+        else if (!splitWorkers && DraftEncodingModeGrid.ColumnDefinitions.Contains(DraftParallelWorkersColumn))
+            DraftEncodingModeGrid.ColumnDefinitions.Remove(DraftParallelWorkersColumn);
+        DraftParallelWorkersColumn.Width = new GridLength(1, GridUnitType.Star);
+        DraftEncodingModeGrid.ColumnSpacing = splitWorkers ? UiTokens.SpacingM : 0;
         DraftEncodingModeGrid.RowSpacing = showWorkers && _compactForms ? UiTokens.SpacingM : 0;
         Grid.SetRow(DraftAv1anParallelWorkersNumberBox, _compactForms ? 1 : 0);
-        Grid.SetColumn(DraftAv1anParallelWorkersNumberBox, _compactForms ? 0 : 1);
+        Grid.SetColumn(DraftAv1anParallelWorkersNumberBox, splitWorkers ? 1 : 0);
     }
 
     public void SetOverviewTemplateSelection(TemplateLibraryItemViewModel? templateItem)

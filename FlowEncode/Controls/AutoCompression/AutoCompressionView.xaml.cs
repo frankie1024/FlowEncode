@@ -37,10 +37,12 @@ public sealed partial class AutoCompressionView : UserControl
         // A cached, detached page has no measured width when navigation prepares it.
         var splitPaths = availableWidth - contentPadding.Left - contentPadding.Right >= 840;
         AutoPathsGrid.RowSpacing = splitPaths ? 0 : UiTokens.SpacingM;
+        AutoPathsGrid.ColumnSpacing = splitPaths ? UiTokens.SpacingM : 0;
         AutoPathsGrid.ColumnDefinitions[1].Width = splitPaths ? new GridLength(1, GridUnitType.Star) : new GridLength(0);
         Grid.SetRow(AutoOutputPathGrid, splitPaths ? 0 : 1);
         Grid.SetColumn(AutoOutputPathGrid, splitPaths ? 1 : 0);
         AutoStatusGrid.ColumnDefinitions[1].Width = compactForms ? new GridLength(0) : new GridLength(1, GridUnitType.Star);
+        AutoStatusGrid.ColumnSpacing = compactForms ? 0 : UiTokens.SpacingM;
         AutoStatusGrid.RowSpacing = compactForms ? UiTokens.SpacingM : 0;
         if (AutoStatusGrid.RowDefinitions.Count != (compactForms ? 2 : 1))
         {
@@ -65,10 +67,6 @@ public sealed partial class AutoCompressionView : UserControl
             });
         ConfigureFiveItemGrid(
             AutoCompressionOptionsGrid,
-            AutoCompressionMetricColumn,
-            AutoCompressionTargetColumn,
-            AutoCompressionProbesColumn,
-            AutoCompressionWorkersColumn,
             AutoCompressionMetricComboBox,
             AutoCompressionTargetVmafBox,
             AutoCompressionProbesBox,
@@ -283,20 +281,7 @@ public sealed partial class AutoCompressionView : UserControl
 
         grid.ColumnSpacing = columnCount == 1 ? 0 : UiTokens.SpacingM;
 
-        var columns = new[]
-        {
-            grid.ColumnDefinitions[0],
-            grid.ColumnDefinitions[1],
-            grid.ColumnDefinitions[2],
-            grid.ColumnDefinitions[3]
-        };
-
-        for (var index = 0; index < columns.Length; index++)
-        {
-            columns[index].Width = index < columnCount
-                ? new GridLength(1, GridUnitType.Star)
-                : new GridLength(0);
-        }
+        SetColumnCount(grid, columnCount);
 
         var items = new FrameworkElement[]
         {
@@ -318,10 +303,6 @@ public sealed partial class AutoCompressionView : UserControl
 
     private static void ConfigureFiveItemGrid(
         Grid grid,
-        ColumnDefinition secondColumn,
-        ColumnDefinition thirdColumn,
-        ColumnDefinition fourthColumn,
-        ColumnDefinition fifthColumn,
         FrameworkElement secondItem,
         FrameworkElement thirdItem,
         FrameworkElement fourthItem,
@@ -329,10 +310,7 @@ public sealed partial class AutoCompressionView : UserControl
         int columnCount)
     {
         grid.ColumnSpacing = columnCount == 1 ? 0 : UiTokens.SpacingM;
-        secondColumn.Width = columnCount >= 2 ? new GridLength(1, GridUnitType.Star) : new GridLength(0);
-        thirdColumn.Width = columnCount >= 3 ? new GridLength(1, GridUnitType.Star) : new GridLength(0);
-        fourthColumn.Width = columnCount >= 4 ? new GridLength(1, GridUnitType.Star) : new GridLength(0);
-        fifthColumn.Width = columnCount >= 5 ? new GridLength(1, GridUnitType.Star) : new GridLength(0);
+        SetColumnCount(grid, columnCount);
 
         var items = new[] { secondItem, thirdItem, fourthItem, fifthItem };
         for (var index = 0; index < items.Length; index++)
@@ -365,5 +343,13 @@ public sealed partial class AutoCompressionView : UserControl
             Grid.SetRow(item, row);
             Grid.SetColumn(item, column);
         }
+    }
+
+    private static void SetColumnCount(Grid grid, int columnCount)
+    {
+        if (grid.ColumnDefinitions.Count == columnCount) return;
+        grid.ColumnDefinitions.Clear();
+        for (var index = 0; index < columnCount; index++)
+            grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
     }
 }

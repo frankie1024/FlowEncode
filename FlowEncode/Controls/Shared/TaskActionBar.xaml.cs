@@ -44,13 +44,29 @@ public sealed partial class TaskActionBar : UserControl
 
         ActionGrid.ColumnSpacing = !IsStacked && actionCount > 1 ? UiTokens.SpacingM : 0;
         ActionGrid.RowSpacing = IsStacked && actionCount > 1 ? UiTokens.SpacingM : 0;
-        PrimaryColumn.Width = hasPrimary ? new GridLength(1, GridUnitType.Star) : new GridLength(0);
-        SecondaryColumn.Width = !IsStacked && hasSecondary ? new GridLength(1, GridUnitType.Star) : new GridLength(0);
-        TertiaryColumn.Width = !IsStacked && hasTertiary ? new GridLength(1, GridUnitType.Star) : new GridLength(0);
+        // A zero-width column still contributes ColumnSpacing in WinUI.
+        // Only create slots for actions that are actually present.
+        var columnCount = IsStacked ? 1 : System.Math.Max(1, actionCount);
+        var rowCount = IsStacked ? System.Math.Max(1, actionCount) : 1;
+        if (ActionGrid.ColumnDefinitions.Count != columnCount)
+        {
+            ActionGrid.ColumnDefinitions.Clear();
+            for (var index = 0; index < columnCount; index++)
+                ActionGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        }
+        if (ActionGrid.RowDefinitions.Count != rowCount)
+        {
+            ActionGrid.RowDefinitions.Clear();
+            for (var index = 0; index < rowCount; index++)
+                ActionGrid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+        }
 
-        SetPresenterLayout(PrimaryPresenter, 0, 0);
-        SetPresenterLayout(SecondaryPresenter, IsStacked ? 1 : 0, IsStacked ? 0 : 1);
-        SetPresenterLayout(TertiaryPresenter, IsStacked ? 2 : 0, IsStacked ? 0 : 2);
+        var slot = 0;
+        foreach (var presenter in new[] { PrimaryPresenter, SecondaryPresenter, TertiaryPresenter })
+        {
+            var position = presenter.Visibility == Visibility.Visible ? slot++ : 0;
+            SetPresenterLayout(presenter, IsStacked ? position : 0, IsStacked ? 0 : position);
+        }
     }
 
     private void SetPresenterLayout(FrameworkElement presenter, int row, int column)
