@@ -249,6 +249,18 @@
             <SolidColorBrush x:Key="TemplateUserBadgeForegroundBrush" Color="{StaticResource ThemeColorTemplateUserBadgeForeground}" />
             <SolidColorBrush x:Key="SubtleTextBrush" Color="{StaticResource ThemeColorTextSecondary}" />
 
+            <!-- Keep ComboBox popups in the app's blue-gray palette instead of neutral Acrylic.
+                 Override dark theme resources only so native light/high-contrast states remain intact. -->
+            <SolidColorBrush x:Key="ComboBoxDropDownBackground" Color="{StaticResource ThemeColorHero}" />
+            <SolidColorBrush x:Key="ComboBoxDropDownBorderBrush" Color="{StaticResource ThemeColorBorderElevated}" />
+            <SolidColorBrush x:Key="ComboBoxItemBackgroundPointerOver" Color="{StaticResource ThemeColorTextPrimary}" Opacity="0.05" />
+            <SolidColorBrush x:Key="ComboBoxItemBackgroundPressed" Color="{StaticResource ThemeColorTextPrimary}" Opacity="0.03" />
+            <SolidColorBrush x:Key="ComboBoxItemBackgroundSelected" Color="{StaticResource ThemeColorAccentSoft}" />
+            <SolidColorBrush x:Key="ComboBoxItemBackgroundSelectedUnfocused" Color="{StaticResource ThemeColorAccentSoft}" />
+            <SolidColorBrush x:Key="ComboBoxItemBackgroundSelectedPointerOver" Color="{StaticResource ThemeColorAccent}" Opacity="0.2" />
+            <SolidColorBrush x:Key="ComboBoxItemBackgroundSelectedPressed" Color="{StaticResource ThemeColorAccent}" Opacity="0.1" />
+            <SolidColorBrush x:Key="ComboBoxItemPillFillBrush" Color="{StaticResource ThemeColorAccent}" />
+
             <!-- Elevation Z translation tokens (ThemeShadow receiver offsets, per theme) -->
             <x:Double x:Key="ThemeElevationZ_E1">6</x:Double>
             <x:Double x:Key="ThemeElevationZ_E2">12</x:Double>
