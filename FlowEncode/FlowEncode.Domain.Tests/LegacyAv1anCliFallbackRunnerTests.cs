@@ -7,6 +7,18 @@ namespace FlowEncode.Domain.Tests;
 public sealed class LegacyAv1anCliFallbackRunnerTests
 {
     [TestMethod]
+    [DataRow("natural-cubic-polynomial", "natural-cubicpolynomial")]
+    [DataRow("fritschcarlson-pchip", "fritschcarlson-pchip")]
+    public void InterpolationSelection_UsesUpstreamRoundPairSyntax(string selection, string expected)
+    {
+        var request = new AutoCompressionRequest(Guid.NewGuid(), @"D:\input.vpy", @"D:\output.mkv",
+            EncoderKind.X264, AutoCompressionMetric.Vmaf, 95, 4, "", "", 2,
+            new AutoCompressionSearchProfile(selection, null, null, 1, false));
+        var arguments = LegacyAv1anCliFallbackRunner.BuildArgumentParts(request, @"D:\temp", AppLanguage.English, true).ToList();
+        Assert.AreEqual(expected, arguments[arguments.IndexOf("--interp-method") + 1]);
+    }
+
+    [TestMethod]
     public void GetWorkingDirectory_WhenSourceHasDirectory_UsesSourceDirectory()
     {
         var request = new AutoCompressionRequest(

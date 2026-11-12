@@ -3940,10 +3940,12 @@ public partial class MainWindowViewModel : CommunityToolkit.Mvvm.ComponentModel.
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .ToArray();
 
-        var fourthRoundMethods = new[] { "linear", "quadratic", "natural" }
+        var fourthRoundMethods = new[] { "linear", "quadratic", "natural", "fritschcarlson" }
             .Where(method => available.Contains(method, StringComparer.OrdinalIgnoreCase))
             .ToArray();
-        var fifthRoundMethods = available;
+        var fifthRoundMethods = available
+            .Where(static method => !method.Equals("fritschcarlson", StringComparison.OrdinalIgnoreCase))
+            .ToArray();
 
         var result = new List<StringChoiceOption>
         {

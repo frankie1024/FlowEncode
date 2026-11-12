@@ -165,7 +165,7 @@ public sealed class LocalExternalToolService : IExternalToolService, IDisposable
         var packages = new List<ExternalToolUpdatePackage>();
 
         var av1an = useBaseline
-            ? await TryGetManagedAv1anPackageFromRepositoryAsync("frankie1024/Av1an", cancellationToken, "v0.5.2-flowencode.2")
+            ? await TryGetManagedAv1anPackageFromRepositoryAsync("frankie1024/Av1an", cancellationToken, "v" + ToolchainBaseline.VersionFor(SetupDependencyKind.Av1an))
             : await GetAv1anPackageAsync(cancellationToken);
         if (av1an is not null)
         {
@@ -456,7 +456,7 @@ public sealed class LocalExternalToolService : IExternalToolService, IDisposable
 
         var selected = candidates[0];
         var sha256 = PackageIntegrityVerifier.NormalizeSha256Digest(selected.Asset.Digest);
-        if (baselineTag is not null && sha256 != "e6366b7ba3345f3a0fd8d4773a162ce0593c4c191c10ea5c058e4b97cb73eacf") return null;
+        if (baselineTag is not null && sha256 != "ded80fced3cbcbd80ee31fe6243eca6c8970c48367a47064a61698e2e288df6b") return null;
         var isAutomatic = !string.IsNullOrWhiteSpace(sha256);
         var notes = "使用 FlowEncode 兼容的 Av1an 托管发布包。";
         if (!isAutomatic)
@@ -835,7 +835,7 @@ public sealed class LocalExternalToolService : IExternalToolService, IDisposable
             return null;
         }
 
-        var versionMatch = Regex.Match(trimmed, "(\\d+\\.\\d+(?:\\.\\d+)*)");
+        var versionMatch = Regex.Match(trimmed, @"(\d+\.\d+(?:\.\d+)*(?:-flowencode\.\d+)?)", RegexOptions.IgnoreCase);
         if (versionMatch.Success)
         {
             return versionMatch.Groups[1].Value;

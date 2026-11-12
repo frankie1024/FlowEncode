@@ -225,7 +225,7 @@ Domain/Application/Infrastructure/Tests 编译成功。普通 `dotnet test` 初�
 | x264 | **stable-20250608-b35605ace3dd，0.165.3222** | stable 标签和 ZIP 摘要固定 |
 | x265 | **4.3，8+10 位 multilib，优化构建** | 修复包 CI 已通过；默认安装固定使用本项目 v3.0.0-beta.1 附属资产与精确摘要，旧 8 位包被拒绝 |
 | SVT-AV1 | **4.3.0** | 正式标签与 ZIP 摘要固定 |
-| Av1an | **v0.5.2-flowencode.2** | 项目协议兼容的正式托管包，固定标签和摘要；不是自动跟随上游 nightly |
+| Av1an | **v0.6.0-flowencode.1** | 同步上游 0.6.0，保留 FlowEncode 协议；R79 短样本实测通过，固定标签和摘要 |
 
 插件集中 ffms2 为 5.0、fpng 为 1.0、libp2p 为 r2、lsmas 为 1296.0.0.0、placebo 为 v3.3.1。四个旧脚本包没有使用浮动分支：mvsfunc 固定 `865c7486ca860d323754ec4774bc4cca540a7076`、havsfunc 固定 `5baf9c2a1dac9da4de182cf3a4e12041c3e0d48b`，其依赖 adjust 和 nnedi3_resample 同样固定提交与文件摘要。这是保留旧脚本生态的明确例外；其余插件优先采用正式发布标签。vsrepo 的私有快照存放在工作区下载目录，正常核对不会刷新或覆盖用户原有的包定义数据库。
 
@@ -274,3 +274,21 @@ x265 源构建修复：[PR #1](https://github.com/frankie1024/x265-windows-build
 - 上游已跟踪的 `x265Version.txt` 仍写着 4.2；源码归档失去 Git 元数据时会报告旧版本。附件提供单独的 `Prepare-Source-Version.ps1`，在提取的源码中恢复 CI 使用的 4.3 / tag distance 0 / 精确提交信息。已通过 CMake 实际检查，版本结果为 4.3。归档内的原始源码保持原样。
 
 两个 ZIP 可以作为 FlowEncode beta 的附属发布资产一同提供，保留外部 x265 仓库旧资产；发布时需要把应用的固定下载来源指向实际 beta release/asset，并继续校验二进制原摘要 `499913e1e898b64078a795c9edcd0ea8805fe05417091ce9abad0572f70f0b3d`。这两份精确附件随本项目 v3.0.0-beta.1 发布；固定基线的 HTTP/摘要选择有回归测试覆盖。
+
+### 8.6 Av1an 0.6.0 同步与 R79 验证
+
+2026-11-12 将用户 fork `frankie1024/Av1an` 同步到上游 `rust-av/Av1an` v0.6.0（`641ce62d70e34f438f3ee91ec50de77784a10705`），并发布 [v0.6.0-flowencode.1](https://github.com/frankie1024/Av1an/releases/tag/v0.6.0-flowencode.1)。仅更新用户 fork，没有向上游提交 PR。
+
+- 保留 FlowEncode protocol 1、`--capabilities`、JSONL 生命周期/分块进度/编码器日志和独立版本探测。
+- 删除旧 `third_party/vapoursynth*` 副本、Windows 注册表播种及 VSScript panic 恢复绕过，直接使用上游锁定的 `vapoursynth 0.5.6` / `vapoursynth-sys 0.6.0`。上游加载器支持 `VSSCRIPT_PATH` 与 `vapoursynth get-vsscript`，R79 的正常路径无需旧补丁。
+- FlowEncode 的第 4 轮插值选项纳入 Fritsch–Carlson，第 5 轮不提供该算法；将协议中的 `cubic-polynomial` 名称转换为上游轮次组合参数可解析的 `cubicpolynomial`。发布版本标签保留 `-flowencode.1` 后缀，避免与未定制的 0.6.0 混淆。
+- `av1an.exe` SHA256 固定为 `ded80fced3cbcbd80ee31fe6243eca6c8970c48367a47064a61698e2e288df6b`，与 GitHub 发布资产摘要一致。构建源提交为 `566b71727de2981ae26ad8f3683c8b091587b489`；已有旧版发布资产继续保留。
+
+验证结果：
+
+- [Windows CI](https://github.com/frankie1024/Av1an/actions/runs/43167268475) Release 构建、格式检查、10 项 Rust 专项测试及协议探测全部通过。
+- 原版上游与实际发布的定制二进制均在 **R79 / Python 3.14.10 / FFmpeg 9.0.2** 环境运行。定制版 15 项检查通过：8/10 位 `.vpy` 场景检测、分块编码、VMAF 目标质量、48 帧解码计数、JSONL 进度/编码器日志，以及错误脚本的失败事件。
+- 2 项真实 FlowEncode `StructuredAv1anRunner` 测试通过，覆盖 `fritschcarlson-pchip` 与 `natural-cubic-polynomial` 的能力探测、实际目标质量压制及分阶段输出收尾。
+- 101 项相关 .NET 普通回归通过；真实 runner 测试另行运行，不计入普通回归通过数。
+
+本节只确认短样本的 R79 兼容性。长片、HDR/DV、复杂 GPU 插件和安装器端到端回滚仍需单独验收；没有将本节结果推广为所有自行安装的 Python 环境都已实测。日志和精确二进制保存在 `artifacts/av1an-audit/`。

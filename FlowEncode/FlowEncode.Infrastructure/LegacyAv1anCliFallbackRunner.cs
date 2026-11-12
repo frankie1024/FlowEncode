@@ -339,7 +339,8 @@ public sealed class LegacyAv1anCliFallbackRunner : IAutoCompressionRunner
         if (request.SearchProfile is { InterpolationMethod: { Length: > 0 } interpolationMethod })
         {
             args.Add("--interp-method");
-            args.Add(interpolationMethod);
+            // The protocol's display spelling contains a hyphen; upstream uses '-' between rounds.
+            args.Add(interpolationMethod.Replace("cubic-polynomial", "cubicpolynomial", StringComparison.OrdinalIgnoreCase));
         }
 
         if (request.SearchProfile is { ProbingStatistic: { Length: > 0 } probingStatistic })

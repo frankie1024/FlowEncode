@@ -77,6 +77,51 @@ public sealed class ToolchainRuntimeSmokeTests
         FfmpegCapabilityProbe.RequireOpus(Ffmpeg, false, default);
     }
 
+    [TestMethod]
+    [DataRow("fritschcarlson-pchip", "fritschcarlson")]
+    [DataRow("natural-cubic-polynomial", "cubic-polynomial")]
+    public async Task RealAv1anRunner_ProbesProtocolAndFinalizesTargetQualityOutput(string interpolation, string advertisedMethod)
+    {
+        var backend = Environment.GetEnvironmentVariable("FLOWENCODE_COMPAT_AV1AN")
+            ?? throw new AssertInconclusiveException("Set FLOWENCODE_COMPAT_AV1AN to the maintained Av1an binary.");
+        var source = Environment.GetEnvironmentVariable("FLOWENCODE_COMPAT_AV1AN_SOURCE")
+            ?? throw new AssertInconclusiveException("Set FLOWENCODE_COMPAT_AV1AN_SOURCE to a 48-frame R79 .vpy fixture.");
+        var directory = Path.Combine(Root, "runner-tests", Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(directory);
+        var paths = new LocalAppPaths(Path.Combine(directory, "state"), Path.Combine(directory, "install"), [directory]);
+        var settings = new Settings(AppSettings.Default with
+        {
+            Language = AppLanguage.English,
+            ManualToolPaths = new Dictionary<string, string>
+            {
+                [ManualToolPathKeys.ForRegisteredTool(RegisteredToolKind.Av1an)] = backend,
+                [ManualToolPathKeys.ForRegisteredTool(RegisteredToolKind.Ffmpeg)] = Ffmpeg,
+                [ManualToolPathKeys.ForRegisteredTool(RegisteredToolKind.Ffprobe)] = Probe,
+                [ManualToolPathKeys.ForRegisteredTool(RegisteredToolKind.X264)] = Encoder(EncoderKind.X264)
+            }
+        });
+        var probeService = new ProcessToolProbeService(new DefaultToolRegistryService(), paths,
+            new Discovery(EncoderKind.X264, Encoder(EncoderKind.X264)), settings);
+        using var timeout = new CancellationTokenSource(TimeSpan.FromMinutes(1));
+        var probe = await probeService.ProbeAsync(RegisteredToolKind.Av1an, timeout.Token);
+        Assert.AreEqual(ReadinessState.Ready, probe.State, probe.BackendCompatibilityDetail);
+        Assert.IsTrue(probe.IsProtocolCompatible, probe.BackendCompatibilityDetail);
+        Assert.IsTrue(ToolchainBaseline.IsRecommendedVersion(SetupDependencyKind.Av1an, probe.DetectedVersion));
+        var request = new AutoCompressionRequest(Guid.NewGuid(), source, Path.Combine(directory, "result.mkv"),
+            EncoderKind.X264, AutoCompressionMetric.Vmaf, 95, 4, "--preset ultrafast --output-depth 8",
+            "--split-method none -x 24 --pix-format yuv420p --vmaf-res inputres", 2,
+            new AutoCompressionSearchProfile(interpolation, null, "320x180", 1, false));
+        var result = await new StructuredAv1anRunner(paths, settings, probeService).RunAsync(request, cancellationToken: timeout.Token);
+        Assert.AreEqual(EncodingJobState.Completed, result.State, result.Log);
+        Assert.IsNotNull(result.BackendCapabilities);
+        Assert.AreEqual(1, result.BackendCapabilities.Protocol);
+        Assert.AreEqual(ToolchainBaseline.VersionFor(SetupDependencyKind.Av1an), result.BackendCapabilities.BackendVersion);
+        CollectionAssert.Contains(result.BackendCapabilities.InterpolationMethods.ToArray(), advertisedMethod);
+        StringAssert.Contains(result.Log, "encoder log captured:");
+        StringAssert.Contains(result.Log, "run completed");
+        EncodedMediaVerifier.VerifyVideo(Probe, request.OutputPath, new VideoOutputContract(EncoderKind.X264, 8, "420", 48), timeout.Token);
+    }
+
     private LocalEncodingJobRunner Runner(EncoderKind kind, string encoder, string directory)
     {
         var paths = new LocalAppPaths(Path.Combine(directory, "state"), Path.Combine(directory, "install"), [directory]);

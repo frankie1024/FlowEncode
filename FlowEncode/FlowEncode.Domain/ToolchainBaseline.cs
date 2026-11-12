@@ -16,7 +16,7 @@ public static class ToolchainBaseline
         SetupDependencyKind.X264 => "0.165.3222 (stable b35605a)",
         SetupDependencyKind.X265 => "4.3 (8+10-bit multilib)",
         SetupDependencyKind.SvtAv1 => "4.3.0",
-        SetupDependencyKind.Av1an => "0.5.2-flowencode.2",
+        SetupDependencyKind.Av1an => "0.6.0-flowencode.1",
         _ => string.Empty
     };
 
@@ -30,7 +30,7 @@ public static class ToolchainBaseline
         if (kind == SetupDependencyKind.VsPluginBundle)
             return string.Equals(installedVersion, VersionFor(kind), StringComparison.OrdinalIgnoreCase);
         if (kind == SetupDependencyKind.Av1an)
-            return Regex.IsMatch(installedVersion, @"(?<![\w.])0\.5\.2-flowencode\.2(?![\w.+-])", RegexOptions.IgnoreCase);
+            return Regex.IsMatch(installedVersion, $@"(?<![\w.]){Regex.Escape(VersionFor(kind))}(?![\w.+-])", RegexOptions.IgnoreCase);
         if (kind == SetupDependencyKind.VapourSynth)
             return Regex.IsMatch(installedVersion.Trim(), @"^(?:VapourSynth\s+)?R?79(?:\.0)?(?:\s|$)", RegexOptions.IgnoreCase);
         var expected = Regex.Match(VersionFor(kind), @"\d+(?:\.\d+)+").Value;
