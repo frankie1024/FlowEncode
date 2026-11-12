@@ -110,7 +110,10 @@ public sealed partial class AnimatedExpander : UserControl
     private void AnimatedExpander_Unloaded(object sender, RoutedEventArgs e)
     {
         _isLoaded = false;
-        StopCurrentAnimation();
+        // Settle an interrupted expansion before the cached page is detached.
+        // Reloading it must not resume with a partial body height or hover state.
+        ApplyImmediateState(IsExpanded);
+        VisualStateManager.GoToState(this, "Resting", false);
     }
 
     private void ChevronButton_Click(object sender, RoutedEventArgs e)
@@ -141,7 +144,6 @@ public sealed partial class AnimatedExpander : UserControl
 
     private void ContentClipHost_SizeChanged(object sender, SizeChangedEventArgs e)
     {
-        EnsureContentClipGeometry();
         UpdateContentClip();
     }
 
@@ -238,8 +240,8 @@ public sealed partial class AnimatedExpander : UserControl
 
         ContentBorder.Visibility = isExpanded ? Visibility.Visible : Visibility.Collapsed;
         ContentClipHost.Height = isExpanded ? double.NaN : 0;
+        ContentClipHost.Clip = null;
         UpdateHeaderCornerRadius(isExpanded);
-        HeaderBorder.Background = new SolidColorBrush(Microsoft.UI.Colors.Transparent);
         _chevronRotateTransform!.Angle = isExpanded ? 180 : 0;
         UpdateContentClip();
     }
@@ -278,6 +280,7 @@ public sealed partial class AnimatedExpander : UserControl
         var endAngle = expand ? 180 : 0;
 
         ContentClipHost.Height = animationStartHeight;
+        ContentClipHost.Clip = _contentClipGeometry;
         UpdateHeaderCornerRadius(expand);
         UpdateContentClip();
 
@@ -295,6 +298,7 @@ public sealed partial class AnimatedExpander : UserControl
             }
 
             UpdateHeaderCornerRadius(expand);
+            ContentClipHost.Clip = null;
             UpdateContentClip();
             _currentStoryboard = null;
 
@@ -407,7 +411,6 @@ public sealed partial class AnimatedExpander : UserControl
     private void EnsureContentClipGeometry()
     {
         _contentClipGeometry ??= new RectangleGeometry();
-        ContentClipHost.Clip = _contentClipGeometry;
     }
 
     private void UpdateContentClip()

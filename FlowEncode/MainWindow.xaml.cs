@@ -279,13 +279,13 @@ public sealed partial class MainWindow : Window, ISettingsViewHost, IShellNaviga
                 static (control, _, contentPadding, stackedWorkspace, compactForms) => ((TemplatesView)control).ApplyLayout(stackedWorkspace, compactForms, contentPadding),
                 (_, window) => window.InitializeTemplateLibrarySelectionIfLoaded()),
             [MainShellSections.AudioProcessing] = new(
-                ShellSectionLifetime.Recreatable,
+                ShellSectionLifetime.Sticky,
                 () => CreateSectionView<AudioProcessingView>(ViewModel.AudioProcessingModule),
-                static (control, width, contentPadding, _, compactForms) => ((AudioProcessingView)control).ApplyLayout(compactForms, width >= AudioOptionsThreeColumnWidth ? 3 : 1, contentPadding)),
+                static (control, width, contentPadding, _, compactForms) => ((AudioProcessingView)control).ApplyLayout(width, compactForms, width >= AudioOptionsThreeColumnWidth ? 3 : 1, contentPadding)),
             [MainShellSections.AutoCompression] = new(
-                ShellSectionLifetime.Recreatable,
+                ShellSectionLifetime.Sticky,
                 () => CreateSectionView<AutoCompressionView>(ViewModel.AutoCompressionModule),
-                static (control, width, contentPadding, _, compactForms) => ((AutoCompressionView)control).ApplyLayout(compactForms, ResolveAutoCompressionOptionColumnCount(width), ResolveAutoCompressionAdvancedColumnCount(width), contentPadding)),
+                static (control, width, contentPadding, _, compactForms) => ((AutoCompressionView)control).ApplyLayout(width, compactForms, ResolveAutoCompressionOptionColumnCount(width), ResolveAutoCompressionAdvancedColumnCount(width), contentPadding)),
             [MainShellSections.Settings] = new(
                 ShellSectionLifetime.Sticky,
                 () => CreateSectionView<SettingsView>(ViewModel.SettingsModule, view => view.Host = this),

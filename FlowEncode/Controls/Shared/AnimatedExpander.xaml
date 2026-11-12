@@ -22,7 +22,7 @@
 
         <Border
             x:Name="HeaderBorder"
-            Background="{ThemeResource CardAltBrush}"
+            Background="Transparent"
             BorderBrush="{ThemeResource CardBorderBrush}"
             BorderThickness="{StaticResource AppCardBorderThickness}"
             CornerRadius="{StaticResource AppControlCornerRadius}"
