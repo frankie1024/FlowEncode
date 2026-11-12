@@ -13,6 +13,7 @@ namespace FlowEncode.Controls.AudioProcessing;
 public sealed partial class AudioProcessingView : UserControl
 {
     private bool _interactionsInitialized;
+    private double _availableWidth;
 
     private AudioProcessingViewModel? ViewModel => DataContext as AudioProcessingViewModel;
     private AudioProcessingFormViewModel? FormViewModel => ViewModel?.Form;
@@ -31,7 +32,6 @@ public sealed partial class AudioProcessingView : UserControl
         AudioFormPanel.SizeChanged += (_, _) => ScheduleDiagnosticsLayout();
         AudioTaskStatusPanel.SizeChanged += (_, _) => ScheduleDiagnosticsLayout();
         AudioResultsPanel.SizeChanged += (_, _) => ScheduleDiagnosticsLayout();
-        SizeChanged += (_, _) => ApplyResponsiveLayout();
         foreach (var grid in new[] { AudioProcessingOptionsGrid, AudioAdvancedOptionsGrid, DeewEncodingGrid, DeewSignalGrid, DeewFlagsGrid, DeewTempGrid })
             foreach (var child in grid.Children.OfType<FrameworkElement>())
                 child.RegisterPropertyChangedCallback(VisibilityProperty, (_, _) => ApplyResponsiveLayout());
@@ -39,8 +39,9 @@ public sealed partial class AudioProcessingView : UserControl
             AudioResultsPanel.Visibility = string.IsNullOrWhiteSpace(AudioResultPathsTextBox.Text) ? Visibility.Collapsed : Visibility.Visible);
     }
 
-    public void ApplyLayout(bool compactForms, int optionColumnCount, Thickness contentPadding)
+    public void ApplyLayout(double availableWidth, bool compactForms, int optionColumnCount, Thickness contentPadding)
     {
+        _availableWidth = availableWidth;
         ContentStack.Padding = contentPadding;
         const bool stackPathActions = false;
         ConfigureTwoItemGrid(AudioSourcePathGrid, AudioSourcePathActionColumn, AudioSourceBrowseButton, stackPathActions, GridLength.Auto);
@@ -51,7 +52,8 @@ public sealed partial class AudioProcessingView : UserControl
 
     private void ApplyResponsiveLayout()
     {
-        var width = AudioFormCard.ActualWidth - AudioFormCard.Padding.Left - AudioFormCard.Padding.Right;
+        var width = _availableWidth - ContentStack.Padding.Left - ContentStack.Padding.Right
+            - AudioFormCard.Padding.Left - AudioFormCard.Padding.Right - 2;
         if (width <= 0) return;
         var splitPaths = width >= 840;
         AudioPathsGrid.RowSpacing = splitPaths ? 0 : UiTokens.SpacingM;

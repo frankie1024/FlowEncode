@@ -223,7 +223,7 @@ Domain/Application/Infrastructure/Tests 编译成功。普通 `dotnet test` 初�
 | VS 插件集 | **2026-11-12 快照，37 个包的依赖闭包** | 内嵌 `Resources/VsrepoBaseline.json`，固定单个版本、下载地址及文件 SHA256 |
 | FFmpeg + FFprobe | **9.0.2 Gyan Full Shared** | 来自精确正式标签；不采用 BtbN master，也不采用每日重建的 release 分支 ZIP |
 | x264 | **stable-20250608-b35605ace3dd，0.165.3222** | stable 标签和 ZIP 摘要固定 |
-| x265 | **4.3，8+10 位 multilib，优化构建** | 修复包 CI 已通过；默认安装固定使用本项目 v3.0.0-beta.1 附属资产与精确摘要，旧 8 位包被拒绝 |
+| x265 | **4.3，8+10 位 multilib，优化构建** | 修复包 CI 已通过；默认安装固定使用 x265 专用仓库 4.3-multilib.1 资产与精确摘要，旧 8 位包被拒绝 |
 | SVT-AV1 | **4.3.0** | 正式标签与 ZIP 摘要固定 |
 | Av1an | **v0.6.0-flowencode.1** | 同步上游 0.6.0，保留 FlowEncode 协议；R79 短样本实测通过，固定标签和摘要 |
 
@@ -292,3 +292,7 @@ x265 源构建修复：[PR #1](https://github.com/frankie1024/x265-windows-build
 - 101 项相关 .NET 普通回归通过；真实 runner 测试另行运行，不计入普通回归通过数。
 
 本节只确认短样本的 R79 兼容性。长片、HDR/DV、复杂 GPU 插件和安装器端到端回滚仍需单独验收；没有将本节结果推广为所有自行安装的 Python 环境都已实测。日志和精确二进制保存在 `artifacts/av1an-audit/`。
+
+## 3.0.1 来源分离
+
+自 3.0.1 起，推荐 x265 固定引用专用仓库的 [4.3-multilib.1](https://github.com/frankie1024/x265-windows-builds/releases/tag/4.3-multilib.1)。二进制与对应源码、许可证档案均与先前验收版本逐字节一致，SHA256 保持不变。该仓库已重新通过真实 8/10 位编码检查。FlowEncode 发布只包含应用附件；上述 beta 和 3.0.0 来源记载为历史状态，旧附件保留以兼容已有客户端。

@@ -52,11 +52,11 @@ public sealed class GitHubReleaseEncoderUpdateService : IEncoderUpdateService, I
         var x265 = await GetLatestPackageAsync(
             EncoderKind.X265,
             EncoderArchitecture.X64,
-            useBaseline ? "frankie1024/FlowEncode" : "frankie1024/x265-windows-builds",
+            "frankie1024/x265-windows-builds",
             static asset => IsExpectedEncoderAssetName(asset.Name, "x265"),
             static asset => ScoreX265Asset(asset.Name),
             "默认使用 FlowEncode x265 Windows x64 发布包。",
-            cancellationToken, useBaseline ? "v3.0.0" : null);
+            cancellationToken, useBaseline ? "4.3-multilib.1" : null);
         if (x265 is not null)
         {
             packages.Add(useBaseline ? x265 with { ReleaseName = "4.3 (8+10-bit multilib)" } : x265);

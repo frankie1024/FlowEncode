@@ -19,7 +19,7 @@ public sealed class GitHubReleaseEncoderUpdateServiceTests
         var x265 = baseline.Single();
         Assert.AreEqual(EncoderKind.X265, x265.Kind);
         Assert.AreEqual("4.3 (8+10-bit multilib)", x265.ReleaseName);
-        StringAssert.Contains(x265.DownloadUrl, "/FlowEncode/releases/download/v3.0.0/x265-4.3-x64.zip");
+        StringAssert.Contains(x265.DownloadUrl, "/x265-windows-builds/releases/download/4.3-multilib.1/x265-4.3-x64.zip");
         Assert.IsTrue(x265.IsAutomatic);
         factory.Digest = new string('a', 64);
         Assert.AreEqual(0, (await service.GetBaselinePackagesAsync()).Count);
@@ -35,13 +35,13 @@ public sealed class GitHubReleaseEncoderUpdateServiceTests
         protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken token)
         {
             Paths.Add(request.RequestUri!.AbsolutePath);
-            if (!request.RequestUri.AbsolutePath.Contains("/FlowEncode/releases/tags/")) return Task.FromResult(new HttpResponseMessage(HttpStatusCode.NotFound));
+            if (!request.RequestUri.AbsolutePath.Contains("/x265-windows-builds/releases/tags/4.3-multilib.1")) return Task.FromResult(new HttpResponseMessage(HttpStatusCode.NotFound));
             return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent(JsonSerializer.Serialize(new
             {
-                tag_name = "v3.0.0", draft = false, prerelease = false,
-                html_url = "https://github.com/frankie1024/FlowEncode/releases/tag/v3.0.0", published_at = "2026-11-12T00:00:00Z",
+                tag_name = "4.3-multilib.1", draft = false, prerelease = false,
+                html_url = "https://github.com/frankie1024/x265-windows-builds/releases/tag/4.3-multilib.1", published_at = "2026-11-12T00:00:00Z",
                 assets = new[] { new { name = "x265-4.3-x64.zip", digest = "sha256:" + Digest,
-                    browser_download_url = "https://github.com/frankie1024/FlowEncode/releases/download/v3.0.0/x265-4.3-x64.zip" } }
+                    browser_download_url = "https://github.com/frankie1024/x265-windows-builds/releases/download/4.3-multilib.1/x265-4.3-x64.zip" } }
             })) });
         }
     }

@@ -31,10 +31,11 @@ public sealed partial class AutoCompressionView : UserControl
         AutoTaskStatusPanel.SizeChanged += (_, _) => ScheduleDiagnosticsLayout();
     }
 
-    public void ApplyLayout(bool compactForms, int optionColumnCount, int advancedOptionColumnCount, Thickness contentPadding)
+    public void ApplyLayout(double availableWidth, bool compactForms, int optionColumnCount, int advancedOptionColumnCount, Thickness contentPadding)
     {
         ContentStack.Padding = contentPadding;
-        var splitPaths = ActualWidth - contentPadding.Left - contentPadding.Right >= 840;
+        // A cached, detached page has no measured width when navigation prepares it.
+        var splitPaths = availableWidth - contentPadding.Left - contentPadding.Right >= 840;
         AutoPathsGrid.RowSpacing = splitPaths ? 0 : UiTokens.SpacingM;
         AutoPathsGrid.ColumnDefinitions[1].Width = splitPaths ? new GridLength(1, GridUnitType.Star) : new GridLength(0);
         Grid.SetRow(AutoOutputPathGrid, splitPaths ? 0 : 1);

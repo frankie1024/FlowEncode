@@ -43,6 +43,8 @@ var temp = JsonSerializer.Deserialize<string>(Regex.Match(config, "(?m)^temp_pat
 Directory.CreateDirectory(temp);
 await File.WriteAllTextAsync(Path.Combine(temp, "intermediate.pcm"), "PCM");
 var events = Environment.GetEnvironmentVariable("DEEW_EVENTS_FILE")!;
+if (scenario == "cancel")
+    await File.WriteAllTextAsync(Path.Combine(temp, "process-id.txt"), Environment.ProcessId.ToString());
 async Task Event(object value) => await File.AppendAllTextAsync(events, JsonSerializer.Serialize(value) + "\n");
 await Event(new { type = "hello", version = "5.1.0" });
 await Event(new { type = "progress", job = 0, stage = "starting", percent = (double?)null, db = (double?)null });

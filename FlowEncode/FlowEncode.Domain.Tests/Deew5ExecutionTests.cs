@@ -126,6 +126,13 @@ public sealed class Deew5ExecutionTests
         var result = await run.WaitAsync(TimeSpan.FromSeconds(15));
         Assert.AreEqual(EncodingJobState.Cancelled, result.State, result.Log);
         Assert.IsNotNull(result.RetainedTempPath);
+        var childId = int.Parse(await File.ReadAllTextAsync(Path.Combine(result.RetainedTempPath, "process-id.txt")));
+        try
+        {
+            using var child = System.Diagnostics.Process.GetProcessById(childId);
+            Assert.IsTrue(child.HasExited, "Cancellation must finish the child before returning.");
+        }
+        catch (ArgumentException) { /* The OS has already removed the exited process. */ }
         Assert.AreEqual(Deew5ContractTests.Config, await File.ReadAllTextAsync(fixture.ConfigPath));
         Assert.IsTrue(result.DiagnosticFiles!.Any(p => p.EndsWith("flowencode.log")));
     }
@@ -205,7 +212,16 @@ public sealed class Deew5ExecutionTests
             File.WriteAllText(source, JsonSerializer.Serialize(new { scenario, channels }));
             return new(Guid.NewGuid(), source, Path.Combine(_root, "output"), AudioProcessingMode.Ddp, null, [], 60, channels, "stereo", null, false, options);
         }
-        public void Dispose() => Directory.Delete(_root, true);
+        public void Dispose()
+        {
+            // Windows can briefly retain an image-file lock after the child has exited.
+            for (var attempt = 0; ; attempt++)
+            {
+                try { Directory.Delete(_root, true); return; }
+                catch (IOException) when (attempt < 20) { Thread.Sleep(100); }
+                catch (UnauthorizedAccessException) when (attempt < 20) { Thread.Sleep(100); }
+            }
+        }
     }
 
     private sealed class Probe(string root, string extension) : IToolProbeService
