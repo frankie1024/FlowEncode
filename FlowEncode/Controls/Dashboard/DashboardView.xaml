@@ -109,9 +109,7 @@
             </Setter>
             <Setter Property="ContentTransitions">
                 <Setter.Value>
-                    <TransitionCollection>
-                        <EntranceThemeTransition FromVerticalOffset="20" />
-                    </TransitionCollection>
+                    <TransitionCollection />
                 </Setter.Value>
             </Setter>
         </Style>
@@ -124,11 +122,6 @@
                 <RowDefinition Height="*" />
             </Grid.RowDefinitions>
             <Border x:Name="DashboardHeroCard" MinHeight="148" Padding="{StaticResource AppCardPadding}" Background="{ThemeResource HeroBrush}" BorderBrush="{ThemeResource ThemeBorderHeroBrush}" BorderThickness="{StaticResource AppCardBorderThickness}" CornerRadius="{StaticResource AppLargeCornerRadius}" Shadow="{StaticResource HeroShadow}">
-                <Border.Transitions>
-                    <TransitionCollection>
-                        <EntranceThemeTransition FromVerticalOffset="20" />
-                    </TransitionCollection>
-                </Border.Transitions>
                 <Grid x:Name="DashboardHeroGrid" ColumnSpacing="{StaticResource AppSpacingL}">
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="*" />

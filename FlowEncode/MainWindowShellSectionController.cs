@@ -2,9 +2,9 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
+using FlowEncode.Controls.Shared;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
-using Microsoft.UI.Xaml.Media.Animation;
 
 namespace FlowEncode;
 
@@ -107,7 +107,7 @@ internal sealed class MainWindowShellSectionController
             return;
         }
 
-        activeControl.Transitions = BuildTransitions(previousTag, normalizedTag, transitionKind);
+        activeControl.Transitions = null;
         if (!_host.Children.Contains(activeControl))
         {
             _host.Children.Add(activeControl);
@@ -124,6 +124,8 @@ internal sealed class MainWindowShellSectionController
         {
             _host.Children.Remove(previousControl);
         }
+
+        PlayTransition(activeControl, previousTag, normalizedTag, transitionKind);
     }
 
     public string[] GetSectionTagsSnapshot()
@@ -192,38 +194,31 @@ internal sealed class MainWindowShellSectionController
         _sectionLoadedCallback?.Invoke(normalizedTag);
     }
 
-    private static TransitionCollection? BuildTransitions(
+    private static void PlayTransition(
+        UserControl control,
         string? previousTag,
         string normalizedTag,
         MainWindowShellSectionTransitionKind transitionKind)
     {
         if (string.Equals(previousTag, normalizedTag, StringComparison.Ordinal))
         {
-            return null;
+            return;
         }
-
-        var transitions = new TransitionCollection();
-        var entranceTransition = new EntranceThemeTransition
-        {
-            IsStaggeringEnabled = false
-        };
 
         switch (transitionKind)
         {
             case MainWindowShellSectionTransitionKind.Entrance:
-                entranceTransition.FromHorizontalOffset = EntranceOffsetX;
+                UiMotion.PlayPageEntrance(control, EntranceOffsetX, 0);
                 break;
             case MainWindowShellSectionTransitionKind.DashboardForward:
-                entranceTransition.FromVerticalOffset = DashboardForwardOffsetY;
+                UiMotion.PlayPageEntrance(control, 0, DashboardForwardOffsetY);
                 break;
             case MainWindowShellSectionTransitionKind.DashboardBackward:
-                entranceTransition.FromVerticalOffset = DashboardBackwardOffsetY;
+                UiMotion.PlayPageEntrance(control, 0, DashboardBackwardOffsetY);
                 break;
             default:
-                return null;
+                UiMotion.PlayPageEntrance(control, 0, 0);
+                break;
         }
-
-        transitions.Add(entranceTransition);
-        return transitions;
     }
 }

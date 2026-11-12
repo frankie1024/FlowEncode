@@ -66,6 +66,23 @@ public static class UiMotion
 
     private static bool AnimationsEnabled => UiMotionPolicy.AreCustomAnimationsEnabled();
 
+    internal static void PlayPageEntrance(FrameworkElement element, double offsetX, double offsetY)
+    {
+        // Whole-page fading exposes the Mica backdrop and causes a brightness pulse.
+        // Keep surfaces opaque while retaining the navigation's directional motion.
+        ResetEntranceState(element);
+        if (!AnimationsEnabled)
+        {
+            return;
+        }
+
+        var transform = EnsureCompositeTransform(element);
+        transform.TranslateX = offsetX;
+        transform.TranslateY = offsetY;
+        AnimateDouble(transform, nameof(CompositeTransform.TranslateX), offsetX, 0, UiTokens.MotionEmphasisDuration, UiTokens.MotionEasingEnter, false);
+        AnimateDouble(transform, nameof(CompositeTransform.TranslateY), offsetY, 0, UiTokens.MotionEmphasisDuration, UiTokens.MotionEasingEnter, false);
+    }
+
     public static void PlayEntrance(FrameworkElement element, double offsetY)
     {
         if (!AnimationsEnabled)
