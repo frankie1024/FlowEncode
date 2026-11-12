@@ -1,4 +1,5 @@
 using System;
+using System.Linq;
 using System.Threading.Tasks;
 using FlowEncode.Controls.Shared;
 using FlowEncode.Domain;
@@ -20,6 +21,12 @@ public sealed partial class AudioProcessingView : UserControl
     {
         InitializeComponent();
         Loaded += AudioProcessingView_Loaded;
+        SizeChanged += (_, _) => ApplyResponsiveLayout();
+        foreach (var grid in new[] { AudioProcessingOptionsGrid, DeewEncodingGrid, DeewSignalGrid, DeewFlagsGrid, DeewTempGrid })
+            foreach (var child in grid.Children.OfType<FrameworkElement>())
+                child.RegisterPropertyChangedCallback(VisibilityProperty, (_, _) => ApplyResponsiveLayout());
+        AudioResultPathsTextBox.RegisterPropertyChangedCallback(TextBox.TextProperty, (_, _) =>
+            AudioResultsPanel.Visibility = string.IsNullOrWhiteSpace(AudioResultPathsTextBox.Text) ? Visibility.Collapsed : Visibility.Visible);
     }
 
     public void ApplyLayout(bool compactForms, int optionColumnCount, Thickness contentPadding)
@@ -29,11 +36,27 @@ public sealed partial class AudioProcessingView : UserControl
         ConfigureTwoItemGrid(AudioSourcePathGrid, AudioSourcePathActionColumn, AudioSourceBrowseButton, stackPathActions, GridLength.Auto);
         ConfigureTwoItemGrid(AudioOutputPathGrid, AudioOutputPathActionColumn, AudioOutputBrowseButton, stackPathActions, GridLength.Auto);
         ConfigureOutputPathGrid();
-        AudioProcessingActionBar.IsStacked = compactForms;
-        ConfigureAudioOptionsGrid(optionColumnCount);
-        ConfigureDeewGrid(DeewPrimaryGrid, optionColumnCount);
-        ConfigureDeewGrid(DeewEncodingGrid, optionColumnCount);
-        ConfigureDeewGrid(DeewSignalGrid, optionColumnCount);
+        ApplyResponsiveLayout();
+    }
+
+    private void ApplyResponsiveLayout()
+    {
+        var width = AudioFormCard.ActualWidth - AudioFormCard.Padding.Left - AudioFormCard.Padding.Right;
+        if (width <= 0) return;
+        var splitPaths = width >= 840;
+        AudioPathsGrid.ColumnDefinitions[1].Width = splitPaths ? new GridLength(1, GridUnitType.Star) : new GridLength(0);
+        Grid.SetRow(AudioOutputPathGrid, splitPaths ? 0 : 1);
+        Grid.SetColumn(AudioOutputPathGrid, splitPaths ? 1 : 0);
+        ConfigureVisibleFields(AudioProcessingOptionsGrid, width, 4, 190);
+        ConfigureVisibleFields(DeewEncodingGrid, width, 3, 190);
+        ConfigureVisibleFields(DeewSignalGrid, width, 3, 190);
+        ConfigureVisibleFields(DeewFlagsGrid, width, 4, 200);
+        ConfigureVisibleFields(DeewTempGrid, width, 2, 260);
+        AudioProcessingActionBar.IsStacked = width < 480;
+        var splitFeedback = width >= 740;
+        AudioFeedbackGrid.ColumnDefinitions[1].Width = splitFeedback ? new GridLength(1, GridUnitType.Star) : new GridLength(0);
+        Grid.SetColumn(AudioDiagnosticsStack, splitFeedback ? 1 : 0);
+        Grid.SetRow(AudioDiagnosticsStack, splitFeedback ? 0 : 1);
     }
 
     private void AudioProcessingView_Loaded(object sender, RoutedEventArgs e)
@@ -218,50 +241,38 @@ public sealed partial class AudioProcessingView : UserControl
 
     private void ConfigureOutputPathGrid()
     {
-        AudioOutputPathGrid.RowSpacing = UiTokens.SpacingM;
+        AudioOutputPathGrid.RowSpacing = 6;
+        AudioSourcePathGrid.RowSpacing = 6;
         Grid.SetRow(AudioOutputPreviewTextBlock, 1);
         Grid.SetColumn(AudioOutputPreviewTextBlock, 0);
         Grid.SetColumnSpan(AudioOutputPreviewTextBlock, 2);
     }
 
-    private void ConfigureAudioOptionsGrid(int columnCount)
+    private static void ConfigureVisibleFields(Grid grid, double width, int maxColumns, double minFieldWidth)
     {
-        var stacked = columnCount == 1;
-        RebuildAutoRows(AudioProcessingOptionsGrid, stacked ? 3 : 1);
-        AudioProcessingOptionsGrid.ColumnSpacing = columnCount == 1 ? 0 : UiTokens.SpacingM;
-        AudioSecondaryOptionColumn.Width = columnCount >= 2 ? new GridLength(1, GridUnitType.Star) : new GridLength(0);
-        AudioTertiaryOptionColumn.Width = columnCount >= 3 ? new GridLength(1, GridUnitType.Star) : new GridLength(0);
-
-        Grid.SetRow(AudioWorkflowComboBox, 0);
-        Grid.SetColumn(AudioWorkflowComboBox, 0);
-
-        Grid.SetRow(AudioEac3ToOutputFormatComboBox, stacked ? 1 : 0);
-        Grid.SetColumn(AudioEac3ToOutputFormatComboBox, stacked ? 0 : 1);
-        Grid.SetRow(AudioEac3ToAdditionalArgumentsTextBox, stacked ? 2 : 0);
-        Grid.SetColumn(AudioEac3ToAdditionalArgumentsTextBox, stacked ? 0 : 2);
-
-        Grid.SetRow(AudioOpusBitrateComboBox, stacked ? 1 : 0);
-        Grid.SetColumn(AudioOpusBitrateComboBox, stacked ? 0 : 1);
-        Grid.SetRow(AudioOpusMappingFamilyToggle, stacked ? 2 : 0);
-        Grid.SetColumn(AudioOpusMappingFamilyToggle, stacked ? 0 : 2);
-    }
-
-    private static void RebuildAutoRows(Grid grid, int rowCount)
-    {
-        grid.RowDefinitions.Clear();
-        for (var index = 0; index < rowCount; index++)
+        var fields = grid.Children.OfType<FrameworkElement>().Where(field => field.Visibility == Visibility.Visible).ToArray();
+        var columns = Math.Max(1, Math.Min(fields.Length, Math.Min(maxColumns, (int)((width + grid.ColumnSpacing) / (minFieldWidth + grid.ColumnSpacing)))));
+        if (grid.ColumnDefinitions.Count != columns)
         {
-            grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+            grid.ColumnDefinitions.Clear();
+            for (var i = 0; i < columns; i++) grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        }
+        var rowCount = Math.Max(1, (fields.Length + columns - 1) / columns);
+        if (grid.RowDefinitions.Count != rowCount)
+        {
+            grid.RowDefinitions.Clear();
+            for (var i = 0; i < rowCount; i++) grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+        }
+        for (var i = 0; i < fields.Length; i++)
+        {
+            Grid.SetRow(fields[i], i / columns);
+            Grid.SetColumn(fields[i], i % columns);
+        }
+        // Collapsed controls must not leave an implicit row or column behind.
+        foreach (var field in grid.Children.OfType<FrameworkElement>().Where(field => field.Visibility == Visibility.Collapsed))
+        {
+            Grid.SetRow(field, 0);
+            Grid.SetColumn(field, 0);
         }
     }
-
-    private static void ConfigureDeewGrid(Grid grid, int columns)
-    {
-        columns = Math.Max(1, columns);
-        grid.ColumnDefinitions.Clear();
-        for (var i = 0; i < columns; i++) grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-        RebuildAutoRows(grid, (grid.Children.Count + columns - 1) / columns);
-        for (var i = 0; i < grid.Children.Count; i++) { Grid.SetRow(grid.Children[i] as FrameworkElement, i / columns); Grid.SetColumn(grid.Children[i] as FrameworkElement, i % columns); }
-    }
-
 }

@@ -505,7 +505,12 @@ public sealed class AppText
     public string SetupGuideSwipeHint => Pick("可左右滑动浏览卡片，也可以使用左右按钮切换。", "Swipe left or right to browse cards, or use the navigation buttons.");
     public string SetupGuideRefreshButton => Pick("重新检测", "Recheck");
     public string SetupGuideRefreshingButton => Pick("检测中...", "Checking...");
-    public string SetupGuideCheckUpdatesButton => Pick("核对基线版本", "Check Baseline Versions");
+    public string OpenWorkspaceFolderButton => Pick("打开目录", "Open folder");
+    public string SettingsWorkspaceAndMcpTitle => Pick("工作目录与 MCP", "Workspace & MCP");
+
+    public string RecommendedVersionHelp => Pick("推荐版本已通过配套兼容性验证，通常无需更新。", "The recommended versions have been tested together; routine updates are usually unnecessary.");
+    public string PythonUpgradeHelpTitle => Pick("Python 升级与回退指引", "Python upgrade and rollback guide");
+    public string SetupGuideCheckUpdatesButton => Pick("核对推荐版本", "Check Recommended Versions");
     public string SetupGuideCloseButton => Pick("进入工作台", "Enter Workspace");
     public string SetupGuidePreviousButton => Pick("上一页", "Previous");
     public string SetupGuideNextButton => Pick("下一页", "Next");
@@ -986,15 +991,16 @@ public sealed class AppText
             : $"Speed {speedText} · Bitrate {bitrateText} · ETA {remainingText} · Est. {sizeText}";
     }
 
-    public string DeewFormatHeader => Pick("deew 输出格式", "deew output format");
+    public string DeewFormatHeader => Pick("输出格式", "Output format");
     public string DeewDdpModeHeader => Pick("DDP 档位", "DDP mode");
     public string DeewAtmosModeHeader => Pick("DDP Atmos 档位", "DDP Atmos mode");
     public string DeewBitrateHeader => Pick("码率 (kbps)", "Bitrate (kbps)");
     public string DeewDownmixHeader => Pick("声道混合", "Downmix channels");
     public string DeewLfeHeader => Pick("禁用 LFE", "Disable LFE");
     public string DeewDelayHeader => Pick("延迟（如 -5ms）", "Delay (e.g. -5ms)");
-    public string DeewTrackHeader => Pick("音轨索引（从 0 开始）", "Audio track index (zero-based)");
-    public string DeewAdvancedHeader => Pick("deew 高级参数与临时目录", "deew advanced options and temporary files");
+    public string DeewTrackHeader => Pick("音轨索引（从 0 开始）", "Track index (zero-based)");
+    public string DeewAdvancedHeader => Pick("高级参数与临时目录", "Advanced arguments and temporary files");
+    public string DeewMeasureOnlyHeader => Pick("仅测响度 (-mo)", "Measure only (-mo)");
     public string DeewKeepLogHeader => Pick("保留诊断日志 (-kl)", "Keep diagnostic logs (-kl)");
     public string DeewKeepTempHeader => Pick("保留临时文件 (-k)", "Keep temporary files (-k)");
     public string DeewInstancesHeader => Pick("并行实例（如 50%）", "Instances (e.g. 50%)");
@@ -1006,9 +1012,16 @@ public sealed class AppText
     public string DeewOpenMedia => Pick("打开媒体", "Open media");
     public string DeewOpenLogs => Pick("打开日志", "Open logs");
     public string DeewOpenRetained => Pick("打开保留目录", "Open retained folder");
+    public string PinExternalToolButton => Pick("固定外部工具…", "Pin external tool…");
+    public string ToolGuidePageButton => Pick("工具主页 / 安装指引", "Tool website / setup guide");
+    public string McpConnectionHelpHeader => Pick("MCP 连接设置", "MCP connection settings");
+    public string McpConnectionHelpTooltip => Pick("MCP 连接设置：点击查看连接说明，并一键复制客户端配置。", "MCP connection settings: view instructions and copy the client configuration.");
+    public string McpCopyConfigButton => Pick("复制连接配置", "Copy connection configuration");
+    public string McpConfigCopied => Pick("已复制", "Copied");
+    public string McpConfigCopyFailed => Pick("复制失败，请选中上方配置手动复制。", "Could not copy. Select the configuration above and copy it manually.");
+    public string McpConnectionConfigHeader => Pick("AI 客户端连接配置", "AI client connection configuration");
     public string McpEnableHeader => Pick("允许本机 MCP 自动化", "Enable local MCP automation");
     public string McpConnectionHint => Pick("开启后，同一 Windows 用户的 AI 客户端可提交和取消编码任务。将下方配置加入客户端；关闭开关不会中断已接受任务。", "When enabled, AI clients running as the same Windows user can submit and cancel tasks. Add the configuration below to your client. Disabling this switch leaves accepted tasks running.");
-    public string NavTaskCenter => Pick("任务中心", "Task center");
     public string JobStateLabel(EncodingJobState state) => state switch
     {
         EncodingJobState.Queued => Pick("排队中", "Queued"), EncodingJobState.Running => Pick("处理中", "Running"),

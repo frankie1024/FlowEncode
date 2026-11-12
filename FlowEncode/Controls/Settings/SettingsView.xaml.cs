@@ -6,6 +6,7 @@ using FlowEncode.ViewModels;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Windows.Foundation;
+using Windows.ApplicationModel.DataTransfer;
 
 namespace FlowEncode.Controls.Settings;
 
@@ -20,6 +21,9 @@ public sealed partial class SettingsView : UserControl
     public SettingsView()
     {
         InitializeComponent();
+        Loaded += (_, _) => SyncMcpHelpVisibility();
+        SettingsPathStatusText.RegisterPropertyChangedCallback(TextBlock.TextProperty, (_, _) =>
+            SettingsPathStatusText.Visibility = string.IsNullOrWhiteSpace(SettingsPathStatusText.Text) ? Visibility.Collapsed : Visibility.Visible);
     }
 
     public void ApplyLayout(bool compactLayout, Thickness contentPadding)
@@ -52,6 +56,15 @@ public sealed partial class SettingsView : UserControl
         Grid.SetColumn(SettingsTogglePanel, compactLayout ? 0 : 1);
         Grid.SetRow(SettingsTogglePanel, compactLayout ? 1 : 0);
         Grid.SetRowSpan(SettingsTogglePanel, 1);
+        SettingsControlsTertiaryColumn.Width = compactLayout ? new GridLength(0) : new GridLength(1, GridUnitType.Star);
+        Grid.SetColumn(SettingsWorkspacePanel, compactLayout ? 0 : 2);
+        Grid.SetColumnSpan(SettingsWorkspacePanel, 1);
+        Grid.SetRow(SettingsWorkspacePanel, compactLayout ? 2 : 0);
+        Grid.SetRow(SettingsDependencyActions, compactLayout ? 1 : 0);
+        Grid.SetColumn(SettingsDependencyActions, compactLayout ? 0 : 1);
+        Grid.SetColumnSpan(SettingsDependencyActions, compactLayout ? 2 : 1);
+        SettingsDependencyActions.HorizontalAlignment = compactLayout ? HorizontalAlignment.Left : HorizontalAlignment.Right;
+        SettingsDependencyActions.Orientation = compactLayout ? Orientation.Vertical : Orientation.Horizontal;
     }
 
     private async void CheckUpdatesButton_Click(object sender, RoutedEventArgs e)
@@ -128,10 +141,35 @@ public sealed partial class SettingsView : UserControl
     private void MoreDependencyActionsButton_Click(object sender, RoutedEventArgs e)
     {
         if (sender is not FrameworkElement { DataContext: SetupGuideDependencyItemViewModel item } button) return;
-        var updateItem = new MenuFlyoutItem { Text = item.AdvancedUpdateText, Tag = item.Kind };
-        updateItem.Click += UpdateBeyondBaselineButton_Click;
+        var texts = DependenciesViewModel?.Texts;
+        if (texts is null) return;
         var menu = new MenuFlyout();
-        menu.Items.Add(updateItem);
+        if (item.IsManualSelectVisible)
+        {
+            var pinItem = new MenuFlyoutItem { Text = texts.PinExternalToolButton, Tag = item.Kind, IsEnabled = item.ManualSelectEnabled, Icon = new SymbolIcon(Symbol.OpenFile) };
+            pinItem.Click += ManualSelectSetupDependencyButton_Click;
+            menu.Items.Add(pinItem);
+        }
+        if (item.IsManualPinned)
+        {
+            var unpinItem = new MenuFlyoutItem { Text = texts.ClearManualPinButton, Tag = item.Kind, IsEnabled = item.ClearManualPinEnabled, Icon = new SymbolIcon(Symbol.UnPin) };
+            unpinItem.Click += ClearManualPinnedSetupDependencyButton_Click;
+            menu.Items.Add(unpinItem);
+        }
+        if (ToolchainBaseline.HasBaseline(item.Kind) || item.IsUpdateAction)
+        {
+            var updateItem = new MenuFlyoutItem { Text = ToolchainBaseline.HasBaseline(item.Kind) ? item.AdvancedUpdateText : item.PrimaryActionText, Tag = item.Kind, IsEnabled = ToolchainBaseline.HasBaseline(item.Kind) ? item.AdvancedUpdateEnabled : item.PrimaryActionEnabled, Icon = new SymbolIcon(Symbol.Refresh) };
+            if (ToolchainBaseline.HasBaseline(item.Kind)) updateItem.Click += UpdateBeyondBaselineButton_Click;
+            else updateItem.Click += InstallSetupDependencyButton_Click;
+            menu.Items.Add(updateItem);
+        }
+        if (!string.IsNullOrWhiteSpace(item.ReleaseUrl))
+        {
+            if (menu.Items.Count > 0) menu.Items.Add(new MenuFlyoutSeparator());
+            var guideItem = new MenuFlyoutItem { Text = texts.ToolGuidePageButton, Tag = item.ReleaseUrl, Icon = new SymbolIcon(Symbol.Link) };
+            guideItem.Click += OpenUrlButton_Click;
+            menu.Items.Add(guideItem);
+        }
         menu.ShowAt(button);
     }
 
@@ -256,6 +294,45 @@ public sealed partial class SettingsView : UserControl
                 "Failed to persist language selection",
                 generalViewModel.Texts.ErrorSaveSettingsFailedTitle,
                 () => Host.PersistSettingsAsync(refreshTemplateLibrary: true));
+        }
+    }
+
+    private void SyncMcpHelpVisibility()
+    {
+        if (McpHelpButton is null || McpAutomationToggle is null) return;
+        McpHelpButton.Visibility = McpAutomationToggle.IsOn ? Visibility.Visible : Visibility.Collapsed;
+        if (!McpAutomationToggle.IsOn) McpConnectionFlyout?.Hide();
+    }
+
+    private void McpAutomationToggle_Toggled(object sender, RoutedEventArgs e)
+    {
+        SyncMcpHelpVisibility();
+        SettingsToggle_Toggled(sender, e);
+    }
+
+    private void McpConnectionFlyout_Opening(object sender, object e)
+    {
+        McpHelpContent.DataContext = GeneralViewModel;
+        McpCopyLabel.Text = GeneralViewModel?.Texts.McpCopyConfigButton ?? "Copy connection configuration";
+        McpCopyErrorText.Visibility = Visibility.Collapsed;
+    }
+
+    private void CopyMcpConfigButton_Click(object sender, RoutedEventArgs e)
+    {
+        var general = GeneralViewModel;
+        if (general is null || string.IsNullOrWhiteSpace(general.McpConnectionConfig)) return;
+        try
+        {
+            var package = new DataPackage();
+            package.SetText(general.McpConnectionConfig);
+            Clipboard.SetContent(package);
+            McpCopyLabel.Text = general.Texts.McpConfigCopied;
+            McpCopyErrorText.Visibility = Visibility.Collapsed;
+        }
+        catch (Exception)
+        {
+            McpCopyErrorText.Text = general.Texts.McpConfigCopyFailed;
+            McpCopyErrorText.Visibility = Visibility.Visible;
         }
     }
 

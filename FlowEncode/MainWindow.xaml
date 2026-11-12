@@ -41,7 +41,6 @@
             SelectionChanged="ShellNavigationView_SelectionChanged">
             <NavigationView.MenuItems>
                 <NavigationViewItem AutomationProperties.Name="{x:Bind ViewModel.Texts.NavDashboard, Mode=OneWay}" Content="{x:Bind ViewModel.Texts.NavDashboard, Mode=OneWay}" Icon="Home" IsSelected="True" Tag="dashboard" />
-                <NavigationViewItem Content="{x:Bind ViewModel.Texts.NavTaskCenter, Mode=OneWay}" Icon="List" Tag="task-center" />
                 <NavigationViewItem AutomationProperties.Name="{x:Bind ViewModel.Texts.NavBluRayDemux, Mode=OneWay}" Content="{x:Bind ViewModel.Texts.NavBluRayDemux, Mode=OneWay}" Icon="Library" Tag="bluray-demux" />
                 <NavigationViewItem AutomationProperties.Name="{x:Bind ViewModel.Texts.NavVapourSynthWorkspace, Mode=OneWay}" Content="{x:Bind ViewModel.Texts.NavVapourSynthWorkspace, Mode=OneWay}" Icon="Edit" Tag="vapoursynth-workspace" />
                 <NavigationViewItem AutomationProperties.Name="{x:Bind ViewModel.Texts.NavOverview, Mode=OneWay}" Content="{x:Bind ViewModel.Texts.NavOverview, Mode=OneWay}" Icon="Video" Tag="overview" />

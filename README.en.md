@@ -23,7 +23,7 @@
 
 ---
 
-3.0 beta adds deew 5.1 and a local MCP server backed by the shared desktop task center. Visual redesign is deferred. See [MCP setup](docs/MCP.md), [deew acceptance](docs/DEEW5-VALIDATION.md), and [toolchain compatibility](docs/TOOLCHAIN-COMPATIBILITY-3.0.md). Version 2.0.2 is the last release supporting the legacy deew toolchain.
+3.0 beta adds deew 5.1 and a local MCP server backed by the shared task service. Visual redesign is deferred. See [MCP setup](docs/MCP.md), [deew acceptance](docs/DEEW5-VALIDATION.md), and [toolchain compatibility](docs/TOOLCHAIN-COMPATIBILITY-3.0.md). Version 2.0.2 is the last release supporting the legacy deew toolchain.
 
 FlowEncode is a Windows x64 desktop frontend for video encoding workflows. It coordinates `x264`, `x265`, `SVT-AV1`, `Av1an`, `FFmpeg`, `VapourSynth`, `VSPipe` and related public toolchains through one interface for Blu-ray demuxing, script editing and preview, video encoding, audio transcoding, auto encoding, queue execution, log inspection, template reuse, and drag-and-drop entry points for video, audio, and Blu-ray sources.
 

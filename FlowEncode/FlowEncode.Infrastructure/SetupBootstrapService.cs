@@ -432,7 +432,7 @@ public sealed class SetupBootstrapService : ISetupBootstrapService, IDisposable
             true,
             targetPythonReady,
             BuildToolDetail(probe) + Environment.NewLine
-                + "Compatibility baseline: R79 (API3/API4). R80+ removes API3 and needs a separately validated plugin migration. / 兼容基线为 R79；升级 R80+ 前需要迁移并验证 API3 插件。");
+                + "Recommended version: R79 (API3/API4). R80+ removes API3 and needs a separately validated plugin migration. / 推荐版本为 R79；升级 R80+ 前需要迁移并验证 API3 插件。");
     }
 
     private SetupDependencyStatus BuildVsrepoStatus(
@@ -494,7 +494,9 @@ public sealed class SetupBootstrapService : ISetupBootstrapService, IDisposable
         return new SetupDependencyStatus(
             SetupDependencyKind.VsPluginBundle,
             ResolveCompositeState(packageResults),
-            $"{readyCount}/{VsrepoPackageToolKinds.Count}",
+            MatchesVsrepoBaseline(installedPackages)
+                ? ToolchainBaseline.VersionFor(SetupDependencyKind.VsPluginBundle)
+                : $"{readyCount}/{VsrepoPackageToolKinds.Count}",
             string.Empty,
             updateAvailable,
             string.Empty,
@@ -912,6 +914,19 @@ public sealed class SetupBootstrapService : ISetupBootstrapService, IDisposable
         using var document = JsonDocument.Parse(stream);
         return document.RootElement.GetProperty("packages").EnumerateArray()
             .Select(package => package.GetProperty("identifier").GetString()!).ToArray();
+    }
+
+    private static bool MatchesVsrepoBaseline(IReadOnlyDictionary<string, VsrepoInstalledPackage> installedPackages)
+        => MatchesVsrepoBaselineVersions(installedPackages.ToDictionary(item => item.Key, item => item.Value.InstalledVersion, StringComparer.OrdinalIgnoreCase));
+
+    internal static bool MatchesVsrepoBaselineVersions(IReadOnlyDictionary<string, string> installedVersions)
+    {
+        using var stream = typeof(SetupBootstrapService).Assembly.GetManifestResourceStream("FlowEncode.Infrastructure.Resources.VsrepoBaseline.json")!;
+        using var document = JsonDocument.Parse(stream);
+        return document.RootElement.GetProperty("packages").EnumerateArray().All(package =>
+            (installedVersions.TryGetValue(package.GetProperty("identifier").GetString()!, out var actual)
+                || installedVersions.TryGetValue(package.GetProperty("name").GetString()!, out actual))
+            && string.Equals(actual, package.GetProperty("releases")[0].GetProperty("version").GetString(), StringComparison.OrdinalIgnoreCase));
     }
 
     private void PrepareVsrepoBaseline()
@@ -2342,7 +2357,7 @@ public sealed class SetupBootstrapService : ISetupBootstrapService, IDisposable
         return candidates.FirstOrDefault(File.Exists);
     }
 
-    private static IReadOnlyDictionary<string, VsrepoInstalledPackage> ParseVsrepoInstalledPackages(string output)
+    internal static IReadOnlyDictionary<string, VsrepoInstalledPackage> ParseVsrepoInstalledPackages(string output)
     {
         var result = new Dictionary<string, VsrepoInstalledPackage>(StringComparer.OrdinalIgnoreCase);
         foreach (var rawLine in SplitLines(output))
@@ -2369,40 +2384,31 @@ public sealed class SetupBootstrapService : ISetupBootstrapService, IDisposable
 
     private static bool TryParseVsrepoInstalledLine(string rawLine, out VsrepoInstalledPackage package)
     {
-        var parts = Regex.Split(rawLine.Trim(), "\\s{2,}");
-        if (parts.Length < 3)
+        // vsrepo uses minimum column widths, not a delimiter. Long names and
+        // versions leave just one space between columns (for example CAS and
+        // git revisions). Read the four single-token fields from the right.
+        // An unavailable latest release is printed as an empty 11-character
+        // column, with a separator on either side.
+        var match = Regex.Match(rawLine.Trim(),
+            @"^(?<name>.+?)\s+(?<namespace>\S+)\s+(?<installed>\S+)\s{13,}(?<identifier>\S+)$");
+        if (!match.Success)
+        {
+            match = Regex.Match(rawLine.Trim(),
+                @"^(?<name>.+?)\s+(?<namespace>\S+)\s+(?<installed>\S+)\s+(?<latest>\S+)\s+(?<identifier>\S+)$");
+        }
+
+        if (!match.Success)
         {
             package = default!;
             return false;
         }
 
-        var name = parts[0].Trim().TrimStart('*', '+');
-        var packageNamespace = parts[1].Trim();
-        string installedVersion;
-        string latestVersion;
-        string identifier;
-
-        if (parts.Length >= 5)
-        {
-            installedVersion = parts[2].Trim();
-            latestVersion = parts[3].Trim();
-            identifier = parts[4].Trim();
-        }
-        else
-        {
-            var tailTokens = parts[2].Split(' ', StringSplitOptions.RemoveEmptyEntries);
-            if (tailTokens.Length < 3)
-            {
-                package = default!;
-                return false;
-            }
-
-            installedVersion = string.Join(" ", tailTokens.Take(Math.Max(1, tailTokens.Length - 2)));
-            latestVersion = tailTokens[^2].Trim();
-            identifier = tailTokens[^1].Trim();
-        }
-
-        package = new VsrepoInstalledPackage(name, packageNamespace, installedVersion, latestVersion, identifier);
+        package = new VsrepoInstalledPackage(
+            match.Groups["name"].Value.Trim().TrimStart('*', '+'),
+            match.Groups["namespace"].Value,
+            match.Groups["installed"].Value,
+            match.Groups["latest"].Value,
+            match.Groups["identifier"].Value);
         return true;
     }
 
@@ -2914,7 +2920,7 @@ public sealed class SetupBootstrapService : ISetupBootstrapService, IDisposable
         string? QuietUninstallString,
         string? InstallLocation);
 
-    private sealed record VsrepoInstalledPackage(
+    internal sealed record VsrepoInstalledPackage(
         string Name,
         string Namespace,
         string InstalledVersion,

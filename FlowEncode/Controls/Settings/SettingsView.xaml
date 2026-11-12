@@ -1,4 +1,4 @@
-﻿<?xml version="1.0" encoding="utf-8" ?>
+<?xml version="1.0" encoding="utf-8" ?>
 <UserControl
     x:Class="FlowEncode.Controls.Settings.SettingsView"
     x:Name="RootView"
@@ -50,10 +50,12 @@
                             <RowDefinition Height="Auto" />
                             <RowDefinition Height="Auto" />
                             <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
                         </Grid.RowDefinitions>
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="*" />
                             <ColumnDefinition x:Name="SettingsControlsSecondaryColumn" Width="*" />
+                            <ColumnDefinition x:Name="SettingsControlsTertiaryColumn" Width="*" />
                         </Grid.ColumnDefinitions>
 
                         <Border x:Name="SettingsSelectorsPanel" Padding="{StaticResource AppInsetPanelPadding}" Background="{ThemeResource CardAltBrush}" CornerRadius="{StaticResource AppCardCornerRadius}">
@@ -69,34 +71,50 @@
                                 <TextBlock FontFamily="{StaticResource AppDisplayFont}" FontSize="{StaticResource AppCardTitleFontSize}" FontWeight="SemiBold" Text="{Binding Texts.SettingsBehaviorTitle}" />
                                 <ToggleSwitch x:Name="PreferSystemEncodersToggle" Header="{Binding Texts.PreferSystemEncodersHeader}" IsOn="{Binding PreferSystemEncoders, Mode=TwoWay}" OffContent="{Binding Texts.ToggleOffLabel}" OnContent="{Binding Texts.ToggleOnLabel}" ToolTipService.ToolTip="{Binding Texts.PreferSystemEncodersTooltip}" Toggled="SettingsToggle_Toggled" />
                                 <ToggleSwitch x:Name="AutoCheckUpdatesToggle" Header="{Binding Texts.AutoCheckUpdatesHeader}" IsOn="{Binding AutoCheckUpdatesOnStartup, Mode=TwoWay}" OffContent="{Binding Texts.ToggleOffLabel}" OnContent="{Binding Texts.ToggleOnLabel}" ToolTipService.ToolTip="{Binding Texts.AutoCheckUpdatesTooltip}" Toggled="SettingsToggle_Toggled" />
-                                <ToggleSwitch Header="{Binding Texts.McpEnableHeader}" IsOn="{Binding EnableMcpAutomation, Mode=TwoWay}" OffContent="{Binding Texts.ToggleOffLabel}" OnContent="{Binding Texts.ToggleOnLabel}" Toggled="SettingsToggle_Toggled" />
-                                <TextBlock Text="{Binding Texts.McpConnectionHint}" TextWrapping="Wrap" />
-                                <TextBox Header="MCP" Text="{Binding McpConnectionConfig}" IsReadOnly="True" TextWrapping="Wrap" />
                             </StackPanel>
                         </Border>
 
-                        <Border Grid.Row="2" Grid.ColumnSpan="2" Padding="{StaticResource AppInsetPanelPadding}" Background="{ThemeResource CardAltBrush}" CornerRadius="{StaticResource AppCardCornerRadius}">
+                        <Border x:Name="SettingsWorkspacePanel" Grid.Column="2" Padding="{StaticResource AppInsetPanelPadding}" Background="{ThemeResource CardAltBrush}" CornerRadius="{StaticResource AppCardCornerRadius}">
                             <StackPanel Spacing="{StaticResource AppSpacingM}">
-                                <TextBlock FontFamily="{StaticResource AppDisplayFont}" FontSize="{StaticResource AppCardTitleFontSize}" FontWeight="SemiBold" Text="{Binding Texts.WorkspaceDirectoryHeader}" />
-                                <Grid ColumnSpacing="{StaticResource AppSpacingM}" RowSpacing="{StaticResource AppSpacingM}">
+                                <TextBlock FontFamily="{StaticResource AppDisplayFont}" FontSize="{StaticResource AppCardTitleFontSize}" FontWeight="SemiBold" Text="{Binding Texts.SettingsWorkspaceAndMcpTitle}" />
+                                <StackPanel Spacing="6">
+                                    <TextBlock Text="{Binding Texts.WorkspaceDirectoryHeader}" />
+                                    <Grid>
+                                        <TextBox x:Name="WorkspaceRootPathTextBox" AutomationProperties.Name="{Binding Texts.WorkspaceDirectoryHeader}" IsReadOnly="True" Text="{Binding WorkspaceRootPath, Mode=TwoWay}" ToolTipService.ToolTip="{Binding WorkspaceRootPath}" Padding="10,5,78,5" MinHeight="36" />
+                                        <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center" Margin="0,0,4,0" Spacing="2">
+                                            <Button Width="30" Height="28" MinWidth="0" MinHeight="0" Padding="0" Background="Transparent" BorderThickness="0" AutomationProperties.Name="{Binding Texts.ChooseFolderButton}" ToolTipService.ToolTip="{Binding Texts.ChooseFolderButton}" Click="BrowseWorkspaceFolderButton_Click">
+                                                <SymbolIcon Symbol="Folder" />
+                                            </Button>
+                                            <Button Width="30" Height="28" MinWidth="0" MinHeight="0" Padding="0" Background="Transparent" BorderThickness="0" AutomationProperties.Name="{Binding Texts.OpenWorkspaceFolderButton}" ToolTipService.ToolTip="{Binding Texts.OpenWorkspaceFolderButton}" Tag="{Binding WorkspaceRootPath}" Click="OpenTaggedFolderButton_Click">
+                                                <SymbolIcon Symbol="OpenLocal" />
+                                            </Button>
+                                        </StackPanel>
+                                    </Grid>
+                                </StackPanel>
+                                <Grid ColumnSpacing="8">
                                     <Grid.ColumnDefinitions>
                                         <ColumnDefinition Width="*" />
                                         <ColumnDefinition Width="Auto" />
-                                        <ColumnDefinition Width="Auto" />
                                     </Grid.ColumnDefinitions>
-
-                                    <TextBox x:Name="WorkspaceRootPathTextBox" IsReadOnly="True" Text="{Binding WorkspaceRootPath, Mode=TwoWay}" TextWrapping="Wrap" />
-                                    <Button Grid.Column="1" MinHeight="40" VerticalAlignment="Bottom" AutomationProperties.Name="{Binding Texts.ChooseFolderButton}" Click="BrowseWorkspaceFolderButton_Click" Style="{StaticResource StandardButtonStyle}" ToolTipService.ToolTip="{Binding Texts.ChooseFolderButton}">
-                                        <StackPanel Orientation="Horizontal" Spacing="{StaticResource AppCommandIconTextSpacing}">
-                                            <SymbolIcon Symbol="Folder" />
-                                            <TextBlock Text="{Binding Texts.ChooseFolderButton}" />
-                                        </StackPanel>
-                                    </Button>
-                                    <Button Grid.Column="2" MinHeight="40" VerticalAlignment="Bottom" AutomationProperties.Name="{Binding Texts.AppFolderButton}" Tag="{Binding WorkspaceRootPath}" Click="OpenTaggedFolderButton_Click" Style="{StaticResource StandardButtonStyle}" ToolTipService.ToolTip="{Binding Texts.AppFolderButton}">
-                                        <StackPanel Orientation="Horizontal" Spacing="{StaticResource AppCommandIconTextSpacing}">
-                                            <SymbolIcon Symbol="OpenLocal" />
-                                            <TextBlock Text="{Binding Texts.AppFolderButton}" />
-                                        </StackPanel>
+                                    <ToggleSwitch x:Name="McpAutomationToggle" Header="{Binding Texts.McpEnableHeader}" IsOn="{Binding EnableMcpAutomation, Mode=TwoWay}" OffContent="{Binding Texts.ToggleOffLabel}" OnContent="{Binding Texts.ToggleOnLabel}" Toggled="McpAutomationToggle_Toggled" />
+                                    <Button x:Name="McpHelpButton" Grid.Column="1" Width="32" Height="32" Padding="0" VerticalAlignment="Bottom" Visibility="Collapsed" AutomationProperties.Name="{Binding Texts.McpConnectionHelpHeader}" ToolTipService.ToolTip="{Binding Texts.McpConnectionHelpTooltip}">
+                                        <SymbolIcon Symbol="Help" />
+                                        <Button.Flyout>
+                                            <Flyout x:Name="McpConnectionFlyout" Opening="McpConnectionFlyout_Opening" Placement="BottomEdgeAlignedRight">
+                                                <StackPanel x:Name="McpHelpContent" Width="420" MaxWidth="420" Spacing="12">
+                                                    <TextBlock FontWeight="SemiBold" Text="{Binding Texts.McpConnectionHelpHeader}" />
+                                                    <TextBlock Text="{Binding Texts.McpConnectionHint}" TextWrapping="Wrap" />
+                                                    <TextBox AutomationProperties.Name="{Binding Texts.McpConnectionConfigHeader}" Text="{Binding McpConnectionConfig}" IsReadOnly="True" FontFamily="{StaticResource AppMonoFont}" FontSize="12" TextWrapping="Wrap" MaxHeight="240" ScrollViewer.VerticalScrollBarVisibility="Auto" />
+                                                    <Button x:Name="CopyMcpConfigButton" Click="CopyMcpConfigButton_Click" HorizontalAlignment="Left" AutomationProperties.Name="{Binding Texts.McpCopyConfigButton}">
+                                                        <StackPanel Orientation="Horizontal" Spacing="8">
+                                                            <SymbolIcon Symbol="Copy" />
+                                                            <TextBlock x:Name="McpCopyLabel" Text="{Binding Texts.McpCopyConfigButton}" AutomationProperties.LiveSetting="Polite" />
+                                                        </StackPanel>
+                                                    </Button>
+                                                    <TextBlock x:Name="McpCopyErrorText" Visibility="Collapsed" TextWrapping="Wrap" Foreground="{ThemeResource AppErrorBrush}" AutomationProperties.LiveSetting="Polite" />
+                                                </StackPanel>
+                                            </Flyout>
+                                        </Button.Flyout>
                                     </Button>
                                 </Grid>
                             </StackPanel>
@@ -107,7 +125,11 @@
 
             <Border Padding="{StaticResource AppCardPadding}" Background="{ThemeResource CardBrush}" BorderBrush="{ThemeResource CardBorderBrush}" BorderThickness="{StaticResource AppCardBorderThickness}" CornerRadius="{StaticResource AppLargeCornerRadius}" DataContext="{Binding Dependencies}">
                 <StackPanel Spacing="{StaticResource AppSpacingM}">
-                    <Grid ColumnSpacing="{StaticResource AppSpacingL}">
+                    <Grid x:Name="SettingsDependencyHeaderGrid" ColumnSpacing="{StaticResource AppSpacingL}" RowSpacing="12">
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                        </Grid.RowDefinitions>
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="*" />
                             <ColumnDefinition Width="Auto" />
@@ -119,8 +141,18 @@
                             <TextBlock Foreground="{ThemeResource SubtleTextBrush}" Text="{Binding SetupGuideRemoteCheckedAtText}" TextWrapping="WrapWholeWords" />
                         </StackPanel>
 
-                        <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="{StaticResource AppSpacingS}" HorizontalAlignment="Right" VerticalAlignment="Top">
+                        <StackPanel x:Name="SettingsDependencyActions" Grid.Column="1" Orientation="Horizontal" Spacing="{StaticResource AppSpacingS}" HorizontalAlignment="Right" VerticalAlignment="Top">
                             <ProgressRing Width="24" Height="24" IsActive="True" Visibility="{Binding SetupGuideActionProgressVisibility}" />
+                            <Button Style="{StaticResource StandardButtonStyle}" AutomationProperties.Name="{Binding Texts.WriteSystemPathButton}" Click="WriteSystemPathButton_Click" IsEnabled="{Binding CanWriteSystemPath}">
+                                <ToolTipService.ToolTip>
+                                    <ToolTip MaxWidth="420"><TextBlock Text="{Binding Texts.SystemPathHint}" TextWrapping="Wrap" /></ToolTip>
+                                </ToolTipService.ToolTip>
+                                <StackPanel Orientation="Horizontal" Spacing="{StaticResource AppCommandIconTextSpacing}">
+                                    <SymbolIcon Symbol="Permissions" />
+                                    <TextBlock Text="{Binding Texts.WriteSystemPathButton}" />
+                                </StackPanel>
+                            </Button>
+                            <ProgressRing Width="24" Height="24" IsActive="True" Visibility="{Binding SystemPathProgressVisibility}" />
                             <Button MinWidth="112" Style="{StaticResource StandardButtonStyle}" AutomationProperties.Name="{Binding SetupGuideRefreshActionText}" Click="RefreshSetupGuideButton_Click" IsEnabled="{Binding CanExecuteSetupGuideRefreshAction}" ToolTipService.ToolTip="{Binding SetupGuideRefreshActionText}">
                                 <StackPanel Orientation="Horizontal" Spacing="{StaticResource AppCommandIconTextSpacing}">
                                     <SymbolIcon Symbol="Refresh" />
@@ -133,23 +165,10 @@
                                     <TextBlock Text="{Binding SetupGuideUpdateCheckActionText}" />
                                 </StackPanel>
                             </Button>
+
                         </StackPanel>
                     </Grid>
-                    <Border Padding="{StaticResource AppInsetPanelPadding}" Background="{ThemeResource CardAltBrush}" CornerRadius="{StaticResource AppCardCornerRadius}">
-                        <StackPanel Spacing="{StaticResource AppSpacingS}">
-                            <TextBlock Foreground="{ThemeResource SubtleTextBrush}" Text="{Binding Texts.SystemPathHint}" TextWrapping="WrapWholeWords" />
-                            <StackPanel Orientation="Horizontal" Spacing="{StaticResource AppSpacingS}">
-                                <Button Style="{StaticResource StandardButtonStyle}" HorizontalAlignment="Left" AutomationProperties.Name="{Binding Texts.WriteSystemPathButton}" Click="WriteSystemPathButton_Click" IsEnabled="{Binding CanWriteSystemPath}">
-                                    <StackPanel Orientation="Horizontal" Spacing="{StaticResource AppCommandIconTextSpacing}">
-                                        <SymbolIcon Symbol="Permissions" />
-                                        <TextBlock Text="{Binding Texts.WriteSystemPathButton}" />
-                                    </StackPanel>
-                                </Button>
-                                <ProgressRing Width="24" Height="24" IsActive="True" Visibility="{Binding SystemPathProgressVisibility}" />
-                            </StackPanel>
-                            <TextBlock Text="{Binding SystemPathStatusText}" TextWrapping="WrapWholeWords" IsTextSelectionEnabled="True" AutomationProperties.LiveSetting="Polite" />
-                        </StackPanel>
-                    </Border>
+                    <TextBlock x:Name="SettingsPathStatusText" Text="{Binding SystemPathStatusText}" TextWrapping="WrapWholeWords" IsTextSelectionEnabled="True" AutomationProperties.LiveSetting="Polite" Visibility="Collapsed" />
                     <ItemsControl ItemsSource="{Binding SetupGuideCards}" IsEnabled="{Binding CanModifyDependencies}">
                         <ItemsControl.ItemTemplate>
                             <DataTemplate x:DataType="vm:SetupGuideCardViewModel">
@@ -187,42 +206,31 @@
                                                                         <ColumnDefinition Width="Auto" />
                                                                     </Grid.ColumnDefinitions>
 
-                                                                    <StackPanel Spacing="{StaticResource AppSpacingXS}">
-                                                                        <TextBlock FontFamily="{StaticResource AppDisplayFont}" FontSize="{StaticResource AppSubsectionTitleFontSize}" FontWeight="SemiBold" Text="{Binding Title}" />
+                                                                    <StackPanel Orientation="Horizontal" Spacing="6">
+                                                                        <TextBlock FontFamily="{StaticResource AppDisplayFont}" FontSize="{StaticResource AppSubsectionTitleFontSize}" FontWeight="SemiBold" Text="{Binding Title}" VerticalAlignment="Center" />
+                                                                        <shared:ContextHelpButton Title="{Binding DataContext.Texts.PythonUpgradeHelpTitle, ElementName=RootView}" HelpText="{Binding UpgradeHelp}" VerticalAlignment="Center" />
                                                                     </StackPanel>
 
                                                                     <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="{StaticResource AppSpacingS}" HorizontalAlignment="Right" VerticalAlignment="Top">
-                                                                        <Button AutomationProperties.Name="{Binding Texts.ManualSelectButton}" Tag="{Binding Kind}" Click="ManualSelectSetupDependencyButton_Click" IsEnabled="{Binding ManualSelectEnabled}" Visibility="{Binding ManualSelectVisibility}" ToolTipService.ToolTip="{Binding Texts.ManualSelectTooltip}">
-                                                                            <StackPanel Orientation="Horizontal" Spacing="{StaticResource AppCommandIconTextSpacing}">
-                                                                                <SymbolIcon Symbol="OpenFile" />
-                                                                                <TextBlock Text="{Binding Texts.ManualSelectButton}" />
-                                                                            </StackPanel>
-                                                                        </Button>
-                                                                        <Button AutomationProperties.Name="{Binding Texts.ClearManualPinButton}" Tag="{Binding Kind}" Click="ClearManualPinnedSetupDependencyButton_Click" IsEnabled="{Binding ClearManualPinEnabled}" Visibility="{Binding ClearManualPinVisibility}" ToolTipService.ToolTip="{Binding Texts.ClearManualPinTooltip}">
-                                                                            <StackPanel Orientation="Horizontal" Spacing="{StaticResource AppCommandIconTextSpacing}">
-                                                                                <SymbolIcon Symbol="UnPin" />
-                                                                                <TextBlock Text="{Binding Texts.ClearManualPinButton}" />
-                                                                            </StackPanel>
-                                                                        </Button>
-                                                                        <Button Content="{Binding MoreActionText}" Visibility="{Binding AdvancedUpdateVisibility}" IsEnabled="{Binding AdvancedUpdateEnabled}" Click="MoreDependencyActionsButton_Click" />
-                                                                        <Button AutomationProperties.Name="{Binding PrimaryActionText}" Tag="{Binding Kind}" Click="InstallSetupDependencyButton_Click" IsEnabled="{Binding PrimaryActionEnabled}" Visibility="{Binding PrimaryActionVisibility}" Style="{StaticResource AccentButtonStyle}" ToolTipService.ToolTip="{Binding PrimaryActionText}">
-                                                                            <StackPanel Orientation="Horizontal" Spacing="{StaticResource AppCommandIconTextSpacing}">
-                                                                                <SymbolIcon Symbol="Download" />
-                                                                                <TextBlock Text="{Binding PrimaryActionText}" />
-                                                                            </StackPanel>
-                                                                        </Button>
-                                                                        <Button AutomationProperties.Name="{Binding Texts.UninstallButton}" Tag="{Binding Kind}" Click="UninstallSetupDependencyButton_Click" IsEnabled="{Binding UninstallActionEnabled}" Visibility="{Binding UninstallVisibility}" ToolTipService.ToolTip="{Binding Texts.UninstallTooltip}">
+                                                                        <Button Content="{Binding MoreActionText}" AutomationProperties.Name="{Binding MoreActionText}" Visibility="{Binding MoreActionsVisibility}" IsEnabled="{Binding AdvancedUpdateEnabled}" Click="MoreDependencyActionsButton_Click" />
+                                                                        <Border Background="Transparent" Visibility="{Binding SettingsPrimaryActionVisibility}">
+                                                                            <ToolTipService.ToolTip>
+                                                                                <ToolTip MaxWidth="420"><TextBlock Text="{Binding PrimaryActionToolTip}" TextWrapping="Wrap" /></ToolTip>
+                                                                            </ToolTipService.ToolTip>
+                                                                            <Button AutomationProperties.Name="{Binding PrimaryActionText}" Tag="{Binding Kind}" Click="InstallSetupDependencyButton_Click" IsEnabled="{Binding PrimaryActionEnabled}" IsHitTestVisible="{Binding PrimaryActionEnabled}" AutomationProperties.HelpText="{Binding PrimaryActionToolTip}" Style="{StaticResource AccentButtonStyle}">
+                                                                                <StackPanel Orientation="Horizontal" Spacing="{StaticResource AppCommandIconTextSpacing}">
+                                                                                    <SymbolIcon Symbol="Download" />
+                                                                                    <TextBlock Text="{Binding PrimaryActionText}" />
+                                                                                </StackPanel>
+                                                                            </Button>
+                                                                        </Border>
+                                                                        <Button AutomationProperties.Name="{Binding DataContext.Texts.UninstallButton, ElementName=RootView}" Tag="{Binding Kind}" Click="UninstallSetupDependencyButton_Click" IsEnabled="{Binding UninstallActionEnabled}" Visibility="{Binding UninstallVisibility}" ToolTipService.ToolTip="{Binding DataContext.Texts.UninstallTooltip, ElementName=RootView}">
                                                                             <StackPanel Orientation="Horizontal" Spacing="{StaticResource AppCommandIconTextSpacing}">
                                                                                 <SymbolIcon Symbol="Delete" />
-                                                                                <TextBlock Text="{Binding Texts.UninstallButton}" />
+                                                                                <TextBlock Text="{Binding DataContext.Texts.UninstallButton, ElementName=RootView}" />
                                                                             </StackPanel>
                                                                         </Button>
-                                                                        <HyperlinkButton AutomationProperties.Name="{Binding Texts.ReleasePageButton}" Tag="{Binding ReleaseUrl}" Click="OpenUrlButton_Click" Visibility="{Binding ReleaseVisibility}" ToolTipService.ToolTip="{Binding Texts.ReleasePageTooltip}">
-                                                                            <StackPanel Orientation="Horizontal" Spacing="{StaticResource AppCommandIconTextSpacing}">
-                                                                                <SymbolIcon Symbol="Link" />
-                                                                                <TextBlock Text="{Binding Texts.ReleasePageButton}" />
-                                                                            </StackPanel>
-                                                                        </HyperlinkButton>
+
                                                                     </StackPanel>
                                                                 </Grid>
 
@@ -244,7 +252,9 @@
                                                                 <StackPanel Grid.Row="2" Spacing="{StaticResource AppSpacingXS}">
                                                                     <TextBlock Text="{Binding StatusText}" TextWrapping="WrapWholeWords" />
                                                                     <TextBlock Foreground="{ThemeResource SubtleTextBrush}" Text="{Binding InstalledVersionText}" TextWrapping="WrapWholeWords" Visibility="{Binding InstalledVersionVisibility}" />
-                                                                    <TextBlock Foreground="{ThemeResource SubtleTextBrush}" Text="{Binding LatestVersionText}" TextWrapping="WrapWholeWords" Visibility="{Binding LatestVersionVisibility}" />
+                                                                    <TextBlock Foreground="{ThemeResource SubtleTextBrush}" Text="{Binding LatestVersionText}" TextWrapping="WrapWholeWords" Visibility="{Binding LatestVersionVisibility}">
+                                                                        <ToolTipService.ToolTip><ToolTip MaxWidth="420"><TextBlock Text="{Binding RecommendedVersionHelp}" TextWrapping="Wrap" /></ToolTip></ToolTipService.ToolTip>
+                                                                    </TextBlock>
                                                                 </StackPanel>
 
                                                                 <TextBlock Grid.Row="3" Foreground="{ThemeResource AppWarningBrush}" Text="{Binding WarningText}" TextWrapping="WrapWholeWords" Visibility="{Binding WarningVisibility}" />

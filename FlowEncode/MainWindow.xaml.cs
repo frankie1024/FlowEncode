@@ -260,10 +260,6 @@ public sealed partial class MainWindow : Window, ISettingsViewHost, IShellNaviga
                 ShellSectionLifetime.Sticky,
                 () => CreateSectionView<DashboardView>(ViewModel.DashboardModule, view => view.Host = this),
                 static (control, width, contentPadding, _, _) => ((DashboardView)control).ApplyLayout(width, contentPadding)),
-            [MainShellSections.TaskCenter] = new(
-                ShellSectionLifetime.Sticky,
-                () => new FlowEncode.Controls.Shared.TaskCenterView(ViewModel),
-                null),
             [MainShellSections.BluRayDemux] = new(
                 ShellSectionLifetime.Recreatable,
                 () => CreateSectionView<BluRayDemuxView>(ViewModel.BluRayDemuxModule),

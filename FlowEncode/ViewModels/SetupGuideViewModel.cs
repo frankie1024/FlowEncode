@@ -1010,7 +1010,7 @@ public sealed class SetupGuideViewModel : ObservableObject, ISetupDependencyModu
 
     private string BuildSetupDependencyUpdateStatus(SetupDependencyStatusReport report)
     {
-        return Texts.Pick("基线版本已核对。现有工具可用时，建议保留当前环境。", "Baseline versions checked. Keep the current environment while it works.");
+        return Texts.Pick("推荐版本已核对。现有工具可用时，可继续使用当前环境。", "Recommended versions checked. Keep the current environment while it works.");
     }
 
     private SetupGuideDependencyItemViewModel BuildSetupDependencyItem(SetupDependencyKind kind)
@@ -1037,7 +1037,7 @@ public sealed class SetupGuideViewModel : ObservableObject, ISetupDependencyModu
                 ? string.Empty
                 : Texts.Pick($"已装：{status.InstalledVersion}", $"Installed: {status.InstalledVersion}"),
             ToolchainBaseline.HasBaseline(kind)
-                ? Texts.Pick($"验证基线：{ToolchainBaseline.VersionFor(kind)}", $"Tested baseline: {ToolchainBaseline.VersionFor(kind)}")
+                ? Texts.Pick($"推荐版本：{ToolchainBaseline.VersionFor(kind)}", $"Recommended version: {ToolchainBaseline.VersionFor(kind)}")
                 : kind == SetupDependencyKind.VsPluginBundle || string.IsNullOrWhiteSpace(status.LatestVersion)
                 ? string.Empty
                 : Texts.Pick($"最新：{status.LatestVersion}", $"Latest: {status.LatestVersion}"),
@@ -1053,7 +1053,11 @@ public sealed class SetupGuideViewModel : ObservableObject, ISetupDependencyModu
             CanManuallySelectSetupDependency(kind),
             isManualPinned,
             Texts.Pick("更多", "More"),
-            Texts.Pick("更新工具（不推荐）", "Update tool (not recommended)"));
+            Texts.Pick("更新工具（不推荐）", "Update tool (not recommended)"),
+            isInstalled && ShouldShowSetupPrimaryAction(status, isInstalled, hasUpdateAvailable)
+                && !ToolchainBaseline.HasBaseline(kind) && !RequiresSetupDependencyManualImport(kind),
+            ToolchainBaseline.HasBaseline(kind) ? Texts.RecommendedVersionHelp : string.Empty,
+            BuildPythonUpgradeHelp(kind, isInstalled));
     }
 
     private SetupGuideDependencyItemViewModel? FindSetupGuideDependency(SetupDependencyKind kind)
@@ -1223,7 +1227,7 @@ public sealed class SetupGuideViewModel : ObservableObject, ISetupDependencyModu
     {
         return kind switch
         {
-            SetupDependencyKind.Python312 => Texts.Pick("官方 Windows x64 安装器；首启自动安装的基线运行时。", "Official Windows x64 installer; the baseline runtime for guided installs."),
+            SetupDependencyKind.Python312 => Texts.Pick("官方 Windows x64 安装器；首次安装时使用的推荐版本。", "Official Windows x64 installer; the recommended runtime for guided installs."),
             SetupDependencyKind.VapourSynth => Texts.Pick("主视频脚本运行时，负责 .vpy 输入和 vspipe。", "Primary script runtime for .vpy input and vspipe."),
             SetupDependencyKind.Vsrepo => Texts.Pick("VS 插件安装器与包清单工具。", "VS package installer and manifest tool."),
             SetupDependencyKind.VsPluginBundle => Texts.Pick("ffms2、fpng、libp2p、lsmas、placebo、mvsfunc、havsfunc。", "ffms2, fpng, libp2p, lsmas, placebo, mvsfunc, and havsfunc."),
@@ -1331,6 +1335,11 @@ public sealed class SetupGuideViewModel : ObservableObject, ISetupDependencyModu
         };
     }
 
+    private string BuildPythonUpgradeHelp(SetupDependencyKind kind, bool isInstalled)
+        => kind == SetupDependencyKind.Python312 && isInstalled
+            ? Texts.Pick("现有 Python 3.12 可继续使用。升级步骤：\n①点击“安装推荐版本”并排安装 Python 3.14.10 x64；\n②在本卡“更多 → 固定外部工具”选择新目录的 python.exe；\n③刷新环境，为新解释器安装推荐版 VapourSynth、vsrepo、VS 插件包、awsmfunc 和 vsjetpack；\n④用短片段验证自己的脚本。\n若手动固定过 vspipe，也需改为新环境的 vspipe.exe。\n旧环境会保留，重新选择旧 python.exe / vspipe.exe 即可回退。", "You can keep Python 3.12. To upgrade:\n1) Install recommended version to add Python 3.14.10 x64 alongside it.\n2) Choose the new python.exe via More > Pin external tool.\n3) Refresh and install the recommended VapourSynth, vsrepo, VS plugin bundle, awsmfunc and vsjetpack for that interpreter.\n4) Test your scripts on a short clip.\nIf vspipe is pinned, select the new environment’s vspipe.exe too.\nSelect the old python.exe / vspipe.exe again to roll back.")
+            : string.Empty;
+
     private string BuildSetupWarningText(
         SetupDependencyKind kind,
         SetupDependencyStatus status,
@@ -1340,10 +1349,6 @@ public sealed class SetupGuideViewModel : ObservableObject, ISetupDependencyModu
         bool isManualPinned)
     {
         var warnings = new List<string>();
-        if (ToolchainBaseline.HasBaseline(kind))
-            warnings.Add(Texts.Pick("建议保持验证基线。随意更新工具容易引起不兼容，不建议常规更新。", "Keep the tested baseline. Tool updates can cause incompatibilities and are not recommended for routine use."));
-        if (kind == SetupDependencyKind.Python312 && isInstalled)
-            warnings.Add(Texts.Pick("2.0 升级用户保留现有可用环境；新 Python 并排安装，不自动迁移插件或切换解释器。", "Upgrades from 2.0 retain the working environment. A new Python is installed alongside it without moving plugins or switching interpreters."));
         if (isManualPinned)
         {
             warnings.Add(Texts.ManualToolPinnedStatus(GetSetupDependencyTitle(kind)));
@@ -1403,9 +1408,10 @@ public sealed class SetupGuideViewModel : ObservableObject, ISetupDependencyModu
         bool hasUpdateAvailable)
     {
         if (ToolchainBaseline.HasBaseline(kind))
-            return kind == SetupDependencyKind.Python312 && isInstalled && status.State == ReadinessState.Ready
-                ? Texts.Pick("保留当前环境", "Keep current environment")
-                : Texts.Pick(isInstalled ? "修复基线" : "安装基线", isInstalled ? "Repair baseline" : "Install baseline");
+            return ToolchainBaseline.IsRecommendedInstallation(status)
+                ? Texts.Pick("已是推荐版本", "Recommended version installed")
+                : Texts.Pick(isInstalled && kind != SetupDependencyKind.Python312 ? "修复为推荐版本" : "安装推荐版本",
+                    isInstalled && kind != SetupDependencyKind.Python312 ? "Restore recommended version" : "Install recommended version");
 
         if (kind == SetupDependencyKind.Python312)
         {
@@ -1432,7 +1438,7 @@ public sealed class SetupGuideViewModel : ObservableObject, ISetupDependencyModu
         SetupDependencyStatus status,
         bool isInstalled)
     {
-        if (kind == SetupDependencyKind.Python312 && isInstalled && status.State == ReadinessState.Ready) return false;
+        if (ToolchainBaseline.IsRecommendedInstallation(status)) return false;
         if (RequiresSetupDependencyManualImport(kind))
         {
             return true;

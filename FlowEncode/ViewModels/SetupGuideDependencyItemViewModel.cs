@@ -79,9 +79,15 @@ public sealed class SetupGuideDependencyItemViewModel : CommunityToolkit.Mvvm.Co
         bool isManualSelectVisible,
         bool isManualPinned,
         string moreActionText = "More",
-        string advancedUpdateText = "Update tool (not recommended)")
+        string advancedUpdateText = "Update tool (not recommended)",
+        bool isUpdateAction = false,
+        string recommendedVersionHelp = "",
+        string upgradeHelp = "")
     {
         Kind = kind;
+        RecommendedVersionHelp = recommendedVersionHelp;
+        UpgradeHelp = upgradeHelp;
+        IsUpdateAction = isUpdateAction;
         MoreActionText = moreActionText;
         AdvancedUpdateText = advancedUpdateText;
         Title = title;
@@ -105,7 +111,13 @@ public sealed class SetupGuideDependencyItemViewModel : CommunityToolkit.Mvvm.Co
         _installProgressText = string.Empty;
     }
 
+    public string PrimaryActionToolTip => string.IsNullOrWhiteSpace(RecommendedVersionHelp) ? PrimaryActionText : RecommendedVersionHelp;
+    public string RecommendedVersionHelp { get; }
+    public string UpgradeHelp { get; }
     public SetupDependencyKind Kind { get; }
+    public bool IsUpdateAction { get; }
+    public Visibility SettingsPrimaryActionVisibility => IsUpdateAction ? Visibility.Collapsed : PrimaryActionVisibility;
+    public Visibility MoreActionsVisibility => IsManualSelectVisible || IsManualPinned || ToolchainBaseline.HasBaseline(Kind) || IsUpdateAction || !string.IsNullOrWhiteSpace(ReleaseUrl) ? Visibility.Visible : Visibility.Collapsed;
     public string MoreActionText { get; }
     public string AdvancedUpdateText { get; }
     public Visibility AdvancedUpdateVisibility => ToolchainBaseline.HasBaseline(Kind) ? Visibility.Visible : Visibility.Collapsed;

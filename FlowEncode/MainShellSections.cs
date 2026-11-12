@@ -12,7 +12,6 @@ internal static class MainShellSections
     public const string AudioProcessing = "audio-process";
     public const string AutoCompression = "auto-compress";
     public const string Settings = "settings";
-    public const string TaskCenter = "task-center";
 
     public static string Normalize(string? tag)
     {
@@ -26,7 +25,6 @@ internal static class MainShellSections
             AudioProcessing => AudioProcessing,
             AutoCompression => AutoCompression,
             Settings => Settings,
-            TaskCenter => TaskCenter,
             _ => Dashboard
         };
     }

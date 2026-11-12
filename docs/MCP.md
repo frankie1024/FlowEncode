@@ -22,11 +22,11 @@ Use your actual installation path. `FLOWENCODE_DESKTOP_EXE` can select a develop
 
 ## 工作流 / Workflow
 
-Call `get_capabilities`, `probe_media`, and optionally `list_templates` / `get_default_profile`. Create a plan with `create_video_plan`, `create_audio_plan`, or `create_task_plan`. Inspect the resolved command, effective request, warnings and expected outputs. Call `submit_plan(planId, idempotencyKey)` once and retain both values. Track with `get_task(taskId)` or the desktop task center. Use `cancel_task(taskId)` and `retry_task(taskId, newIdempotencyKey)` for the exact task.
+Call `get_capabilities`, `probe_media`, and optionally `list_templates` / `get_default_profile`. Create a plan with `create_video_plan`, `create_audio_plan`, or `create_task_plan`. Inspect the resolved command, effective request, warnings and expected outputs. Call `submit_plan(planId, idempotencyKey)` once and retain both values. Track with `get_task(taskId)`. Use `cancel_task(taskId)` and `retry_task(taskId, newIdempotencyKey)` for the exact task.
 
 计划有效期 15 分钟。源文件、工具、配置或编码设置变化后，应重新创建计划。响应丢失时，用相同 planId 和幂等键重试提交；任务已完成或桌面重启后也会返回原任务。重试失败或取消的任务会产生新 ID。桌面退出后，未完成任务在历史中标为中断失败，不会自动重跑。
 
-Accepted work continues after the MCP client disconnects. The task center lists both manual and MCP tasks, their IDs, logs and actual artifacts. Media, diagnostics and retained temporary files are distinct artifact types. Logs are bounded in API responses (`get_task.logLines`: 0–2000).
+Accepted work continues after the MCP client disconnects. The shared task service tracks manual and MCP tasks; use `list_tasks` and `get_task` to inspect IDs, logs and actual artifacts. Media, diagnostics and retained temporary files are distinct artifact types. Logs are bounded in API responses (`get_task.logLines`: 0–2000).
 
 `overwriteOutput` defaults to false at every MCP entry point. DDP/deew uses an output **directory**; video, Opus and eac3to use an output **filename**. Ordinary video encoding produces a video elementary stream; it does not automatically mux source audio or subtitles.
 

@@ -14,10 +14,23 @@ public sealed class AudioProcessingFormViewModel : ModuleViewModelBase
         : base(owner)
     {
         Deew = new(owner.LoadDeewOptions(), owner.DeewOptionsChanged, () => owner.Texts);
+        Deew.PropertyChanged += (_, _) => NotifyDeewModeVisibility();
+        PropertyChanged += (_, e) =>
+        {
+            if (e.PropertyName == nameof(AudioDeewOptionsVisibility)) NotifyDeewModeVisibility();
+        };
     }
 
     public DeewOptionsViewModel Deew { get; }
     public Visibility AudioDeewOptionsVisibility => Owner.AudioDeewOptionsVisibility;
+
+    public Visibility DeewDdpModeVisibility => AudioDeewOptionsVisibility == Visibility.Visible ? Deew.DdpModeVisibility : Visibility.Collapsed;
+    public Visibility DeewAtmosModeVisibility => AudioDeewOptionsVisibility == Visibility.Visible ? Deew.AtmosModeVisibility : Visibility.Collapsed;
+    private void NotifyDeewModeVisibility()
+    {
+        OnPropertyChanged(nameof(DeewDdpModeVisibility));
+        OnPropertyChanged(nameof(DeewAtmosModeVisibility));
+    }
 
     public AppText Texts => Owner.Texts;
 

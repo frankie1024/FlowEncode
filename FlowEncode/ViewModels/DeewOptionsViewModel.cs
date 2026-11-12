@@ -44,6 +44,8 @@ public sealed class DeewOptionsViewModel : ObservableObject
     public double Dialnorm { get => _options.Dialnorm ?? 0; set => Update(_options with { Dialnorm = FiniteInt(value, 0) }); }
     public string Delay { get => _options.Delay ?? ""; set => Update(_options with { Delay = string.IsNullOrWhiteSpace(value) ? null : value.Trim() }); }
     public double TrackIndex { get => _options.TrackIndex ?? 0; set => Update(_options with { TrackIndex = FiniteInt(value, 0) }); }
+    public bool MeasureOnly { get => _options.MeasureOnly; set => Update(_options with { MeasureOnly = value }); }
+    public Visibility MeasureOnlyVisibility => !Atmos ? Visibility.Visible : Visibility.Collapsed;
     public bool KeepLog { get => _options.KeepLog; set => Update(_options with { KeepLog = value }); }
     public bool KeepTemp { get => _options.KeepTemp; set => Update(_options with { KeepTemp = value }); }
     public string Instances { get => _options.Instances ?? ""; set => Update(_options with { Instances = string.IsNullOrWhiteSpace(value) ? null : value.Trim() }); }
@@ -70,6 +72,7 @@ public sealed class DeewOptionsViewModel : ObservableObject
             DdpMode = DdpModeVisibility == Visibility.Visible ? _options.DdpMode : null,
             DdpAtmosMode = AtmosModeVisibility == Visibility.Visible ? _options.DdpAtmosMode : null,
             DownmixChannels = DownmixVisibility == Visibility.Visible ? _options.DownmixChannels : null,
+            MeasureOnly = !Atmos && _options.MeasureOnly,
             DisableLfe = LfeVisibility == Visibility.Visible && _options.DisableLfe,
             BitrateKbps = BitrateVisibility == Visibility.Visible ? _options.BitrateKbps : null,
             Dialnorm = DialnormVisibility == Visibility.Visible ? _options.Dialnorm : null };
