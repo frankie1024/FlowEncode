@@ -85,6 +85,23 @@ public sealed class CliAudioProcessingRunnerTests
     }
 
     [TestMethod]
+    public void CreateDdpDtsPreparationStartInfo_RequestsDecoderBedBeforeInputAndPreservesPaths()
+    {
+        var source = @"D:\音轨\English DTS-X DELAY -80ms.dts";
+        var target = @"D:\临时目录\English DTS-X DELAY -80ms.flac";
+        var startInfo = CliAudioProcessingRunner.CreateDdpDtsPreparationStartInfo(@"D:\工具\ffmpeg.exe", source, target);
+        var args = startInfo.ArgumentList.ToList();
+
+        Assert.IsTrue(args.IndexOf("-downmix") < args.IndexOf("-i"));
+        Assert.AreEqual("7.1", args[args.IndexOf("-downmix") + 1]);
+        Assert.AreEqual(source, args[args.IndexOf("-i") + 1]);
+        Assert.AreEqual(target, args[^1]);
+        Assert.AreEqual("flac", args[args.IndexOf("-c:a") + 1]);
+        Assert.IsFalse(args.Contains("-ac"));
+        Assert.IsFalse(startInfo.UseShellExecute);
+    }
+
+    [TestMethod]
     public void DisableDeewLogo_PreservesConfigBytesAndComments()
     {
         var source = Encoding.UTF8.GetBytes(
@@ -137,7 +154,7 @@ public sealed class CliAudioProcessingRunnerTests
     {
         var request = CreateRequest(
             useOpusMappingFamily1: false,
-            outputPath: @"D:\audio\输出 文件.opus");
+            outputPath: Path.Combine(AudioSmokeRoot, "输出 文件.opus"));
 
         var runPlan = CliAudioProcessingRunner.CreateRunPlan(request);
 
@@ -155,7 +172,7 @@ public sealed class CliAudioProcessingRunnerTests
         var request = new AudioProcessingRequest(
             Guid.NewGuid(),
             @"D:\audio\input.thd",
-            @"D:\audio\movie.flac",
+            Path.Combine(AudioSmokeRoot, "movie.flac"),
             AudioProcessingMode.Eac3To,
             AudioEac3ToOutputFormat.Flac,
             [],
@@ -180,7 +197,7 @@ public sealed class CliAudioProcessingRunnerTests
     {
         var request = CreateDdpRequest(
             sourcePath: @"D:\audio\input.wav",
-            outputDirectory: @"D:\audio\ddp-out");
+            outputDirectory: Path.Combine(AudioSmokeRoot, "ddp-out"));
 
         var runPlan = CliAudioProcessingRunner.CreateRunPlan(request);
 
@@ -397,6 +414,51 @@ allowed. Valid value(s): 1,2,6.
         var detail = CliAudioProcessingRunner.TryBuildDdpSemanticFailureDetailForTesting(log);
 
         Assert.IsNull(detail);
+    }
+
+    [TestMethod]
+    public void DescribeDdpInputChannelFailure_WithBackendRejection_ExplainsEightChannelRequirement()
+    {
+        var request = CreateDdpRequest(@"D:\audio\track 7.1.dts", @"D:\audio\out") with
+        {
+            SourceChannelCount = 7,
+            SourceChannelLayout = "6.1"
+        };
+
+        var detail = CliAudioProcessingRunner.DescribeDdpInputChannelFailure(request,
+            "ERROR: number of input channels can only be 1, 2, 6 or 8.", AppLanguage.Chinese);
+
+        Assert.IsNotNull(detail);
+        StringAssert.Contains(detail, "7 声道");
+        StringAssert.Contains(detail, "6.1");
+        StringAssert.Contains(detail, "7.1 应为 8 声道");
+    }
+
+    [TestMethod]
+    public void DescribeDdpInputChannelFailure_WithDifferentProbeResult_IdentifiesBackendProbeRejection()
+    {
+        var request = CreateDdpRequest(@"D:\audio\track.dts", @"D:\audio\out") with
+        {
+            SourceChannelCount = 8,
+            SourceChannelLayout = "7.1"
+        };
+        var detail = CliAudioProcessingRunner.DescribeDdpInputChannelFailure(request,
+            "ERROR: number of input channels can only be 1, 2, 6 or 8.", AppLanguage.English);
+
+        Assert.IsNotNull(detail);
+        StringAssert.Contains(detail, "8 channels");
+        StringAssert.Contains(detail, "ffprobe configured in deew");
+    }
+
+    [TestMethod]
+    public void DescribeDdpInputChannelFailure_WithUnrelatedError_DoesNotMisdiagnose()
+    {
+        var request = CreateDdpRequest(@"D:\audio\track.dts", @"D:\audio\out");
+        Assert.IsNull(CliAudioProcessingRunner.DescribeDdpInputChannelFailure(request,
+            "ERROR: file not found", AppLanguage.English));
+        Assert.IsNull(CliAudioProcessingRunner.DescribeDdpInputChannelFailure(
+            request with { Mode = AudioProcessingMode.Opus },
+            "number of input channels can only be 1, 2, 6 or 8", AppLanguage.English));
     }
 
     [TestMethod]
@@ -633,6 +695,14 @@ allowed. Valid value(s): 1,2,6.
 
     private static string RequireDetectedPath(string executableName)
     {
+        var overridePath = Environment.GetEnvironmentVariable(
+            "FLOWENCODE_TEST_" + Path.GetFileNameWithoutExtension(executableName).ToUpperInvariant());
+        if (!string.IsNullOrWhiteSpace(overridePath))
+        {
+            Assert.IsTrue(File.Exists(overridePath), $"Tool override does not exist: {overridePath}");
+            return overridePath;
+        }
+
         try
         {
             return GetDetectedPath(executableName);

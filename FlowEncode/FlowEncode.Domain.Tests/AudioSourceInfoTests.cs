@@ -69,6 +69,41 @@ public sealed class AudioSourceInfoTests
         Assert.IsFalse(CreateInfo("flac", channels: 10).HasSurround51Or71Channels());
     }
 
+    [TestMethod]
+    public void InferProfile_SevenPointOneRequiresEightChannels()
+    {
+        Assert.AreEqual(AudioChannelProfile.Surround71, CreateInfo("dts", channels: 8).InferProfile());
+        Assert.IsNull(CreateInfo("dts", channels: 7).InferProfile());
+    }
+
+    [TestMethod]
+    [DataRow(1, true)]
+    [DataRow(2, true)]
+    [DataRow(6, true)]
+    [DataRow(8, true)]
+    [DataRow(0, false)]
+    [DataRow(4, false)]
+    [DataRow(7, false)]
+    [DataRow(10, false)]
+    public void IsDeewChannelCountSupported_MatchesBackendInputCapabilities(int channels, bool expected)
+    {
+        Assert.AreEqual(expected, AudioSourceInfo.IsDeewChannelCountSupported(channels));
+    }
+
+    [TestMethod]
+    [DataRow("dts", "DTS-HD MA + DTS:X", 12, true)]
+    [DataRow("dts", "DTS-HD MA + DTS:X", 8, false)]
+    [DataRow("DTS", "DTS-HD MA", 12, true)]
+    [DataRow("dts", "DTS-HD MA", 8, false)]
+    [DataRow("dts", "DTS", 6, false)]
+    [DataRow("flac", "", 12, false)]
+    [DataRow("truehd", "Atmos", 12, false)]
+    public void RequiresDdpDtsCompatibilityInput_RecognizesDtsXWithoutChangingOtherFormats(
+        string codec, string profile, int channels, bool expected)
+    {
+        Assert.AreEqual(expected, CreateInfo(codec, profile, channels).RequiresDdpDtsCompatibilityInput());
+    }
+
     private static AudioSourceInfo CreateInfo(string codecName, string profileName = "", int channels = 2, int? bitDepth = 24)
     {
         return new AudioSourceInfo(codecName, profileName, channels, string.Empty, 48000, bitDepth, null);

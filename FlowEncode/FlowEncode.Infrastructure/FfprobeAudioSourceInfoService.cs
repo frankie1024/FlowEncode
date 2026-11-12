@@ -17,7 +17,13 @@ public sealed class FfprobeAudioSourceInfoService : IAudioSourceInfoService
         _toolProbeService = toolProbeService;
     }
 
-    public async Task<AudioSourceInfo?> ProbeAsync(string sourcePath, CancellationToken cancellationToken = default)
+    public Task<AudioSourceInfo?> ProbeAsync(string sourcePath, CancellationToken cancellationToken = default)
+        => ProbeAsync(sourcePath, estimatePacketDuration: true, cancellationToken);
+
+    internal Task<AudioSourceInfo?> ProbeForDdpAsync(string sourcePath, CancellationToken cancellationToken)
+        => ProbeAsync(sourcePath, estimatePacketDuration: false, cancellationToken);
+
+    private async Task<AudioSourceInfo?> ProbeAsync(string sourcePath, bool estimatePacketDuration, CancellationToken cancellationToken)
     {
         if (string.IsNullOrWhiteSpace(sourcePath) || !File.Exists(sourcePath))
         {
@@ -64,7 +70,7 @@ public sealed class FfprobeAudioSourceInfoService : IAudioSourceInfoService
         {
             var codecName = GetJsonString(stream, "codec_name");
             var durationSeconds = ParseNullableDouble(GetJsonString(stream, "duration")) ?? formatDuration;
-            if ((!durationSeconds.HasValue || durationSeconds.Value <= 0)
+            if (estimatePacketDuration && (!durationSeconds.HasValue || durationSeconds.Value <= 0)
                 && ShouldEstimatePacketDuration(codecName, formatName))
             {
                 try

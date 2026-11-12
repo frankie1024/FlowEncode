@@ -1022,6 +1022,28 @@ public sealed class AppText
             _ => Pick($"任务完成后动作执行失败：{detail}", $"Failed to run the completion action: {detail}")
         };
 
+    public string AudioSourceChannelLabel(AudioSourceInfo sourceInfo)
+    {
+        if (sourceInfo.Channels <= 0)
+        {
+            return Pick("声道数未知", "channel count unknown");
+        }
+
+        var layout = sourceInfo.ChannelLayout;
+        if (string.IsNullOrWhiteSpace(layout) && sourceInfo.InferProfile() is { } profile)
+        {
+            layout = AudioChannelProfileLabel(profile);
+        }
+
+        var count = IsChinese ? $"{sourceInfo.Channels} 声道" : $"{sourceInfo.Channels} channels";
+        return string.IsNullOrWhiteSpace(layout) ? count : $"{count} ({layout})";
+    }
+
+    public string AudioDdpUnsupportedChannels(AudioSourceInfo sourceInfo) =>
+        IsChinese
+            ? $"实际探测到 {AudioSourceChannelLabel(sourceInfo)}。当前 deew 仅接受 1、2、6、8 声道输入，请先转换为支持的声道布局。"
+            : $"Detected {AudioSourceChannelLabel(sourceInfo)}. The current deew accepts only 1, 2, 6 or 8 input channels. Convert the source to a supported layout first.";
+
     public string AudioSourceInfoSummary(string codecName, string channelLabel, int? bitDepth, int? sampleRate, bool isLossless) =>
         IsChinese
             ? $"源信息：{channelLabel} · {codecName} · {(isLossless ? "无损" : "有损/未知")} · {(bitDepth.HasValue ? $"{bitDepth.Value}-bit" : "位深未知")} · {(sampleRate.HasValue ? $"{sampleRate.Value} Hz" : "采样率未知")}"
@@ -1034,6 +1056,18 @@ public sealed class AppText
 
     public string AudioSourceRecommendation(AudioSourceInfo? sourceInfo)
     {
+        if (sourceInfo?.RequiresDdpDtsCompatibilityInput() == true)
+        {
+            return Pick(
+                "DTS:X 转 DDP 时将自动准备兼容的 7.1 无损输入，高度声道内容折入 7.1，输出不保留 DTS:X 元数据。",
+                "DTS:X to DDP automatically prepares a compatible lossless 7.1 input with height content folded in. The output does not retain DTS:X metadata.");
+        }
+
+        if (sourceInfo is { Channels: > 0 } && !AudioSourceInfo.IsDeewChannelCountSupported(sourceInfo.Channels))
+        {
+            return AudioDdpUnsupportedChannels(sourceInfo);
+        }
+
         var profile = sourceInfo?.InferProfile();
         if (sourceInfo?.HasStereoOrGreaterChannels() == true && sourceInfo.IsLossless())
         {

@@ -62,4 +62,10 @@ public sealed record AudioSourceInfo(
     public bool HasStereoOrGreaterChannels() => Channels >= 2;
 
     public bool HasSurround51Or71Channels() => Channels is 6 or 8;
+
+    public static bool IsDeewChannelCountSupported(int channels) => channels is 1 or 2 or 6 or 8;
+
+    public bool RequiresDdpDtsCompatibilityInput() =>
+        CodecName.Equals("dts", StringComparison.OrdinalIgnoreCase)
+        && Channels > 8;
 }

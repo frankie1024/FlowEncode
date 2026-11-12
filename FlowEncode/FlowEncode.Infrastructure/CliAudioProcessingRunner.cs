@@ -58,6 +58,7 @@ public sealed class CliAudioProcessingRunner : IAudioProcessingRunner
         CancellationToken cancellationToken = default)
     {
         var language = GetLanguage();
+        RequestValidation.ValidateAudioProcessingRequest(request);
         if (!File.Exists(request.SourcePath))
         {
             throw new FileNotFoundException(T(language, "Audio source file was not found.", "未找到音频输入文件。"), request.SourcePath);
@@ -139,7 +140,86 @@ public sealed class CliAudioProcessingRunner : IAudioProcessingRunner
         startInfo.ArgumentList.Add("-np");
 
         PrepareDeewEnvironment(startInfo, deewPath, deePath, ffmpegPath, ffprobePath);
-        return await RunProcessAsync(runPlan, progress, command, startInfo, cancellationToken);
+        // Keep compatibility inputs outside the output directory that is published on success.
+        var inputDirectory = GetStagingDirectory(request) + "-input";
+        try
+        {
+            return await RunProcessWithProgressAsync(
+                runPlan,
+                progress,
+                command,
+                async (handleLine, token) =>
+                {
+                    var sourceInfoService = new FfprobeAudioSourceInfoService(_toolProbeService);
+                    var sourceInfo = await sourceInfoService.ProbeForDdpAsync(request.SourcePath, token);
+                    if (sourceInfo?.RequiresDdpDtsCompatibilityInput() == true)
+                    {
+                        Directory.CreateDirectory(inputDirectory);
+                        // Preserve the basename, including deew's filename-based DELAY value.
+                        var inputPath = Path.Combine(inputDirectory, Path.GetFileNameWithoutExtension(request.SourcePath) + ".flac");
+                        var preparation = CreateDdpDtsPreparationStartInfo(ffmpegPath, request.SourcePath, inputPath);
+                        handleLine(T(GetLanguage(),
+                            "Preparing DTS:X compatibility input: lossless 7.1 with height content folded in (DTS:X metadata is not retained).",
+                            "正在准备 DTS:X 兼容输入：高度声道内容折入 7.1 无损音频（不保留 DTS:X 元数据）。"));
+                        handleLine($"{Quote(ffmpegPath)} {string.Join(" ", preparation.ArgumentList.Select(Quote))}");
+                        var result = await ExecuteSingleProcessAsync(request, preparation, handleLine, token, null);
+                        if (result.ExitCode != 0)
+                        {
+                            return result;
+                        }
+
+                        sourceInfo = await sourceInfoService.ProbeForDdpAsync(inputPath, token);
+                        if (sourceInfo is not { Channels: 8 } || !string.Equals(sourceInfo.ChannelLayout, "7.1", StringComparison.OrdinalIgnoreCase))
+                        {
+                            handleLine(T(GetLanguage(),
+                                "ERROR: DTS:X compatibility preparation did not produce an 8-channel 7.1 layout. deew was not started.",
+                                "ERROR: DTS:X 兼容输入未生成 8 声道 7.1 布局，已停止启动 deew。"));
+                            return new ProcessExecutionResult(-2);
+                        }
+
+                        startInfo.ArgumentList[1] = inputPath;
+                    }
+                    else if (sourceInfo is { Channels: > 0 } && !AudioSourceInfo.IsDeewChannelCountSupported(sourceInfo.Channels))
+                    {
+                        handleLine(T(GetLanguage(),
+                            $"ERROR: deew accepts 1, 2, 6 or 8 input channels; detected {sourceInfo.Channels} ({sourceInfo.ChannelLayout}).",
+                            $"ERROR: deew 仅接受 1、2、6、8 声道输入，实际探测到 {sourceInfo.Channels} 声道（{sourceInfo.ChannelLayout}）。"));
+                        return new ProcessExecutionResult(-2);
+                    }
+
+                    token.ThrowIfCancellationRequested();
+                    return await ExecuteSingleProcessAsync(request, startInfo, handleLine, token, null);
+                },
+                cancellationToken);
+        }
+        finally
+        {
+            ExecutionOutputStaging.CleanupStagedDirectory(inputDirectory, WriteDebugDiagnostic, emptyParentLevels: 2);
+        }
+    }
+
+    internal static ProcessStartInfo CreateDdpDtsPreparationStartInfo(string ffmpegPath, string sourcePath, string inputPath)
+    {
+        var startInfo = new ProcessStartInfo
+        {
+            FileName = ffmpegPath,
+            UseShellExecute = false,
+            RedirectStandardOutput = true,
+            RedirectStandardError = true,
+            CreateNoWindow = true
+        };
+        // Request the coded bed from the DTS decoder. An output -ac 8 would instead
+        // apply a generic downmix to the decoded 7.1.4 presentation.
+        foreach (var argument in new[]
+        {
+            "-hide_banner", "-nostdin", "-y", "-downmix", "7.1", "-i", sourcePath,
+            "-map", "0:a:0", "-c:a", "flac", "-sample_fmt", "s32", "-compression_level", "0", inputPath
+        })
+        {
+            startInfo.ArgumentList.Add(argument);
+        }
+
+        return startInfo;
     }
 
     private async Task<AudioProcessingResult> RunOpusAsync(
@@ -461,7 +541,8 @@ public sealed class CliAudioProcessingRunner : IAudioProcessingRunner
         {
             var executionResult = await executeAsync(HandleLine, cancellationToken);
             var log = logBuilder.ToString();
-            var semanticFailureDetail = TryBuildSemanticFailureDetail(request.Mode, log);
+            var semanticFailureDetail = DescribeDdpInputChannelFailure(request, log, language)
+                ?? TryBuildSemanticFailureDetail(request.Mode, log);
             if (executionResult.ExitCode == 0 && string.IsNullOrWhiteSpace(semanticFailureDetail))
             {
                 FinalizeOutputForSuccess(runPlan);
@@ -1426,6 +1507,24 @@ public sealed class CliAudioProcessingRunner : IAudioProcessingRunner
             || line.Contains("traceback", StringComparison.OrdinalIgnoreCase)
             || line.Contains("exception", StringComparison.OrdinalIgnoreCase)
             || LooksLikeDdpPcmConfigurationFailure(line);
+    }
+
+    internal static string? DescribeDdpInputChannelFailure(AudioProcessingRequest request, string log, AppLanguage language)
+    {
+        if (request.Mode != AudioProcessingMode.Ddp
+            || !CollapseWhitespace(log).Contains("number of input channels can only be", StringComparison.OrdinalIgnoreCase))
+        {
+            return null;
+        }
+
+        var detected = request.SourceChannelCount is > 0
+            ? T(language,
+                $"FlowEncode detected {request.SourceChannelCount} channels ({request.SourceChannelLayout ?? "layout unknown"}). ",
+                $"FlowEncode 探测到 {request.SourceChannelCount} 声道（{request.SourceChannelLayout ?? "布局未知"}）。")
+            : string.Empty;
+        return detected + T(language,
+            "deew rejected its detected input channel count. It accepts only 1, 2, 6 or 8 channels; 7.1 means 8 channels. Check the ffprobe configured in deew and its reported layout. Newer FFmpeg versions can report DTS:X as 12 channels.",
+            "deew 拒绝了它探测到的输入声道数；当前仅接受 1、2、6、8 声道，7.1 应为 8 声道。请核对 deew 配置中的 ffprobe 及其探测布局；新版 FFmpeg 可能将 DTS:X 识别为 12 声道。");
     }
 
     private static string? TryBuildSemanticFailureDetail(AudioProcessingMode mode, string log)

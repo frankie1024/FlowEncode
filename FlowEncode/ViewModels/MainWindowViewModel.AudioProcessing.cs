@@ -120,6 +120,7 @@ public partial class MainWindowViewModel
                 }
 
                 RaiseAudioProcessingInputPropertyChanges();
+                OnPropertyChanged(nameof(AudioSourceInfoText));
                 OnPropertyChanged(nameof(AudioEac3ToOptionsVisibility));
                 OnPropertyChanged(nameof(AudioOpusOptionsVisibility));
                 OnPropertyChanged(nameof(AudioProcessingProgressPrimaryText));
@@ -388,12 +389,17 @@ public partial class MainWindowViewModel
 
             if (_audioSourceInfo is not null)
             {
-                return Texts.AudioSourceInfoSummary(
+                var summary = Texts.AudioSourceInfoSummary(
                     string.IsNullOrWhiteSpace(_audioSourceInfo.CodecName) ? "unknown" : _audioSourceInfo.CodecName,
-                    Texts.AudioChannelProfileLabel(_audioSourceInfo.InferProfile() ?? AudioChannelProfile.Auto),
+                    Texts.AudioSourceChannelLabel(_audioSourceInfo),
                     _audioSourceInfo.BitDepth,
                     _audioSourceInfo.SampleRate,
                     _audioSourceInfo.IsLossless());
+                return SelectedAudioWorkflow?.Value == AudioProcessingMode.Ddp
+                    && (_audioSourceInfo.RequiresDdpDtsCompatibilityInput()
+                        || (_audioSourceInfo.Channels > 0 && !AudioSourceInfo.IsDeewChannelCountSupported(_audioSourceInfo.Channels)))
+                    ? summary + Environment.NewLine + Texts.AudioSourceRecommendation(_audioSourceInfo)
+                    : summary;
             }
 
             return string.IsNullOrWhiteSpace(_audioSourceInfoError)
@@ -718,6 +724,18 @@ public partial class MainWindowViewModel
                 break;
 
             case AudioProcessingMode.Ddp:
+                if (_isAudioSourceInfoLoading)
+                {
+                    throw new InvalidOperationException(Texts.AudioSourceInspectingStatus);
+                }
+
+                if (_audioSourceInfo is { Channels: > 0 }
+                    && !AudioSourceInfo.IsDeewChannelCountSupported(_audioSourceInfo.Channels)
+                    && !_audioSourceInfo.RequiresDdpDtsCompatibilityInput())
+                {
+                    throw new InvalidOperationException(Texts.AudioDdpUnsupportedChannels(_audioSourceInfo));
+                }
+
                 break;
 
             case AudioProcessingMode.Opus:
@@ -1240,6 +1258,7 @@ public partial class MainWindowViewModel
 
         _isAudioSourceInfoLoading = true;
         OnPropertyChanged(nameof(AudioSourceInfoText));
+        OnPropertyChanged(nameof(AudioWorkflowRecommendation));
 
         _audioSourceProbeCancellationTokenSource = new CancellationTokenSource();
         var version = Interlocked.Increment(ref _audioSourceProbeVersion);
