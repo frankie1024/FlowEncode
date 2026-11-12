@@ -623,6 +623,14 @@ public sealed partial class VapourSynthWorkspaceView : UserControl, IDisposable
         VapourSynthEditorPaneView pane,
         VapourSynthWorkspaceTabViewModel tab)
     {
+        await RunScriptActionAsync(tab, preparingEncode: true, async () =>
+            await PrepareAndNavigateToEncodingAsync(pane, tab));
+    }
+
+    private async Task PrepareAndNavigateToEncodingAsync(
+        VapourSynthEditorPaneView pane,
+        VapourSynthWorkspaceTabViewModel tab)
+    {
         await CaptureEditorStateAsync(pane);
         if (!ViewModel.Tabs.Contains(tab))
         {
@@ -645,6 +653,7 @@ public sealed partial class VapourSynthWorkspaceView : UserControl, IDisposable
         }
 
         var mainWindow = App.GetService<MainWindow>();
+        await mainWindow.ViewModel.PrepareEncodingSourceAsync(sourcePath);
         mainWindow.NavigateToEncodingPage(sourcePath);
     }
 
@@ -794,6 +803,44 @@ public sealed partial class VapourSynthWorkspaceView : UserControl, IDisposable
         VapourSynthEditorPaneView pane,
         VapourSynthWorkspaceTabViewModel previewTab)
     {
+        await RunScriptActionAsync(previewTab, preparingEncode: false, async () =>
+            await OpenPreviewAsync(pane, previewTab));
+    }
+
+    private async Task RunScriptActionAsync(
+        VapourSynthWorkspaceTabViewModel tab,
+        bool preparingEncode,
+        Func<Task> action)
+    {
+        // All entry points (toolbar, XAML shortcuts and Monaco commands) share this guard.
+        // Acquire before the first await so repeated keys cannot queue another evaluation.
+        if (_isDisposed || !ViewModel.TryBeginScriptAction(preparingEncode))
+        {
+            return;
+        }
+
+        try
+        {
+            ViewModel.ClearPreviewLog(tab);
+            ViewModel.AppendPreviewLog(tab, new VapourSynthPreviewLogEntry(
+                DateTimeOffset.Now,
+                VapourSynthPreviewLogLevel.Information,
+                "FlowEncode",
+                ViewModel.ScriptActionStatusText));
+            LogExpander.IsExpanded = true;
+            await Task.Yield();
+            await action();
+        }
+        finally
+        {
+            ViewModel.EndScriptAction();
+        }
+    }
+
+    private async Task OpenPreviewAsync(
+        VapourSynthEditorPaneView pane,
+        VapourSynthWorkspaceTabViewModel previewTab)
+    {
         await CaptureEditorStateAsync(pane);
         if (!ViewModel.Tabs.Contains(previewTab))
         {
@@ -801,7 +848,6 @@ public sealed partial class VapourSynthWorkspaceView : UserControl, IDisposable
         }
 
         _previewLogTab = previewTab;
-        ViewModel.ClearPreviewLog(previewTab);
         var request = CreatePreviewOpenRequest(previewTab, out var displayName);
         var previewWindow = GetOrCreatePreviewWindow();
 

@@ -2587,6 +2587,20 @@ public partial class MainWindowViewModel : CommunityToolkit.Mvvm.ComponentModel.
         }
     }
 
+    internal async Task PrepareEncodingSourceAsync(string sourcePath)
+    {
+        SourcePath = sourcePath;
+        CancelPendingDraftInputRefresh();
+        ApplyDraftInputPaths();
+        SetDraftInputRefreshPending(false);
+
+        if (_activeProfile is not null)
+        {
+            // Keep the editor's busy state until metadata probing (including indexing) finishes.
+            await RefreshPreviewNowAsync(_activeProfile);
+        }
+    }
+
     private async Task RefreshPreviewNowAsync(EncodingProfile profile)
     {
         CancelPendingPreviewRefresh();
@@ -3373,16 +3387,7 @@ public partial class MainWindowViewModel : CommunityToolkit.Mvvm.ComponentModel.
                 }
             }
 
-            _isApplyingDeferredDraftInputRefresh = true;
-            try
-            {
-                TryPopulateOutputPathIfEmpty();
-                RaiseDraftPathPropertyChanges();
-            }
-            finally
-            {
-                _isApplyingDeferredDraftInputRefresh = false;
-            }
+            ApplyDraftInputPaths();
 
             if (!IsDraftInputRefreshCurrent(requestVersion, cancellationToken))
             {
@@ -3401,6 +3406,20 @@ public partial class MainWindowViewModel : CommunityToolkit.Mvvm.ComponentModel.
     {
         return !cancellationToken.IsCancellationRequested
             && requestVersion == Volatile.Read(ref _draftInputRefreshVersion);
+    }
+
+    private void ApplyDraftInputPaths()
+    {
+        _isApplyingDeferredDraftInputRefresh = true;
+        try
+        {
+            TryPopulateOutputPathIfEmpty();
+            RaiseDraftPathPropertyChanges();
+        }
+        finally
+        {
+            _isApplyingDeferredDraftInputRefresh = false;
+        }
     }
 
     private void SetDraftInputRefreshPending(bool isPending)

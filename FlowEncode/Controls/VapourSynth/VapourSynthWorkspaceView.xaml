@@ -78,7 +78,7 @@
                     </AppBarButton.Icon>
                 </AppBarButton>
                 <AppBarSeparator />
-                <AppBarButton x:Name="EncodeButton" Click="EncodeButton_Click" Foreground="{ThemeResource AccentTextFillColorPrimaryBrush}" Label="{Binding Texts.VapourSynthEncodeButton}">
+                <AppBarButton x:Name="EncodeButton" Click="EncodeButton_Click" IsEnabled="{Binding CanRunScriptAction}" Foreground="{ThemeResource AccentTextFillColorPrimaryBrush}" Label="{Binding Texts.VapourSynthEncodeButton}">
                     <AppBarButton.Icon>
                         <SymbolIcon Symbol="Video" />
                     </AppBarButton.Icon>
@@ -86,7 +86,7 @@
                         <KeyboardAccelerator Key="F9" />
                     </AppBarButton.KeyboardAccelerators>
                 </AppBarButton>
-                <AppBarButton Click="PreviewButton_Click" Foreground="{ThemeResource AccentTextFillColorPrimaryBrush}" Label="{Binding Texts.VapourSynthPreviewButton}">
+                <AppBarButton Click="PreviewButton_Click" IsEnabled="{Binding CanRunScriptAction}" Foreground="{ThemeResource AccentTextFillColorPrimaryBrush}" Label="{Binding Texts.VapourSynthPreviewButton}">
                     <AppBarButton.Icon>
                         <SymbolIcon Symbol="Play" />
                     </AppBarButton.Icon>
@@ -143,6 +143,10 @@
                 BorderBrush="{ThemeResource CardBorderBrush}"
                 BorderThickness="0,1,0,1">
                 <Grid ColumnSpacing="16">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                    </Grid.RowDefinitions>
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="*" />
                         <ColumnDefinition Width="Auto" />
@@ -177,6 +181,25 @@
                             TextTrimming="CharacterEllipsis"
                             TextWrapping="NoWrap" />
                     </StackPanel>
+
+                    <Grid
+                        Grid.Row="1"
+                        Grid.ColumnSpan="2"
+                        Margin="0,8,0,0"
+                        ColumnSpacing="8"
+                        Visibility="{Binding ScriptActionProgressVisibility}">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+                        <ProgressRing Width="20" Height="20" IsActive="{Binding IsScriptActionRunning}" />
+                        <TextBlock
+                            Grid.Column="1"
+                            VerticalAlignment="Center"
+                            AutomationProperties.LiveSetting="Polite"
+                            Text="{Binding ScriptActionStatusText}"
+                            TextWrapping="Wrap" />
+                    </Grid>
                 </Grid>
             </Border>
 

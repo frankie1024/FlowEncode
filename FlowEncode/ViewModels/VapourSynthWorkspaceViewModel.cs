@@ -29,6 +29,8 @@ public sealed class VapourSynthWorkspaceViewModel : ObservableObject
     private AppText _texts;
     private bool _isInitialized;
     private bool _isCompareMode;
+    private bool _isScriptActionRunning;
+    private bool _isPreparingEncode;
     private VapourSynthWorkspacePaneKind _activePane = VapourSynthWorkspacePaneKind.Left;
     private VapourSynthWorkspaceTabViewModel? _activeTab;
     private VapourSynthWorkspaceTabViewModel? _leftTab;
@@ -120,6 +122,43 @@ public sealed class VapourSynthWorkspaceViewModel : ObservableObject
     public bool HasAnyUnsavedChanges => _tabs.Any(static tab => tab.HasUnsavedChanges);
 
     public bool CanCompareTabs => _tabs.Count >= 2;
+
+    public bool IsScriptActionRunning => _isScriptActionRunning;
+
+    public bool CanRunScriptAction => !_isScriptActionRunning;
+
+    public Visibility ScriptActionProgressVisibility => _isScriptActionRunning ? Visibility.Visible : Visibility.Collapsed;
+
+    public string ScriptActionStatusText => _isPreparingEncode
+        ? Texts.VapourSynthEncodePreparingStatus
+        : Texts.VapourSynthPreviewPreparingStatus;
+
+    internal bool TryBeginScriptAction(bool preparingEncode)
+    {
+        if (_isScriptActionRunning)
+        {
+            return false;
+        }
+
+        _isPreparingEncode = preparingEncode;
+        _isScriptActionRunning = true;
+        RaiseScriptActionPropertyChanges();
+        return true;
+    }
+
+    internal void EndScriptAction()
+    {
+        _isScriptActionRunning = false;
+        RaiseScriptActionPropertyChanges();
+    }
+
+    private void RaiseScriptActionPropertyChanges()
+    {
+        OnPropertyChanged(nameof(IsScriptActionRunning));
+        OnPropertyChanged(nameof(CanRunScriptAction));
+        OnPropertyChanged(nameof(ScriptActionProgressVisibility));
+        OnPropertyChanged(nameof(ScriptActionStatusText));
+    }
 
     public IReadOnlyList<VapourSynthWorkspaceTabViewModel> DirtyTabs =>
         _tabs.Where(static tab => tab.HasUnsavedChanges).ToArray();
@@ -682,6 +721,7 @@ public sealed class VapourSynthWorkspaceViewModel : ObservableObject
         }
 
         Texts = new AppText(language);
+        OnPropertyChanged(nameof(ScriptActionStatusText));
         foreach (var tab in _tabs)
         {
             tab.ApplyLanguage(language);

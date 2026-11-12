@@ -234,6 +234,12 @@ public sealed class AppText
     public string VapourSynthRedoButton => Pick("重做", "Redo");
     public string VapourSynthPreviewButton => Pick("预览 F5", "Preview F5");
     public string VapourSynthEncodeButton => Pick("压制 F9", "Encode F9");
+    public string VapourSynthPreviewPreparingStatus => Pick(
+        "正在加载预览。首次读取视频可能需要建立 .lwi 等索引，请稍候，无需重复点击。",
+        "Loading preview. The first read may need to build an index such as .lwi. Please wait; no need to click again.");
+    public string VapourSynthEncodePreparingStatus => Pick(
+        "正在准备压制。首次读取视频可能需要建立 .lwi 等索引，请稍候，无需重复点击。",
+        "Preparing to encode. The first read may need to build an index such as .lwi. Please wait; no need to click again.");
     public string VapourSynthPinTabButton => Pick("固定标签", "Pin Tab");
     public string VapourSynthUnpinTabButton => Pick("取消固定", "Unpin Tab");
     public string VapourSynthCompareModeButton => Pick("左右展示", "Side by Side");
