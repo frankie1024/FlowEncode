@@ -20,4 +20,5 @@ internal sealed record EncodingExecutionPlan(
     EncoderKind Kind,
     long? TotalFrames,
     double? SourceFramesPerSecond,
-    IReadOnlyList<string>? CleanupPaths = null);
+    IReadOnlyList<string>? CleanupPaths = null,
+    VideoOutputContract? OutputContract = null);

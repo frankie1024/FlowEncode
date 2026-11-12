@@ -13,7 +13,11 @@ public sealed class AudioProcessingFormViewModel : ModuleViewModelBase
     public AudioProcessingFormViewModel(MainWindowViewModel owner)
         : base(owner)
     {
+        Deew = new(owner.LoadDeewOptions(), owner.DeewOptionsChanged, () => owner.Texts);
     }
+
+    public DeewOptionsViewModel Deew { get; }
+    public Visibility AudioDeewOptionsVisibility => Owner.AudioDeewOptionsVisibility;
 
     public AppText Texts => Owner.Texts;
 
@@ -107,6 +111,7 @@ public sealed class AudioProcessingFormViewModel : ModuleViewModelBase
 
     public void ApplyLanguageState()
     {
+        Deew.Refresh();
         var workflow = SelectedAudioWorkflow?.Value ?? AudioProcessingMode.Ddp;
         var eac3ToOutputFormat = SelectedAudioEac3ToOutputFormat?.Value ?? AudioEac3ToOutputFormat.Flac;
         var opusBitrate = SelectedAudioOpusBitrate?.Value;

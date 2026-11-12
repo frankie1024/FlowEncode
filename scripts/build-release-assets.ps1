@@ -13,8 +13,16 @@ $ErrorActionPreference = "Stop"
 function Remove-DirectoryIfExists {
     param([string]$Path)
 
-    if (Test-Path $Path) {
-        Remove-Item -Path $Path -Recurse -Force
+    $resolvedTarget = [System.IO.Path]::GetFullPath($Path).TrimEnd('\', '/')
+    $allowedTargets = @($publishRoot, $resolvedOutputRoot) | ForEach-Object { [System.IO.Path]::GetFullPath($_).TrimEnd('\', '/') }
+    if ($resolvedTarget -notin $allowedTargets -or $resolvedTarget -eq $repoRoot -or
+        $resolvedTarget -eq [System.IO.Path]::GetPathRoot($resolvedTarget).TrimEnd('\', '/') -or
+        $repoRoot.StartsWith($resolvedTarget + '\', [System.StringComparison]::OrdinalIgnoreCase)) {
+        throw "Refusing to remove unsafe release directory: $resolvedTarget"
+    }
+    if (Test-Path -LiteralPath $resolvedTarget) {
+        if ((Get-Item -LiteralPath $resolvedTarget).Attributes -band [System.IO.FileAttributes]::ReparsePoint) { throw "Release directory is a reparse point: $resolvedTarget" }
+        Remove-Item -LiteralPath $resolvedTarget -Recurse -Force
     }
 }
 
@@ -130,6 +138,13 @@ if (-not (Test-Path (Join-Path $publishRoot "FlowEncode.exe"))) {
 
 Sanitize-ReleaseLayout -RootPath $publishRoot -SatelliteLanguageDirectories $SatelliteLanguageDirectories
 
+$mcpPublishRoot = Join-Path $publishRoot "mcp"
+& dotnet publish (Join-Path $repoRoot "FlowEncode\FlowEncode.Mcp\FlowEncode.Mcp.csproj") -c $Configuration -r win-x64 --self-contained true -o $mcpPublishRoot --nologo
+if ($LASTEXITCODE -ne 0) { throw "MCP publish failed." }
+if (-not (Test-Path -LiteralPath (Join-Path $mcpPublishRoot "FlowEncode.Mcp.exe"))) { throw "MCP executable missing." }
+$portablePath = Join-Path $resolvedOutputRoot "FlowEncode_Portable_v$resolvedVersion.zip"
+Compress-Archive -Path (Join-Path $publishRoot '*') -DestinationPath $portablePath -CompressionLevel Optimal
+
 & $installerBuildScript `
     -SourceDirectoryPath $publishRoot `
     -Version $resolvedVersion `
@@ -145,9 +160,14 @@ if (-not (Test-Path $installerArtifactPath)) {
 }
 
 $installerHash = Get-Sha256Hash -Path $installerArtifactPath
+$checksums = @($installerArtifactPath, $portablePath) | ForEach-Object {
+    "{0} *{1}" -f (Get-Sha256Hash -Path $_).ToLowerInvariant(), [System.IO.Path]::GetFileName($_)
+}
+$checksums | Set-Content -LiteralPath (Join-Path $resolvedOutputRoot 'SHA256SUMS.txt') -Encoding ascii
 
 [pscustomobject]@{
     Version = $resolvedVersion
     InstallerExe = $installerArtifactPath
     InstallerExeSha256 = $installerHash
+    PortableZip = $portablePath
 } | Format-List

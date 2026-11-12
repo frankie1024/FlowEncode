@@ -15,6 +15,7 @@ public static class AudioSourceSupport
         ".aifc",
         ".caf",
         ".ac3",
+        ".ac4",
         ".eac3",
         ".ec3",
         ".eb3",
@@ -55,6 +56,7 @@ public static class AudioSourceSupport
 
     private static readonly IReadOnlyList<string> AllSupportedExtensions = FfmpegBackedPreferredPickerExtensions
         .Concat(Eac3ToPreferredPickerExtensions)
+        .Concat(new[] { ".mkv", ".m2ts" })
         .Distinct(StringComparer.OrdinalIgnoreCase)
         .ToArray();
 
@@ -64,7 +66,9 @@ public static class AudioSourceSupport
 
     public static IReadOnlyList<string> GetPreferredPickerExtensions(AudioProcessingMode? mode)
     {
-        return mode == AudioProcessingMode.Eac3To
+        return mode == AudioProcessingMode.Ddp
+            ? FfmpegBackedPreferredPickerExtensions.Concat(new[] { ".mkv", ".m2ts" }).ToArray()
+            : mode == AudioProcessingMode.Eac3To
             ? Eac3ToPreferredPickerExtensions
             : FfmpegBackedPreferredPickerExtensions;
     }
@@ -77,6 +81,15 @@ public static class AudioSourceSupport
     {
         var extension = Path.GetExtension(filePath);
         return SupportedDropExtensions.Any(candidate => string.Equals(candidate, extension, StringComparison.OrdinalIgnoreCase));
+    }
+
+    public static void ValidateDeewInput(string path, DeewOptions options)
+    {
+        var extension = Path.GetExtension(path).ToLowerInvariant();
+        var atmos = options.Format.EndsWith("-atmos", StringComparison.Ordinal);
+        if (new[] { ".mkv", ".mka", ".m2ts", ".mp4", ".ts", ".avi", ".flv", ".mov" }.Contains(extension)
+            && (!atmos || extension is not (".mkv" or ".mka" or ".m2ts")))
+            throw new InvalidOperationException("Container inputs are supported only for Atmos output from MKV, MKA or M2TS. Extract a standalone audio track for other formats.");
     }
 
     private static string BuildDialogPattern(IReadOnlyList<string> extensions) => string.Join(";", extensions.Select(static extension => $"*{extension}"));

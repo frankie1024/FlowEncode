@@ -12,7 +12,7 @@ namespace FlowEncode.Infrastructure;
 public sealed class GitHubAppUpdateService : IAppUpdateService, IDisposable
 {
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
-    private static readonly Regex VersionLabelRegex = new("^(?<base>\\d+\\.\\d+(?:\\.\\d+)*)(?<suffix>[0-9a-f]{7,12})?$", RegexOptions.IgnoreCase | RegexOptions.Compiled);
+    private static readonly Regex VersionLabelRegex = new("^(?<base>\\d+\\.\\d+(?:\\.\\d+)*)(?<pre>-(?:alpha|beta|rc)\\.\\d+)?(?<suffix>[0-9a-f]{7,12})?$", RegexOptions.IgnoreCase | RegexOptions.Compiled);
     private const string PreferredInstallerAssetNamePrefix = "FlowEncode_Setup_v";
     private const string ReleasesPageUrl = "https://github.com/frankie1024/FlowEncode/releases";
     private const string LatestReleaseApiUrl = "https://api.github.com/repos/frankie1024/FlowEncode/releases/latest";
@@ -251,13 +251,13 @@ public sealed class GitHubAppUpdateService : IAppUpdateService, IDisposable
             trimmed = trimmed[1..];
         }
 
-        var versionMatch = Regex.Match(trimmed, "(?<base>\\d+\\.\\d+(?:\\.\\d+)*)(?<suffix>[0-9a-f]{7,12})?", RegexOptions.IgnoreCase);
+        var versionMatch = Regex.Match(trimmed, "(?<base>\\d+\\.\\d+(?:\\.\\d+)*)(?<pre>-(?:alpha|beta|rc)\\.\\d+)?(?<suffix>[0-9a-f]{7,12})?", RegexOptions.IgnoreCase);
         if (versionMatch.Success)
         {
             var suffix = versionMatch.Groups["suffix"].Success
                 ? versionMatch.Groups["suffix"].Value.ToLowerInvariant()
                 : string.Empty;
-            return versionMatch.Groups["base"].Value + suffix;
+            return versionMatch.Groups["base"].Value + versionMatch.Groups["pre"].Value.ToLowerInvariant() + suffix;
         }
 
         return trimmed;
@@ -340,7 +340,7 @@ public sealed class GitHubAppUpdateService : IAppUpdateService, IDisposable
         }
     }
 
-    private static int? CompareVersionLabels(string currentVersion, string latestVersion)
+    internal static int? CompareVersionLabels(string currentVersion, string latestVersion)
     {
         var currentParsed = ParseVersionLabel(currentVersion);
         var latestParsed = ParseVersionLabel(latestVersion);
@@ -354,6 +354,9 @@ public sealed class GitHubAppUpdateService : IAppUpdateService, IDisposable
         {
             return Math.Sign(baseComparison);
         }
+
+        var preComparison = ComparePrerelease(currentParsed.PreRelease, latestParsed.PreRelease);
+        if (preComparison != 0) return preComparison;
 
         if (string.Equals(currentParsed.Suffix, latestParsed.Suffix, StringComparison.OrdinalIgnoreCase))
         {
@@ -447,10 +450,23 @@ public sealed class GitHubAppUpdateService : IAppUpdateService, IDisposable
             baseVersion,
             match.Groups["suffix"].Success
                 ? match.Groups["suffix"].Value.ToLowerInvariant()
-                : string.Empty);
+                : string.Empty,
+            match.Groups["pre"].Value.ToLowerInvariant());
     }
 
-    private sealed record ParsedVersionLabel(Version BaseVersion, string Suffix);
+    private static int ComparePrerelease(string left, string right)
+    {
+        if (left == right) return 0;
+        static (int Rank, int Number) Parse(string value)
+        {
+            if (value.Length == 0) return (4, 0);
+            var parts = value.TrimStart('-').Split('.');
+            return (parts[0] switch { "alpha" => 1, "beta" => 2, _ => 3 }, int.Parse(parts[1]));
+        }
+        return Math.Sign(Parse(left).CompareTo(Parse(right)));
+    }
+
+    private sealed record ParsedVersionLabel(Version BaseVersion, string Suffix, string PreRelease = "");
 
     private sealed record ComparableRelease(
         GitHubRelease Release,

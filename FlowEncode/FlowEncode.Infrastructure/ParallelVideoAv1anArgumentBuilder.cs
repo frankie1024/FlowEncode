@@ -94,6 +94,10 @@ public static class ParallelVideoAv1anArgumentBuilder
         var preset = EncoderArgumentValueNormalizer.NormalizePresetForCli(request.EncoderKind, request.Preset);
         var tune = EncoderArgumentValueNormalizer.NormalizeTuneForCli(request.EncoderKind, request.Tune);
         var profile = EncoderArgumentValueNormalizer.NormalizeProfileForCli(request.EncoderKind, request.Profile);
+        var encodingProfile = new EncodingProfile(request.EncoderKind, string.Empty, string.Empty, request.Preset,
+            request.Tune, request.Profile, RateControlMode.Crf, request.Crf, null, "mkv", request.VideoParameters, request.UhdParameters);
+        RequestValidation.ValidateEncodingProfile(encodingProfile);
+        var outputContract = VideoOutputContract.Resolve(encodingProfile, sourceInfo);
         var additionalArguments = TokenizeAndValidateUserArguments(request.VideoParameters);
         var includeX265UhdParameters = request.EncoderKind == EncoderKind.X265
             && !string.IsNullOrWhiteSpace(request.UhdParameters);
@@ -110,6 +114,7 @@ public static class ParallelVideoAv1anArgumentBuilder
         {
             EncoderKind.X264 => BuildArgumentParts(
                 $"--crf {FormatNumber(request.Crf)}",
+                $"--output-depth {outputContract.BitDepth}",
                 $"--preset {preset}",
                 Optional("--tune", tune),
                 Optional("--profile", profile),
@@ -120,6 +125,7 @@ public static class ParallelVideoAv1anArgumentBuilder
                 additionalArguments),
             EncoderKind.X265 => BuildArgumentParts(
                 $"--crf {FormatNumber(request.Crf)}",
+                $"--output-depth {outputContract.BitDepth}",
                 $"--preset {preset}",
                 Optional("--tune", tune),
                 Optional("--profile", profile),
@@ -216,7 +222,7 @@ public static class ParallelVideoAv1anArgumentBuilder
             {
                 $"--width {sourceInfo.Width}",
                 $"--height {sourceInfo.Height}",
-                sourceInfo.TotalFrames is > 0 ? $"--frames {sourceInfo.TotalFrames.Value}" : string.Empty,
+                sourceInfo.TotalFrames is > 0 && !sourceInfo.IsFrameCountEstimated ? $"--frames {sourceInfo.TotalFrames.Value}" : string.Empty,
                 sourceInfo.BitDepth > 0 ? $"--input-depth {sourceInfo.BitDepth}" : string.Empty
             }.Where(static part => !string.IsNullOrWhiteSpace(part)));
     }

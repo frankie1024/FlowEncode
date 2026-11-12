@@ -147,8 +147,11 @@ public partial class MainWindowViewModel : CommunityToolkit.Mvvm.ComponentModel.
         ISetupBootstrapService setupBootstrapService,
         IAppUpdateService appUpdateService,
         IVapourSynthPreviewService vapourSynthPreviewService,
-        CliEnvironmentIntegrationService cliEnvironmentIntegrationService)
+        CliEnvironmentIntegrationService cliEnvironmentIntegrationService,
+        TaskCoordinator taskCoordinator)
     {
+        _tasks = taskCoordinator;
+        _tasks.Changed += SharedTasksChanged;
         _toolchainService = toolchainService;
         _profileLibraryService = profileLibraryService;
         _jobRunner = jobRunner;
@@ -381,6 +384,7 @@ public partial class MainWindowViewModel : CommunityToolkit.Mvvm.ComponentModel.
     internal bool HasRunningJobs => Jobs.Any(static job => job.State == EncodingJobState.Running);
 
     internal bool HasRunningAppWork => HasRunningJobs
+        || _tasks.HasActiveTasks
         || IsAutoCompressionRunning
         || IsAudioProcessingRunning
         || IsBluRayDemuxRunning;
@@ -1142,6 +1146,7 @@ public partial class MainWindowViewModel : CommunityToolkit.Mvvm.ComponentModel.
         }
 
         _isDisposed = true;
+        _tasks.Changed -= SharedTasksChanged;
         CancelPendingQueueCompletionActionWait();
         CancelPendingPreviewRefresh();
         CancelPendingDraftInputRefresh();
@@ -1375,7 +1380,9 @@ public partial class MainWindowViewModel : CommunityToolkit.Mvvm.ComponentModel.
                 GetMaxConcurrentEncodingJobCount(),
                 QueueCompletionAction,
                 currentSettings.PreviewScalingAlgorithm,
-                currentSettings.LastFileDialogDirectory));
+                currentSettings.LastFileDialogDirectory,
+                currentSettings.DeewOptions,
+                EnableMcpAutomation));
 
             var workspaceRootActivated = !string.IsNullOrWhiteSpace(_preparedWorkspaceRootPath)
                 && string.Equals(
@@ -1391,6 +1398,7 @@ public partial class MainWindowViewModel : CommunityToolkit.Mvvm.ComponentModel.
                 }
 
                 _settingsService.Save(settings);
+                _tasks.RefreshConcurrency();
             }
             catch
             {
@@ -1514,6 +1522,7 @@ public partial class MainWindowViewModel : CommunityToolkit.Mvvm.ComponentModel.
                 Texts.Pick("正在生成实际执行命令...", "Resolving the actual command..."),
                 CurrentLanguagePreference);
 
+            _tasks.Reserve(new(TaskKind.Video, Video: request));
             Jobs.Add(job);
             SelectedJob = job;
             RaiseJobSummaryPropertyChanges();
@@ -1614,6 +1623,7 @@ public partial class MainWindowViewModel : CommunityToolkit.Mvvm.ComponentModel.
 
         if (job.State == EncodingJobState.Queued)
         {
+            _tasks.Cancel(job.Request.JobId);
             job.MarkCancelled(
                 Texts.Pick("队列中的作业已取消", "Queued job cancelled"),
                 Texts.Pick("作业尚未启动，已从执行队列中撤回。", "The job had not started and was removed from the execution queue."));
@@ -1740,6 +1750,7 @@ public partial class MainWindowViewModel : CommunityToolkit.Mvvm.ComponentModel.
         var removedCount = 0;
         foreach (var job in removableJobs)
         {
+            if (job.State == EncodingJobState.Queued) _tasks.Cancel(job.Request.JobId);
             if (Jobs.Remove(job))
             {
                 removedCount++;
@@ -1785,6 +1796,7 @@ public partial class MainWindowViewModel : CommunityToolkit.Mvvm.ComponentModel.
                 Texts.Pick("正在生成实际执行命令...", "Resolving the actual command..."),
                 CurrentLanguagePreference);
 
+            _tasks.Reserve(new(TaskKind.Video, Video: request));
             Jobs.Add(restartedJob);
             SelectedJob = restartedJob;
             RaiseJobSummaryPropertyChanges();
@@ -1812,6 +1824,7 @@ public partial class MainWindowViewModel : CommunityToolkit.Mvvm.ComponentModel.
             return Texts.RemoveRunningJobError;
         }
 
+        if (job.State == EncodingJobState.Queued) _tasks.Cancel(job.Request.JobId);
         if (!Jobs.Remove(job))
         {
             return Texts.RemoveJobFailedError;
@@ -2194,6 +2207,8 @@ public partial class MainWindowViewModel : CommunityToolkit.Mvvm.ComponentModel.
         _isShuttingDown = true;
         CancelPendingQueueCompletionActionWait();
         ResetQueueCompletionActionBatch();
+        foreach (var task in _tasks.List())
+            if (task.State is EncodingJobState.Queued or EncodingJobState.Running) _tasks.Cancel(task.TaskId);
         CancelAutoCompression();
         CancelAudioProcessing();
         CancelBluRayDemux();
@@ -2202,7 +2217,7 @@ public partial class MainWindowViewModel : CommunityToolkit.Mvvm.ComponentModel.
             .Where(static job => job.State == EncodingJobState.Running)
             .ToList();
 
-        if (runningJobs.Count == 0 && !IsAutoCompressionRunning && !IsAudioProcessingRunning && !IsBluRayDemuxRunning)
+        if (runningJobs.Count == 0 && !IsAutoCompressionRunning && !IsAudioProcessingRunning && !IsBluRayDemuxRunning && !_tasks.HasActiveTasks)
         {
             return;
         }
@@ -2221,7 +2236,8 @@ public partial class MainWindowViewModel : CommunityToolkit.Mvvm.ComponentModel.
         while ((runningJobs.Any(static job => job.State == EncodingJobState.Running)
                 || IsAutoCompressionRunning
                 || IsAudioProcessingRunning
-                || IsBluRayDemuxRunning)
+                || IsBluRayDemuxRunning
+                || _tasks.HasActiveTasks)
                && DateTimeOffset.UtcNow < timeoutAt)
         {
             await Task.Delay(100);
@@ -2505,6 +2521,9 @@ public partial class MainWindowViewModel : CommunityToolkit.Mvvm.ComponentModel.
             return Texts.SvtAv1TwoPassOverlayConflict;
         }
 
+        var parameterError = SvtAv1ProfileConstraints.GetParameterError(profile);
+        if (parameterError is not null) return parameterError;
+
         return GetArgumentConflictError(profile.Kind, profile.AdditionalArguments, profile.UhdParameters);
     }
 
@@ -2554,6 +2573,9 @@ public partial class MainWindowViewModel : CommunityToolkit.Mvvm.ComponentModel.
         {
             return Texts.SvtAv1TwoPassOverlayConflict;
         }
+
+        var parameterError = SvtAv1ProfileConstraints.GetParameterError(request.Profile);
+        if (parameterError is not null) return parameterError;
 
         return GetArgumentConflictError(
             request.Profile.Kind,
@@ -3134,6 +3156,7 @@ public partial class MainWindowViewModel : CommunityToolkit.Mvvm.ComponentModel.
             : _appPaths.ConfiguredWorkspaceRootPath;
         PreferSystemEncoders = settings.PreferSystemEncoders;
         AutoCheckUpdatesOnStartup = settings.AutoCheckUpdatesOnStartup;
+        EnableMcpAutomation = settings.EnableMcpAutomation;
         MaxConcurrentEncodingJobs = settings.MaxConcurrentEncodingJobs;
         QueueCompletionAction = settings.QueueCompletionAction;
         WorkspaceRootPath = configuredWorkspaceRootPath;

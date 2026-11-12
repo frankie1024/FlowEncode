@@ -40,6 +40,7 @@ public static class EncodingCommandPreviewBuilder
                 BuildRateControlArguments(profile.Kind, profile, statsFile, passIndex: 1),
                 BuildOptionalArgument("--tune", tune),
                 BuildOptionalArgument("--profile", profileValue),
+                BuildOutputDepthArgument(profile),
                 "--demuxer y4m --stdin y4m",
                 BuildOptionalSegment(profile.AdditionalArguments),
                 "-o \"NUL\" -");
@@ -51,6 +52,7 @@ public static class EncodingCommandPreviewBuilder
                 BuildRateControlArguments(profile.Kind, profile, statsFile, passIndex: 2),
                 BuildOptionalArgument("--tune", tune),
                 BuildOptionalArgument("--profile", profileValue),
+                BuildOutputDepthArgument(profile),
                 "--demuxer y4m --stdin y4m",
                 BuildOptionalSegment(profile.AdditionalArguments),
                 $"-o \"{{output}}.{profile.OutputContainer}\" -");
@@ -65,7 +67,8 @@ public static class EncodingCommandPreviewBuilder
             BuildRateControlArguments(profile.Kind, profile),
             BuildOptionalArgument("--tune", tune),
             BuildOptionalArgument("--profile", profileValue),
-            "--demuxer y4m --stdin y4m",
+            BuildOutputDepthArgument(profile),
+                "--demuxer y4m --stdin y4m",
             BuildOptionalSegment(profile.AdditionalArguments),
             $"-o \"{{output}}.{profile.OutputContainer}\" -");
     }
@@ -86,6 +89,7 @@ public static class EncodingCommandPreviewBuilder
                 BuildRateControlArguments(profile.Kind, profile, statsFile, passIndex: 1),
                 BuildOptionalArgument("--tune", tune),
                 BuildOptionalArgument("--profile", profileValue),
+                BuildOutputDepthArgument(profile),
                 "--y4m --input -",
                 BuildOptionalSegment(profile.AdditionalArguments),
                 BuildOptionalSegment(profile.UhdParameters),
@@ -98,6 +102,7 @@ public static class EncodingCommandPreviewBuilder
                 BuildRateControlArguments(profile.Kind, profile, statsFile, passIndex: 2),
                 BuildOptionalArgument("--tune", tune),
                 BuildOptionalArgument("--profile", profileValue),
+                BuildOutputDepthArgument(profile),
                 "--y4m --input -",
                 BuildOptionalSegment(profile.AdditionalArguments),
                 BuildOptionalSegment(profile.UhdParameters),
@@ -113,7 +118,8 @@ public static class EncodingCommandPreviewBuilder
             BuildRateControlArguments(profile.Kind, profile),
             BuildOptionalArgument("--tune", tune),
             BuildOptionalArgument("--profile", profileValue),
-            "--y4m --input -",
+            BuildOutputDepthArgument(profile),
+                "--y4m --input -",
             BuildOptionalSegment(profile.AdditionalArguments),
             BuildOptionalSegment(profile.UhdParameters),
             $"-o \"{{output}}.{profile.OutputContainer}\"");
@@ -197,8 +203,8 @@ public static class EncodingCommandPreviewBuilder
                 ? $"--rc 0 --crf {FormatNumber(profile.Quality)}"
                 : $"--crf {FormatNumber(profile.Quality)}",
             RateControlMode.Cq or RateControlMode.Qp => kind == EncoderKind.SvtAv1
-                ? $"--rc 0 --qp {FormatNumber(profile.Quality)}"
-                : $"--qp {FormatNumber(profile.Quality)}",
+                ? EncoderCliParameters.BuildSvtQpArguments(profile.Quality)
+                : EncoderCliParameters.BuildIntegerQpArgument(profile.Quality),
             RateControlMode.Abr or RateControlMode.Vbr => kind == EncoderKind.SvtAv1
                 ? $"--rc 1 --tbr {profile.Bitrate ?? 3500}"
                 : $"--bitrate {profile.Bitrate ?? 3500}",
@@ -217,6 +223,9 @@ public static class EncodingCommandPreviewBuilder
             _ => string.Empty
         };
     }
+
+    private static string BuildOutputDepthArgument(EncodingProfile profile) =>
+        $"--output-depth {EncoderCliParameters.ResolveOutputDepth(profile)?.ToString() ?? "{input_bit_depth}"}";
 
     private static string FormatNumber(double value)
     {

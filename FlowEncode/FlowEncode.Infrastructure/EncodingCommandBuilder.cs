@@ -22,6 +22,8 @@ internal sealed class EncodingCommandBuilder
         string? statsPath,
         string? outputPathOverride = null)
     {
+        RequestValidation.ValidateEncodingProfile(request.Profile);
+        var outputContract = VideoOutputContract.Resolve(request.Profile, sourceInfo);
         var profile = request.Profile;
         var preset = EncoderArgumentValueNormalizer.NormalizePresetForCli(profile.Kind, profile.Preset);
         var tune = EncoderArgumentValueNormalizer.NormalizeTuneForCli(profile.Kind, profile.Tune);
@@ -51,7 +53,8 @@ internal sealed class EncodingCommandBuilder
             profile.Kind,
             sourceInfo?.TotalFrames,
             sourceInfo?.FramesPerSecond,
-            statsPath is null ? [] : [statsPath]);
+            statsPath is null ? [] : [statsPath],
+            outputContract);
     }
 
     internal static string BuildEncoderColorMetadataArguments(
@@ -294,6 +297,8 @@ internal sealed class EncodingCommandBuilder
         string rateControl)
     {
         var profile = request.Profile;
+        var outputContract = VideoOutputContract.Resolve(profile, sourceInfo);
+        var depthArgument = profile.Kind == EncoderKind.SvtAv1 ? string.Empty : $"--output-depth {outputContract.BitDepth}";
         var outputArg = profile.Kind switch
         {
             EncoderKind.X264 => $"-o {Quote(outputPath)}",
@@ -319,6 +324,7 @@ internal sealed class EncodingCommandBuilder
         {
             EncoderKind.X264 => BuildArgumentParts(
                 $"--preset {preset}",
+                depthArgument,
                 rateControl,
                 Optional("--tune", tune),
                 Optional("--profile", profileValue),
@@ -328,6 +334,7 @@ internal sealed class EncodingCommandBuilder
                 outputArg),
             EncoderKind.X265 => BuildArgumentParts(
                 $"--preset {preset}",
+                depthArgument,
                 rateControl,
                 Optional("--tune", tune),
                 Optional("--profile", profileValue),
@@ -381,8 +388,8 @@ internal sealed class EncodingCommandBuilder
                 ? $"--rc 0 --crf {FormatNumber(profile.Quality)}"
                 : $"--crf {FormatNumber(profile.Quality)}",
             RateControlMode.Cq or RateControlMode.Qp => kind == EncoderKind.SvtAv1
-                ? $"--rc 0 --qp {FormatNumber(profile.Quality)}"
-                : $"--qp {FormatNumber(profile.Quality)}",
+                ? EncoderCliParameters.BuildSvtQpArguments(profile.Quality)
+                : EncoderCliParameters.BuildIntegerQpArgument(profile.Quality),
             RateControlMode.Abr or RateControlMode.Vbr => kind == EncoderKind.SvtAv1
                 ? $"--rc 1 --tbr {profile.Bitrate ?? 3500}"
                 : $"--bitrate {profile.Bitrate ?? 3500}",
@@ -818,7 +825,7 @@ internal sealed class EncodingCommandBuilder
         return JoinArguments(
             $"--width {sourceInfo.Width}",
             $"--height {sourceInfo.Height}",
-            sourceInfo.TotalFrames is > 0 ? $"--frames {sourceInfo.TotalFrames.Value}" : string.Empty,
+            sourceInfo.TotalFrames is > 0 && !sourceInfo.IsFrameCountEstimated ? $"--frames {sourceInfo.TotalFrames.Value}" : string.Empty,
             sourceInfo.BitDepth > 0 ? $"--input-depth {sourceInfo.BitDepth}" : string.Empty);
     }
 

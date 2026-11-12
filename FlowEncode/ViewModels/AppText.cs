@@ -505,7 +505,7 @@ public sealed class AppText
     public string SetupGuideSwipeHint => Pick("可左右滑动浏览卡片，也可以使用左右按钮切换。", "Swipe left or right to browse cards, or use the navigation buttons.");
     public string SetupGuideRefreshButton => Pick("重新检测", "Recheck");
     public string SetupGuideRefreshingButton => Pick("检测中...", "Checking...");
-    public string SetupGuideCheckUpdatesButton => Pick("检查依赖更新", "Check Dependency Updates");
+    public string SetupGuideCheckUpdatesButton => Pick("核对基线版本", "Check Baseline Versions");
     public string SetupGuideCloseButton => Pick("进入工作台", "Enter Workspace");
     public string SetupGuidePreviousButton => Pick("上一页", "Previous");
     public string SetupGuideNextButton => Pick("下一页", "Next");
@@ -958,6 +958,16 @@ public sealed class AppText
 
     public string AudioProcessingTelemetrySummary(AudioProcessingTelemetry telemetry)
     {
+        if (telemetry.DeewDb.HasValue)
+        {
+            var label = telemetry.DeewDbSource switch
+            {
+                DeewDbSource.Measured => Pick("实测响度", "Measured loudness"),
+                DeewDbSource.SpecifiedDialnorm => Pick("指定 dialnorm", "Specified dialnorm"),
+                _ => Pick("dB（来源未知）", "dB (unknown source)")
+            };
+            return $"{label}: {telemetry.DeewDb:0.##} dB";
+        }
         var speedText = telemetry.SpeedMultiplier.HasValue && telemetry.SpeedMultiplier.Value > 0
             ? $"{telemetry.SpeedMultiplier.Value:0.#}x"
             : "--";
@@ -975,6 +985,36 @@ public sealed class AppText
             ? $"速度 {speedText} · 码率 {bitrateText} · 剩余 {remainingText} · 预估 {sizeText}"
             : $"Speed {speedText} · Bitrate {bitrateText} · ETA {remainingText} · Est. {sizeText}";
     }
+
+    public string DeewFormatHeader => Pick("deew 输出格式", "deew output format");
+    public string DeewDdpModeHeader => Pick("DDP 档位", "DDP mode");
+    public string DeewAtmosModeHeader => Pick("DDP Atmos 档位", "DDP Atmos mode");
+    public string DeewBitrateHeader => Pick("码率 (kbps)", "Bitrate (kbps)");
+    public string DeewDownmixHeader => Pick("声道混合", "Downmix channels");
+    public string DeewLfeHeader => Pick("禁用 LFE", "Disable LFE");
+    public string DeewDelayHeader => Pick("延迟（如 -5ms）", "Delay (e.g. -5ms)");
+    public string DeewTrackHeader => Pick("音轨索引（从 0 开始）", "Audio track index (zero-based)");
+    public string DeewAdvancedHeader => Pick("deew 高级参数与临时目录", "deew advanced options and temporary files");
+    public string DeewKeepLogHeader => Pick("保留诊断日志 (-kl)", "Keep diagnostic logs (-kl)");
+    public string DeewKeepTempHeader => Pick("保留临时文件 (-k)", "Keep temporary files (-k)");
+    public string DeewInstancesHeader => Pick("并行实例（如 50%）", "Instances (e.g. 50%)");
+    public string DeewAdditionalHeader => Pick("额外编码参数（覆盖面板值）", "Additional encoding arguments (override panel values)");
+    public string DeewTempHeader => Pick("临时目录模式", "Temporary directory mode");
+    public string DeewTempRootHeader => Pick("自定义临时根目录", "Custom temporary root");
+    public string DeewOutputHint => Pick("预览 -o 为最终目录；运行时先写任务暂存目录，验收后迁移媒体。", "Preview -o shows the final directory. Execution stages and validates media before publishing.");
+    public string DeewResultHeader => Pick("本次媒体、日志与保留文件", "Media, logs and retained files from this job");
+    public string DeewOpenMedia => Pick("打开媒体", "Open media");
+    public string DeewOpenLogs => Pick("打开日志", "Open logs");
+    public string DeewOpenRetained => Pick("打开保留目录", "Open retained folder");
+    public string McpEnableHeader => Pick("允许本机 MCP 自动化", "Enable local MCP automation");
+    public string McpConnectionHint => Pick("开启后，同一 Windows 用户的 AI 客户端可提交和取消编码任务。将下方配置加入客户端；关闭开关不会中断已接受任务。", "When enabled, AI clients running as the same Windows user can submit and cancel tasks. Add the configuration below to your client. Disabling this switch leaves accepted tasks running.");
+    public string NavTaskCenter => Pick("任务中心", "Task center");
+    public string JobStateLabel(EncodingJobState state) => state switch
+    {
+        EncodingJobState.Queued => Pick("排队中", "Queued"), EncodingJobState.Running => Pick("处理中", "Running"),
+        EncodingJobState.Completed => Pick("已完成", "Completed"), EncodingJobState.Cancelled => Pick("已取消", "Cancelled"),
+        _ => Pick("失败", "Failed")
+    };
 
     public string UserCaption(string name) => $"{name} · {Pick("用户模板", "User Template")}";
 

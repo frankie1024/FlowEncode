@@ -194,7 +194,7 @@ public sealed class VapourSynthPreviewServiceTests
         var session = new FakePreviewHostSession();
         var factory = new FakePreviewHostFactory(session);
         var service = new VapourSynthPreviewService(
-            new LocalAppPaths(),
+            new LocalAppPaths(Path.Combine(tempRootPath, "state"), Path.Combine(tempRootPath, "install"), [Path.Combine(tempRootPath, "workspace")]),
             factory,
             sessionRootPath: tempRootPath);
 

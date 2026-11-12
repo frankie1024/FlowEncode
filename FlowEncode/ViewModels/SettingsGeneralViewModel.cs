@@ -59,6 +59,8 @@ public sealed class SettingsGeneralViewModel : ModuleViewModelBase
     }
 
     public string WorkspaceRootPath => Owner.WorkspaceRootPath;
+    public bool EnableMcpAutomation { get => Owner.EnableMcpAutomation; set => Owner.EnableMcpAutomation = value; }
+    public string McpConnectionConfig => Owner.McpConnectionConfig;
 
     public string AppRootPath => Owner.AppRootPath;
 

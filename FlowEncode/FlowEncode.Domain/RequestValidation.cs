@@ -97,6 +97,8 @@ public static class RequestValidation
         RequirePath(request.SourcePath, "Audio source path is required.");
         RequirePath(request.OutputPath, "Audio output path is required.");
 
+        if (request.Mode == AudioProcessingMode.Ddp) DeewArguments.Normalize(request.Deew);
+
         if (request.Mode == AudioProcessingMode.Opus && request.OpusBitrateKbps is not > 0)
         {
             throw new ArgumentOutOfRangeException(nameof(request.OpusBitrateKbps), request.OpusBitrateKbps, "Opus bitrate must be greater than 0.");
@@ -145,6 +147,18 @@ public static class RequestValidation
         if (profile.Bitrate is <= 0)
         {
             throw new ArgumentOutOfRangeException(nameof(profile.Bitrate), profile.Bitrate, "Profile bitrate must be greater than 0 when specified.");
+        }
+
+        if (profile.Kind == EncoderKind.SvtAv1)
+        {
+            if (profile.RateControl is RateControlMode.Crf or RateControlMode.Qp or RateControlMode.Cq)
+                EncoderCliParameters.ValidateSvtQuality(profile.Quality);
+            var error = SvtAv1ProfileConstraints.GetParameterError(profile);
+            if (error is not null) throw new ArgumentException(error, nameof(profile));
+        }
+        else if (profile.RateControl is RateControlMode.Qp or RateControlMode.Cq)
+        {
+            EncoderCliParameters.BuildIntegerQpArgument(profile.Quality);
         }
     }
 

@@ -203,6 +203,7 @@ public sealed class DgDemuxBackendAdapter : CliBluRayDemuxBackendAdapterBase
         startInfo.ArgumentList.Add("-demux");
         startInfo.ArgumentList.Add(string.Join(',', stagedRequest.Selections.Select(static selection => selection.Track.DemuxToken)));
 
+        var preserveStagedOutput = false;
         try
         {
             var result = await RunProcessAsync(
@@ -220,14 +221,16 @@ public sealed class DgDemuxBackendAdapter : CliBluRayDemuxBackendAdapterBase
 
             if (result.State == EncodingJobState.Completed)
             {
-                FinalizeStagedOutputDirectory(stagedRequest.OutputDirectory, request.OutputDirectory);
+                preserveStagedOutput = true;
+                FinalizeStagedOutputDirectory(stagedRequest.OutputDirectory, request.OutputDirectory, request.OverwriteOutput);
+                preserveStagedOutput = false;
             }
 
             return result;
         }
         finally
         {
-            CleanupStagedOutputDirectory(stagedRequest.OutputDirectory);
+            if (!preserveStagedOutput) CleanupStagedOutputDirectory(stagedRequest.OutputDirectory);
         }
     }
 
@@ -297,11 +300,11 @@ public sealed class DgDemuxBackendAdapter : CliBluRayDemuxBackendAdapterBase
         };
     }
 
-    private static void FinalizeStagedOutputDirectory(string stagedOutputDirectory, string finalOutputDirectory)
+    private static void FinalizeStagedOutputDirectory(string stagedOutputDirectory, string finalOutputDirectory, bool overwrite)
     {
         try
         {
-            ExecutionOutputStaging.FinalizeDirectory(stagedOutputDirectory, finalOutputDirectory);
+            ExecutionOutputStaging.FinalizeDirectory(stagedOutputDirectory, finalOutputDirectory, overwrite);
         }
         catch (IOException ex)
         {

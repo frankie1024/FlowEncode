@@ -155,16 +155,24 @@ public sealed class LocalExternalToolService : IExternalToolService, IDisposable
     }
 
     public async Task<IReadOnlyList<ExternalToolUpdatePackage>> GetAvailableUpdatesAsync(CancellationToken cancellationToken = default)
+        => await GetPackagesAsync(useBaseline: false, cancellationToken);
+
+    public async Task<IReadOnlyList<ExternalToolUpdatePackage>> GetBaselinePackagesAsync(CancellationToken cancellationToken = default)
+        => await GetPackagesAsync(useBaseline: true, cancellationToken);
+
+    private async Task<IReadOnlyList<ExternalToolUpdatePackage>> GetPackagesAsync(bool useBaseline, CancellationToken cancellationToken)
     {
         var packages = new List<ExternalToolUpdatePackage>();
 
-        var av1an = await GetAv1anPackageAsync(cancellationToken);
+        var av1an = useBaseline
+            ? await TryGetManagedAv1anPackageFromRepositoryAsync("frankie1024/Av1an", cancellationToken, "v0.5.2-flowencode.2")
+            : await GetAv1anPackageAsync(cancellationToken);
         if (av1an is not null)
         {
             packages.Add(av1an);
         }
 
-        var ffmpeg = await GetFfmpegPackageAsync(cancellationToken);
+        var ffmpeg = await GetFfmpegPackageAsync(cancellationToken, useBaseline);
         if (ffmpeg is not null)
         {
             packages.Add(ffmpeg);
@@ -408,10 +416,11 @@ public sealed class LocalExternalToolService : IExternalToolService, IDisposable
 
     private async Task<ExternalToolUpdatePackage?> TryGetManagedAv1anPackageFromRepositoryAsync(
         string repository,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        string? baselineTag = null)
     {
         using var response = await _apiHttpClient.GetAsync(
-            $"https://api.github.com/repos/{repository}/releases?per_page=20",
+            $"https://api.github.com/repos/{repository}/releases" + (baselineTag is null ? "?per_page=20" : "/tags/" + baselineTag),
             cancellationToken);
 
         if (response.StatusCode == HttpStatusCode.NotFound)
@@ -422,7 +431,9 @@ public sealed class LocalExternalToolService : IExternalToolService, IDisposable
         response.EnsureSuccessStatusCode();
 
         await using var contentStream = await response.Content.ReadAsStreamAsync(cancellationToken);
-        var releases = await JsonSerializer.DeserializeAsync<List<GitHubRelease>>(contentStream, JsonOptions, cancellationToken);
+        var releases = baselineTag is null
+            ? await JsonSerializer.DeserializeAsync<List<GitHubRelease>>(contentStream, JsonOptions, cancellationToken)
+            : new List<GitHubRelease> { (await JsonSerializer.DeserializeAsync<GitHubRelease>(contentStream, JsonOptions, cancellationToken))! };
         if (releases is null || releases.Count == 0)
         {
             return null;
@@ -430,6 +441,7 @@ public sealed class LocalExternalToolService : IExternalToolService, IDisposable
 
         var candidates = releases
             .Where(static release => IsStableGitHubRelease(release))
+            .Where(release => baselineTag is null || release.TagName == baselineTag)
             .SelectMany(release => (release.Assets ?? [])
                 .Where(static asset => IsManagedAv1anAssetName(asset.Name))
                 .Select(asset => new { Release = release, Asset = asset }))
@@ -444,6 +456,7 @@ public sealed class LocalExternalToolService : IExternalToolService, IDisposable
 
         var selected = candidates[0];
         var sha256 = PackageIntegrityVerifier.NormalizeSha256Digest(selected.Asset.Digest);
+        if (baselineTag is not null && sha256 != "e6366b7ba3345f3a0fd8d4773a162ce0593c4c191c10ea5c058e4b97cb73eacf") return null;
         var isAutomatic = !string.IsNullOrWhiteSpace(sha256);
         var notes = "使用 FlowEncode 兼容的 Av1an 托管发布包。";
         if (!isAutomatic)
@@ -463,51 +476,17 @@ public sealed class LocalExternalToolService : IExternalToolService, IDisposable
             isAutomatic);
     }
 
-    private async Task<ExternalToolUpdatePackage?> GetFfmpegPackageAsync(CancellationToken cancellationToken)
+    private async Task<ExternalToolUpdatePackage?> GetFfmpegPackageAsync(CancellationToken cancellationToken, bool useBaseline = true)
     {
         using var response = await _apiHttpClient.GetAsync(
-            "https://api.github.com/repos/BtbN/FFmpeg-Builds/releases/latest",
+            useBaseline ? FfmpegReleasePolicy.ApiUrl : "https://api.github.com/repos/GyanD/codexffmpeg/releases/latest",
             cancellationToken);
+        if (response.StatusCode == HttpStatusCode.NotFound)
+        {
+            return null;
+        }
         response.EnsureSuccessStatusCode();
-
-        await using var contentStream = await response.Content.ReadAsStreamAsync(cancellationToken);
-        var release = await JsonSerializer.DeserializeAsync<GitHubRelease>(contentStream, JsonOptions, cancellationToken);
-        if (release is null)
-        {
-            return null;
-        }
-
-        var asset = (release.Assets ?? [])
-            .Where(static item => item.Name.EndsWith(".zip", StringComparison.OrdinalIgnoreCase)
-                && item.Name.Contains("win64", StringComparison.OrdinalIgnoreCase)
-                && item.Name.Contains("shared", StringComparison.OrdinalIgnoreCase))
-            .OrderByDescending(static item => item.Name.Contains("gpl-shared", StringComparison.OrdinalIgnoreCase))
-            .ThenBy(static item => item.Name, StringComparer.OrdinalIgnoreCase)
-            .FirstOrDefault();
-
-        if (asset is null)
-        {
-            return null;
-        }
-
-        var sha256 = PackageIntegrityVerifier.NormalizeSha256Digest(asset.Digest);
-        var isAutomatic = !string.IsNullOrWhiteSpace(sha256);
-        var notes = "使用 BtbN 官方 Win64 Shared 构建（包含 ffmpeg / ffprobe）。";
-        if (!isAutomatic)
-        {
-            notes += " 当前资源未提供 SHA256 摘要，已禁用自动安装。";
-        }
-
-        return new ExternalToolUpdatePackage(
-            ExternalToolKind.Ffmpeg,
-            ResolveGitHubReleaseLabel(release),
-            asset.Name,
-            release.HtmlUrl,
-            asset.BrowserDownloadUrl,
-            release.PublishedAt,
-            notes,
-            sha256,
-            isAutomatic);
+        return FfmpegReleasePolicy.SelectPackage(await response.Content.ReadAsStringAsync(cancellationToken), useBaseline);
     }
 
     private string InstallAv1anFromExtracted(string extractRoot, string expectedVersion)
@@ -592,6 +571,8 @@ public sealed class LocalExternalToolService : IExternalToolService, IDisposable
             }
 
             _ = RunValidationProbe(ffprobePath, "-version");
+            FfmpegCapabilityProbe.ValidatePair(executablePath, ffprobePath);
+            FfmpegCapabilityProbe.RequireVideo(executablePath);
         }
         else
         {

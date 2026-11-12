@@ -31,6 +31,9 @@ public sealed partial class AudioProcessingView : UserControl
         ConfigureOutputPathGrid();
         AudioProcessingActionBar.IsStacked = compactForms;
         ConfigureAudioOptionsGrid(optionColumnCount);
+        ConfigureDeewGrid(DeewPrimaryGrid, optionColumnCount);
+        ConfigureDeewGrid(DeewEncodingGrid, optionColumnCount);
+        ConfigureDeewGrid(DeewSignalGrid, optionColumnCount);
     }
 
     private void AudioProcessingView_Loaded(object sender, RoutedEventArgs e)
@@ -48,6 +51,16 @@ public sealed partial class AudioProcessingView : UserControl
     private async void BrowseAudioSourceButton_Click(object sender, RoutedEventArgs e)
     {
         await RunGuardedAsync(nameof(BrowseAudioSourceButton_Click), PickAudioSourceFileAsync);
+    }
+
+    private async void OpenAudioArtifact_Click(object sender, RoutedEventArgs e)
+    {
+        await RunGuardedAsync(nameof(OpenAudioArtifact_Click), () =>
+        {
+            var path = ViewModel?.Status.ArtifactPath((sender as FrameworkElement)?.Tag as string ?? "");
+            if (path is not null) System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(path) { UseShellExecute = true });
+            return Task.CompletedTask;
+        });
     }
 
     private async void AudioSourcePathTextBox_DoubleTapped(object sender, DoubleTappedRoutedEventArgs e)
@@ -240,6 +253,15 @@ public sealed partial class AudioProcessingView : UserControl
         {
             grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
         }
+    }
+
+    private static void ConfigureDeewGrid(Grid grid, int columns)
+    {
+        columns = Math.Max(1, columns);
+        grid.ColumnDefinitions.Clear();
+        for (var i = 0; i < columns; i++) grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        RebuildAutoRows(grid, (grid.Children.Count + columns - 1) / columns);
+        for (var i = 0; i < grid.Children.Count; i++) { Grid.SetRow(grid.Children[i] as FrameworkElement, i / columns); Grid.SetColumn(grid.Children[i] as FrameworkElement, i % columns); }
     }
 
 }

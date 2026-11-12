@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="utf-8" ?>
+﻿<?xml version="1.0" encoding="utf-8" ?>
 <UserControl
     x:Class="FlowEncode.Controls.Settings.SettingsView"
     x:Name="RootView"
@@ -69,6 +69,9 @@
                                 <TextBlock FontFamily="{StaticResource AppDisplayFont}" FontSize="{StaticResource AppCardTitleFontSize}" FontWeight="SemiBold" Text="{Binding Texts.SettingsBehaviorTitle}" />
                                 <ToggleSwitch x:Name="PreferSystemEncodersToggle" Header="{Binding Texts.PreferSystemEncodersHeader}" IsOn="{Binding PreferSystemEncoders, Mode=TwoWay}" OffContent="{Binding Texts.ToggleOffLabel}" OnContent="{Binding Texts.ToggleOnLabel}" ToolTipService.ToolTip="{Binding Texts.PreferSystemEncodersTooltip}" Toggled="SettingsToggle_Toggled" />
                                 <ToggleSwitch x:Name="AutoCheckUpdatesToggle" Header="{Binding Texts.AutoCheckUpdatesHeader}" IsOn="{Binding AutoCheckUpdatesOnStartup, Mode=TwoWay}" OffContent="{Binding Texts.ToggleOffLabel}" OnContent="{Binding Texts.ToggleOnLabel}" ToolTipService.ToolTip="{Binding Texts.AutoCheckUpdatesTooltip}" Toggled="SettingsToggle_Toggled" />
+                                <ToggleSwitch Header="{Binding Texts.McpEnableHeader}" IsOn="{Binding EnableMcpAutomation, Mode=TwoWay}" OffContent="{Binding Texts.ToggleOffLabel}" OnContent="{Binding Texts.ToggleOnLabel}" Toggled="SettingsToggle_Toggled" />
+                                <TextBlock Text="{Binding Texts.McpConnectionHint}" TextWrapping="Wrap" />
+                                <TextBox Header="MCP" Text="{Binding McpConnectionConfig}" IsReadOnly="True" TextWrapping="Wrap" />
                             </StackPanel>
                         </Border>
 
@@ -201,6 +204,7 @@
                                                                                 <TextBlock Text="{Binding Texts.ClearManualPinButton}" />
                                                                             </StackPanel>
                                                                         </Button>
+                                                                        <Button Content="{Binding MoreActionText}" Visibility="{Binding AdvancedUpdateVisibility}" IsEnabled="{Binding AdvancedUpdateEnabled}" Click="MoreDependencyActionsButton_Click" />
                                                                         <Button AutomationProperties.Name="{Binding PrimaryActionText}" Tag="{Binding Kind}" Click="InstallSetupDependencyButton_Click" IsEnabled="{Binding PrimaryActionEnabled}" Visibility="{Binding PrimaryActionVisibility}" Style="{StaticResource AccentButtonStyle}" ToolTipService.ToolTip="{Binding PrimaryActionText}">
                                                                             <StackPanel Orientation="Horizontal" Spacing="{StaticResource AppCommandIconTextSpacing}">
                                                                                 <SymbolIcon Symbol="Download" />

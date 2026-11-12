@@ -20,6 +20,7 @@ public sealed class SetupGuideDependencyItemViewModel : CommunityToolkit.Mvvm.Co
             {
                 OnPropertyChanged(nameof(ProgressVisibility));
                 OnPropertyChanged(nameof(PrimaryActionEnabled));
+                OnPropertyChanged(nameof(AdvancedUpdateEnabled));
                 OnPropertyChanged(nameof(UninstallActionEnabled));
                 OnPropertyChanged(nameof(ManualSelectEnabled));
                 OnPropertyChanged(nameof(ClearManualPinEnabled));
@@ -76,9 +77,13 @@ public sealed class SetupGuideDependencyItemViewModel : CommunityToolkit.Mvvm.Co
         bool isUninstallVisible,
         bool isUninstallEnabled,
         bool isManualSelectVisible,
-        bool isManualPinned)
+        bool isManualPinned,
+        string moreActionText = "More",
+        string advancedUpdateText = "Update tool (not recommended)")
     {
         Kind = kind;
+        MoreActionText = moreActionText;
+        AdvancedUpdateText = advancedUpdateText;
         Title = title;
         Description = description;
         State = state;
@@ -101,6 +106,11 @@ public sealed class SetupGuideDependencyItemViewModel : CommunityToolkit.Mvvm.Co
     }
 
     public SetupDependencyKind Kind { get; }
+    public string MoreActionText { get; }
+    public string AdvancedUpdateText { get; }
+    public Visibility AdvancedUpdateVisibility => ToolchainBaseline.HasBaseline(Kind) ? Visibility.Visible : Visibility.Collapsed;
+    public bool AdvancedUpdateEnabled => !IsBusy;
+
 
     public string Title { get; }
 

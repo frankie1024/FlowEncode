@@ -1,5 +1,6 @@
 using FlowEncode.Application;
 using FlowEncode.Infrastructure;
+using FlowEncode.Infrastructure.Automation;
 using FlowEncode.ViewModels;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Windows.AppLifecycle;
@@ -85,6 +86,7 @@ public partial class App : Microsoft.UI.Xaml.Application
         _window.Closed += MainWindow_Closed;
 
         _window.Activate();
+        GetService<DesktopTaskHost>().Start();
         StartDeferredStartupMaintenance();
     }
 
@@ -117,14 +119,23 @@ public partial class App : Microsoft.UI.Xaml.Application
         services.AddSingleton<IExternalToolService, LocalExternalToolService>();
         services.AddSingleton<IAppUpdateService, GitHubAppUpdateService>();
         services.AddSingleton<IAudioSourceInfoService, FfprobeAudioSourceInfoService>();
-        services.AddSingleton<IAudioProcessingRunner, CliAudioProcessingRunner>();
+        services.AddSingleton<ITaskHistoryStore, TaskHistoryStore>();
+        services.AddSingleton<TaskCoordinator>();
+        services.AddSingleton<CliAudioProcessingRunner>();
+        services.AddSingleton<IAudioProcessingRunner, CoordinatedAudioRunner>();
+        services.AddSingleton<IDeewPlanningService, DeewPlanningService>();
         services.AddSingleton<IBluRayDemuxBackendAdapter, DgDemuxBackendAdapter>();
         services.AddSingleton<IBluRayDemuxBackendAdapter, Eac3ToBackendAdapter>();
         services.AddSingleton<IBluRayDiscProbeService, CliBluRayDiscProbeService>();
-        services.AddSingleton<IBluRayDemuxRunner, CliBluRayDemuxRunner>();
+        services.AddSingleton<CliBluRayDemuxRunner>();
+        services.AddSingleton<IBluRayDemuxRunner, CoordinatedBluRayRunner>();
         services.AddSingleton<IProfileLibraryService, LocalProfileLibraryService>();
-        services.AddSingleton<IEncodingJobRunner, LocalEncodingJobRunner>();
-        services.AddSingleton<IAutoCompressionRunner, StructuredAv1anRunner>();
+        services.AddSingleton<LocalEncodingJobRunner>();
+        services.AddSingleton<IEncodingJobRunner, CoordinatedEncodingRunner>();
+        services.AddSingleton<StructuredAv1anRunner>();
+        services.AddSingleton<IAutoCompressionRunner, CoordinatedAutoCompressionRunner>();
+        services.AddSingleton<ITaskPlanningService, TaskPlanningService>();
+        services.AddSingleton<DesktopTaskHost>();
         services.AddSingleton<IEncoderUpdateService, GitHubReleaseEncoderUpdateService>();
         services.AddSingleton<IVapourSynthWorkspaceService, VapourSynthWorkspaceService>();
         services.AddSingleton<IVapourSynthWorkspaceLanguageService, VapourSynthWorkspaceLanguageService>();

@@ -1,0 +1,1051 @@
+{
+  "file-format": 3,
+  "packages": [
+    {
+      "name": "FFmpegSource2",
+      "type": "VSPlugin",
+      "description": "A general source plugin based on FFmpeg",
+      "website": "https://github.com/FFMS/ffms2",
+      "doom9": "https://forum.doom9.org/showthread.php?t=127037",
+      "category": "Source/Output",
+      "identifier": "com.vapoursynth.ffms2",
+      "namespace": "ffms2",
+      "github": "https://github.com/FFMS/ffms2",
+      "releases": [
+        {
+          "version": "5.0",
+          "published": "2024-05-28T19:53:13Z",
+          "win64": {
+            "url": "https://github.com/FFMS/ffms2/releases/download/5.0/ffms2-5.0-msvc.7z",
+            "files": {
+              "ffms2.dll": [
+                "ffms2-5.0-msvc/x64/ffms2.dll",
+                "970d3f8d170fd13a2dd8a7e8a7f56b0ce5a1dc7eea79d1774bbb2c2cab47e3f0"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "fpng",
+      "type": "VSPlugin",
+      "category": "Other",
+      "description": "A fast PNG writer. Faster than imwri",
+      "doom9": "https://forum.doom9.org/showthread.php?t=184097",
+      "github": "https://github.com/Mikewando/vsfpng",
+      "identifier": "tools.mike.fpng",
+      "namespace": "fpng",
+      "releases": [
+        {
+          "version": "1.0",
+          "published": "2022-05-01T02:40:31Z",
+          "win64": {
+            "url": "https://github.com/Mikewando/vsfpng/releases/download/1.0/libfpng.dll",
+            "files": {
+              "libfpng.dll": [
+                "libfpng.dll",
+                "fb37f68e5599155a8d18368b7900f9cf29772b32957fed371e9f42cb076dafd3"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "LibP2P",
+      "type": "VSPlugin",
+      "category": "Other",
+      "description": "Vapoursynth plugin for packing/unpacking of RGB clips.",
+      "github": "https://github.com/DJATOM/LibP2P-Vapoursynth",
+      "identifier": "com.djatom.libp2p",
+      "namespace": "libp2p",
+      "api": 4,
+      "releases": [
+        {
+          "version": "r2",
+          "published": "2021-08-26T14:42:12Z",
+          "win64": {
+            "url": "https://github.com/DJATOM/LibP2P-Vapoursynth/releases/download/r2/LibP2P-x64.7z",
+            "files": {
+              "LibP2P.dll": [
+                "LibP2P.dll",
+                "7e76db73085c51f43949954d2ab5d9abf49257bf559f038ee92961b611934750"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "LSMASHSource",
+      "type": "VSPlugin",
+      "description": "A general source plugin based on FFmpeg. Can open MP4, MOV, ISO base media without having to create an index file.",
+      "doom9": "https://forum.doom9.org/showthread.php?t=167435",
+      "category": "Source/Output",
+      "identifier": "systems.innocent.lsmas",
+      "namespace": "lsmas",
+      "github": "https://github.com/HomeOfAviSynthPlusEvolution/L-SMASH-Works",
+      "releases": [
+        {
+          "version": "1296.0.0.0",
+          "published": "2026-07-07T23:25:34Z",
+          "win64": {
+            "url": "https://github.com/HomeOfAviSynthPlusEvolution/L-SMASH-Works/releases/download/1296.0.0.0/L-SMASH-Works-r1296.0.0.0.7z",
+            "files": {
+              "LSMASHSource.dll": [
+                "x64/LSMASHSource.dll",
+                "672d9e2887b30d89a06b35724717682193de6ca833a86d4798a9fa160321e658"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "vs-placebo",
+      "type": "VSPlugin",
+      "description": "libplacebo-based debanding, scaling and color mapping plugin for VapourSynth",
+      "github": "https://github.com/sgt0/vs-placebo",
+      "category": "Other",
+      "identifier": "com.vs.placebo",
+      "namespace": "placebo",
+      "dependencies": [
+        "org.dovi.dovi"
+      ],
+      "releases": [
+        {
+          "version": "v3.3.1",
+          "published": "2025-08-21T14:54:46Z",
+          "win64": {
+            "url": "https://github.com/sgt0/vs-placebo/releases/download/v3.3.1/vsplacebo-windows-3.3.1.zip",
+            "files": {
+              "libvs_placebo.dll": [
+                "libvs_placebo.dll",
+                "d40dfe5574d7cb121703242332286b65acf8354800a335789b22eb63422694e4"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Dovi Library",
+      "type": "VSPlugin",
+      "description": "Windows precompiled DLL of the dolby_vision crate/library C-API",
+      "website": "https://github.com/quietvoid/dovi_tool",
+      "category": "Plugin Dependency",
+      "identifier": "org.dovi.dovi",
+      "namespace": "dovi_library",
+      "github": "https://github.com/quietvoid/dovi_tool",
+      "releases": [
+        {
+          "version": "2.3.3",
+          "published": "2026-07-12T18:46:47Z",
+          "win64": {
+            "url": "https://github.com/quietvoid/dovi_tool/releases/download/2.3.3/libdovi-3.4.0-x86_64-pc-windows-msvc.zip",
+            "files": {
+              "dovi.dll": [
+                "dovi.dll",
+                "ccd25c1f3af5612a10351c569a9a8f3076f3af231065fed04044e7990cd30225"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "mvsfunc",
+      "type": "PyScript",
+      "description": "Wrapper functions to make certain operations simpler",
+      "website": "https://github.com/HomeOfVapourSynthEvolution/mvsfunc",
+      "doom9": "https://forum.doom9.org/showthread.php?t=172564",
+      "category": "Scripts",
+      "identifier": "mvsfunc",
+      "modulename": "mvsfunc",
+      "github": "https://github.com/HomeOfVapourSynthEvolution/mvsfunc",
+      "updatemode": "git-commits",
+      "dependencies": [
+        "fmtconv",
+        "com.vapoursynth.bm3d",
+        "info.akarin.vsplugin"
+      ],
+      "releases": [
+        {
+          "version": "git:865c748",
+          "published": "2023-03-21T03:42:37Z",
+          "script": {
+            "url": "https://api.github.com/repos/HomeOfVapourSynthEvolution/mvsfunc/zipball/865c7486ca860d323754ec4774bc4cca540a7076",
+            "files": {
+              "mvsfunc/mvsfunc.py": [
+                "HomeOfVapourSynthEvolution-mvsfunc-865c748/mvsfunc/mvsfunc.py",
+                "1adeb385d19bac1f8c541b655d1f98a38e18c9a0065d4483c25184c22908a984"
+              ],
+              "mvsfunc/__init__.py": [
+                "HomeOfVapourSynthEvolution-mvsfunc-865c748/mvsfunc/__init__.py",
+                "a08e2bc2d1b255ffa373ef52a63506da6a926e72a4d115aaabe5e95272016d89"
+              ],
+              "mvsfunc/_metadata.py": [
+                "HomeOfVapourSynthEvolution-mvsfunc-865c748/mvsfunc/_metadata.py",
+                "654d75ba830a969d5940e1d6a18a7801a0a8b9860fd9aa85688f954ee0d5bd53"
+              ],
+              "mvsfunc/py.typed": [
+                "HomeOfVapourSynthEvolution-mvsfunc-865c748/mvsfunc/py.typed",
+                "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "fmtconv",
+      "type": "VSPlugin",
+      "description": "High quality bitdepth, colorspace conversion and resizing",
+      "website": "https://github.com/EleonoreMizo/fmtconv",
+      "doom9": "https://forum.doom9.org/showthread.php?t=166504",
+      "category": "Resizing and Format Conversion",
+      "identifier": "fmtconv",
+      "namespace": "fmtc",
+      "github": "https://github.com/EleonoreMizo/fmtconv",
+      "api": 4,
+      "releases": [
+        {
+          "version": "r30",
+          "published": "2022-08-31T06:58:58Z",
+          "win64": {
+            "url": "https://github.com/EleonoreMizo/fmtconv/releases/download/r30/fmtconv-r30.zip",
+            "files": {
+              "fmtconv.dll": [
+                "win64/fmtconv.dll",
+                "ddbe77e0b09d745608202c9fbca2c70d0c26e0428b27b15b92dfd2cad87f1898"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "BM3D",
+      "type": "VSPlugin",
+      "description": "Denoising filter using the BM3D algorithm",
+      "website": "https://github.com/HomeOfVapourSynthEvolution/VapourSynth-BM3D",
+      "doom9": "https://forum.doom9.org/showthread.php?t=172172",
+      "category": "Denoising",
+      "identifier": "com.vapoursynth.bm3d",
+      "namespace": "bm3d",
+      "github": "https://github.com/HomeOfVapourSynthEvolution/VapourSynth-BM3D",
+      "dependencies": [
+        "org.fftw.fftw3"
+      ],
+      "releases": [
+        {
+          "version": "r8",
+          "published": "2019-01-03T04:23:22Z",
+          "win64": {
+            "url": "https://github.com/HomeOfVapourSynthEvolution/VapourSynth-BM3D/releases/download/r8/BM3D-r8.7z",
+            "files": {
+              "BM3D.dll": [
+                "Win64/BM3D.dll",
+                "1c3f970d062c16ae77fd7275db17d65caf7890653a62eebf568a4ae4154a5574"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "FFTW3 Library",
+      "type": "VSPlugin",
+      "description": "Package for the FFTW3 library shared between several plugins",
+      "website": "http://www.fftw.org/",
+      "category": "Plugin Dependency",
+      "github": "https://github.com/Vapoursynth-Plugins-Gitify/fftw3",
+      "identifier": "org.fftw.fftw3",
+      "namespace": "fftw3_library",
+      "releases": [
+        {
+          "version": "3.3.10",
+          "published": "2022-11-08T15:56:47Z",
+          "win64": {
+            "url": "https://github.com/Vapoursynth-Plugins-Gitify/fftw3/releases/download/3.3.10/FFTW-3.3.10.zip",
+            "files": {
+              "libfftw3-3.dll": [
+                "FFTW-3.3.10/mingw64/libfftw3-3.dll",
+                "6e5424ab1ab2690f8dc4756af16e9fa4a75bc7885d84d1cfeb7f254e55bac930"
+              ],
+              "libfftw3f-3.dll": [
+                "FFTW-3.3.10/mingw64/libfftw3f-3.dll",
+                "8f35a79e1299edf403edb8f3269c833b79a81d2ef4b45ba378a66f47c19c957a"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Expr",
+      "type": "VSPlugin",
+      "category": "Other",
+      "description": "Akarin's experimental VapourSynth plugin that provides an LLVM-based enhanced Expr (aka lexpr), and NVidia Deep Learning based super-resolution (DLISR) and video effect (DLVFX) filters",
+      "github": "https://github.com/AkarinVS/vapoursynth-plugin",
+      "identifier": "info.akarin.vsplugin",
+      "namespace": "akarin",
+      "device": [
+        "cpu",
+        "cuda"
+      ],
+      "releases": [
+        {
+          "version": "v0.96",
+          "published": "2022-11-20T10:48:31Z",
+          "win64": {
+            "url": "https://github.com/AkarinVS/vapoursynth-plugin/releases/download/v0.96/akarin-release-lexpr-amd64-v0.96g3.7z",
+            "files": {
+              "akarin.dll": [
+                "akarin.dll",
+                "d86a2aa5a6a95447bdf084481b2b6734a3be4886a5a85e0d6295233bb9aa57dc"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "havsfunc",
+      "type": "PyScript",
+      "description": "A collection of ported popular Avisynth scripts such as QTGMC",
+      "website": "https://github.com/HomeOfVapourSynthEvolution/havsfunc",
+      "doom9": "https://forum.doom9.org/showthread.php?t=166582",
+      "category": "Scripts",
+      "identifier": "havsfunc",
+      "modulename": "havsfunc",
+      "github": "https://github.com/HomeOfVapourSynthEvolution/havsfunc",
+      "updatemode": "git-commits",
+      "device": [
+        "cpu",
+        "opencl"
+      ],
+      "dependencies": [
+        "adjust",
+        "com.Khanattila.KNLMeansCL",
+        "com.holywu.addgrain",
+        "com.holywu.bwdif",
+        "com.holywu.cas",
+        "com.holywu.ctmf",
+        "com.holywu.dctfilter",
+        "com.holywu.deblock",
+        "com.holywu.dfttest",
+        "com.holywu.eedi2",
+        "com.holywu.eedi3",
+        "com.holywu.nnedi3cl",
+        "com.holywu.ttempsmooth",
+        "com.mio.sangnom",
+        "com.nodame.awarpsharp2",
+        "com.nodame.fluxsmooth",
+        "com.nodame.mvtools",
+        "com.vapoursynth.hqdn3d",
+        "com.vapoursynth.misc",
+        "com.vapoursynth.removegrainvs",
+        "mvsfunc",
+        "nnedi3_resample",
+        "systems.innocent.fft3dfilter",
+        "xxx.abc.znedi3"
+      ],
+      "releases": [
+        {
+          "version": "git:5baf9c2",
+          "published": "2023-04-30T01:39:30Z",
+          "script": {
+            "url": "https://api.github.com/repos/HomeOfVapourSynthEvolution/havsfunc/zipball/5baf9c2a1dac9da4de182cf3a4e12041c3e0d48b",
+            "files": {
+              "havsfunc.py": [
+                "HomeOfVapourSynthEvolution-havsfunc-5baf9c2/havsfunc/havsfunc.py",
+                "95f7342271e688e20845aaaa47d548ed6aede274a514bac666145d5514d0fe58"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "adjust",
+      "type": "PyScript",
+      "description": "A script equivalent of Avisynth's Tweak function",
+      "website": "https://github.com/dubhatervapoursynth/vapoursynth-adjust",
+      "category": "Color/Levels",
+      "identifier": "adjust",
+      "modulename": "adjust",
+      "github": "https://github.com/dubhatervapoursynth/vapoursynth-adjust",
+      "updatemode": "git-commits",
+      "releases": [
+        {
+          "version": "git:a3af7cb",
+          "published": "2021-10-06T12:20:30Z",
+          "script": {
+            "url": "https://api.github.com/repos/dubhatervapoursynth/vapoursynth-adjust/zipball/a3af7cb57cb37747b0667346375536e65b1fed17",
+            "files": {
+              "adjust.py": [
+                "dubhatervapoursynth-vapoursynth-adjust-a3af7cb/adjust.py",
+                "22b25995ef37e6d003c2999e51e80d1570376413db9067f703fe4fcef4600bfa"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "KNLMeansCL",
+      "type": "VSPlugin",
+      "description": "OpenCL Non-local means denoising",
+      "website": "https://github.com/Khanattila/KNLMeansCL",
+      "doom9": "https://forum.doom9.org/showthread.php?t=171379",
+      "category": "Denoising",
+      "identifier": "com.Khanattila.KNLMeansCL",
+      "namespace": "knlm",
+      "github": "https://github.com/Khanattila/KNLMeansCL",
+      "device": [
+        "opencl"
+      ],
+      "releases": [
+        {
+          "version": "v1.1.1",
+          "published": "2018-01-29T15:31:04Z",
+          "win64": {
+            "url": "https://github.com/Khanattila/KNLMeansCL/releases/download/v1.1.1/KNLMeansCL-v1.1.1.zip",
+            "files": {
+              "KNLMeansCL.dll": [
+                "x64/KNLMeansCL.dll",
+                "bb60e8fa6cb531daa8d705a338c1188e202e38087f6c6c437fd2d4ee58477a42"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "AddGrain",
+      "type": "VSPlugin",
+      "description": "Port of the Avisynth AddGrain filter",
+      "website": "https://github.com/HomeOfVapourSynthEvolution/VapourSynth-AddGrain",
+      "doom9": "https://forum.doom9.org/showthread.php?t=171073",
+      "category": "Other",
+      "identifier": "com.holywu.addgrain",
+      "namespace": "grain",
+      "github": "https://github.com/HomeOfVapourSynthEvolution/VapourSynth-AddGrain",
+      "api": 4,
+      "releases": [
+        {
+          "version": "r10",
+          "published": "2022-02-26T17:30:05Z",
+          "win64": {
+            "url": "https://github.com/HomeOfVapourSynthEvolution/VapourSynth-AddGrain/releases/download/r10/AddGrain-r10-win64.7z",
+            "files": {
+              "AddGrain.dll": [
+                "AddGrain.dll",
+                "74f1fcb53e7a91efc015730a03a92cbed70485b68422805f441f43dd8a343a92"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Bwdif",
+      "type": "VSPlugin",
+      "description": "Motion adaptive deinterlacing based on yadif with the use of w3fdif and cubic interpolation algorithms.",
+      "github": "https://github.com/HomeOfVapourSynthEvolution/VapourSynth-Bwdif",
+      "doom9": "https://forum.doom9.org/showthread.php?t=180419",
+      "category": "Deinterlacing",
+      "identifier": "com.holywu.bwdif",
+      "namespace": "bwdif",
+      "api": 4,
+      "releases": [
+        {
+          "version": "r4.1",
+          "published": "2021-09-26T07:17:25Z",
+          "win64": {
+            "url": "https://github.com/HomeOfVapourSynthEvolution/VapourSynth-Bwdif/releases/download/r4.1/Bwdif-r4.1-win64.7z",
+            "files": {
+              "Bwdif.dll": [
+                "Bwdif.dll",
+                "8b6f11af10bae0896b35a8dbed08fbcc8995bb8cfcc7c820f5d3f4f9b0b556f0"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "CAS - Contrast Adaptive Sharpening",
+      "type": "VSPlugin",
+      "category": "Sharpening",
+      "description": "Contrast Adaptive Sharpening (CAS) is a low overhead adaptive sharpening algorithm and was created to provide natural sharpness without artifacts.",
+      "doom9": "https://forum.doom9.org/showthread.php?t=181561",
+      "github": "https://github.com/HomeOfVapourSynthEvolution/VapourSynth-CAS",
+      "identifier": "com.holywu.cas",
+      "namespace": "cas",
+      "releases": [
+        {
+          "version": "r2",
+          "published": "2020-07-05T14:12:12Z",
+          "win64": {
+            "url": "https://github.com/HomeOfVapourSynthEvolution/VapourSynth-CAS/releases/download/r2/CAS-r2.7z",
+            "files": {
+              "CAS.dll": [
+                "plugins64/CAS.dll",
+                "e6128294afdb5f0884c8f063c0da17e05999d4a7e977b3ff7cf1261eb616b0bc"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "CTMF",
+      "type": "VSPlugin",
+      "description": "Constant Time Median Filtering",
+      "website": "https://github.com/HomeOfVapourSynthEvolution/VapourSynth-CTMF",
+      "doom9": "https://forum.doom9.org/showthread.php?t=171213",
+      "category": "Other",
+      "identifier": "com.holywu.ctmf",
+      "namespace": "ctmf",
+      "github": "https://github.com/HomeOfVapourSynthEvolution/VapourSynth-CTMF",
+      "releases": [
+        {
+          "version": "r5",
+          "published": "2020-07-08T16:32:17Z",
+          "win64": {
+            "url": "https://github.com/HomeOfVapourSynthEvolution/VapourSynth-CTMF/releases/download/r5/CTMF-r5.7z",
+            "files": {
+              "CTMF.dll": [
+                "plugins64/CTMF.dll",
+                "c5f39058dbe041e67c12424bbbb85ba5866a9fc4143d08e5175ccd866a338a09"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "DCTFilter",
+      "type": "VSPlugin",
+      "description": "DCT/IDCT Frequency Suppressor",
+      "website": "https://github.com/HomeOfVapourSynthEvolution/VapourSynth-DCTFilter",
+      "category": "Other",
+      "identifier": "com.holywu.dctfilter",
+      "namespace": "dctf",
+      "github": "https://github.com/HomeOfVapourSynthEvolution/VapourSynth-DCTFilter",
+      "dependencies": [
+        "org.fftw.fftw3"
+      ],
+      "releases": [
+        {
+          "version": "r2",
+          "published": "2017-12-23T15:50:56Z",
+          "win64": {
+            "url": "https://github.com/HomeOfVapourSynthEvolution/VapourSynth-DCTFilter/releases/download/r2/DCTFilter-r2.7z",
+            "files": {
+              "DCTFilter.dll": [
+                "Win64/DCTFilter.dll",
+                "5f7af5eeb04f5d3e0755131f4a92db752473b43b64defb8d4dc68ed6886f906d"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Deblock",
+      "type": "VSPlugin",
+      "description": "h.264 style deblocking",
+      "website": "https://github.com/HomeOfVapourSynthEvolution/VapourSynth-Deblock",
+      "doom9": "https://forum.doom9.org/showthread.php?t=170975",
+      "category": "Other",
+      "identifier": "com.holywu.deblock",
+      "namespace": "deblock",
+      "github": "https://github.com/HomeOfVapourSynthEvolution/VapourSynth-Deblock",
+      "releases": [
+        {
+          "version": "r7.1",
+          "published": "2025-10-07T16:32:53Z",
+          "win64": {
+            "url": "https://github.com/HomeOfVapourSynthEvolution/VapourSynth-Deblock/releases/download/r7.1/Deblock-r7.1.7z",
+            "files": {
+              "Deblock.dll": [
+                "Deblock.dll",
+                "4fa23e644d51cf601f2f719938c7752c45b1f5cd0d84dd2559bbf6f42ea8d771"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "DFTTest",
+      "type": "VSPlugin",
+      "description": "",
+      "website": "https://github.com/HomeOfVapourSynthEvolution/VapourSynth-DFTTest",
+      "doom9": "https://forum.doom9.org/showthread.php?t=171678",
+      "category": "Denoising",
+      "identifier": "com.holywu.dfttest",
+      "namespace": "dfttest",
+      "github": "https://github.com/HomeOfVapourSynthEvolution/VapourSynth-DFTTest",
+      "dependencies": [
+        "org.fftw.fftw3"
+      ],
+      "releases": [
+        {
+          "version": "r7",
+          "published": "2020-07-05T14:17:49Z",
+          "win64": {
+            "url": "https://github.com/HomeOfVapourSynthEvolution/VapourSynth-DFTTest/releases/download/r7/DFTTest-r7.7z",
+            "files": {
+              "DFTTest.dll": [
+                "plugins64/DFTTest.dll",
+                "c4e84c8448c7ee5fb97b530c52aecd1591a1bca57ddf0c12bde07e255a979013"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "EEDI2",
+      "type": "VSPlugin",
+      "description": "",
+      "website": "https://github.com/HomeOfVapourSynthEvolution/VapourSynth-EEDI2",
+      "doom9": "https://forum.doom9.org/showthread.php?t=171136",
+      "category": "Deinterlacing",
+      "identifier": "com.holywu.eedi2",
+      "namespace": "eedi2",
+      "github": "https://github.com/HomeOfVapourSynthEvolution/VapourSynth-EEDI2",
+      "releases": [
+        {
+          "version": "r7",
+          "published": "2017-03-04T14:55:13Z",
+          "win64": {
+            "url": "https://github.com/HomeOfVapourSynthEvolution/VapourSynth-EEDI2/releases/download/r7/EEDI2-r7.7z",
+            "files": {
+              "EEDI2.dll": [
+                "Win64/EEDI2.dll",
+                "83d28a7cc93e748bfc5788a7fafabd2c488e15f294d6ce5ae97932c0086111f7"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "EEDI3m",
+      "type": "VSPlugin",
+      "description": "EEDI3 fork with OpenCL and speed optimization by HolyWu",
+      "website": "https://github.com/HomeOfVapourSynthEvolution/VapourSynth-EEDI3",
+      "doom9": "https://forum.doom9.org/showthread.php?t=171136",
+      "category": "Deinterlacing",
+      "identifier": "com.holywu.eedi3",
+      "namespace": "eedi3m",
+      "github": "https://github.com/HomeOfVapourSynthEvolution/VapourSynth-EEDI3",
+      "releases": [
+        {
+          "version": "r8",
+          "published": "2025-12-29T10:14:46Z",
+          "win64": {
+            "url": "https://github.com/HomeOfVapourSynthEvolution/VapourSynth-EEDI3/releases/download/r8/EEDI3-r8.7z",
+            "files": {
+              "EEDI3m.dll": [
+                "EEDI3m.dll",
+                "8fc1a433112707164c1a87d2c9e78709822b7ca89325f0d691d36337f6bf9051"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "NNEDI3CL",
+      "type": "VSPlugin",
+      "description": "OpenCL version of NNEDI3",
+      "website": "https://github.com/HomeOfVapourSynthEvolution/VapourSynth-NNEDI3CL",
+      "doom9": "https://forum.doom9.org/showthread.php?t=174902",
+      "category": "Deinterlacing",
+      "identifier": "com.holywu.nnedi3cl",
+      "namespace": "nnedi3cl",
+      "github": "https://github.com/HomeOfVapourSynthEvolution/VapourSynth-NNEDI3CL",
+      "device": [
+        "opencl"
+      ],
+      "dependencies": [
+        "com.deinterlace.nnedi3.weights"
+      ],
+      "releases": [
+        {
+          "version": "r8",
+          "published": "2019-10-01T10:03:29Z",
+          "win64": {
+            "url": "https://github.com/HomeOfVapourSynthEvolution/VapourSynth-NNEDI3CL/releases/download/r8/NNEDI3CL-r8.7z",
+            "files": {
+              "NNEDI3CL.dll": [
+                "plugins64/NNEDI3CL.dll",
+                "4dfb34d51d5b277973ccb2dfb922de702258cf6a1b9eb62de990dd1d72c04a2a"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "NNEDI3 Weights",
+      "type": "VSPlugin",
+      "description": "Package for the NNEDI3 weights shared between several plugins",
+      "website": "",
+      "category": "Plugin Dependency",
+      "identifier": "com.deinterlace.nnedi3.weights",
+      "namespace": "nnedi3_weights",
+      "releases": [
+        {
+          "version": "r1",
+          "win64": {
+            "url": "https://github.com/sekrit-twc/znedi3/releases/download/r1/znedi3_r1.7z",
+            "files": {
+              "nnedi3_weights.bin": [
+                "nnedi3_weights.bin",
+                "27f382430435bb7613deb1c52f3c79c300c9869812cfe29079432a9c82251d42"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "TTempSmooth",
+      "type": "VSPlugin",
+      "description": "TTempSmooth is a motion adaptive (it only works on stationary parts of the picture), temporal smoothing filter.",
+      "website": "https://github.com/HomeOfVapourSynthEvolution/VapourSynth-TTempSmooth",
+      "doom9": "https://forum.doom9.org/showthread.php?t=175351",
+      "category": "Denoising",
+      "identifier": "com.holywu.ttempsmooth",
+      "namespace": "ttmpsm",
+      "github": "https://github.com/HomeOfVapourSynthEvolution/VapourSynth-TTempSmooth",
+      "api": 4,
+      "releases": [
+        {
+          "version": "r4.1",
+          "published": "2021-10-10T06:07:42Z",
+          "win64": {
+            "url": "https://github.com/HomeOfVapourSynthEvolution/VapourSynth-TTempSmooth/releases/download/r4.1/TTempSmooth-r4.1-win64.7z",
+            "files": {
+              "TTempSmooth.dll": [
+                "TTempSmooth.dll",
+                "0e3b2b94528544de50f6eeb44f5e68461145240dd99c698400daf151a97b7923"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "SangNom",
+      "type": "VSPlugin",
+      "description": "SangNom is a single field deinterlacer using edge-directed interpolation but nowadays it's mainly used in anti-aliasing scripts.",
+      "website": "https://bitbucket.org/James1201/vapoursynth-sangnom",
+      "doom9": "https://forum.doom9.org/showthread.php?t=173752",
+      "github": "https://github.com/dubhatervapoursynth/vapoursynth-sangnom",
+      "category": "Deinterlacing",
+      "identifier": "com.mio.sangnom",
+      "namespace": "sangnom",
+      "releases": [
+        {
+          "version": "r42",
+          "published": "2020-08-03T09:06:54Z",
+          "win64": {
+            "url": "https://github.com/dubhatervapoursynth/vapoursynth-sangnom/releases/download/r42/vapoursynth-sangnom-r42-win64.7z",
+            "files": {
+              "libsangnom.dll": [
+                "libsangnom.dll",
+                "eb656eb0c7c7b54f62138bda2342d3a4a77fd21df0eb29c991e157a8ae4d82aa"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "AWarpSharp2",
+      "type": "VSPlugin",
+      "description": "AWarpSharp2 sharpens edges by warping them.",
+      "website": "https://github.com/dubhatervapoursynth/vapoursynth-awarpsharp2",
+      "doom9": "https://forum.doom9.org/showthread.php?t=172721",
+      "category": "Other",
+      "identifier": "com.nodame.awarpsharp2",
+      "namespace": "warp",
+      "github": "https://github.com/dubhatervapoursynth/vapoursynth-awarpsharp2",
+      "releases": [
+        {
+          "version": "v4",
+          "published": "2018-06-15T09:39:12Z",
+          "win64": {
+            "url": "https://github.com/dubhatervapoursynth/vapoursynth-awarpsharp2/releases/download/v4/vapoursynth-awarpsharp2-v4-win64.7z",
+            "files": {
+              "libawarpsharp2.dll": [
+                "libawarpsharp2.dll",
+                "cea13e4ecf0d430e42a6455cb3a608d4eddd7f2c13f1215489604667b4bd8093"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "FluxSmooth",
+      "type": "VSPlugin",
+      "description": "Temporal-spatiotemporal denoiser",
+      "website": "https://github.com/dubhatervapoursynth/vapoursynth-fluxsmooth",
+      "doom9": "https://forum.doom9.org/showthread.php?t=173795",
+      "category": "Denoising",
+      "identifier": "com.nodame.fluxsmooth",
+      "namespace": "flux",
+      "github": "https://github.com/dubhatervapoursynth/vapoursynth-fluxsmooth",
+      "releases": [
+        {
+          "version": "v2",
+          "published": "2016-08-20T09:53:52Z",
+          "win64": {
+            "url": "https://github.com/dubhatervapoursynth/vapoursynth-fluxsmooth/releases/download/v2/vapoursynth-fluxsmooth-v2-win64.7z",
+            "files": {
+              "libfluxsmooth.dll": [
+                "libfluxsmooth.dll",
+                "c4a7e5cc6ee1feb6279d36377208337a4fc6fa7c3849f355893d505a37c0ed8a"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "MVTools",
+      "type": "VSPlugin",
+      "description": "MVTools port",
+      "website": "https://github.com/dubhatervapoursynth/vapoursynth-mvtools",
+      "doom9": "https://forum.doom9.org/showthread.php?t=171207",
+      "category": "Other",
+      "identifier": "com.nodame.mvtools",
+      "namespace": "mv",
+      "github": "https://github.com/dubhatervapoursynth/vapoursynth-mvtools",
+      "dependencies": [
+        "org.fftw.fftw3"
+      ],
+      "releases": [
+        {
+          "version": "v24",
+          "published": "2024-08-05T22:12:15Z",
+          "win64": {
+            "url": "https://github.com/dubhatervapoursynth/vapoursynth-mvtools/releases/download/v24/vapoursynth-mvtools-v24-win64.7z",
+            "files": {
+              "libmvtools.dll": [
+                "libmvtools.dll",
+                "530a2f003901a7c0749b0b3797c2a2d2c9b12a2b87c4ca4e9d4ec7937260f091"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "HQDn3D",
+      "type": "VSPlugin",
+      "description": "Port of the HQDn3D filter for mplayer",
+      "website": "https://github.com/theChaosCoder/vapoursynth-hqdn3d",
+      "category": "Denoising",
+      "identifier": "com.vapoursynth.hqdn3d",
+      "namespace": "hqdn3d",
+      "github": "https://github.com/theChaosCoder/vapoursynth-hqdn3d",
+      "releases": [
+        {
+          "version": "r2.0.1",
+          "published": "2018-08-08T16:12:16Z",
+          "win64": {
+            "url": "https://github.com/theChaosCoder/vapoursynth-hqdn3d/releases/download/r2.0.1/vapoursynth-hqdn3d-r2-win64.zip",
+            "files": {
+              "libhqdn3d.dll": [
+                "libhqdn3d.dll",
+                "5ca3b982b13824488d7ee2ac606d6f0f013e94a974b1c3118dc92713d1efcc43"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Miscfilters (obsolete)",
+      "type": "VSPlugin",
+      "category": "Other",
+      "description": "Miscellaneous Filters is a random collection of filters that mostly are useful for Avisynth compatibility.",
+      "website": "https://github.com/vapoursynth/vs-miscfilters-obsolete/blob/master/docs/misc.rst",
+      "github": "https://github.com/vapoursynth/vs-miscfilters-obsolete",
+      "identifier": "com.vapoursynth.misc",
+      "namespace": "misc",
+      "api": 4,
+      "releases": [
+        {
+          "version": "R2",
+          "published": "2021-09-23T16:28:34Z",
+          "win64": {
+            "url": "https://github.com/vapoursynth/vs-miscfilters-obsolete/releases/download/R2/miscfilters-r2.7z",
+            "files": {
+              "MiscFilters.dll": [
+                "win64/MiscFilters.dll",
+                "33d911c2f5fd59d33cabb9056348f821421fd18afc0754e8a29ebfe3a35047ab"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "RemoveGrain",
+      "type": "VSPlugin",
+      "category": "Denoising",
+      "description": "RemoveGrain is a spatial denoising filter with various filtering modes.",
+      "website": "https://github.com/vapoursynth/vs-removegrain/blob/master/docs/rgvs.rst",
+      "github": "https://github.com/vapoursynth/vs-removegrain",
+      "identifier": "com.vapoursynth.removegrainvs",
+      "namespace": "rgvs",
+      "api": 4,
+      "releases": [
+        {
+          "version": "R1",
+          "published": "2021-09-09T18:21:31Z",
+          "win64": {
+            "url": "https://github.com/vapoursynth/vs-removegrain/releases/download/R1/removegrain-r1.7z",
+            "files": {
+              "RemoveGrainVS.dll": [
+                "win64/RemoveGrainVS.dll",
+                "eed537d5f0de88fc4d5acac1d3dde16b3c81524565fd1fe5e4322bd91117c3fe"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "nnedi3_resample",
+      "type": "PyScript",
+      "description": "",
+      "website": "https://github.com/HomeOfVapourSynthEvolution/nnedi3_resample",
+      "category": "Resizing and Format Conversion",
+      "identifier": "nnedi3_resample",
+      "modulename": "nnedi3_resample",
+      "github": "https://github.com/HomeOfVapourSynthEvolution/nnedi3_resample",
+      "updatemode": "git-commits",
+      "dependencies": [
+        "com.deinterlace.nnedi3",
+        "com.holywu.nnedi3cl",
+        "fmtconv",
+        "mvsfunc",
+        "xxx.abc.znedi3"
+      ],
+      "releases": [
+        {
+          "version": "git:314c644",
+          "published": "2022-08-12T10:27:46Z",
+          "script": {
+            "url": "https://api.github.com/repos/HomeOfVapourSynthEvolution/nnedi3_resample/zipball/314c6446a65c2e25fd7a997051b09830f361675e",
+            "files": {
+              "nnedi3_resample.py": [
+                "HomeOfVapourSynthEvolution-nnedi3_resample-314c644/nnedi3_resample.py",
+                "f6bd9321499d5b4e5dc67c3d117088af203db313280af67465b54519e2c7402c"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "NNEDI3",
+      "type": "VSPlugin",
+      "description": "Field interpolator/deinterlacer",
+      "website": "https://github.com/dubhatervapoursynth/vapoursynth-nnedi3",
+      "doom9": "https://forum.doom9.org/showthread.php?t=166434",
+      "category": "Deinterlacing",
+      "identifier": "com.deinterlace.nnedi3",
+      "namespace": "nnedi3",
+      "github": "https://github.com/dubhatervapoursynth/vapoursynth-nnedi3",
+      "dependencies": [
+        "com.deinterlace.nnedi3.weights"
+      ],
+      "releases": [
+        {
+          "version": "v12",
+          "published": "2018-09-29T16:09:17Z",
+          "win64": {
+            "url": "https://github.com/dubhatervapoursynth/vapoursynth-nnedi3/releases/download/v12/vapoursynth-nnedi3-v12-win64.7z",
+            "files": {
+              "libnnedi3.dll": [
+                "libnnedi3.dll",
+                "9e3fa8cb07759aa8463a608fe4211ef4d8e2c398f3c4d41e593bdbf5c5440d61"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "ZNEDI3",
+      "type": "VSPlugin",
+      "description": "Alternate optimized version of NNEDI3",
+      "website": "https://github.com/sekrit-twc/znedi3",
+      "category": "Deinterlacing",
+      "identifier": "xxx.abc.znedi3",
+      "namespace": "znedi3",
+      "github": "https://github.com/sekrit-twc/znedi3",
+      "dependencies": [
+        "com.deinterlace.nnedi3.weights"
+      ],
+      "releases": [
+        {
+          "version": "r3.3",
+          "published": "2026-07-11T00:26:02Z",
+          "win64": {
+            "url": "https://github.com/sekrit-twc/znedi3/releases/download/r3.3/znedi3_r3.3.7z",
+            "files": {
+              "vsznedi3.dll": [
+                "vsznedi3.dll",
+                "5c1dd6cc681bb1a812b0285349179e185f2f5962e816810e963af8a3b018a9aa"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "FFT3DFilter",
+      "type": "VSPlugin",
+      "description": "3D frequency domain denoiser/sharpener",
+      "website": "https://github.com/myrsloik/VapourSynth-FFT3DFilter",
+      "category": "Denoising",
+      "identifier": "systems.innocent.fft3dfilter",
+      "namespace": "fft3dfilter",
+      "github": "https://github.com/myrsloik/VapourSynth-FFT3DFilter",
+      "api": 4,
+      "dependencies": [
+        "org.fftw.fftw3"
+      ],
+      "releases": [
+        {
+          "version": "R2",
+          "published": "2021-09-11T18:41:47Z",
+          "win64": {
+            "url": "https://github.com/myrsloik/VapourSynth-FFT3DFilter/releases/download/R2/FFT3DFilter-r2.7z",
+            "files": {
+              "fft3dfilter.dll": [
+                "x64/fft3dfilter.dll",
+                "6f4299318e8879d74b46b2516b95bf0dd170749a4ed42534a5d3c485eb2ab2ef"
+              ]
+            }
+          }
+        }
+      ]
+    }
+  ]
+}

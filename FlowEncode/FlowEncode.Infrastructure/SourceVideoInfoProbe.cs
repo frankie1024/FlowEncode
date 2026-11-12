@@ -104,6 +104,7 @@ internal sealed partial class SourceVideoInfoProbe
         return pipelineKind switch
         {
             InputPipelineKind.VapourSynth => ProbeVapourSynth(sourcePath, progress, cancellationToken),
+            InputPipelineKind.AviSynth => ProbeAviSynth(sourcePath, cancellationToken),
             InputPipelineKind.Y4mFile => ProbeY4m(sourcePath),
             InputPipelineKind.FfmpegPipe => ProbeFfprobe(sourcePath, cancellationToken),
             InputPipelineKind.RawYuvFile => null,
@@ -274,6 +275,31 @@ internal sealed partial class SourceVideoInfoProbe
         return ParseFfprobeInfo(output);
     }
 
+    private SourceVideoInfo ProbeAviSynth(string sourcePath, CancellationToken token)
+    {
+        var start = new ProcessStartInfo(_toolLocator.ResolveAvs2PipeMod())
+        {
+            UseShellExecute = false, RedirectStandardOutput = true, RedirectStandardError = true, CreateNoWindow = true
+        };
+        start.ArgumentList.Add("-info");
+        start.ArgumentList.Add(sourcePath);
+        var result = ProcessProbeRunner.Run(start, SourceInfoProbeTimeout, "AviSynth metadata probe timed out.", token);
+        if (result.ExitCode != 0) throw new InvalidOperationException($"AviSynth metadata probe failed: {result.StandardError}");
+        return ParseAviSynthInfo(result.StandardOutput);
+    }
+
+    internal static SourceVideoInfo ParseAviSynthInfo(string output)
+    {
+        string Read(string key) => Regex.Match(output, @"(?m)^v:" + Regex.Escape(key) + @"\s+([^\r\n]+)").Groups[1].Value.Trim();
+        var format = Read("pixel_type");
+        var depth = int.TryParse(Read("bit_depth"), out var parsedDepth) ? parsedDepth : ParseBitDepthFromFormat(format);
+        var rate = Read("fps").Split('/');
+        return new SourceVideoInfo(ParseInt(Read("width"), "Width"), ParseInt(Read("height"), "Height"),
+            ParseLong(Read("frames")), depth,
+            rate.Length == 2 ? ParseInt(rate[0], "FPS numerator") : null,
+            rate.Length == 2 ? ParseInt(rate[1], "FPS denominator") : null, format);
+    }
+
     private string RunFfprobe(IReadOnlyList<string> arguments, CancellationToken cancellationToken)
     {
         var executablePath = _toolLocator.ResolveFfprobe();
@@ -381,7 +407,8 @@ internal sealed partial class SourceVideoInfoProbe
             NormalizeMetadataValue(GetJsonString(streamInfo, "color_space")),
             NormalizeMetadataValue(GetJsonString(streamInfo, "chroma_location")),
             masteringDisplay,
-            contentLightLevel);
+            contentLightLevel,
+            IsFrameCountEstimated: !long.TryParse(GetJsonString(streamInfo, "nb_frames"), out var frameCount) || frameCount <= 0);
     }
 
     private static SourceVideoInfo MergeVapourSynthFrameProperties(

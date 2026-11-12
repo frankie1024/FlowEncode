@@ -7,10 +7,12 @@
 
   <ItemGroup>
     <PackageReference Include="SharpCompress" />
+    <PackageReference Include="Tomlyn" />
   </ItemGroup>
 
   <ItemGroup>
     <EmbeddedResource Include="Resources\VapourSynthFramePropertyProbe.py" />
+    <EmbeddedResource Include="Resources\VsrepoBaseline.json" />
   </ItemGroup>
 
   <PropertyGroup>

@@ -125,6 +125,22 @@ public sealed partial class SettingsView : UserControl
         }
     }
 
+    private void MoreDependencyActionsButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is not FrameworkElement { DataContext: SetupGuideDependencyItemViewModel item } button) return;
+        var updateItem = new MenuFlyoutItem { Text = item.AdvancedUpdateText, Tag = item.Kind };
+        updateItem.Click += UpdateBeyondBaselineButton_Click;
+        var menu = new MenuFlyout();
+        menu.Items.Add(updateItem);
+        menu.ShowAt(button);
+    }
+
+    private async void UpdateBeyondBaselineButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is not FrameworkElement { Tag: SetupDependencyKind kind } || DependenciesViewModel is null) return;
+        await SetupDependencyInteractionHelper.InstallSetupDependencyAsync(DependenciesViewModel, this, kind, nameof(SettingsView), updateBeyondBaseline: true);
+    }
+
     private async void InstallSetupDependencyButton_Click(object sender, RoutedEventArgs e)
     {
         if (sender is not FrameworkElement { Tag: SetupDependencyKind kind } || DependenciesViewModel is null)

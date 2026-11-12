@@ -15,6 +15,9 @@ public interface IExternalToolService
 
     Task<IReadOnlyList<ExternalToolUpdatePackage>> GetAvailableUpdatesAsync(CancellationToken cancellationToken = default);
 
+    Task<IReadOnlyList<ExternalToolUpdatePackage>> GetBaselinePackagesAsync(CancellationToken cancellationToken = default)
+        => GetAvailableUpdatesAsync(cancellationToken);
+
     Task<string> InstallUpdateAsync(
         ExternalToolUpdatePackage package,
         CancellationToken cancellationToken = default,

@@ -8,6 +8,12 @@
         "resolved": "0.48.1",
         "contentHash": "SqGaVniGG943Gph/gHhUQUiZPyC7y0tXZyMf0/B2oGsMav9dqs7JJOuUA+xOkwKYaWM2TM7aZQjNK91f4bX71A=="
       },
+      "Tomlyn": {
+        "type": "Direct",
+        "requested": "[0.19.0, )",
+        "resolved": "0.19.0",
+        "contentHash": "GlI2o8R8jbZIaE+YX6uA/VoAOH7zIxYeqxDm7jHW2hqUhuB+q19oKold35FkMuv8IZDoCqsTMolaBv2eBLBmrQ=="
+      },
       "flowencode.application": {
         "type": "Project",
         "dependencies": {
@@ -17,6 +23,7 @@
       "flowencode.domain": {
         "type": "Project"
       }
-    }
+    },
+    "net8.0/win-x64": {}
   }
 }

@@ -20,6 +20,14 @@ public sealed class FfprobeAudioSourceInfoService : IAudioSourceInfoService
     public Task<AudioSourceInfo?> ProbeAsync(string sourcePath, CancellationToken cancellationToken = default)
         => ProbeAsync(sourcePath, estimatePacketDuration: true, cancellationToken);
 
+    public async Task<AudioSourceInfo?> ProbeAsync(string sourcePath, int audioTrackIndex, CancellationToken cancellationToken = default)
+    {
+        if (audioTrackIndex < 0) throw new ArgumentOutOfRangeException(nameof(audioTrackIndex));
+        var probe = await _toolProbeService.ProbeAsync(RegisteredToolKind.Ffprobe, cancellationToken);
+        if (!probe.IsReady || !File.Exists(sourcePath)) return null;
+        return await ProbeAtPathAsync(probe.ExecutablePath, sourcePath, audioTrackIndex, false, cancellationToken);
+    }
+
     internal Task<AudioSourceInfo?> ProbeForDdpAsync(string sourcePath, CancellationToken cancellationToken)
         => ProbeAsync(sourcePath, estimatePacketDuration: false, cancellationToken);
 
@@ -36,13 +44,20 @@ public sealed class FfprobeAudioSourceInfoService : IAudioSourceInfoService
             return null;
         }
 
+        return await ProbeAtPathAsync(probe.ExecutablePath, sourcePath, 0, estimatePacketDuration, cancellationToken);
+    }
+
+    internal static async Task<AudioSourceInfo?> ProbeAtPathAsync(string ffprobePath, string sourcePath, int trackIndex,
+        bool estimatePacketDuration, CancellationToken cancellationToken)
+    {
+
         var output = await RunFfprobeAsync(
-            probe.ExecutablePath,
+            ffprobePath,
             [
                 "-v",
                 "error",
                 "-select_streams",
-                "a:0",
+                $"a:{trackIndex}",
                 "-show_entries",
                 "format=duration,format_name:stream=codec_name,profile,channels,channel_layout,sample_rate,bits_per_sample,bits_per_raw_sample,sample_fmt,duration",
                 "-of",
@@ -75,7 +90,7 @@ public sealed class FfprobeAudioSourceInfoService : IAudioSourceInfoService
             {
                 try
                 {
-                    durationSeconds = await EstimateDurationFromPacketsAsync(probe.ExecutablePath, sourcePath, cancellationToken)
+                    durationSeconds = await EstimateDurationFromPacketsAsync(ffprobePath, sourcePath, cancellationToken)
                         ?? durationSeconds;
                 }
                 catch (Exception ex)

@@ -7,4 +7,5 @@ public sealed record BluRayDemuxRequest(
     string OutputDirectory,
     string OutputPrefixPath,
     BluRayPlaylistItem Playlist,
-    IReadOnlyList<BluRayTrackSelection> Selections);
+    IReadOnlyList<BluRayTrackSelection> Selections,
+    bool OverwriteOutput = true);

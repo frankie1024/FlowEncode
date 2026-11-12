@@ -145,7 +145,11 @@ jobs:
           tag_name: v${{ env.FLOWENCODE_VERSION }}
           name: FlowEncode ${{ env.FLOWENCODE_VERSION }}
           body_path: ${{ env.FLOWENCODE_RELEASE_NOTES_PATH }}
+          prerelease: ${{ contains(env.FLOWENCODE_VERSION, '-') }}
+          make_latest: ${{ !contains(env.FLOWENCODE_VERSION, '-') }}
           files: |
             ${{ env.FLOWENCODE_INSTALLER_PATH }}
             ${{ env.FLOWENCODE_CHECKSUM_PATH }}
+            artifacts/release/v${{ env.FLOWENCODE_VERSION }}/FlowEncode_Portable_v${{ env.FLOWENCODE_VERSION }}.zip
+            artifacts/release/v${{ env.FLOWENCODE_VERSION }}/SHA256SUMS.txt
           overwrite_files: true

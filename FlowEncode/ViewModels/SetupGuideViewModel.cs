@@ -309,7 +309,7 @@ public sealed class SetupGuideViewModel : ObservableObject, ISetupDependencyModu
             preferCachedSnapshot: true);
     }
 
-    public async Task<string?> InstallSetupDependencyAsync(SetupDependencyKind kind)
+    public async Task<string?> InstallSetupDependencyAsync(SetupDependencyKind kind, bool updateBeyondBaseline = false)
     {
         var selectedCardIndex = SelectedSetupGuideCardIndex;
         var item = FindSetupGuideDependency(kind);
@@ -323,7 +323,7 @@ public sealed class SetupGuideViewModel : ObservableObject, ISetupDependencyModu
             return Texts.InstallAlreadyRunning;
         }
 
-        if (HasManualPinnedSetupDependency(kind) && !RequiresSetupDependencyManualImport(kind))
+        if (kind != SetupDependencyKind.Python312 && HasManualPinnedSetupDependency(kind) && !RequiresSetupDependencyManualImport(kind))
         {
             return Texts.ManualToolPinnedUpdateBlocked(GetSetupDependencyTitle(kind));
         }
@@ -337,7 +337,8 @@ public sealed class SetupGuideViewModel : ObservableObject, ISetupDependencyModu
         try
         {
             var progress = new Progress<SetupInstallProgress>(item.ReportProgress);
-            await _setupBootstrapService.InstallAsync(kind, progress);
+            if (updateBeyondBaseline) await _setupBootstrapService.UpdateBeyondBaselineAsync(kind, progress);
+            else await _setupBootstrapService.InstallAsync(kind, progress);
             _host.InvalidateToolProbeCache();
             await _host.RefreshAsync(Texts.Pick("首启依赖操作完成。", "Setup dependency action completed."), includeUpdates: false);
             shouldRefreshSetupGuideStatus = true;
@@ -816,7 +817,6 @@ public sealed class SetupGuideViewModel : ObservableObject, ISetupDependencyModu
                     BuildSetupDependencyItem(SetupDependencyKind.DgDemux),
                     BuildSetupDependencyItem(SetupDependencyKind.Eac3To),
                     BuildSetupDependencyItem(SetupDependencyKind.Deew),
-                    BuildSetupDependencyItem(SetupDependencyKind.Dee),
                     BuildSetupDependencyItem(SetupDependencyKind.OpusExt)
                 ])
         };
@@ -1010,10 +1010,7 @@ public sealed class SetupGuideViewModel : ObservableObject, ISetupDependencyModu
 
     private string BuildSetupDependencyUpdateStatus(SetupDependencyStatusReport report)
     {
-        var updateCount = report.Dependencies.Count(status => HasSetupDependencyUpdate(status.Kind, status));
-        return updateCount > 0
-            ? Texts.SetupDependencyUpdatesFoundStatus(updateCount)
-            : Texts.NoSetupDependencyUpdatesStatus;
+        return Texts.Pick("基线版本已核对。现有工具可用时，建议保留当前环境。", "Baseline versions checked. Keep the current environment while it works.");
     }
 
     private SetupGuideDependencyItemViewModel BuildSetupDependencyItem(SetupDependencyKind kind)
@@ -1039,7 +1036,9 @@ public sealed class SetupGuideViewModel : ObservableObject, ISetupDependencyModu
             string.IsNullOrWhiteSpace(status.InstalledVersion)
                 ? string.Empty
                 : Texts.Pick($"已装：{status.InstalledVersion}", $"Installed: {status.InstalledVersion}"),
-            kind == SetupDependencyKind.VsPluginBundle || string.IsNullOrWhiteSpace(status.LatestVersion)
+            ToolchainBaseline.HasBaseline(kind)
+                ? Texts.Pick($"验证基线：{ToolchainBaseline.VersionFor(kind)}", $"Tested baseline: {ToolchainBaseline.VersionFor(kind)}")
+                : kind == SetupDependencyKind.VsPluginBundle || string.IsNullOrWhiteSpace(status.LatestVersion)
                 ? string.Empty
                 : Texts.Pick($"最新：{status.LatestVersion}", $"Latest: {status.LatestVersion}"),
             warningText,
@@ -1052,7 +1051,9 @@ public sealed class SetupGuideViewModel : ObservableObject, ISetupDependencyModu
             isInstalled,
             canUninstall,
             CanManuallySelectSetupDependency(kind),
-            isManualPinned);
+            isManualPinned,
+            Texts.Pick("更多", "More"),
+            Texts.Pick("更新工具（不推荐）", "Update tool (not recommended)"));
     }
 
     private SetupGuideDependencyItemViewModel? FindSetupGuideDependency(SetupDependencyKind kind)
@@ -1197,7 +1198,7 @@ public sealed class SetupGuideViewModel : ObservableObject, ISetupDependencyModu
     {
         return kind switch
         {
-            SetupDependencyKind.Python312 => "Python 3.12",
+            SetupDependencyKind.Python312 => "Python",
             SetupDependencyKind.VapourSynth => "VapourSynth",
             SetupDependencyKind.Vsrepo => "vsrepo",
             SetupDependencyKind.VsPluginBundle => Texts.Pick("VS 插件包", "VS Plugin Bundle"),
@@ -1236,8 +1237,8 @@ public sealed class SetupGuideViewModel : ObservableObject, ISetupDependencyModu
             SetupDependencyKind.Avs2PipeMod => Texts.Pick("AviSynth 输入桥接工具。", "Bridge tool for AviSynth input."),
             SetupDependencyKind.DgDemux => Texts.Pick("蓝光播放列表扫描与解复用默认后端。", "Default backend for Blu-ray playlist scanning and demux."),
             SetupDependencyKind.Eac3To => Texts.Pick("音频扫描与 FLAC 转换。", "Audio scanning and FLAC conversion."),
-            SetupDependencyKind.Deew => Texts.Pick("多声道转 DDP。", "Multichannel audio to DDP."),
-            SetupDependencyKind.Dee => Texts.Pick("deew 的本地 DEE 依赖。", "Local DEE dependency for deew."),
+            SetupDependencyKind.Deew => Texts.Pick("需要 deew ≥5.1.0，位于用户可写便携目录。把完整 DEE ≥6.7.0 工具集放在实际 deew.exe 相邻的 dee 文件夹（或 PATH 标准文件名）；Atmos 按格式还需 truehdd / dee_shim。deew -gt 不包含 DEE。", "Requires deew >=5.1.0 in a writable portable directory. Put the complete DEE >=6.7.0 toolset in the dee folder next to the actual deew.exe (or standard filenames on PATH). Atmos may also require truehdd / dee_shim. deew -gt does not include DEE."),
+            SetupDependencyKind.Dee => Texts.Pick("DEE 6.7 工具集由 deew 目录托管；旧 dee.exe 不适用于 3.0。", "The DEE 6.7 toolset is managed in the deew directory; legacy dee.exe is not used by 3.0."),
             SetupDependencyKind.OpusExt => Texts.Pick("Opus 命令行编码器。", "Command-line Opus encoder."),
             _ => string.Empty
         };
@@ -1339,6 +1340,10 @@ public sealed class SetupGuideViewModel : ObservableObject, ISetupDependencyModu
         bool isManualPinned)
     {
         var warnings = new List<string>();
+        if (ToolchainBaseline.HasBaseline(kind))
+            warnings.Add(Texts.Pick("建议保持验证基线。随意更新工具容易引起不兼容，不建议常规更新。", "Keep the tested baseline. Tool updates can cause incompatibilities and are not recommended for routine use."));
+        if (kind == SetupDependencyKind.Python312 && isInstalled)
+            warnings.Add(Texts.Pick("2.0 升级用户保留现有可用环境；新 Python 并排安装，不自动迁移插件或切换解释器。", "Upgrades from 2.0 retain the working environment. A new Python is installed alongside it without moving plugins or switching interpreters."));
         if (isManualPinned)
         {
             warnings.Add(Texts.ManualToolPinnedStatus(GetSetupDependencyTitle(kind)));
@@ -1351,13 +1356,13 @@ public sealed class SetupGuideViewModel : ObservableObject, ISetupDependencyModu
                 "The current Python runtime does not satisfy the complete environment requirements. Use automatic install to repair or update it."));
         }
 
-        if (hasUpdateAvailable && kind == SetupDependencyKind.VsPluginBundle)
+        if (hasUpdateAvailable && !ToolchainBaseline.HasBaseline(kind) && kind == SetupDependencyKind.VsPluginBundle)
         {
             warnings.Add(Texts.Pick(
                 "检测到可用的 VS 插件更新，版本明细见下方。",
                 "VS plugin updates are available. See the version details below."));
         }
-        else if (hasUpdateAvailable && !string.IsNullOrWhiteSpace(status.LatestVersion))
+        else if (hasUpdateAvailable && !ToolchainBaseline.HasBaseline(kind) && !string.IsNullOrWhiteSpace(status.LatestVersion))
         {
             warnings.Add(Texts.Pick(
                 $"检测到可用新版本：{status.LatestVersion}",
@@ -1397,6 +1402,11 @@ public sealed class SetupGuideViewModel : ObservableObject, ISetupDependencyModu
         bool isInstalled,
         bool hasUpdateAvailable)
     {
+        if (ToolchainBaseline.HasBaseline(kind))
+            return kind == SetupDependencyKind.Python312 && isInstalled && status.State == ReadinessState.Ready
+                ? Texts.Pick("保留当前环境", "Keep current environment")
+                : Texts.Pick(isInstalled ? "修复基线" : "安装基线", isInstalled ? "Repair baseline" : "Install baseline");
+
         if (kind == SetupDependencyKind.Python312)
         {
             var targetVersion = string.IsNullOrWhiteSpace(status.LatestVersion)
@@ -1422,6 +1432,7 @@ public sealed class SetupGuideViewModel : ObservableObject, ISetupDependencyModu
         SetupDependencyStatus status,
         bool isInstalled)
     {
+        if (kind == SetupDependencyKind.Python312 && isInstalled && status.State == ReadinessState.Ready) return false;
         if (RequiresSetupDependencyManualImport(kind))
         {
             return true;
@@ -1440,7 +1451,7 @@ public sealed class SetupGuideViewModel : ObservableObject, ISetupDependencyModu
         bool isInstalled,
         bool hasUpdateAvailable)
     {
-        if (!isInstalled)
+        if (ToolchainBaseline.HasBaseline(status.Kind) || !isInstalled)
         {
             return true;
         }

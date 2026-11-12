@@ -8,4 +8,5 @@ public sealed record EncodingJobRequest(
     InputPipelineKind PipelineKind,
     EncoderArchitecture PreferredArchitecture,
     bool UseAv1anParallelVideoEncoding = false,
-    int? Av1anParallelWorkers = null);
+    int? Av1anParallelWorkers = null,
+    bool OverwriteOutput = true);

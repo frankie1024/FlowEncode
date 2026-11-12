@@ -35,10 +35,22 @@ internal static class SetupDependencyInteractionHelper
         ISetupDependencyModuleViewModel viewModel,
         FrameworkElement owner,
         SetupDependencyKind kind,
-        string diagnosticSource)
+        string diagnosticSource,
+        bool updateBeyondBaseline = false)
     {
         try
         {
+            if (updateBeyondBaseline)
+            {
+                var confirmed = await ShowConfirmationAsync(viewModel, owner,
+                    viewModel.Texts.Pick("不建议更新工具", "Tool updates are not recommended"),
+                    viewModel.Texts.Pick(
+                        $"当前验证基线：{ToolchainBaseline.VersionFor(kind)}。更新到其他正式版本也可能引起参数、插件或脚本不兼容。建议保留当前环境。Python 更新只会并排安装，不自动迁移 2.0 环境。仍要继续更新吗？",
+                        $"Tested baseline: {ToolchainBaseline.VersionFor(kind)}. Other stable releases can still break parameters, plugins or scripts. Keep the working environment unless you need a specific fix. Python installs alongside the 2.0 environment without migrating it. Continue?"),
+                    viewModel.Texts.Pick("仍然更新", "Update anyway"),
+                    viewModel.Texts.Pick("保留当前环境", "Keep current environment"), ContentDialogButton.Close);
+                if (!confirmed) return;
+            }
             string? error;
             if (viewModel.RequiresSetupDependencyManualImport(kind))
             {
@@ -52,7 +64,7 @@ internal static class SetupDependencyInteractionHelper
             }
             else
             {
-                if (viewModel.HasManualPinnedSetupDependency(kind))
+                if (kind != SetupDependencyKind.Python312 && viewModel.HasManualPinnedSetupDependency(kind))
                 {
                     var dependencyLabel = viewModel.GetSetupDependencyDisplayName(kind);
                     var confirmed = await ShowConfirmationAsync(
@@ -76,7 +88,7 @@ internal static class SetupDependencyInteractionHelper
                     }
                 }
 
-                error = await viewModel.InstallSetupDependencyAsync(kind);
+                error = await viewModel.InstallSetupDependencyAsync(kind, updateBeyondBaseline);
             }
 
             if (!string.IsNullOrWhiteSpace(error))

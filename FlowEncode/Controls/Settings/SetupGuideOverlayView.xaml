@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="utf-8" ?>
+﻿<?xml version="1.0" encoding="utf-8" ?>
 <UserControl
     x:Class="FlowEncode.Controls.Settings.SetupGuideOverlayView"
     x:Name="RootView"
@@ -124,6 +124,7 @@
                                                                                 <TextBlock Text="{Binding DataContext.Texts.ClearManualPinButton, ElementName=RootView}" />
                                                                             </StackPanel>
                                                                         </Button>
+                                                                        <Button Content="{Binding MoreActionText}" Visibility="{Binding AdvancedUpdateVisibility}" IsEnabled="{Binding AdvancedUpdateEnabled}" Click="MoreDependencyActionsButton_Click" />
                                                                         <Button AutomationProperties.Name="{Binding PrimaryActionText}" Tag="{Binding Kind}" Click="InstallSetupDependencyButton_Click" IsEnabled="{Binding PrimaryActionEnabled}" Visibility="{Binding PrimaryActionVisibility}" Style="{StaticResource AccentButtonStyle}" ToolTipService.ToolTip="{Binding PrimaryActionText}">
                                                                             <StackPanel Orientation="Horizontal" Spacing="{StaticResource AppCommandIconTextSpacing}">
                                                                                 <SymbolIcon Symbol="Download" />

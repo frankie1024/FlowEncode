@@ -14,7 +14,7 @@
 
   <p>
     <img alt="Platform" src="https://img.shields.io/badge/platform-Windows%20x64-0078d4">
-    <img alt="Version" src="https://img.shields.io/badge/version-2.0.2-167a7f">
+    <img alt="Version" src="https://img.shields.io/badge/version-3.0.0-beta.1-167a7f">
     <img alt="Framework" src="https://img.shields.io/badge/.NET-8.0-512bd4">
     <img alt="UI" src="https://img.shields.io/badge/UI-WinUI%203-0d6efd">
     <img alt="License" src="https://img.shields.io/badge/license-GPL--3.0--only-blue">
@@ -22,6 +22,8 @@
 </div>
 
 ---
+
+3.0 beta 新增 deew 5.1 和本地 MCP 共享任务中心，视觉重设计后续开展。参阅 [MCP 接入](docs/MCP.md)、[deew 验收](docs/DEEW5-VALIDATION.md) 与 [工具链兼容性](docs/TOOLCHAIN-COMPATIBILITY-3.0.md)。2.0.2 是旧 deew 工具链的最后支持版本。
 
 FlowEncode 是一个面向 Windows x64 的桌面端编码工作流前端，围绕 `x264`、`x265`、`SVT-AV1`、`Av1an`、`FFmpeg`、`VapourSynth`、`VSPipe` 与相关公开工具链，提供蓝光解复用、脚本编辑与预览、视频压制、音频转码、自动压制、队列执行、日志查看、模板复用，以及面向视频、音频和蓝光目录的拖放入口。
 
