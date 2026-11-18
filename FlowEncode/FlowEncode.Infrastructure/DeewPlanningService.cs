@@ -9,7 +9,8 @@ public sealed class DeewPlanningService(IToolProbeService probes) : IDeewPlannin
 {
     public async Task<DeewReadinessSnapshot> InspectAsync(string sourcePath, DeewOptions options, CancellationToken cancellationToken = default)
     {
-        var o = DeewArguments.Normalize(options);
+        var logs = new List<string>();
+        var o = DeewArguments.Normalize(options, logs);
         AudioSourceSupport.ValidateDeewInput(sourcePath, o);
         async Task<string> Tool(RegisteredToolKind kind)
         {
@@ -28,12 +29,10 @@ public sealed class DeewPlanningService(IToolProbeService probes) : IDeewPlannin
         if (File.Exists(config + ".flowencode-backup.json"))
             throw new InvalidOperationException("A deew config recovery backup is pending. Complete recovery before previewing a new plan: " + config);
         var snapshot = File.Exists(config) ? new DeewConfigEditor(await File.ReadAllBytesAsync(config, cancellationToken)) : null;
-        var logs = new List<string>();
-        if (o.Format.EndsWith("-atmos", StringComparison.Ordinal)) logs.Add("Experimental Atmos output: genuine Atmos media acceptance is pending for 3.0.0.");
-        var profile = DeewBitrates.Apply(DeewArguments.Resolve(o, source.RequiresDdpDtsCompatibilityInput() ? 8 : source.Channels,
+        if (o.Format.EndsWith("-atmos", StringComparison.Ordinal) && !o.MeasureOnly) logs.Add("Experimental Atmos output: genuine Atmos media acceptance is pending for 3.0.0.");
+        var profile = DeewBitrates.Apply(DeewArguments.Resolve(o, source,
             snapshot?.DdpMode ?? "standard", snapshot?.AtmosMode ?? "streaming", logs), snapshot?.Bitrates);
-        if (o.Format.EndsWith("-atmos", StringComparison.Ordinal)
-            && (!source.CodecName.Equals("truehd", StringComparison.OrdinalIgnoreCase) || !source.ProfileName.Contains("Atmos", StringComparison.OrdinalIgnoreCase)))
+        if (!o.MeasureOnly && o.Format.EndsWith("-atmos", StringComparison.Ordinal) && !source.IsTrueHdAtmos)
             throw new InvalidOperationException("Atmos output requires a selected TrueHD Atmos input track.");
         if (snapshot is null) logs.Add("Missing config.toml will be initialized once at execution; existing configs are never reset automatically.");
         // A disposable adjacent file verifies the portable directory without touching config contents.

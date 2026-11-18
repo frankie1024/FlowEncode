@@ -221,8 +221,8 @@ public sealed class ProcessToolProbeService : IToolProbeService
             {
                 var deewLine = output.Split('\n').FirstOrDefault(l => l.TrimStart().StartsWith("deew ", StringComparison.OrdinalIgnoreCase)) ?? output;
                 if (!DeewToolchain.IsSupportedVersion(deewLine))
-                    return CreateMisconfiguredResult(definition, candidate, "FlowEncode 3.0 requires deew >=5.1.0. Upgrade the writable portable deew directory; legacy deew remains supported in FlowEncode 2.0.3.");
-                return ready with { BackendCompatibilityDetail = "deew 5.1 contract; format-specific DEE >=6.7.0 tools and writable adjacent config are validated for each request." };
+                    return CreateMisconfiguredResult(definition, candidate, $"FlowEncode requires deew >={DeewArguments.MinimumVersion}. Upgrade deew.exe in the writable portable directory.");
+                return ready with { BackendCompatibilityDetail = "deew 5.3 contract; format- and source-specific DEE >=6.7.0 tools and writable adjacent config are validated for each request." };
             }
             return definition.Kind == RegisteredToolKind.Av1an
                 ? EnrichAv1anBackendCompatibility(ready, candidate.Path)

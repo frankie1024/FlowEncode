@@ -79,7 +79,9 @@ public sealed class DesktopTaskHost(TaskCoordinator tasks, ITaskPlanningService 
                 var tools = await Task.WhenAll(kinds.Select(k => probes.ProbeAsync(k, token))).ConfigureAwait(false);
                 return new { tools, encoders = encoders.DiscoverSystemBinaries(), deewFormats = DeewArguments.Formats,
                     supportedTaskKinds = Enum.GetNames<TaskKind>(), videoOutput = "Video elementary stream; audio/subtitles are not automatically muxed",
-                    deewVersionMinimum = "5.1.0", deeVersionMinimum = "6.7.0", unverifiedFeatures = new[] { "Atmos real-media validation is pending; it requires TrueHD Atmos source and the corresponding licensed DEE components." } };
+                    deewVersionMinimum = DeewArguments.MinimumVersion, deeVersionMinimum = "6.7.0",
+                    deewFeatures = new[] { "noPhaseShift", "atmosMeasureOnly", "loudnessMetrics", "lossless96kHzTrueHd" },
+                    unverifiedFeatures = new[] { "Atmos real-media validation is pending; it requires TrueHD Atmos source and the corresponding licensed DEE components." } };
             case DesktopTaskMethods.ProbeMedia:
                 var media = Read<ProbeMediaParameters>();
                 if (!Path.IsPathFullyQualified(media.SourcePath) || !File.Exists(media.SourcePath)) throw new FileNotFoundException("Supply an absolute path to an existing media file.");

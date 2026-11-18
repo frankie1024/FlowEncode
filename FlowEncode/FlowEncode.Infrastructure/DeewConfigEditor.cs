@@ -14,6 +14,8 @@ internal sealed class DeewConfigEditor
     public string DdpMode => Mode("ddp", "standard");
     public string AtmosMode => Mode("ddp_atmos", "streaming");
     public string TempPath => (string)Model["temp_path"];
+    public bool Pipe => !Model.TryGetValue("pipe", out var value) || (bool)value;
+    public bool SurroundPhaseShift => !Model.TryGetValue("surround_phase_shift", out var value) || (bool)value;
     public IReadOnlyDictionary<string, int> Bitrates => ((TomlTable)Model["default_bitrates"])
         .ToDictionary(p => p.Key, p => checked((int)(long)p.Value));
 
@@ -24,6 +26,8 @@ internal sealed class DeewConfigEditor
         if (_syntax.HasErrors) throw new InvalidDataException("Invalid deew config.toml: " + _syntax.Diagnostics);
         Model = _syntax.ToModel();
         Require<string>(Model, "temp_path");
+        foreach (var key in new[] { "pipe", "surround_phase_shift" })
+            if (Model.ContainsKey(key)) Require<bool>(Model, key);
         Require<long>(Model, "logo");
         if (!Model.TryGetValue("max_instances", out var instances) || instances is not (string or long))
             throw new InvalidDataException("deew config: max_instances must be an integer or string.");

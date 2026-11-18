@@ -88,8 +88,8 @@ public static class AudioSourceSupport
         var extension = Path.GetExtension(path).ToLowerInvariant();
         var atmos = options.Format.EndsWith("-atmos", StringComparison.Ordinal);
         if (new[] { ".mkv", ".mka", ".m2ts", ".mp4", ".ts", ".avi", ".flv", ".mov" }.Contains(extension)
-            && (!atmos || extension is not (".mkv" or ".mka" or ".m2ts")))
-            throw new InvalidOperationException("Container inputs are supported only for Atmos output from MKV, MKA or M2TS. Extract a standalone audio track for other formats.");
+            && ((!atmos && !options.MeasureOnly) || extension is not (".mkv" or ".mka" or ".m2ts")))
+            throw new InvalidOperationException("Container inputs are supported only for Atmos output or measure-only from MKV, MKA or M2TS. Extract a standalone audio track for other formats.");
     }
 
     private static string BuildDialogPattern(IReadOnlyList<string> extensions) => string.Join(";", extensions.Select(static extension => $"*{extension}"));

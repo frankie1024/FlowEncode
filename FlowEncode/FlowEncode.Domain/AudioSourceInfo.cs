@@ -68,4 +68,7 @@ public sealed record AudioSourceInfo(
     public bool RequiresDdpDtsCompatibilityInput() =>
         CodecName.Equals("dts", StringComparison.OrdinalIgnoreCase)
         && Channels > 8;
+
+    public bool IsTrueHdAtmos => CodecName.Equals("truehd", StringComparison.OrdinalIgnoreCase)
+        && ProfileName.Contains("Atmos", StringComparison.OrdinalIgnoreCase);
 }

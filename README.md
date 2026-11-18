@@ -14,7 +14,7 @@
 
   <p>
     <img alt="Platform" src="https://img.shields.io/badge/platform-Windows%20x64-0078d4">
-    <img alt="Version" src="https://img.shields.io/badge/version-3.0.2-167a7f">
+    <img alt="Version" src="https://img.shields.io/badge/version-3.0.3-167a7f">
     <img alt="Framework" src="https://img.shields.io/badge/.NET-8.0-512bd4">
     <img alt="UI" src="https://img.shields.io/badge/UI-WinUI%203-0d6efd">
     <img alt="License" src="https://img.shields.io/badge/license-GPL--3.0--only-blue">
@@ -23,9 +23,9 @@
 
 ---
 
-3.0 正式版带来 deew 5.1 音频流程、本地 MCP 与共享任务服务，并优化主要页面布局、依赖检查与并发安装。参阅 [MCP 接入](docs/MCP.md)、[deew 验收](docs/DEEW5-VALIDATION.md) 与 [工具链兼容性](docs/TOOLCHAIN-COMPATIBILITY-3.0.md)。旧 deew 工具链请使用 2.0.3 兼容维护版。
+3.0 正式版新增 deew 5.x 音频处理、本地 MCP 和共享任务服务，并改进主要页面的布局、依赖检查和并发安装。当前源码已适配 deew 5.3.1，支持关闭环绕相移、仅测量 Atmos 响度，并提供更多响度指标。参阅 [MCP 接入](docs/MCP.md)、[deew 5.3.1 验收](docs/DEEW531-VALIDATION.md) 与 [工具链兼容性](docs/TOOLCHAIN-COMPATIBILITY-3.0.md)。使用旧版 deew 工具链的用户，请选择 2.0.3 兼容维护版。
 
-FlowEncode 是一个面向 Windows x64 的桌面端编码工作流前端，围绕 `x264`、`x265`、`SVT-AV1`、`Av1an`、`FFmpeg`、`VapourSynth`、`VSPipe` 与相关公开工具链，提供蓝光解复用、脚本编辑与预览、视频压制、音频转码、自动压制、队列执行、日志查看、模板复用，以及面向视频、音频和蓝光目录的拖放入口。
+FlowEncode 是 Windows x64 上的图形化编码工具，调用 `x264`、`x265`、`SVT-AV1`、`Av1an`、`FFmpeg`、`VapourSynth`、`VSPipe` 等公开工具链，完成蓝光解复用、脚本编辑与预览、视频压制、音频转码和自动压制。你可以管理任务队列、查看日志、复用模板，也可以拖入视频、音频文件或蓝光目录，进入对应流程。
 
 它适合需要图形化管理日常压制流程，同时仍希望保留命令行编码器、VapourSynth 脚本和 Av1an 自动压制灵活性的用户。
 
@@ -33,7 +33,7 @@ FlowEncode 是一个面向 Windows x64 的桌面端编码工作流前端，围�
 > FlowEncode 当前仅支持 Windows x64。首次使用前建议先完成应用内的首启环境引导。
 
 > [!NOTE]
-> 透明说明：本项目大量使用 AI 辅助开发。实际功能、依赖边界与已知限制以源码、发布包和本文档描述为准。
+> 本项目大量使用 AI 辅助开发。实际功能、依赖要求与已知限制以源码、发布包和本文档描述为准。
 
 ![FlowEncode dashboard](./docs/assets/flowencode-dashboard.png)
 
@@ -50,14 +50,14 @@ FlowEncode 是一个面向 Windows x64 的桌面端编码工作流前端，围�
 
 ## 核心定位
 
-FlowEncode 不是单一编码器，也不是封装所有依赖的全家桶发行版。它更接近一个面向视频压制场景的工作流控制台：
+FlowEncode 提供视频压制的图形界面，协调外部编码器和工具完成任务；它本身不是编码器，安装包也不包含所有依赖：
 
 | 目标 | 说明 |
 | --- | --- |
 | 统一配置 | 将输入输出、编码器参数、脚本环境、任务队列与日志集中到一个桌面界面。 |
-| 保留灵活性 | 不替代 `x264`、`x265`、`SVT-AV1`、`Av1an`、`FFmpeg` 或 `VapourSynth`，而是协调它们参与工作流。 |
+| 保留灵活性 | 调用 `x264`、`x265`、`SVT-AV1`、`Av1an`、`FFmpeg` 或 `VapourSynth` 完成任务，保留这些工具的使用方式。 |
 | 降低重复劳动 | 通过模板库、命令预览、队列执行和环境引导减少日常压制中的重复配置。 |
-| 面向本地使用 | 默认围绕本机文件、本机依赖和本机工作目录运行，不主动上传源文件或模板。 |
+| 面向本地使用 | 默认使用本机文件、依赖和工作目录，不主动上传源文件或模板。 |
 
 ## 功能概览
 
@@ -67,9 +67,9 @@ FlowEncode 不是单一编码器，也不是封装所有依赖的全家桶发行
 | 蓝光解复用 | 扫描蓝光目录，调用已检测或导入的 `DGDemux` / `eac3to` 选择播放列表与轨道，导出视频、音频和字幕。 |
 | VapourSynth | 提供 `.vpy` / `.py` 脚本编辑、拖放打开、标签页、左右对比、基础诊断、预览、帧属性、截图、章节、裁剪辅助和预览日志。 |
 | 视频压制 | 配置 `x264`、`x265`、`SVT-AV1` 常规编码任务，统一管理输入输出、HDR 参数导入、命令预览复制、任务队列、批量操作、键盘快捷键和实时日志。 |
-| 音频转码 | 独立处理 `eac3to`、`deew`、`FFmpeg` / `opusenc` 音频流程，支持 FLAC、AC3、DDP、Opus 等输出路径；DDP 路径需要用户自行提供已授权的 `Dolby Encoding Engine` / `DEE`。 |
-| 自动压制 | 基于 `Av1an` 的结构化后端组织目标质量流程，按后端能力探测可用指标与编码器，支持探测参数、后端附加参数、执行计划和分阶段实时日志。 |
-| 模板库 | 保存、载入、导入、导出、置顶和覆盖 `.profile` 模板，沉淀常用参数集。 |
+| 音频转码 | 调用 `eac3to`、`deew`、`FFmpeg` / `opusenc` 独立处理音频，支持 FLAC、AC3、DDP、Opus 等输出；DDP 输出需要用户自行提供已授权的 `Dolby Encoding Engine` / `DEE`。 |
+| 自动压制 | 使用 `Av1an` 的结构化后端按目标质量自动压制，根据后端能力检测可用指标与编码器，支持探测参数、后端附加参数、执行计划和分阶段实时日志。 |
+| 模板库 | 保存、载入、导入、导出、置顶和覆盖 `.profile` 模板，复用常用参数。 |
 | 环境引导 | 按分组展示可折叠依赖卡片，检测本地与远端状态；可引导安装或更新公开支持的运行时、插件、编码器、`FFmpeg` 与 `Av1an`，并允许手动导入、固定或移除部分解复用器和音频工具的本地副本。 |
 | 设置与更新 | 管理工作目录、主题、语言、依赖状态、应用更新、队列完成后动作和首启引导入口。 |
 
@@ -121,7 +121,7 @@ flowchart LR
 
 前往 [GitHub Releases](https://github.com/frankie1024/FlowEncode/releases) 下载最新的 Windows x64 安装包。
 
-> **版本支持说明：2.0.3 是旧工具链的兼容维护版，支持 deew 3.x / DEE 5.2.1。** 3.0 使用 deew ≥5.1.0 / DEE ≥6.7.0；需要继续使用旧版 deew 的用户，请使用 2.0.3。工具链差异见 [2.0 基线](docs/TOOLCHAIN-BASELINE-2.0.md)。
+> **版本支持说明：2.0.3 是旧工具链的兼容维护版，支持 deew 3.x / DEE 5.2.1。** 当前源码要求 deew ≥5.3.1 / DEE ≥6.7.0，推荐 truehdd ≥0.6.3、dee_shim ≥0.2.0；此前 3.0.0 发布版的 deew 最低版本为 5.1.0。需要继续使用旧版 deew 3.x 的用户，请使用 2.0.3。工具链差异见 [2.0 基线](docs/TOOLCHAIN-BASELINE-2.0.md)。
 
 当前发布资产以安装版为主：
 
@@ -143,20 +143,20 @@ FlowEncode_Setup_v<version>.exe
 
 ### 工作目录
 
-FlowEncode 支持单独配置工作目录，用于承载：
+FlowEncode 支持单独设置工作目录，存放以下文件夹：
 
 - `downloads`
 - `tools`
 - `encoders`
 - `Templates`
 
-程序安装目录默认只放程序本体和静态资源。运行期可写数据、大体积工具链和用户模板会放在应用数据目录或用户指定的工作目录中。
+安装目录默认只放程序本体和静态资源。运行时写入的数据、体积较大的工具链和用户模板保存在应用数据目录或用户指定的工作目录中。
 
-在“设置 → 环境与依赖”中点击“写入系统 PATH”，可将已安装和已检测到的编码器、工具及 Python 命令目录一键加入系统 PATH，供所有用户使用。需要时会弹出 Windows 管理员授权。重复点击不会重复添加目录；安装新工具或迁移工作目录后，可再次点击更新，并清理此前由该功能添加的失效目录。原先已有的系统 PATH 项会保留。完成后请重新打开终端或相关应用。
+在“设置 → 环境与依赖”中点击“写入系统 PATH”，可将已安装和已检测到的编码器、工具及 Python 命令目录加入系统 PATH，供所有用户使用。需要时，Windows 会请求管理员授权。重复点击不会重复添加目录；安装新工具或迁移工作目录后，可再次点击更新，并清理此前由该功能添加的失效目录。原先已有的系统 PATH 项会保留。完成后请重新打开终端或相关应用。
 
 ## 本地数据与隐私
 
-FlowEncode 默认面向本地工作流：
+FlowEncode 默认在本机处理文件：
 
 - 不主动上传源文件、输出文件、模板内容或本地路径。
 - 运行期轻量状态保存在 `%LocalAppData%\FlowEncode\data`。

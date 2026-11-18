@@ -57,10 +57,13 @@ public sealed record TaskExecutionPlan(Guid PlanId, DateTimeOffset CreatedAt, Da
 public sealed record TaskSnapshot(Guid TaskId, TaskKind Kind, TaskOrigin Origin, Guid? PlanId,
     EncodingJobState State, DateTimeOffset CreatedAt, DateTimeOffset? StartedAt, DateTimeOffset? FinishedAt,
     string SourcePath, string OutputPath, double? ProgressFraction, string Summary, string Stage,
-    string Log, IReadOnlyList<OutputArtifact> Artifacts, string? Error = null, Guid? RetryOfTaskId = null);
+    string Log, IReadOnlyList<OutputArtifact> Artifacts, string? Error = null, Guid? RetryOfTaskId = null,
+    AudioProcessingTelemetry? AudioTelemetry = null);
 
-public sealed record TaskUpdate(double? ProgressFraction, string Summary, string Stage, string Detail = "");
-public sealed record TaskCompletion(EncodingJobState State, string Summary, string Log, IReadOnlyList<OutputArtifact> Artifacts);
+public sealed record TaskUpdate(double? ProgressFraction, string Summary, string Stage, string Detail = "",
+    AudioProcessingTelemetry? AudioTelemetry = null);
+public sealed record TaskCompletion(EncodingJobState State, string Summary, string Log, IReadOnlyList<OutputArtifact> Artifacts,
+    AudioProcessingTelemetry? AudioTelemetry = null);
 public sealed record TaskSubmission(Guid TaskId, Guid? PlanId, bool AlreadyAccepted);
 public sealed record TaskHistoryRecord(TaskSnapshot Snapshot, TaskWorkload Workload, string? IdempotencyKey);
 

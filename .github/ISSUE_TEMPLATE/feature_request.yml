@@ -6,13 +6,13 @@ body:
   - type: markdown
     attributes:
       value: |
-        感谢提出建议。请先描述当前工作流中的问题，再说明希望 FlowEncode 如何改进。
+        请先描述当前使用中遇到的问题，再说明希望 FlowEncode 如何改进。
 
   - type: textarea
     id: problem
     attributes:
       label: 工作流问题
-      description: 当前在压制、转码、VapourSynth 或工具链流程中哪里不好用？
+      description: 使用压制、转码、VapourSynth 或工具链管理时，哪里不方便？
       placeholder: "当我想要 ... 时，现在必须 ..."
     validations:
       required: true
@@ -63,7 +63,7 @@ body:
     id: examples
     attributes:
       label: 示例或参考
-      description: 如果有帮助，可以贴相关工具、截图、命令示例或同类实现。
+      description: 可以附上相关工具、截图、命令示例或同类实现，帮助说明需求。
 
   - type: checkboxes
     id: checks

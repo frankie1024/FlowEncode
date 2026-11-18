@@ -50,7 +50,7 @@ public static class TaskTools
             new VideoPlanParameters(sourcePath, outputPath, profile, templateId, encoder, pipeline, architecture, av1anParallel, workers, overwriteOutput), cancellationToken);
 
     [McpServerTool(Name = "create_audio_plan", ReadOnly = true)]
-    [Description("Creates an audio plan for deew/DDP, Opus or eac3to. For Ddp, outputPath is a directory and the deew object selects format/profile/bitrate/trackIndex. Optional deew fields follow its config defaults; format defaults to ddp. measureOnly returns measured loudness without media. Other modes use a full output filename. Non-Atmos container inputs require extracting a standalone audio track first.")]
+    [Description("Creates an audio plan for deew/DDP, Opus or eac3to. Ddp requires deew >=5.3.1; outputPath is a directory and the deew object selects format/profile/bitrate/trackIndex. Optional fields follow config defaults; format defaults to ddp. noPhaseShift disables surround phase shift for DD, DDP or DDP Atmos. measureOnly measures the original source, ignores encoding settings and returns loudness without media, including TrueHD Atmos sources. MKV/MKA/M2TS inputs are supported for Atmos output or measureOnly; otherwise extract a standalone audio track. Other modes use a full output filename.")]
     public static Task<TaskExecutionPlan> AudioPlan(DesktopBridge desktop, string sourcePath, string outputPath,
         AudioProcessingMode mode = AudioProcessingMode.Ddp, DeewOptions? deew = null, AudioEac3ToOutputFormat? eac3ToFormat = null,
         int? opusBitrateKbps = 192, bool useOpusMappingFamily1 = false, bool overwriteOutput = false, CancellationToken cancellationToken = default) =>

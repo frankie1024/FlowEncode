@@ -12,7 +12,8 @@ public sealed partial class CliAudioProcessingRunner
     private async Task<AudioProcessingResult> RunDdpAsync(AudioProcessingRequest request,
         IProgress<AudioProcessingProgress>? progress, CancellationToken token)
     {
-        var options = DeewArguments.Normalize(request.Deew);
+        var warnings = new List<string>();
+        var options = DeewArguments.Normalize(request.Deew, warnings);
         AudioSourceSupport.ValidateDeewInput(request.SourcePath, options);
         var deew = await ResolveToolPathAsync(RegisteredToolKind.Deew, token);
         var ffmpeg = await ResolveToolPathAsync(RegisteredToolKind.Ffmpeg, token);
@@ -20,7 +21,7 @@ public sealed partial class CliAudioProcessingRunner
         // Version validation precedes config initialization: never ask legacy deew to generate a config.
         var version = await DeewToolchain.ProbeAsync(DeewToolchain.StartInfo(deew, ffmpeg, ffprobe), "--version", token);
         var deewLine = version.Split('\n').FirstOrDefault(l => l.TrimStart().StartsWith("deew ", StringComparison.OrdinalIgnoreCase)) ?? "";
-        if (!DeewToolchain.IsSupportedVersion(deewLine)) throw new InvalidOperationException("FlowEncode 3.0 requires deew >=5.1.0. Legacy tools require FlowEncode 2.0.3. " + deewLine);
+        if (!DeewToolchain.IsSupportedVersion(deewLine)) throw new InvalidOperationException($"FlowEncode requires deew >={DeewArguments.MinimumVersion}. Upgrade the portable deew executable. " + deewLine);
         var environment = DeewToolchain.StartInfo(deew, ffmpeg, ffprobe);
         var actualProbe = DeewToolchain.Resolve(deew, "ffprobe", environment.Environment["PATH"] ?? "");
         var actualFfmpeg = DeewToolchain.Resolve(deew, "ffmpeg", environment.Environment["PATH"] ?? "");
@@ -62,8 +63,8 @@ public sealed partial class CliAudioProcessingRunner
             lock (gate)
             {
                 var remaining = reader?.Remaining;
-                AudioProcessingTelemetry? telemetry = currentDb.HasValue || remaining.HasValue
-                    ? new(null, null, remaining, null, currentDb, currentDbSource)
+                AudioProcessingTelemetry? telemetry = currentDb.HasValue || remaining.HasValue || reader?.LoudnessMetrics is not null
+                    ? new(null, null, remaining, null, currentDb, currentDbSource, reader?.LoudnessMetrics)
                     : null;
                 if (telemetry != currentTelemetry)
                 {
@@ -95,18 +96,19 @@ public sealed partial class CliAudioProcessingRunner
             Directory.CreateDirectory(temp);
             lease = await DeewConfigLease.AcquireAsync(deew, options.TempMode == DeewTempMode.DeewSettings ? null : temp,
                 async ct => { await DeewToolchain.ProbeAsync(DeewToolchain.StartInfo(deew, ffmpeg, ffprobe), "-gc", ct); }, token);
-            var warnings = new List<string>();
             var effectiveChannels = source.RequiresDdpDtsCompatibilityInput() ? 8 : source.Channels;
-            var profile = DeewBitrates.Apply(DeewArguments.Resolve(options, effectiveChannels, lease.Snapshot.DdpMode, lease.Snapshot.AtmosMode, warnings), lease.Snapshot.Bitrates);
-            if (options.Format.EndsWith("-atmos", StringComparison.Ordinal)
-                && (!source.CodecName.Equals("truehd", StringComparison.OrdinalIgnoreCase) || !source.ProfileName.Contains("Atmos", StringComparison.OrdinalIgnoreCase)))
+            var profile = DeewBitrates.Apply(DeewArguments.Resolve(options, source, lease.Snapshot.DdpMode, lease.Snapshot.AtmosMode, warnings), lease.Snapshot.Bitrates);
+            if (!options.MeasureOnly && options.Format.EndsWith("-atmos", StringComparison.Ordinal) && !source.IsTrueHdAtmos)
                 throw new InvalidOperationException("Atmos output requires a selected TrueHD Atmos input track.");
             if (options.TempMode == DeewTempMode.DeewSettings)
             {
                 externalTemp = string.IsNullOrWhiteSpace(lease.Snapshot.TempPath) ? Path.Combine(Path.GetDirectoryName(deew)!, "temp") : Path.GetFullPath(lease.Snapshot.TempPath, Path.GetDirectoryName(deew)!);
                 Log("deew manages its own temp directory: " + externalTemp + ". Host cancellation may leave intermediates; this directory is never recursively cleaned by FlowEncode.");
             }
-            if (source.DurationSeconds is > 0 && source.SampleRate is > 0)
+            var needsPcmTemp = !lease.Snapshot.Pipe || (options.MeasureOnly ? source.IsTrueHdAtmos
+                : options.Format.StartsWith("thd", StringComparison.Ordinal) || options.Format.EndsWith("-atmos", StringComparison.Ordinal));
+            if (needsPcmTemp
+                && source.DurationSeconds is > 0 && source.SampleRate is > 0)
             {
                 var estimatedBytes = source.DurationSeconds.Value * source.SampleRate.Value * Math.Min(effectiveChannels, 8) * 3;
                 try
@@ -128,7 +130,7 @@ public sealed partial class CliAudioProcessingRunner
             var input = request.SourcePath;
             if (source.RequiresDdpDtsCompatibilityInput())
             {
-                if (options.Format.EndsWith("-atmos", StringComparison.Ordinal)) throw new InvalidOperationException("Atmos output requires TrueHD Atmos input.");
+                if (!options.MeasureOnly && options.Format.EndsWith("-atmos", StringComparison.Ordinal)) throw new InvalidOperationException("Atmos output requires TrueHD Atmos input.");
                 Directory.CreateDirectory(inputDirectory);
                 input = Path.Combine(inputDirectory, Path.GetFileNameWithoutExtension(input) + ".flac");
                 var preparation = CreateDdpDtsPreparationStartInfo(actualFfmpeg, request.SourcePath, input);
@@ -237,7 +239,7 @@ public sealed partial class CliAudioProcessingRunner
             LogSnapshot: log.ToString()));
         return new(request.JobId, state, exit, summary, log.ToString(), command, outputs, diagnostics, retainedTemp,
             reader is not null && (options.MeasureOnly || options.Format == "ac4" && options.Dialnorm is not null and not 0) ? reader.Db : null,
-            options.Dialnorm is not null and not 0 ? options.Dialnorm : null);
+            options.Dialnorm is not null and not 0 ? options.Dialnorm : null, reader?.LoudnessMetrics);
     }
 
     private async Task<int> ExecuteDeewAsync(Guid jobId, ProcessStartInfo info, string eventsPath,

@@ -6,6 +6,7 @@ public sealed record AudioProcessingTelemetry(
     TimeSpan? Remaining,
     long? EstimatedOutputBytes,
     double? DeewDb = null,
-    DeewDbSource? DeewDbSource = null);
+    DeewDbSource? DeewDbSource = null,
+    DeewLoudnessMetrics? LoudnessMetrics = null);
 
 public enum DeewDbSource { Unknown, Measured, SpecifiedDialnorm }

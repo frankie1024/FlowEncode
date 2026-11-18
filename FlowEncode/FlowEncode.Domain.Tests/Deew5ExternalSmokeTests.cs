@@ -11,7 +11,7 @@ public sealed class Deew5ExternalSmokeTests
 {
     [TestMethod]
     [TestCategory("ExternalToolSmoke")]
-    public async Task RealDeew51_ShortSampleEncodingMeasurementAndRecovery()
+    public async Task RealDeew531_ShortSampleEncodingMeasurementAndRecovery()
     {
         var input = Environment.GetEnvironmentVariable("FLOWENCODE_DEEW5_SMOKE_INPUT");
         var deew = Environment.GetEnvironmentVariable("FLOWENCODE_DEEW5_SMOKE_TOOL");
@@ -66,6 +66,77 @@ public sealed class Deew5ExternalSmokeTests
             var restored = await File.ReadAllBytesAsync(configPath);
             if (original is null) original = restored; else CollectionAssert.AreEqual(original, restored, "Config was not restored exactly.");
         }
+    }
+
+    [TestMethod]
+    [TestCategory("ExternalToolSmoke")]
+    public async Task RealDeew531_PhaseShiftRichMeasurementAnd96kHzLosslessRoundTrip()
+    {
+        var input = Environment.GetEnvironmentVariable("FLOWENCODE_DEEW5_SMOKE_INPUT");
+        var deew = Environment.GetEnvironmentVariable("FLOWENCODE_DEEW5_SMOKE_TOOL");
+        var ffmpeg = Environment.GetEnvironmentVariable("FLOWENCODE_DEEW5_SMOKE_FFMPEG");
+        var output = Environment.GetEnvironmentVariable("FLOWENCODE_DEEW5_SMOKE_OUTPUT");
+        if (new[] { input, deew, ffmpeg, output }.Any(string.IsNullOrWhiteSpace))
+            Assert.Inconclusive("Set FLOWENCODE_DEEW5_SMOKE_INPUT/TOOL/FFMPEG/OUTPUT to isolated real-tool fixtures.");
+        var root = Path.Combine(output!, "deew53");
+        Directory.CreateDirectory(root);
+        var ffprobe = Path.Combine(Path.GetDirectoryName(ffmpeg)!, "ffprobe.exe");
+        var runner = new CliAudioProcessingRunner(new Probe(deew!, ffmpeg!, ffprobe), new Settings());
+        var config = Path.Combine(Path.GetDirectoryName(deew)!, "config.toml");
+        var original = await File.ReadAllBytesAsync(config);
+        var records = new List<object>();
+
+        async Task<AudioProcessingResult> Run(string source, DeewOptions options)
+        {
+            var job = Guid.NewGuid();
+            var request = new AudioProcessingRequest(job, source, Path.Combine(root, job.ToString("N")), AudioProcessingMode.Ddp,
+                null, [], null, null, null, null, false, options);
+            var updates = new List<AudioProcessingProgress>();
+            var result = await runner.RunAsync(request, new InlineProgress(updates.Add));
+            var log = Path.Combine(root, job.ToString("N") + ".log");
+            await File.WriteAllTextAsync(log, result.Log);
+            records.Add(new { source, options, result.State, result.Summary, result.LoudnessDb, result.LoudnessMetrics,
+                result.OutputFiles, log, ProgressUpdates = updates.Count });
+            await File.WriteAllTextAsync(Path.Combine(root, "results.json"), JsonSerializer.Serialize(records, new JsonSerializerOptions { WriteIndented = true }));
+            Assert.AreEqual(EncodingJobState.Completed, result.State, result.Log + "\n" + result.Summary);
+            CollectionAssert.AreEqual(original, await File.ReadAllBytesAsync(config));
+            return result;
+        }
+
+        await Run(input!, new(Format: "dd", NoPhaseShift: true, KeepLog: true));
+        await Run(input!, new(NoPhaseShift: true, KeepLog: true));
+        // The selected Atmos output does not restrict measurement to Atmos input.
+        var measured = await Run(input!, new(Format: "thd-atmos", MeasureOnly: true, DownmixChannels: 2, Drc: "none", KeepLog: true));
+        Assert.IsNotNull(measured.LoudnessMetrics?.LoudnessRangeLu);
+        Assert.IsNotNull(measured.LoudnessMetrics?.TruePeakDbtp);
+        Assert.AreEqual(0, measured.OutputFiles!.Count);
+
+        async Task Ffmpeg(params string[] args)
+        {
+            var start = new System.Diagnostics.ProcessStartInfo(ffmpeg!)
+            { UseShellExecute = false, RedirectStandardOutput = true, RedirectStandardError = true, CreateNoWindow = true };
+            foreach (var arg in args) start.ArgumentList.Add(arg);
+            var result = await ProcessProbeRunner.RunAsync(start, TimeSpan.FromSeconds(30), "Smoke ffmpeg timed out.", default);
+            Assert.AreEqual(0, result.ExitCode, result.StandardError);
+        }
+
+        var quietSource = Path.Combine(root, "quiet-48k.flac");
+        await Ffmpeg("-y", "-v", "error", "-f", "lavfi", "-i", "anoisesrc=r=48000:d=3.072:a=0.003:s=531", "-ac", "2", "-c:a", "flac", quietSource);
+        var quiet = await Run(quietSource, new(MeasureOnly: true, KeepLog: true));
+        Assert.IsTrue(quiet.LoudnessDb is < -31, quiet.Summary);
+        Assert.AreEqual(0, quiet.OutputFiles!.Count);
+
+        var highRate = Path.Combine(root, "source-96k.flac");
+        await Ffmpeg("-y", "-v", "error", "-f", "lavfi", "-i", "anoisesrc=r=96000:d=3.072:a=0.05:s=53", "-ac", "2", "-c:a", "flac", "-sample_fmt", "s32", "-bits_per_raw_sample", "24", highRate);
+        var encoded = await Run(highRate, new(Format: "thd", Drc: "film_light", KeepLog: true));
+        var expected = Path.Combine(root, "source-96k.pcm");
+        var decoded = Path.Combine(root, "decoded-96k.pcm");
+        await Ffmpeg("-y", "-v", "error", "-i", highRate, "-c:a", "pcm_s24le", "-f", "s24le", expected);
+        await Ffmpeg("-y", "-v", "error", "-drc_scale", "0", "-i", encoded.OutputFiles!.Single(), "-c:a", "pcm_s24le", "-f", "s24le", decoded);
+        CollectionAssert.AreEqual(await File.ReadAllBytesAsync(expected), await File.ReadAllBytesAsync(decoded), "96 kHz TrueHD must decode sample-for-sample, including stream length.");
+        var resampled = Path.Combine(root, "source-88200.flac");
+        await Ffmpeg("-y", "-v", "error", "-i", highRate, "-ar", "88200", "-c:a", "flac", resampled);
+        await Run(resampled, new(Format: "thd", Drc: "film_light", KeepLog: true));
     }
 
     private sealed class Probe(string deew, string ffmpeg, string ffprobe) : IToolProbeService

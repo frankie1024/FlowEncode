@@ -17,6 +17,7 @@ internal sealed class DeewEventsReader
     public bool HasHello { get; private set; }
     public string? Error { get; private set; }
     public double? Db { get; private set; }
+    public DeewLoudnessMetrics? LoudnessMetrics { get; private set; }
     public double Fraction { get; private set; }
     public TimeSpan? Remaining => _timeEstimate.Remaining;
 
@@ -71,7 +72,7 @@ internal sealed class DeewEventsReader
             {
                 HasHello = true;
                 var version = e.GetProperty("version").GetString() ?? "";
-                if (!DeewToolchain.IsSupportedVersion(version)) Error = "deew 5.1.0 or newer is required; received " + version;
+                if (!DeewToolchain.IsSupportedVersion(version)) Error = $"deew {DeewArguments.MinimumVersion} or newer is required; received " + version;
             }
             else if (type == "error") { Error = Text(); if (string.IsNullOrWhiteSpace(Error)) Error = "deew reported an error."; _diagnostic("ERROR: " + Error); }
             else if (type is "warning" or "prompt") _diagnostic(type + ": " + Text());
@@ -81,11 +82,24 @@ internal sealed class DeewEventsReader
                 var stage = e.TryGetProperty("stage", out var s) ? s.GetString() ?? "" : "";
                 double? percent = e.TryGetProperty("percent", out var p) && p.ValueKind == JsonValueKind.Number && p.TryGetDouble(out var n) && double.IsFinite(n) ? Math.Clamp(n, 0, 100) : null;
                 double? eventDb = e.TryGetProperty("db", out var db) && db.ValueKind == JsonValueKind.Number && db.TryGetDouble(out var value)
-                    && double.IsFinite(value) && value is >= -31 and <= 0 ? value : null;
+                    && double.IsFinite(value) && (_profile.Options.MeasureOnly || value is >= -31 and <= 0) ? value : null;
                 var ac4Manifest = _profile.Options.Format == "ac4" && _profile.Options.Dialnorm is not null and not 0;
                 // AC4 switches from measured source loudness to the requested manifest dialnorm during encoding.
                 // Preserve the measured value separately instead of overwriting it with the target.
                 if (eventDb.HasValue && (!ac4Manifest || stage == "measure")) Db = eventDb;
+                if (!ac4Manifest || stage == "measure")
+                {
+                    double? Number(string name) => e.TryGetProperty(name, out var field) && field.ValueKind == JsonValueKind.Number
+                        && field.TryGetDouble(out var number) && double.IsFinite(number) ? number : null;
+                    var gating = e.TryGetProperty("gating", out var g) && g.ValueKind == JsonValueKind.String
+                        && g.GetString() is "dialogue" or "level" ? g.GetString() : null;
+                    var speech = Number("speech") is double share && share is >= 0 and <= 100 ? share : (double?)null;
+                    var lra = Number("lra") is double rangeLu && rangeLu >= 0 ? rangeLu : (double?)null;
+                    var metrics = new DeewLoudnessMetrics(gating ?? LoudnessMetrics?.Gating,
+                        speech ?? LoudnessMetrics?.SpeechPercent, Number("program") ?? LoudnessMetrics?.ProgramLoudnessLkfs,
+                        lra ?? LoudnessMetrics?.LoudnessRangeLu, Number("true_peak") ?? LoudnessMetrics?.TruePeakDbtp);
+                    if (metrics != new DeewLoudnessMetrics()) LoudnessMetrics = metrics;
+                }
                 var origin = ac4Manifest && stage == "encode" ? DeewDbSource.SpecifiedDialnorm : _profile.DbSource;
                 _timeEstimate.Update(stage, percent);
                 var range = stage switch { "ffmpeg" => (0.0, .15), "decode" => (.15, .35), "measure" => (.35, .45), "encode" => (.45, 1.0), _ => (0.0, 0.0) };

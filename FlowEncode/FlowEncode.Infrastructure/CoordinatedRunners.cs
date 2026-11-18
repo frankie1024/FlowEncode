@@ -25,8 +25,14 @@ public sealed class CoordinatedAudioRunner(CliAudioProcessingRunner inner, TaskC
     public void Abort(Guid id) { try { tasks.Cancel(id); } catch (KeyNotFoundException) { } inner.Abort(id); }
     public Task<AudioProcessingResult> RunAsync(AudioProcessingRequest request, IProgress<AudioProcessingProgress>? progress = null, CancellationToken cancellationToken = default) =>
         tasks.RunAsync(new(TaskKind.Audio, Audio: request), (updates, token) => inner.RunAsync(request,
-            new Forward<AudioProcessingProgress>(p => { updates.Report(new(p.ProgressFraction, p.Summary, p.PhaseLabel ?? "audio", p.DetailLine)); progress?.Report(p); }), token),
-            result => new(result.State, result.Summary, result.Log, AudioArtifacts(request, result)), cancellationToken);
+            new Forward<AudioProcessingProgress>(p => { updates.Report(new(p.ProgressFraction, p.Summary, p.PhaseLabel ?? "audio", p.DetailLine, p.Telemetry)); progress?.Report(p); }), token),
+            result => new(result.State, result.Summary, result.Log, AudioArtifacts(request, result), ResultTelemetry(result)), cancellationToken);
+
+    private static AudioProcessingTelemetry? ResultTelemetry(AudioProcessingResult result) =>
+        result.LoudnessDb.HasValue || result.DialnormDb.HasValue || result.LoudnessMetrics is not null
+            ? new(null, null, null, null, result.LoudnessDb ?? result.DialnormDb,
+                result.LoudnessDb.HasValue || result.LoudnessMetrics is not null ? DeewDbSource.Measured : DeewDbSource.SpecifiedDialnorm, result.LoudnessMetrics)
+            : null;
 
     private static IReadOnlyList<OutputArtifact> AudioArtifacts(AudioProcessingRequest request, AudioProcessingResult result) =>
         (result.OutputFiles ?? (result.State == EncodingJobState.Completed && File.Exists(request.OutputPath) ? [request.OutputPath] : []))

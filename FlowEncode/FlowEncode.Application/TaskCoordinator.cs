@@ -173,7 +173,8 @@ public sealed class TaskCoordinator
         {
             entry.Snapshot = entry.Snapshot with { State = outcome.State, FinishedAt = DateTimeOffset.UtcNow,
                 Summary = outcome.Summary, Stage = outcome.State.ToString(), ProgressFraction = outcome.State == EncodingJobState.Completed ? 1 : entry.Snapshot.ProgressFraction,
-                Log = Tail(outcome.Log), Artifacts = outcome.Artifacts.ToArray(), Error = outcome.State == EncodingJobState.Failed ? outcome.Summary : null };
+                Log = Tail(outcome.Log), Artifacts = outcome.Artifacts.ToArray(), Error = outcome.State == EncodingJobState.Failed ? outcome.Summary : null,
+                AudioTelemetry = outcome.AudioTelemetry };
             _running--;
             Persist(entry);
         }
@@ -190,7 +191,8 @@ public sealed class TaskCoordinator
         {
             if (entry.Snapshot.State != EncodingJobState.Running) return;
             entry.Snapshot = entry.Snapshot with { ProgressFraction = update.ProgressFraction, Summary = update.Summary,
-                Stage = update.Stage, Log = string.IsNullOrWhiteSpace(update.Detail) ? entry.Snapshot.Log : Tail(entry.Snapshot.Log + update.Detail + Environment.NewLine) };
+                Stage = update.Stage, Log = string.IsNullOrWhiteSpace(update.Detail) ? entry.Snapshot.Log : Tail(entry.Snapshot.Log + update.Detail + Environment.NewLine),
+                AudioTelemetry = update.AudioTelemetry };
         }
         Notify();
     }

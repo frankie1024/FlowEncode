@@ -6,12 +6,12 @@ body:
   - type: markdown
     attributes:
       value: |
-        感谢反馈问题。请尽量提供可复现的信息，方便维护者定位。
+        请描述复现问题的操作，并提供版本、日志等信息，方便定位原因。
 
   - type: input
     id: version
     attributes:
-      label: FlowEncode version
+      label: FlowEncode 版本
       description: 应用内、安装包或 Release 页面显示的版本号。
       placeholder: "v1.7.2"
     validations:
@@ -33,7 +33,7 @@ body:
     id: windows_version
     attributes:
       label: Windows 版本
-      description: 尽量包含系统版本、发行通道和 build 号。
+      description: 请尽量提供系统版本、发行通道和内部版本号（build）。
       placeholder: "Windows 11 24H2, build 26100"
     validations:
       required: true
@@ -87,7 +87,7 @@ body:
     id: toolchain
     attributes:
       label: 相关工具链
-      description: 如果相关，请列出 FFmpeg、VapourSynth、VSPipe、Av1an、x264、x265、SVT-AV1、Python 或插件版本。
+      description: 请列出与问题有关的 FFmpeg、VapourSynth、VSPipe、Av1an、x264、x265、SVT-AV1、Python 或插件版本。
       placeholder: |
         FFmpeg:
         VapourSynth:

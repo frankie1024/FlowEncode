@@ -11,4 +11,5 @@ public sealed record AudioProcessingResult(
     IReadOnlyList<string>? DiagnosticFiles = null,
     string? RetainedTempPath = null,
     double? LoudnessDb = null,
-    double? DialnormDb = null);
+    double? DialnormDb = null,
+    DeewLoudnessMetrics? LoudnessMetrics = null);

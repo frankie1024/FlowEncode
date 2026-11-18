@@ -73,7 +73,10 @@ public partial class MainWindowViewModel
     internal bool CanOpenAudioDiagnostics => AudioDiagnosticsPath is not null;
     internal bool CanOpenAudioRetained => AudioRetainedPath is not null;
     internal string AudioResultPaths => _lastAudioResult is null ? "" : string.Join(Environment.NewLine,
-        (_lastAudioResult.OutputFiles ?? []).Concat(_lastAudioResult.DiagnosticFiles ?? [])
+        (_lastAudioResult.LoudnessDb.HasValue || _lastAudioResult.LoudnessMetrics is not null
+            ? new[] { Texts.AudioProcessingTelemetrySummary(new(null, null, null, null, _lastAudioResult.LoudnessDb, DeewDbSource.Measured, _lastAudioResult.LoudnessMetrics)) }
+            : Array.Empty<string>())
+        .Concat(_lastAudioResult.OutputFiles ?? []).Concat(_lastAudioResult.DiagnosticFiles ?? [])
             .Concat(_lastAudioResult.RetainedTempPath is string path ? [Texts.Pick("保留临时目录（失败/取消时可能不完整）：", "Retained temporary directory (may be incomplete after failure/cancellation): ") + path] : []));
     private bool _isAudioSourceInfoLoading;
     private string? _audioSourceInfoError;
@@ -1332,7 +1335,7 @@ public partial class MainWindowViewModel
                 {
                     var snapshot = await new DeewPlanningService(_toolProbeService).InspectAsync(sourcePath, AudioProcessingModule.Form.Deew.Build(), cancellationToken);
                     if (version != _audioSourceProbeVersion) return;
-                    AudioProcessingModule.Form.Deew.SetSourceChannels(snapshot.Source.Channels);
+                    AudioProcessingModule.Form.Deew.SetSource(snapshot.Source);
                     AudioProcessingModule.Form.Deew.SetDefaults(snapshot.DefaultDdpMode, snapshot.DefaultAtmosMode, snapshot.DefaultBitrates);
                     _deewPreflightError = null;
                     info = snapshot.Source;
@@ -1351,7 +1354,7 @@ public partial class MainWindowViewModel
             }
 
             _audioSourceInfo = info;
-            if (info is not null) AudioProcessingModule.Form.Deew.SetSourceChannels(info.Channels);
+            AudioProcessingModule.Form.Deew.SetSource(info);
             _audioSourceInfoError = null;
             AudioOpusUseMappingFamily1 = info?.HasSurround51Or71Channels() == true;
         }

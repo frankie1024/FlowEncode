@@ -29,7 +29,7 @@ if (tool == "python" && args.Contains("-c"))
 if (args.Contains("--hold-child")) { await Task.Delay(TimeSpan.FromMinutes(1)); return 0; }
 if (args.Contains("--version") || args.Contains("-version") || args.Contains("--help"))
 {
-    Console.WriteLine(tool.StartsWith("deew") ? "deew 5.1.0" : tool.StartsWith("dee_") ? "Dolby Encoding Engine version 6.7.0+test" : tool + " version 1.0.0");
+    Console.WriteLine(tool.StartsWith("deew") ? "deew 5.3.1" : tool.StartsWith("dee_") ? "Dolby Encoding Engine version 6.7.0+test" : tool + " version 1.0.0");
     return 0;
 }
 if (tool == "vspipe" && args.Contains("--info"))
@@ -99,7 +99,10 @@ if (tool == "ffprobe")
     var track = Option("-select_streams");
     if (track == "a:1") channels = 8;
     var layout = channels switch { 8 => "7.1", 7 => "7.0", 6 => "5.1", 5 => "5.0", _ => "stereo" };
-    Console.WriteLine(JsonSerializer.Serialize(new { streams = new[] { new { codec_name = "pcm_s24le", profile = "", channels, channel_layout = layout, sample_rate = "48000", bits_per_sample = "24", duration = "60" } } }));
+    var codec = data.TryGetProperty("codec", out var codecValue) ? codecValue.GetString() : "pcm_s24le";
+    var profile = data.TryGetProperty("profile", out var profileValue) ? profileValue.GetString() : "";
+    var rate = data.TryGetProperty("sampleRate", out var rateValue) ? rateValue.GetString() : "48000";
+    Console.WriteLine(JsonSerializer.Serialize(new { streams = new[] { new { codec_name = codec, profile, channels, channel_layout = layout, sample_rate = rate, bits_per_sample = "24", duration = "60" } } }));
     return 0;
 }
 var configPath = Path.Combine(AppContext.BaseDirectory, "config.toml");
@@ -111,7 +114,7 @@ var events = Environment.GetEnvironmentVariable("DEEW_EVENTS_FILE")!;
 if (scenario == "cancel")
     await File.WriteAllTextAsync(Path.Combine(temp, "process-id.txt"), Environment.ProcessId.ToString());
 async Task Event(object value) => await File.AppendAllTextAsync(events, JsonSerializer.Serialize(value) + "\n");
-await Event(new { type = "hello", version = "5.1.0" });
+await Event(new { type = "hello", version = "5.3.1" });
 await Event(new { type = "progress", job = 0, stage = "starting", percent = (double?)null, db = (double?)null });
 await Event(new { type = "warning", text = "测试诊断" });
 if (scenario == "live-log")
@@ -149,8 +152,11 @@ if (scenario == "cancel")
     await Task.Delay(TimeSpan.FromMinutes(1));
 }
 var measured = args.Contains("-mo");
+if (scenario is "rich-measure" or "quiet-measure")
+    await Event(new { type = "progress", job = 0, stage = "measure", percent = 90, db = scenario == "quiet-measure" ? -45 : -27,
+        gating = "dialogue", speech = 16, program = -18.9, lra = 13.1, true_peak = -4.9 });
 await Event(new { type = "progress", job = 0, stage = measured ? "measure" : "encode", percent = 100,
-    db = scenario == "missing-db" ? (double?)null : -27.0 });
+    db = scenario == "missing-db" ? (double?)null : scenario == "quiet-measure" ? -45.0 : -27.0 });
 if (!measured && scenario != "empty" && scenario != "error-tail")
 {
     var format = Option("-f");

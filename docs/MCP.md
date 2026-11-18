@@ -4,9 +4,9 @@ FlowEncode 3.0 ships a stdio MCP server in `mcp/FlowEncode.Mcp.exe`. The desktop
 
 ## 接入 / Connect
 
-1. 安装或解压完整的 FlowEncode 包；保留 `mcp` 与主程序的相对位置。
-2. 在桌面设置中开启“本地 MCP 自动化”（默认关闭）。关闭开关会阻止新的自动化调用，已接收任务继续执行。
-3. 运行 `mcp\FlowEncode.Mcp.exe --check`，或复制设置页给出的配置到 MCP 客户端。
+1. 安装或解压完整的 FlowEncode 包，保留 `mcp` 与主程序的相对位置。
+2. 在桌面应用的设置中开启“本地 MCP 自动化”（默认关闭）。关闭后不再接受新的自动化调用，已接收的任务仍会继续执行。
+3. 运行 `mcp\FlowEncode.Mcp.exe --check`，或将设置页中的配置复制到 MCP 客户端。
 
 ```json
 {
@@ -24,7 +24,7 @@ Use your actual installation path. `FLOWENCODE_DESKTOP_EXE` can select a develop
 
 Call `get_capabilities`, `probe_media`, and optionally `list_templates` / `get_default_profile`. Create a plan with `create_video_plan`, `create_audio_plan`, or `create_task_plan`. Inspect the resolved command, effective request, warnings and expected outputs. Call `submit_plan(planId, idempotencyKey)` once and retain both values. Track with `get_task(taskId)`. Use `cancel_task(taskId)` and `retry_task(taskId, newIdempotencyKey)` for the exact task.
 
-计划有效期 15 分钟。源文件、工具、配置或编码设置变化后，应重新创建计划。响应丢失时，用相同 planId 和幂等键重试提交；任务已完成或桌面重启后也会返回原任务。重试失败或取消的任务会产生新 ID。桌面退出后，未完成任务在历史中标为中断失败，不会自动重跑。
+计划的有效期为 15 分钟。源文件、工具、配置或编码设置变化后，请重新创建计划。若提交后未收到响应，用相同的 planId 和幂等键再次提交，会返回原任务；任务已完成或桌面应用重启后也一样。重新执行失败或已取消的任务时，会生成新 ID。桌面应用退出后，未完成的任务会在历史中标为中断失败，不会自动重跑。
 
 Accepted work continues after the MCP client disconnects. The shared task service tracks manual and MCP tasks; use `list_tasks` and `get_task` to inspect IDs, logs and actual artifacts. Media, diagnostics and retained temporary files are distinct artifact types. Logs are bounded in API responses (`get_task.logLines`: 0–2000).
 
@@ -44,7 +44,9 @@ Accepted work continues after the MCP client disconnects. The shared task servic
 }
 ```
 
-Track indexes count audio streams from zero. Omitted options follow the portable deew configuration. `measureOnly` returns loudness without media. Set `keepTemp` to retain task intermediates and `keepLog` to save diagnostics. Use only deew ≥5.1.0 with the required licensed DEE ≥6.7 components. Atmos paths have parameter/dependency checks but no genuine Atmos media acceptance in 3.0.0; they remain experimental.
+Track indexes count audio streams from zero. Omitted options follow the portable deew configuration. `measureOnly` measures the original source without media and ignores encoding format, downmix, bitrate, DRC, dialnorm, phase shift and LFE settings. TrueHD Atmos sources use truehdd and dee_measure_loudness to measure the multichannel Atmos master; the DDP Atmos encoder is not required for measurement. `noPhaseShift: true` emits `-nps` for DD, DDP and DDP Atmos. Set `keepTemp` to retain task intermediates and `keepLog` to save diagnostics. Current source requires deew ≥5.3.1 with the required licensed DEE ≥6.7 components; truehdd ≥0.6.3 and dee_shim ≥0.2.0 are recommended. AC4 Atmos supports DRC `none` by default; plain AC4 uses `music_light` and rejects `none`. TrueHD encoded at 96 kHz requires dee_shim regardless of DRC, including inputs resampled to that rate. Genuine Atmos media acceptance remains pending; Atmos output is experimental.
+
+Audio task snapshots expose `audioTelemetry`, including `loudnessMetrics` when available: `gating` (`dialogue` / `level`), `speechPercent`, `programLoudnessLkfs`, `loudnessRangeLu` and `truePeakDbtp`. These optional measurements remain available in completed task history after reconnecting or restarting. Units are LKFS, LU and dBTP respectively; they are separate from the rounded `deewDb` value. Measure-only loudness can be below −31 dB; it is not restricted to the encoder dialnorm range. Missing fields remain null.
 
 ## Tool list
 

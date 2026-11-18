@@ -99,7 +99,7 @@
                                         <Grid x:Name="DeewEncodingGrid" ColumnSpacing="12" RowSpacing="8">
                                             <ComboBox Header="{Binding Texts.DeewBitrateHeader}" ItemsSource="{Binding Deew.BitrateOptions}" SelectedItem="{Binding Deew.Bitrate, Mode=TwoWay}" Visibility="{Binding Deew.BitrateVisibility}" HorizontalAlignment="Stretch" />
                                             <ComboBox Header="{Binding Texts.DeewDownmixHeader}" ItemsSource="{Binding Deew.DownmixOptions}" SelectedItem="{Binding Deew.Downmix, Mode=TwoWay}" Visibility="{Binding Deew.DownmixVisibility}" HorizontalAlignment="Stretch" />
-                                            <ComboBox Header="DRC" ItemsSource="{Binding Deew.DrcOptions}" SelectedItem="{Binding Deew.Drc, Mode=TwoWay}" HorizontalAlignment="Stretch" />
+                                            <ComboBox Header="DRC" ItemsSource="{Binding Deew.DrcOptions}" SelectedItem="{Binding Deew.Drc, Mode=TwoWay}" Visibility="{Binding Deew.DrcVisibility}" HorizontalAlignment="Stretch" />
                                         </Grid>
                                         <Grid x:Name="DeewSignalGrid" ColumnSpacing="12" RowSpacing="8">
                                             <NumberBox Header="Dialnorm (-31..0)" Minimum="-31" Maximum="0" SmallChange="1" Value="{Binding Deew.Dialnorm, Mode=TwoWay}" Visibility="{Binding Deew.DialnormVisibility}" />
@@ -108,6 +108,7 @@
                                         </Grid>
                                         <Grid x:Name="DeewFlagsGrid" ColumnSpacing="16" RowSpacing="0">
                                             <CheckBox Content="{Binding Texts.DeewLfeHeader}" IsChecked="{Binding Deew.DisableLfe, Mode=TwoWay}" Visibility="{Binding Deew.LfeVisibility}" FontSize="13" />
+                                            <CheckBox Content="{Binding Texts.DeewNoPhaseShiftHeader}" IsChecked="{Binding Deew.NoPhaseShift, Mode=TwoWay}" Visibility="{Binding Deew.NoPhaseShiftVisibility}" FontSize="13" />
                                             <CheckBox Content="{Binding Texts.DeewKeepTempHeader}" IsChecked="{Binding Deew.KeepTemp, Mode=TwoWay}" FontSize="13" />
                                             <CheckBox Content="{Binding Texts.DeewKeepLogHeader}" IsChecked="{Binding Deew.KeepLog, Mode=TwoWay}" FontSize="13" />
                                             <CheckBox Content="{Binding Texts.DeewMeasureOnlyHeader}" IsChecked="{Binding Deew.MeasureOnly, Mode=TwoWay}" Visibility="{Binding Deew.MeasureOnlyVisibility}" FontSize="13" />

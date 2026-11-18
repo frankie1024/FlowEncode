@@ -63,9 +63,9 @@ public sealed class Deew5ContractTests
     public void AdvancedArguments_MergeAliasesLastWinsAndPreserveKeepFlags()
     {
         var warnings = new List<string>();
-        var options = DeewArguments.Normalize(new(BitrateKbps: 1024, AdditionalArguments: "--bitrate=768 -b 640 -k --keep-log -mo -d=-5ms"), warnings);
+        var options = DeewArguments.Normalize(new(BitrateKbps: 1024, AdditionalArguments: "--bitrate=768 -b 640 -k --keep-log -d=-5ms"), warnings);
         Assert.AreEqual(640, options.BitrateKbps);
-        Assert.IsTrue(options.KeepTemp && options.KeepLog && options.MeasureOnly);
+        Assert.IsTrue(options.KeepTemp && options.KeepLog);
         Assert.AreEqual(2, warnings.Count);
         var tokens = DeewArguments.Build("i", "o", options);
         Assert.AreEqual(1, tokens.Count(t => t == "-b"));
@@ -133,7 +133,7 @@ public sealed class Deew5ContractTests
     }
 
     [TestMethod]
-    [DataRow("ddp-atmos", "-dm 2")][DataRow("thd-atmos", "-mo")]
+    [DataRow("ddp-atmos", "-dm 2")]
     [DataRow("ac4", "-r none")][DataRow("ac4-atmos", "-dn -27")]
     [DataRow("aac", "-dn -27")][DataRow("thd", "-dm 1")][DataRow("thd", "-b 640")]
     [DataRow("ddp", "-dm 8")]
@@ -141,7 +141,7 @@ public sealed class Deew5ContractTests
         Assert.ThrowsExactly<InvalidOperationException>(() => DeewArguments.Resolve(new(Format: format, AdditionalArguments: arguments), 8));
 
     [TestMethod]
-    [DataRow("5.1.0", true)][DataRow("5.1.1", true)][DataRow("5.0.3", false)][DataRow("4.0.0", false)][DataRow("not found", false)]
+    [DataRow("5.3.0", false)][DataRow("5.3.1", true)][DataRow("5.3.2", true)][DataRow("5.2.0", false)][DataRow("5.1.1", false)][DataRow("5.0.3", false)][DataRow("4.0.0", false)][DataRow("not found", false)]
     public void VersionGate_RejectsLegacyAndUnreadableVersions(string version, bool expected) => Assert.AreEqual(expected, DeewToolchain.IsSupportedVersion(version));
 
     [TestMethod]
@@ -220,7 +220,7 @@ public sealed class Deew5ContractTests
             var file = Path.Combine(root, "events.jsonl");
             var logs = new List<string>(); var updates = new List<double?>();
             var reader = new DeewEventsReader(DeewArguments.Resolve(new(Dialnorm: -27), 2), logs.Add, (p, s, db, source) => updates.Add(p));
-            var bytes = Encoding.UTF8.GetBytes("{\"type\":\"hello\",\"version\":\"5.1.0\"}\n{\"type\":\"warning\",\"text\":\"中文\"}\n{\"type\":\"progress\",\"job\":0,\"stage\":\"encode\",\"percent\":50,\"db\":-27}\n{\"type\":\"done\",\"job\":0}\n{\"type\":\"error\",\"text\":\"tail failure\"}\n");
+            var bytes = Encoding.UTF8.GetBytes("{\"type\":\"hello\",\"version\":\"5.3.1\"}\n{\"type\":\"warning\",\"text\":\"中文\"}\n{\"type\":\"progress\",\"job\":0,\"stage\":\"encode\",\"percent\":50,\"db\":-27}\n{\"type\":\"done\",\"job\":0}\n{\"type\":\"error\",\"text\":\"tail failure\"}\n");
             await using (var stream = new FileStream(file, FileMode.Create, FileAccess.Write, FileShare.ReadWrite))
                 foreach (var b in bytes)
                 {

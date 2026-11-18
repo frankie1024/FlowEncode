@@ -835,14 +835,14 @@ public sealed class SetupGuideViewModel : ObservableObject, ISetupDependencyModu
             CreateCard(
                 0,
                 Texts.Pick("Python", "Python"),
-                Texts.Pick("首个必须项。后续所有 Python 侧安装动作都依赖这里。", "The first required step. All Python-side installs depend on this card."),
+                Texts.Pick("请先准备 Python，后续 Python 组件的安装都依赖它。", "The first required step. All Python-side installs depend on this card."),
                 Texts.Pick("自动选择 Python 官方当前受支持的 Windows x64 安装器；Python 3.12 或更新的 x64 版本均可使用。", "FlowEncode selects a currently supported official Windows x64 installer. Python 3.12 or newer x64 is supported."),
                 [BuildSetupDependencyItem(SetupDependencyKind.Python312)]),
             CreateCard(
                 1,
                 Texts.Pick("VapourSynth", "VapourSynth"),
-                Texts.Pick("Python 准备好之后，这一张卡片负责 VS 运行时和脚本依赖。", "After Python is ready, this card covers the VS runtime and script-side dependencies."),
-                Texts.Pick("Python 3.12 是自动安装这张卡片里所有依赖的前置条件。", "Python 3.12 is required before automatic install is enabled for this card."),
+                Texts.Pick("Python 准备好后，在这里安装 VapourSynth 运行时和脚本依赖。", "After Python is ready, this card covers the VS runtime and script-side dependencies."),
+                Texts.Pick("自动安装此处的所有依赖前，需要先准备 Python 3.12。", "Python 3.12 is required before automatic install is enabled for this card."),
                 [
                     BuildSetupDependencyItem(SetupDependencyKind.VapourSynth),
                     BuildSetupDependencyItem(SetupDependencyKind.Vsrepo),
@@ -853,7 +853,7 @@ public sealed class SetupGuideViewModel : ObservableObject, ISetupDependencyModu
             CreateCard(
                 2,
                 Texts.Pick("编码器 / FFmpeg", "Encoders / FFmpeg"),
-                Texts.Pick("这些是视频工作流最常用的核心二进制。FFmpeg 支持自动安装；Av1an 在提供托管兼容包时可自动安装。", "These are the core binaries used most often in the video workflow. FFmpeg supports automatic install, while Av1an can auto-install when a managed compatible package is available."),
+                Texts.Pick("这些工具用于常见的视频处理任务。FFmpeg 支持自动安装；Av1an 有可用的托管兼容包时也可自动安装。", "These are the core binaries used most often in the video workflow. FFmpeg supports automatic install, while Av1an can auto-install when a managed compatible package is available."),
                 Texts.Pick("本地编码器放入工作目录下的 encoders，命令行工具放入 tools。", "Managed encoders go into the workspace encoders folder, and CLI tools go into tools."),
                 [
                     BuildSetupDependencyItem(SetupDependencyKind.FfmpegBundle),
@@ -865,8 +865,8 @@ public sealed class SetupGuideViewModel : ObservableObject, ISetupDependencyModu
             CreateCard(
                 3,
                 Texts.Pick("解复用 / 其他依赖", "Demux / Other Dependencies"),
-                Texts.Pick("这里保留蓝光解复用、AviSynth 兼容链和音频相关工具。大多需要手动准备。", "This card keeps Blu-ray demux, the AviSynth compatibility chain, and audio tools. Most are manual dependencies."),
-                Texts.Pick("DGDemux 为蓝光解复用默认后端；eac3to 为可选后端。这些本地工具会托管在当前用户工作目录的分类文件夹中。", "DGDemux is the default Blu-ray demux backend, and eac3to is the optional backend. These local tools are managed inside categorized folders under the current user's workspace."),
+                Texts.Pick("蓝光解复用、AviSynth 兼容和音频处理所需的工具，大多需要手动准备。", "This card keeps Blu-ray demux, the AviSynth compatibility chain, and audio tools. Most are manual dependencies."),
+                Texts.Pick("蓝光解复用默认使用 DGDemux，也可选择 eac3to。这些本地工具按类别保存在当前用户的工作目录中。", "DGDemux is the default Blu-ray demux backend, and eac3to is the optional backend. These local tools are managed inside categorized folders under the current user's workspace."),
                 [
                     BuildSetupDependencyItem(SetupDependencyKind.Avs2PipeMod),
                     BuildSetupDependencyItem(SetupDependencyKind.DgDemux),
@@ -1307,7 +1307,7 @@ public sealed class SetupGuideViewModel : ObservableObject, ISetupDependencyModu
             SetupDependencyKind.Avs2PipeMod => Texts.Pick("AviSynth 输入桥接工具。", "Bridge tool for AviSynth input."),
             SetupDependencyKind.DgDemux => Texts.Pick("蓝光播放列表扫描与解复用默认后端。", "Default backend for Blu-ray playlist scanning and demux."),
             SetupDependencyKind.Eac3To => Texts.Pick("音频扫描与 FLAC 转换。", "Audio scanning and FLAC conversion."),
-            SetupDependencyKind.Deew => Texts.Pick("需要 deew ≥5.1.0，位于用户可写便携目录。把完整 DEE ≥6.7.0 工具集放在实际 deew.exe 相邻的 dee 文件夹（或 PATH 标准文件名）；Atmos 按格式还需 truehdd / dee_shim。deew -gt 不包含 DEE。", "Requires deew >=5.1.0 in a writable portable directory. Put the complete DEE >=6.7.0 toolset in the dee folder next to the actual deew.exe (or standard filenames on PATH). Atmos may also require truehdd / dee_shim. deew -gt does not include DEE."),
+            SetupDependencyKind.Deew => Texts.Pick("需要 deew ≥5.3.1，请放在用户可写的便携目录中。将完整的 DEE ≥6.7.0 工具集放入实际使用的 deew.exe 旁的 dee 文件夹，或以标准文件名放入 PATH。Atmos 根据格式需要 truehdd / dee_shim；96 kHz TrueHD 也需要 dee_shim。推荐 truehdd ≥0.6.3、dee_shim ≥0.2.0。deew -gt 不包含 DEE。", "Requires deew >=5.3.1 in a writable portable directory. Put the complete DEE >=6.7.0 toolset in the dee folder next to deew.exe (or standard filenames on PATH). Atmos requires format-specific truehdd / dee_shim tools; 96 kHz TrueHD also requires dee_shim. Recommended: truehdd >=0.6.3 and dee_shim >=0.2.0. deew -gt does not include DEE."),
             SetupDependencyKind.Dee => Texts.Pick("DEE 6.7 工具集由 deew 目录托管；旧 dee.exe 不适用于 3.0。", "The DEE 6.7 toolset is managed in the deew directory; legacy dee.exe is not used by 3.0."),
             SetupDependencyKind.OpusExt => Texts.Pick("Opus 命令行编码器。", "Command-line Opus encoder."),
             _ => string.Empty
@@ -1327,7 +1327,7 @@ public sealed class SetupGuideViewModel : ObservableObject, ISetupDependencyModu
                 Texts.Pick("未检测到 vsrepo。", "vsrepo was not detected.")),
             SetupDependencyKind.VsPluginBundle => BuildPythonDependentStatusText(status,
                 Texts.Pick("必需的 VS 插件包已基本齐备。", "The required VS plugin bundle is basically ready."),
-                Texts.Pick("这一步不是可选项，安装 Python 和 VapourSynth 后还必须继续补齐。", "This is required, not optional. You still need to complete it after Python and VapourSynth.")),
+                Texts.Pick("安装 Python 和 VapourSynth 后，还必须安装所需的 VS 插件。", "This is required, not optional. You still need to complete it after Python and VapourSynth.")),
             SetupDependencyKind.Awsmfunc => BuildPythonDependentStatusText(status,
                 Texts.Pick("已检测到 awsmfunc。", "awsmfunc was detected."),
                 Texts.Pick("未检测到 awsmfunc。", "awsmfunc was not detected.")),
@@ -1350,7 +1350,7 @@ public sealed class SetupGuideViewModel : ObservableObject, ISetupDependencyModu
         if (status.State == ReadinessState.Ready)
         {
             return Texts.Pick(
-                "已检测到受支持的 Python x64，可继续安装 VapourSynth 和后续 Python 侧依赖。",
+                "已检测到受支持的 Python x64，可继续安装 VapourSynth 和其他 Python 依赖。",
                 "A supported Python x64 runtime was detected. You can continue with VapourSynth and the remaining Python-side dependencies.");
         }
 
@@ -1449,7 +1449,7 @@ public sealed class SetupGuideViewModel : ObservableObject, ISetupDependencyModu
                 or SetupDependencyKind.Vsjetpack)
         {
             warnings.Add(Texts.Pick(
-                "自动安装按钮已保留，但需要先准备 Python 3.12 x64 或更新的 x64 版本。",
+                "请先准备 Python 3.12 x64 或更新的 x64 版本，再使用自动安装。",
                 "The install button is kept visible, but Python 3.12 x64 or a newer x64 version must be ready first."));
         }
         else if (status.IsInstallSupported && !status.IsInstallEnabled)

@@ -29,13 +29,13 @@ public sealed class AppText
         "扫描蓝光目录，选择播放列表与轨道，导出视频、音频和字幕。",
         "Scan a Blu-ray folder, choose a playlist and tracks, then export video, audio, and subtitles.");
     public string DashboardVapourSynthCardDescription => Pick(
-        "VapourSynth脚本编辑与预览",
+        "编辑和预览 VapourSynth 脚本。",
         "VapourSynth script editing and preview");
     public string DashboardVideoEncodeCardDescription => Pick(
         "配置输入输出、编码参数和任务队列，处理常规视频压制任务。",
         "Configure source, output, encoding parameters, and the job queue for standard video encode tasks.");
     public string DashboardTemplatesCardDescription => Pick(
-        "管理工作目录中的模板文件，沉淀常用参数并快速复用。",
+        "管理工作目录中的模板，保存和复用常用参数。",
         "Manage template files in the workspace folder so common parameter sets can be reused quickly.");
     public string DashboardAudioTranscodeCardDescription => Pick(
         "独立处理 FLAC、DDP、Opus 等音频转码流程。",
@@ -88,7 +88,7 @@ public sealed class AppText
     public string UhdArgumentsPlaceholder => Pick(
         "例如：--master-display \"G(13250,34500)B(7500,3000)R(34000,16000)WP(15635,16450)L(10000000,1)\"",
         "Example: --master-display \"G(13250,34500)B(7500,3000)R(34000,16000)WP(15635,16450)L(10000000,1)\"");
-    public string ImportHdrButton => Pick("导入HDR", "Import HDR");
+    public string ImportHdrButton => Pick("导入 HDR", "Import HDR");
     public string ImportHdrToolTip => Pick("从 BDInfo / MediaInfo 文本解析 HDR 参数", "Parse HDR arguments from BDInfo / MediaInfo text");
     public string ImportHdrDialogTitle => Pick("导入 HDR 信息", "Import HDR Information");
     public string ImportHdrDialogDescription => Pick("粘贴 BDInfo 或 MediaInfo 的 HDR 相关文本。", "Paste the HDR-related text from BDInfo or MediaInfo.");
@@ -126,22 +126,22 @@ public sealed class AppText
     public string EmptyQueue => Pick("暂无任务", "No Jobs");
     public string AutoCompressionTitle => Pick("自动压制", "Auto Encode");
     public string AutoCompressionDescription => Pick(
-        "基于 Av1an 后端执行目标质量自动压制。默认使用 VMAF，并将逐步支持按后端能力展示更多目标指标、探测策略和执行计划。",
+        "使用 Av1an 按目标质量自动压制，默认指标为 VMAF。后续将根据后端能力逐步提供更多指标、探测策略和执行计划。",
         "Run target-quality auto encode through the Av1an backend. VMAF remains the default metric, and the UI will progressively expose more backend-driven metrics, probing options, and execution-plan details.");
     public string AudioProcessingTitle => Pick("音频转码", "Audio Transcode");
     public string AudioProcessingDescription => Pick(
-        "独立音频工作流页。用户手动选择转码器后直接执行：eac3to 可输出 FLAC 或 AC3，并支持 -down16 / -mono；deew 用于 DDP；Opus 默认使用 ffmpeg + opusenc，码率由用户在下拉框中手动选择，也可切换到 FFmpeg libopus 并追加 -mapping_family 1。",
+        "选择转码器后即可处理音频。eac3to 可输出 FLAC 或 AC3，支持 -down16 / -mono；deew 用于 DDP。Opus 默认使用 ffmpeg + opusenc，请在下拉框中选择码率；也可切换到 FFmpeg libopus 并追加 -mapping_family 1。",
         "Dedicated audio workflow page. The app executes the encoder you choose directly: eac3to can output FLAC or AC3 with optional -down16 / -mono, deew handles DDP, and Opus uses ffmpeg plus opusenc by default with a user-selected bitrate, with an optional FFmpeg libopus mode that adds -mapping_family 1.");
     public string BluRayDemuxTitle => Pick("蓝光解复用", "Blu-ray Demux");
     public string BluRayDemuxDescription => Pick(
-        "独立蓝光解复用页。默认使用 DGDemux，可手动切换为 eac3to。先扫描蓝光目录，再手动选择播放列表和需要导出的轨道。",
+        "先扫描蓝光目录，再选择播放列表和需要导出的轨道。默认使用 DGDemux，也可切换为 eac3to。",
         "Dedicated Blu-ray demux page. DGDemux is the default backend and eac3to is optional. Scan the disc folder first, then choose the playlist and tracks manually.");
     public string BluRayDemuxBackendHeader => Pick("解复用后端", "Backend");
     public string BluRayDemuxScanButton => Pick("扫描蓝光", "Scan Disc");
     public string BluRayPlaylistListTitle => Pick("播放列表", "Playlists");
     public string BluRayTracksTitle => Pick("轨道选择", "Tracks");
     public string BluRaySelectAllTracksButton => Pick("全部勾选", "Select All");
-    public string BluRayInvertTracksButton => Pick("反勾选", "Invert");
+    public string BluRayInvertTracksButton => Pick("反选", "Invert");
     public string BluRayDemuxStartButton => Pick("开始解复用", "Start Demux");
     public string BluRayDemuxCancelButton => Pick("取消解复用", "Cancel Demux");
     public string BluRayDemuxClearButton => Pick("清空任务", "Clear Task");
@@ -174,7 +174,7 @@ public sealed class AppText
     public string AudioProcessingLogPlaceholder => Pick("开始任务后显示实时日志。", "Live log appears after start.");
     public string AudioProcessingProgressActiveLabel => Pick("处理中...", "Working...");
     public string AudioProcessingDdpWarmupHint => Pick("ffmpeg 处理中，请稍后...", "FFmpeg is preparing the source. Please wait...");
-    public string AudioProcessingProgressIndeterminateHint => Pick("当前阶段暂无法稳定计算百分比，任务仍在执行。", "This stage has no reliable percentage yet. The task is still running.");
+    public string AudioProcessingProgressIndeterminateHint => Pick("当前阶段暂时无法准确计算进度，任务仍在运行。", "This stage has no reliable percentage yet. The task is still running.");
     public string AutoCompressionMetricHeader => "Target Metric";
     public string BluRayDemuxScanStepTitle => Pick("1. 扫描与播放列表", "1. Scan and playlists");
     public string BluRayDemuxExportStepTitle => Pick("2. 选择轨道与导出", "2. Choose tracks and export");
@@ -264,7 +264,7 @@ public sealed class AppText
     public string VapourSynthEditorLoadingStatus => Pick("正在初始化 VapourSynth 编辑器...", "Initializing the VapourSynth editor...");
     public string VapourSynthEditorReadyStatus => Pick("编辑器已就绪。", "Editor ready.");
     public string VapourSynthEditorRetryButton => Pick("重试编辑器", "Retry Editor");
-    public string VapourSynthNewDocumentStatus => Pick("已创建新的脚本缓冲区。", "Created a new script buffer.");
+    public string VapourSynthNewDocumentStatus => Pick("已新建脚本。", "Created a new script buffer.");
     public string VapourSynthOpenedStatus(string filePath) =>
         IsChinese ? $"已打开脚本：{filePath}" : $"Opened script: {filePath}";
     public string VapourSynthSavedStatus(string filePath) =>
@@ -293,10 +293,10 @@ public sealed class AppText
     public string VapourSynthUnsavedChangesMessage => Pick("当前脚本有未保存的修改。是否先保存再继续？", "The current script has unsaved changes. Save before continuing?");
     public string VapourSynthPreviewWindowTitle(string documentName) =>
         IsChinese ? $"{documentName} - 预览" : $"{documentName} - Preview";
-    public string VapourSynthPreviewIdleStatus => Pick("预览窗口待命。", "Preview is idle.");
+    public string VapourSynthPreviewIdleStatus => Pick("等待预览。", "Preview is idle.");
     public string VapourSynthPreviewUnknownTime => "--:--.---";
     public string VapourSynthPreviewFramePropsPlaceholder => Pick(
-        "当前还没有帧属性。载入脚本并渲染帧后，这里会显示对应的 Frame Props。",
+        "载入脚本并渲染一帧后，这里会显示帧属性（Frame Props）。",
         "Frame props are not available yet. Render a frame to inspect its metadata here.");
     public string VapourSynthPreviewFramePropsEmpty => Pick(
         "当前帧没有可显示的属性。",
@@ -325,7 +325,7 @@ public sealed class AppText
     public string VapourSynthPreviewExitButton => Pick("退出预览", "Exit Preview");
     public string VapourSynthPreviewFramePropsPaneTitle => Pick("Frame Props", "Frame Props");
     public string VapourSynthPreviewSaveFrameButton => Pick("保存帧", "Save Frame");
-    public string VapourSynthPreviewSaveAllFramesButton => Pick("保存所有输出同帧", "Save All Outputs");
+    public string VapourSynthPreviewSaveAllFramesButton => Pick("保存所有输出的当前帧", "Save All Outputs");
     public string VapourSynthPreviewCopyFrameButton => Pick("复制帧", "Copy Frame");
     public string VapourSynthPreviewInsertFrameButton => Pick("插入帧号", "Insert Frame");
     public string VapourSynthPreviewAdvancedSettingsButton => Pick("高级设置", "Advanced");
@@ -410,9 +410,9 @@ public sealed class AppText
     public string VapourSynthPreviewAdvancedSettingsFailedStatus(string detail) =>
         IsChinese ? $"打开预览高级设置失败：{detail}" : $"Opening preview advanced settings failed: {detail}";
     public string VapourSynthPreviewEvaluatingStatus(string documentName) =>
-        IsChinese ? $"正在求值脚本：{documentName}" : $"Evaluating script: {documentName}";
+        IsChinese ? $"正在运行脚本：{documentName}" : $"Evaluating script: {documentName}";
     public string VapourSynthPreviewSessionReadyStatus => Pick(
-        "脚本已求值，可以开始预览。",
+        "脚本运行成功，可以开始预览。",
         "The script is ready for preview.");
     public string VapourSynthPreviewOpenedStatus(string documentName) =>
         IsChinese ? $"预览已打开：{documentName}" : $"Preview opened: {documentName}";
@@ -427,7 +427,7 @@ public sealed class AppText
     public string VapourSynthPreviewRenderFailedStatus(string detail) =>
         IsChinese ? $"预览失败：{detail}" : $"Preview failed: {detail}";
     public string VapourSynthPreviewEvaluationFailedStatus => Pick(
-        "脚本求值失败，预览未打开。详见下方日志。",
+        "脚本运行失败，未打开预览。详细错误请查看下方日志。",
         "Script evaluation failed. Preview was not opened. See the log below.");
     public string VapourSynthEncodePreparationFailedStatus => Pick(
         "压制准备失败。详见下方日志。",
@@ -460,7 +460,7 @@ public sealed class AppText
     public string VapourSynthEditorAssetsMissingStatus(string assetPath) =>
         IsChinese ? $"未找到编辑器前端资源：{assetPath}" : $"Editor frontend assets were not found: {assetPath}";
     public string VapourSynthEditorLoadFailedStatus(string detail) =>
-        IsChinese ? $"编辑器宿主初始化失败：{detail}" : $"Failed to initialize the editor host: {detail}";
+        IsChinese ? $"编辑器初始化失败：{detail}" : $"Failed to initialize the editor host: {detail}";
     public string VapourSynthEditorBridgeFailedStatus(string detail) =>
         IsChinese ? $"编辑器桥接异常：{detail}" : $"Editor bridge error: {detail}";
     public string VapourSynthLanguageRuntimeUnavailableStatus(string detail) =>
@@ -497,7 +497,7 @@ public sealed class AppText
     public string ToolDirectoryButton => Pick("工作目录", "Workspace Folder");
     public string WorkspaceDirectoryHeader => Pick("工作目录", "Workspace Folder");
     public string WorkspaceDirectoryDescription => Pick(
-        "大体积运行内容会落到这里，包括 downloads、tools、encoders，以及 Templates 模板目录。轻量设置、日志和首启引导缓存仍保留在 %LocalAppData%\\FlowEncode\\data。",
+        "下载文件、工具、编码器和模板分别保存在 downloads、tools、encoders 和 Templates 目录。设置、日志和首启引导缓存仍保存在 %LocalAppData%\\FlowEncode\\data。",
         "Large runtime content lives here, including downloads, tools, encoders, and the Templates folder. Lightweight settings, logs, and setup-guide cache stay under %LocalAppData%\\FlowEncode\\data.");
     public string WorkspaceDirectoryRestartHint => Pick(
         "修改工作目录后会立即切换，后续下载和托管依赖将使用新目录。",
@@ -505,7 +505,7 @@ public sealed class AppText
     public string SetupGuideButton => Pick("首启引导", "Setup Guide");
     public string SetupGuideTitle => Pick("首次启动环境引导", "First-run Environment Guide");
     public string SetupGuideDescription => Pick(
-        "按 Python -> VapourSynth -> 插件/运行时 -> 编码器与命令行工具 的顺序检查。安装 Python 和 VapourSynth 后，还必须继续安装指定的 VS 插件和 Python 包。引导层不是普通页面，后续可在设置里随时重新打开。",
+        "请依次检查 Python -> VapourSynth -> 插件/运行时 -> 编码器与命令行工具。安装 Python 和 VapourSynth 后，还需安装指定的 VS 插件和 Python 包。引导会覆盖在当前页面上，之后可随时从设置中重新打开。",
         "Check readiness in this order: Python -> VapourSynth -> plugins/runtime -> encoders and CLI tools. Installing Python and VapourSynth is still not enough by itself; the required VS packages and Python modules must also be installed. This guide is an overlay, not a normal page, and can be reopened from Settings.");
     public string SetupGuideSwipeHint => Pick("可左右滑动浏览卡片，也可以使用左右按钮切换。", "Swipe left or right to browse cards, or use the navigation buttons.");
     public string SetupGuideRefreshButton => Pick("重新检测", "Recheck");
@@ -533,7 +533,7 @@ public sealed class AppText
             : $"Recommended version check: {time.ToLocalTime():yyyy-MM-dd HH:mm:ss}";
     public string SetupGuidePortableSectionTitle => Pick("工作目录布局", "Workspace Layout");
     public string SetupGuidePortableSectionDescription => Pick(
-        "托管工具、下载缓存、编码器和 Templates 模板目录位于工作目录；轻量设置、日志和首启引导缓存仍保留在 %LocalAppData%\\FlowEncode\\data。",
+        "由 FlowEncode 管理的工具、下载缓存、编码器和 Templates 模板目录位于工作目录；设置、日志和首启引导缓存仍保存在 %LocalAppData%\\FlowEncode\\data。",
         "Managed tools, download cache, encoders, and the Templates folder live in the workspace folder, while lightweight settings, logs, and setup-guide cache stay under %LocalAppData%\\FlowEncode\\data.");
     public string AppFolderButton => Pick("工作目录", "Workspace Folder");
     public string EncodersFolderButton => Pick("编码器目录", "Encoders Folder");
@@ -637,7 +637,7 @@ public sealed class AppText
     }
 
     public string NotStarted => Pick("未开始", "Not started");
-    public string QueuePreparing => Pick("环境已准备完成，等待首次刷新。", "Environment ready. Waiting for first refresh.");
+    public string QueuePreparing => Pick("环境已准备好，等待首次刷新。", "Environment ready. Waiting for first refresh.");
     public string AutoCompressionIdleStatus => Pick("等待自动压制任务。", "Waiting for an auto-encode task.");
     public string AudioProcessingIdleStatus => Pick("等待音频处理任务。", "Waiting for an audio task.");
     public string BluRayDemuxIdleStatus => Pick("等待蓝光解复用任务。", "Waiting for a Blu-ray demux task.");
@@ -652,22 +652,22 @@ public sealed class AppText
     public string BluRayPlaylistSummaryPlaceholder => Pick("扫描完成后，手动选择一条播放列表以加载轨道。", "After scanning, choose a playlist manually to load tracks.");
     public string AudioSourceInfoPlaceholder => Pick("选择音频源后，程序会尝试用 FFprobe 自动读取声道、位深和采样率。", "After you choose a source, FFprobe will try to read channel, bit-depth, and sample-rate info automatically.");
     public string AudioSourceInspectingStatus => Pick("正在分析音频源信息。", "Inspecting audio source information.");
-    public string AudioCapabilityPreparing => Pick("正在准备音频工作流依赖状态。", "Preparing audio workflow readiness.");
+    public string AudioCapabilityPreparing => Pick("正在检查音频处理所需的依赖。", "Preparing audio workflow readiness.");
     public string InitialPreviewTitle => Pick("选择一个预设以生成命令预览", "Select a preset to preview the command");
-    public string InitialPreviewNotes => Pick("预览命令会围绕后续的作业队列和滤镜管线展开。", "The preview command reflects the queue workflow and filter pipeline.");
+    public string InitialPreviewNotes => Pick("命令预览会显示任务队列和滤镜管线使用的命令。", "The preview command reflects the queue workflow and filter pipeline.");
     public string NoProfileSelectedCaption => Pick("尚未选择预设", "No preset selected");
     public string SuggestedOutputName => "flowencode_output";
     public string DraftSuffix => Pick("草稿", "Draft");
     public string ManualDraftCaption => Pick("当前草稿 · 手动配置", "Current Draft · Manual");
     public string NewTemplateCaption => Pick("新建模板", "New Template");
     public string DraftNotReadyTitle => Pick("当前草稿未就绪", "Current draft is not ready");
-    public string DraftNotReadyNotes => Pick("先选择编码器，并完成当前作业的关键参数。", "Select an encoder and finish the key parameters for this job first.");
-    public string SelectJobForCommandText => Pick("从任务列表中选择一个作业后，这里会显示实际执行命令。", "Select a job to view the actual command.");
-    public string SelectJobForLogText => Pick("从任务列表中选择一个作业后，这里会显示关键编码日志。", "Select a job to view the key encoding log.");
+    public string DraftNotReadyNotes => Pick("请先选择编码器，并填写当前任务的必要参数。", "Select an encoder and finish the key parameters for this job first.");
+    public string SelectJobForCommandText => Pick("选择一个任务，查看实际执行命令。", "Select a job to view the actual command.");
+    public string SelectJobForLogText => Pick("选择一个任务，查看关键编码日志。", "Select a job to view the key encoding log.");
     public string NoSelectedJobLogText => Pick("当前还没有可显示的关键日志。", "No key log is available yet.");
-    public string SelectedJobSummaryPlaceholder => Pick("从队列中选择一个作业后，这里会显示完整命令和实时日志。", "Select a job from the queue to view the full command and live log.");
-    public string EnvironmentStatePreparing => Pick("正在准备环境能力状态。", "Preparing environment readiness.");
-    public string NoQueueJobs => Pick("暂无编码作业。", "No encoding jobs.");
+    public string SelectedJobSummaryPlaceholder => Pick("从队列中选择一个任务，查看完整命令和实时日志。", "Select a job from the queue to view the full command and live log.");
+    public string EnvironmentStatePreparing => Pick("正在检查运行环境。", "Preparing environment readiness.");
+    public string NoQueueJobs => Pick("暂无编码任务。", "No encoding jobs.");
     public string InitializationStatus => Pick("开发环境验证通过，已切换到 WinUI 3 开发流。", "Environment verified. WinUI 3 workflow is ready.");
     public string SettingsSavedStatus => Pick("设置已保存。", "Settings saved.");
     public string WorkspaceDirectoryPreparingStatus => Pick("正在准备新的工作目录...", "Preparing the new workspace folder...");
@@ -968,7 +968,7 @@ public sealed class AppText
 
     public string AudioProcessingTelemetrySummary(AudioProcessingTelemetry telemetry)
     {
-        if (telemetry.DeewDbSource.HasValue || telemetry.DeewDb.HasValue)
+        if (telemetry.DeewDbSource.HasValue || telemetry.DeewDb.HasValue || telemetry.LoudnessMetrics is not null)
         {
             var parts = new System.Collections.Generic.List<string>();
             if (telemetry.Remaining.HasValue)
@@ -985,6 +985,15 @@ public sealed class AppText
                     _ => Pick("dB（来源未知）", "dB (unknown source)")
                 };
                 parts.Add($"{label}: {telemetry.DeewDb:0.##} dB");
+            }
+            if (telemetry.LoudnessMetrics is { } metrics)
+            {
+                if (metrics.Gating is "dialogue" or "level") parts.Add(metrics.Gating == "dialogue"
+                    ? Pick("对白门控", "Dialogue-gated") : Pick("电平门控", "Level-gated"));
+                if (metrics.SpeechPercent.HasValue) parts.Add(Pick($"对白占比 {metrics.SpeechPercent:0.#}%", $"Speech {metrics.SpeechPercent:0.#}%"));
+                if (metrics.ProgramLoudnessLkfs.HasValue) parts.Add(Pick($"节目响度 {metrics.ProgramLoudnessLkfs:0.#} LKFS", $"Program loudness {metrics.ProgramLoudnessLkfs:0.#} LKFS"));
+                if (metrics.LoudnessRangeLu.HasValue) parts.Add(Pick($"响度范围 {metrics.LoudnessRangeLu:0.#} LU", $"Loudness range {metrics.LoudnessRangeLu:0.#} LU"));
+                if (metrics.TruePeakDbtp.HasValue) parts.Add(Pick($"真峰值 {metrics.TruePeakDbtp:0.#} dBTP", $"True peak {metrics.TruePeakDbtp:0.#} dBTP"));
             }
             return string.Join(" · ", parts);
         }
@@ -1012,6 +1021,7 @@ public sealed class AppText
     public string DeewBitrateHeader => Pick("码率 (kbps)", "Bitrate (kbps)");
     public string DeewDownmixHeader => Pick("声道混合", "Downmix channels");
     public string DeewLfeHeader => Pick("禁用 LFE", "Disable LFE");
+    public string DeewNoPhaseShiftHeader => Pick("关闭环绕 90° 相移 (-nps)", "No surround phase shift (-nps)");
     public string DeewDelayHeader => Pick("延迟（如 -5ms）", "Delay (e.g. -5ms)");
     public string DeewTrackHeader => Pick("音轨索引（从 0 开始）", "Track index (zero-based)");
     public string DeewAdvancedHeader => Pick("高级参数", "Advanced parameters");
@@ -1022,21 +1032,21 @@ public sealed class AppText
     public string DeewAdditionalHeader => Pick("额外编码参数（覆盖面板值）", "Additional encoding arguments (override panel values)");
     public string DeewTempHeader => Pick("临时目录模式", "Temporary directory mode");
     public string DeewTempRootHeader => Pick("自定义临时根目录", "Custom temporary root");
-    public string DeewOutputHint => Pick("预览 -o 为最终目录；运行时先写任务暂存目录，验收后迁移媒体。", "Preview -o shows the final directory. Execution stages and validates media before publishing.");
-    public string DeewResultHeader => Pick("本次媒体、日志与保留文件", "Media, logs and retained files from this job");
+    public string DeewOutputHint => Pick("命令预览中的 -o 指向最终输出目录。运行时先写入任务暂存目录，检查通过后再移入最终目录。", "Preview -o shows the final directory. Execution stages and validates media before publishing.");
+    public string DeewResultHeader => Pick("本次响度、媒体、日志与保留文件", "Loudness, media, logs and retained files from this job");
     public string DeewOpenMedia => Pick("打开媒体", "Open media");
     public string DeewOpenLogs => Pick("打开日志", "Open logs");
     public string DeewOpenRetained => Pick("打开保留目录", "Open retained folder");
     public string PinExternalToolButton => Pick("固定外部工具…", "Pin external tool…");
     public string ToolGuidePageButton => Pick("工具主页 / 安装指引", "Tool website / setup guide");
     public string McpConnectionHelpHeader => Pick("MCP 连接设置", "MCP connection settings");
-    public string McpConnectionHelpTooltip => Pick("MCP 连接设置：点击查看连接说明，并一键复制客户端配置。", "MCP connection settings: view instructions and copy the client configuration.");
+    public string McpConnectionHelpTooltip => Pick("查看 MCP 连接说明并复制客户端配置。", "MCP connection settings: view instructions and copy the client configuration.");
     public string McpCopyConfigButton => Pick("复制连接配置", "Copy connection configuration");
     public string McpConfigCopied => Pick("已复制", "Copied");
     public string McpConfigCopyFailed => Pick("复制失败，请选中上方配置手动复制。", "Could not copy. Select the configuration above and copy it manually.");
     public string McpConnectionConfigHeader => Pick("AI 客户端连接配置", "AI client connection configuration");
     public string McpEnableHeader => Pick("允许本机 MCP 自动化", "Enable local MCP automation");
-    public string McpConnectionHint => Pick("开启后，同一 Windows 用户的 AI 客户端可提交和取消编码任务。将下方配置加入客户端；关闭开关不会中断已接受任务。", "When enabled, AI clients running as the same Windows user can submit and cancel tasks. Add the configuration below to your client. Disabling this switch leaves accepted tasks running.");
+    public string McpConnectionHint => Pick("开启后，以同一 Windows 用户身份运行的 AI 客户端可提交和取消编码任务。请将下方配置加入客户端。关闭开关后，已接收的任务仍会继续执行。", "When enabled, AI clients running as the same Windows user can submit and cancel tasks. Add the configuration below to your client. Disabling this switch leaves accepted tasks running.");
     public string JobStateLabel(EncodingJobState state) => state switch
     {
         EncodingJobState.Queued => Pick("排队中", "Queued"), EncodingJobState.Running => Pick("处理中", "Running"),
@@ -1140,16 +1150,16 @@ public sealed class AppText
         if (sourceInfo?.HasStereoOrGreaterChannels() == true && sourceInfo.IsLossless())
         {
             return Pick(
-                "当前源已识别为 2.0 及以上无损音频；若你要用 deew，这类输入通常更合适。",
+                "当前音频已识别为 2.0 及以上无损音频，通常适合使用 deew 处理。",
                 "This source was identified as lossless 2.0+ audio. If you want to use deew, this kind of input is usually a better fit.");
         }
 
         return profile switch
         {
-            AudioChannelProfile.Mono => Pick("当前源偏向 1.0；你可以按需要手动选择 eac3to、deew 或 opus。", "This source looks mono. Choose eac3to, deew, or opus manually based on your target."),
-            AudioChannelProfile.Stereo => Pick("当前源偏向 2.0；如果你准备使用 deew，通常更适合无损输入。", "This source looks stereo. If you plan to use deew, lossless input is usually the better fit."),
-            AudioChannelProfile.Surround51 or AudioChannelProfile.Surround71 => Pick("当前源偏向多声道；你可以按需要手动选择 eac3to、deew 或 opus。", "This source looks multichannel. Choose eac3to, deew, or opus manually based on your target."),
-            _ => Pick("若未能自动识别声道或编码格式，请手动确认后自行选择工作流。", "If channel or codec detection is uncertain, confirm it manually and choose the workflow yourself.")
+            AudioChannelProfile.Mono => Pick("当前音频可能为 1.0 声道，可按需要选择 eac3to、deew 或 opus。", "This source looks mono. Choose eac3to, deew, or opus manually based on your target."),
+            AudioChannelProfile.Stereo => Pick("当前音频可能为 2.0 声道。使用 deew 时，通常更适合选择无损输入。", "This source looks stereo. If you plan to use deew, lossless input is usually the better fit."),
+            AudioChannelProfile.Surround51 or AudioChannelProfile.Surround71 => Pick("当前音频可能为多声道，可按需要选择 eac3to、deew 或 opus。", "This source looks multichannel. Choose eac3to, deew, or opus manually based on your target."),
+            _ => Pick("若无法自动识别声道或编码格式，请手动确认，再选择处理方式。", "If channel or codec detection is uncertain, confirm it manually and choose the workflow yourself.")
         };
     }
 
@@ -1163,7 +1173,7 @@ public sealed class AppText
             ? $"{workflowLabel} 依赖未就绪：{detail}"
             : $"{workflowLabel} dependencies are not ready: {detail}";
 
-    public string BluRayToolPreparing => Pick("正在准备蓝光解复用工具状态。", "Preparing Blu-ray demux tool readiness.");
+    public string BluRayToolPreparing => Pick("正在检查蓝光解复用工具。", "Preparing Blu-ray demux tool readiness.");
 
     public string BluRayToolReadySummary(string backendLabel, string detail) =>
         IsChinese
@@ -1598,7 +1608,7 @@ public sealed class AppText
     public string SourceFileMissingError => Pick("未找到源文件。", "The source file was not found.");
     public string SourceOutputPathConflictError => Pick("输出文件不能与源文件相同。请更换输出目录或输出格式。", "The output file must be different from the source. Choose another output folder or output format.");
     public string Av1anParallelRequiresCrfError => Pick(
-        "Av1an 分块并行模式第一版仅支持 CRF。请切换到 CRF，或关闭该模式。",
+        "Av1an 分块并行模式目前仅支持 CRF。请切换到 CRF，或关闭该模式。",
         "Av1an chunked parallel mode currently supports CRF only. Switch to CRF or turn the mode off.");
     public string Av1anParallelForbiddenArgumentError(string argument) =>
         IsChinese
@@ -1637,7 +1647,7 @@ public sealed class AppText
             : $"{workflowLabel} currently supports only {allowedProfiles}. Choose the channel layout manually if detection is unavailable.";
     public string AudioDirectSourceUnsupportedError(string workflowLabel) =>
         IsChinese
-            ? $"{workflowLabel} 当前只接入直接音频源或单音轨容器，暂不处理 .mkv / .mp4 / .m2ts 这类多音轨视频容器。"
+            ? $"{workflowLabel} 当前仅支持音频文件或单音轨容器，暂不处理 .mkv / .mp4 / .m2ts 这类多音轨视频容器。"
             : $"{workflowLabel} currently supports direct audio sources or single-audio containers only, not general multi-track video containers such as .mkv / .mp4 / .m2ts.";
     public string AudioEac3ToOutputFormatMissingError => Pick("请先选择 eac3to 的目标格式。", "Select an eac3to target format first.");
     public string AudioEac3ToArgumentsInvalidError(string invalidArguments) =>
@@ -1708,7 +1718,7 @@ public sealed class AppText
                 "命令预览使用 VapourSynth 管线占位符。实际加入队列后，会自动识别 .avs / .vpy / .mkv / .mp4 / .avi / .flv / .y4m / .yuv。",
                 "The preview uses a VapourSynth placeholder. Real jobs auto-detect .avs / .vpy / .mkv / .mp4 / .avi / .flv / .y4m / .yuv."),
             EncoderKind.X265 => Pick(
-                "x265 使用 y4m 管道输入模型。加入队列后，会自动对 .mkv / .mp4 / .avi / .flv 走 FFmpeg 解码管线，.yuv 则按 raw 输入处理。",
+                "x265 使用 y4m 管道输入。加入队列后，.mkv / .mp4 / .avi / .flv 会通过 FFmpeg 解码，.yuv 按 raw 输入处理。",
                 "x265 uses a y4m pipe input model. Queued jobs route .mkv / .mp4 / .avi / .flv through FFmpeg, while .yuv is treated as raw input."),
             EncoderKind.SvtAv1 => Pick(
                 "当前默认输出 IVF。加入队列后，会自动识别 .avs / .vpy / .mkv / .mp4 / .avi / .flv / .y4m / .yuv。",
