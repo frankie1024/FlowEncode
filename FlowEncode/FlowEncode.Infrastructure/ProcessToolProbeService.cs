@@ -1132,6 +1132,13 @@ public sealed class ProcessToolProbeService : IToolProbeService
 
         if (definition.SearchLocations.HasFlag(ToolSearchLocation.LocalToolsRoot))
         {
+            var package = ManualToolPackage.Find(definition.Kind);
+            if (package?.FindExecutable(package.GetDirectory(_paths.ToolsRootPath)) is { } packageExecutable
+                && seen.Add(packageExecutable))
+            {
+                yield return new ToolCandidate(packageExecutable, ToolDetectionSource.LocalTools, "tools");
+            }
+
             var localRoots = definition.Kind switch
             {
                 RegisteredToolKind.Ffmpeg or RegisteredToolKind.Ffprobe =>
@@ -1211,7 +1218,7 @@ public sealed class ProcessToolProbeService : IToolProbeService
         }
     }
 
-    private static IEnumerable<ToolCandidate> EnumerateManualCandidates(
+    private IEnumerable<ToolCandidate> EnumerateManualCandidates(
         ToolDefinition definition,
         IReadOnlyDictionary<string, string> manualToolPaths)
     {
@@ -1223,6 +1230,13 @@ public sealed class ProcessToolProbeService : IToolProbeService
         var resolved = ExecutablePathResolver.ResolveFromInput(value, definition.ExecutableNames, EnumeratePathRoots());
         if (!string.IsNullOrWhiteSpace(resolved))
         {
+            // Pins to the old managed executable follow a reimport into the package directory.
+            var package = ManualToolPackage.Find(definition.Kind);
+            if (package is not null && package.GetLegacyPaths(_paths.ToolsRootPath).Contains(resolved, StringComparer.OrdinalIgnoreCase))
+            {
+                resolved = package.FindExecutable(package.GetDirectory(_paths.ToolsRootPath)) ?? resolved;
+            }
+
             yield return new ToolCandidate(resolved, ToolDetectionSource.ManualSelection, "manual");
         }
     }

@@ -82,9 +82,9 @@ public sealed class SettingsDependenciesViewModel : ModuleViewModelBase, ISetupD
         return SetupGuide.InstallSetupDependencyAsync(kind, updateBeyondBaseline);
     }
 
-    public Task<string?> ImportSetupDependencyBinaryAsync(SetupDependencyKind kind, string sourcePath)
+    public Task<string?> ImportSetupDependencyAsync(SetupDependencyKind kind, string sourcePath)
     {
-        return SetupGuide.ImportSetupDependencyBinaryAsync(kind, sourcePath);
+        return SetupGuide.ImportSetupDependencyAsync(kind, sourcePath);
     }
 
     public Task<string?> PinSetupDependencyBinaryAsync(SetupDependencyKind kind, string sourcePath)

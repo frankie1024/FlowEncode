@@ -1224,9 +1224,17 @@ public sealed class SetupBootstrapService : ISetupBootstrapService, IDisposable
             cancellationToken.ThrowIfCancellationRequested();
             ReportProgress(progress, kind, 25, "Removing app-managed binaries...");
 
-            foreach (var fileName in GetManualDependencyFileNames(kind))
+            var package = ManualToolPackage.Find(kind)
+                ?? throw new ArgumentOutOfRangeException(nameof(kind), kind, null);
+            var toolsRoot = _paths.ToolsRootPath;
+            var managedDirectory = package.GetDirectory(toolsRoot);
+            if (Directory.Exists(managedDirectory))
             {
-                var path = Path.Combine(_paths.ToolsRootPath, fileName);
+                Directory.Delete(managedDirectory, recursive: true);
+            }
+
+            foreach (var path in package.GetLegacyPaths(toolsRoot))
+            {
                 if (File.Exists(path))
                 {
                     File.Delete(path);
@@ -1526,20 +1534,6 @@ public sealed class SetupBootstrapService : ISetupBootstrapService, IDisposable
         }
 
         return arguments;
-    }
-
-    private static IReadOnlyList<string> GetManualDependencyFileNames(SetupDependencyKind kind)
-    {
-        return kind switch
-        {
-            SetupDependencyKind.Avs2PipeMod => ["avs2pipemod64.exe", "avs2pipemod.exe", "Avs2Pipemod.exe"],
-            SetupDependencyKind.DgDemux => ["DGDemux.exe", "dgdemux.exe"],
-            SetupDependencyKind.Eac3To => ["eac3to.exe", "Eac3to.exe"],
-            SetupDependencyKind.Deew => ["deew.exe", "Deew.exe"],
-            SetupDependencyKind.Dee => ["dee.exe", "DEE.exe", "DolbyEncodingEngine.exe"],
-            SetupDependencyKind.OpusExt => ["opusext.exe", "OpusExt.exe", "opusenc.exe", "OpusEnc.exe"],
-            _ => Array.Empty<string>()
-        };
     }
 
     private static string ExtractVersionFromText(string? value)

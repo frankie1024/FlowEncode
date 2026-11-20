@@ -23,7 +23,7 @@ public interface ISetupDependencyModuleViewModel
 
     Task<string?> InstallSetupDependencyAsync(SetupDependencyKind kind, bool updateBeyondBaseline = false);
 
-    Task<string?> ImportSetupDependencyBinaryAsync(SetupDependencyKind kind, string sourcePath);
+    Task<string?> ImportSetupDependencyAsync(SetupDependencyKind kind, string sourcePath);
 
     Task<string?> PinSetupDependencyBinaryAsync(SetupDependencyKind kind, string sourcePath);
 

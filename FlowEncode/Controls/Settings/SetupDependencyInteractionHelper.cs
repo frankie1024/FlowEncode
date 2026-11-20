@@ -111,13 +111,13 @@ internal static class SetupDependencyInteractionHelper
             string? error;
             if (viewModel.RequiresSetupDependencyManualImport(kind))
             {
-                var filePath = PickExecutableFilePath(viewModel, kind);
-                if (string.IsNullOrWhiteSpace(filePath))
+                var sourcePath = await PickManualImportPathAsync(viewModel, owner, kind, diagnosticSource);
+                if (string.IsNullOrWhiteSpace(sourcePath))
                 {
                     return;
                 }
 
-                error = await viewModel.ImportSetupDependencyBinaryAsync(kind, filePath);
+                error = await viewModel.ImportSetupDependencyAsync(kind, sourcePath);
             }
             else
             {
@@ -317,6 +317,40 @@ internal static class SetupDependencyInteractionHelper
         {
             Debug.WriteLine($"Failed to write setup dependency diagnostic. {ex}");
         }
+    }
+
+    private static async Task<string?> PickManualImportPathAsync(
+        ISetupDependencyModuleViewModel viewModel,
+        FrameworkElement owner,
+        SetupDependencyKind kind,
+        string diagnosticSource)
+    {
+        var texts = viewModel.Texts;
+        var name = viewModel.GetSetupDependencyDisplayName(kind);
+        var dialog = new ContentDialog
+        {
+            XamlRoot = owner.XamlRoot,
+            RequestedTheme = owner.ActualTheme,
+            Title = texts.Pick($"导入 {name}", $"Import {name}"),
+            Content = texts.Pick(
+                "工具带有 DLL 或其他配套文件时，请选择完整的解压目录。独立版工具可直接选择 EXE。",
+                "For tools with DLLs or other required files, select the full extracted folder. For standalone tools, select the EXE."),
+            PrimaryButtonText = texts.Pick("选择文件夹", "Select folder"),
+            SecondaryButtonText = texts.Pick("选择 EXE", "Select EXE"),
+            CloseButtonText = texts.CancelButton,
+            DefaultButton = ContentDialogButton.Primary
+        };
+        var result = await WindowInteractionHelper.ShowContentDialogAsync(dialog, diagnosticSource);
+        return result switch
+        {
+            ContentDialogResult.Primary => WindowInteractionHelper.PickFolderPath(
+                WindowInteractionHelper.GetMainWindowHandle(),
+                texts.Pick($"选择解压后的 {name} 文件夹", $"Select the extracted {name} folder"),
+                viewModel.GetSetupDependencyCurrentPath(kind),
+                useSharedRecentDirectory: false),
+            ContentDialogResult.Secondary => PickExecutableFilePath(viewModel, kind),
+            _ => null
+        };
     }
 
     private static string? PickExecutableFilePath(ISetupDependencyModuleViewModel viewModel, SetupDependencyKind kind)

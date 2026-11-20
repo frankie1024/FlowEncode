@@ -398,12 +398,7 @@ public sealed class SetupGuideViewModel : ObservableObject, ISetupDependencyModu
 
     public bool RequiresSetupDependencyManualImport(SetupDependencyKind kind)
     {
-        return kind is SetupDependencyKind.Avs2PipeMod
-            or SetupDependencyKind.DgDemux
-            or SetupDependencyKind.Eac3To
-            or SetupDependencyKind.Deew
-            or SetupDependencyKind.Dee
-            or SetupDependencyKind.OpusExt;
+        return ManualToolPackage.Find(kind) is not null;
     }
 
     public bool CanManuallySelectSetupDependency(SetupDependencyKind kind)
@@ -546,10 +541,11 @@ public sealed class SetupGuideViewModel : ObservableObject, ISetupDependencyModu
         return null;
     }
 
-    public async Task<string?> ImportSetupDependencyBinaryAsync(SetupDependencyKind kind, string sourcePath)
+    public async Task<string?> ImportSetupDependencyAsync(SetupDependencyKind kind, string sourcePath)
     {
         var selectedCardIndex = SelectedSetupGuideCardIndex;
-        if (!RequiresSetupDependencyManualImport(kind))
+        var package = ManualToolPackage.Find(kind);
+        if (package is null)
         {
             return Texts.Pick("当前依赖不支持本地导入。", "This dependency does not support local import.");
         }
@@ -573,9 +569,11 @@ public sealed class SetupGuideViewModel : ObservableObject, ISetupDependencyModu
 
         try
         {
-            item.ReportProgress(new SetupInstallProgress(kind, 15, Texts.Pick("正在导入本地文件...", "Importing local file..."), false));
-            await CopySetupDependencyBinaryAsync(kind, sourcePath);
-            item.ReportProgress(new SetupInstallProgress(kind, 100, Texts.Pick("本地文件已导入。", "Local file imported."), false));
+            item.ReportProgress(new SetupInstallProgress(kind, 15, Texts.Pick("正在导入本地工具…", "Importing local tool…"), false));
+            var toolsRoot = _appPaths.ToolsRootPath;
+            await Task.Run(() => package.Import(sourcePath, toolsRoot));
+
+            item.ReportProgress(new SetupInstallProgress(kind, 100, Texts.Pick("本地工具已导入。", "Local tool imported."), false));
 
             _host.InvalidateToolProbeCache();
             await _host.RefreshAsync(Texts.SetupDependencyImportedStatus(item.Title), includeUpdates: false);
@@ -1112,9 +1110,9 @@ public sealed class SetupGuideViewModel : ObservableObject, ISetupDependencyModu
             status.ExecutablePath,
             status.ReleaseUrl,
             primaryActionText,
-            ShouldShowSetupPrimaryAction(status, isInstalled, hasUpdateAvailable),
+            RequiresSetupDependencyManualImport(kind) || ShouldShowSetupPrimaryAction(status, isInstalled, hasUpdateAvailable),
             IsSetupPrimaryActionEnabled(kind, status, isInstalled),
-            isInstalled,
+            isInstalled || canUninstall,
             canUninstall,
             CanManuallySelectSetupDependency(kind),
             isManualPinned,
@@ -1655,6 +1653,12 @@ public sealed class SetupGuideViewModel : ObservableObject, ISetupDependencyModu
         SetupDependencyStatus status,
         bool isInstalled)
     {
+        if (ManualToolPackage.Find(kind) is { } package)
+        {
+            var toolsRoot = _appPaths.ToolsRootPath;
+            return Directory.Exists(package.GetDirectory(toolsRoot)) || package.GetLegacyPaths(toolsRoot).Any(File.Exists);
+        }
+
         if (!isInstalled)
         {
             return false;
@@ -1673,12 +1677,6 @@ public sealed class SetupGuideViewModel : ObservableObject, ISetupDependencyModu
             SetupDependencyKind.SvtAv1 => HasManagedEncoderBinary(EncoderKind.SvtAv1),
             SetupDependencyKind.FfmpegBundle => HasManagedToolBinary(ExternalToolKind.Ffmpeg),
             SetupDependencyKind.Av1an => HasManagedToolBinary(ExternalToolKind.Av1an),
-            SetupDependencyKind.Avs2PipeMod or
-            SetupDependencyKind.DgDemux or
-            SetupDependencyKind.Eac3To or
-            SetupDependencyKind.Deew or
-            SetupDependencyKind.Dee or
-            SetupDependencyKind.OpusExt => GetManualSetupDependencyManagedPaths(kind).Any(File.Exists),
             _ => IsPathInsideAppRoot(status.ExecutablePath)
         };
     }
@@ -1690,12 +1688,7 @@ public sealed class SetupGuideViewModel : ObservableObject, ISetupDependencyModu
             or SetupDependencyKind.X265
             or SetupDependencyKind.SvtAv1
             or SetupDependencyKind.Av1an
-            or SetupDependencyKind.Avs2PipeMod
-            or SetupDependencyKind.DgDemux
-            or SetupDependencyKind.Eac3To
-            or SetupDependencyKind.Deew
-            or SetupDependencyKind.Dee
-            or SetupDependencyKind.OpusExt;
+            || RequiresSetupDependencyManualImport(kind);
     }
 
     private bool HasManagedToolBinary(ExternalToolKind kind)
@@ -1774,78 +1767,6 @@ public sealed class SetupGuideViewModel : ObservableObject, ISetupDependencyModu
         return int.TryParse(value[..separatorIndex], out var count)
             ? count
             : 0;
-    }
-
-    private async Task CopySetupDependencyBinaryAsync(SetupDependencyKind kind, string sourcePath)
-    {
-        if (string.IsNullOrWhiteSpace(sourcePath))
-        {
-            throw new ArgumentException("Source path is required.", nameof(sourcePath));
-        }
-
-        if (!File.Exists(sourcePath))
-        {
-            throw new FileNotFoundException("The selected dependency binary was not found.", sourcePath);
-        }
-
-        var targetPath = GetManualSetupDependencyTargetPath(kind);
-        await ManagedFileInstaller.ReplaceFileAsync(sourcePath, targetPath);
-    }
-
-    private string GetManualSetupDependencyTargetPath(SetupDependencyKind kind)
-    {
-        return kind switch
-        {
-            SetupDependencyKind.Avs2PipeMod => Path.Combine(_appPaths.ToolsRootPath, "avs2pipemod64.exe"),
-            SetupDependencyKind.DgDemux => Path.Combine(_appPaths.ToolsRootPath, "DGDemux.exe"),
-            SetupDependencyKind.Eac3To => Path.Combine(_appPaths.ToolsRootPath, "eac3to.exe"),
-            SetupDependencyKind.Deew => Path.Combine(_appPaths.ToolsRootPath, "deew.exe"),
-            SetupDependencyKind.Dee => Path.Combine(_appPaths.ToolsRootPath, "dee.exe"),
-            SetupDependencyKind.OpusExt => Path.Combine(_appPaths.ToolsRootPath, "opusext.exe"),
-            _ => throw new InvalidOperationException("This dependency does not use manual file import.")
-        };
-    }
-
-    private IEnumerable<string> GetManualSetupDependencyManagedPaths(SetupDependencyKind kind)
-    {
-        return kind switch
-        {
-            SetupDependencyKind.Avs2PipeMod => new[]
-            {
-                Path.Combine(_appPaths.ToolsRootPath, "avs2pipemod64.exe"),
-                Path.Combine(_appPaths.ToolsRootPath, "avs2pipemod.exe"),
-                Path.Combine(_appPaths.ToolsRootPath, "Avs2Pipemod.exe")
-            },
-            SetupDependencyKind.DgDemux => new[]
-            {
-                Path.Combine(_appPaths.ToolsRootPath, "DGDemux.exe"),
-                Path.Combine(_appPaths.ToolsRootPath, "dgdemux.exe")
-            },
-            SetupDependencyKind.Eac3To => new[]
-            {
-                Path.Combine(_appPaths.ToolsRootPath, "eac3to.exe"),
-                Path.Combine(_appPaths.ToolsRootPath, "Eac3to.exe")
-            },
-            SetupDependencyKind.Deew => new[]
-            {
-                Path.Combine(_appPaths.ToolsRootPath, "deew.exe"),
-                Path.Combine(_appPaths.ToolsRootPath, "Deew.exe")
-            },
-            SetupDependencyKind.Dee => new[]
-            {
-                Path.Combine(_appPaths.ToolsRootPath, "dee.exe"),
-                Path.Combine(_appPaths.ToolsRootPath, "DEE.exe"),
-                Path.Combine(_appPaths.ToolsRootPath, "DolbyEncodingEngine.exe")
-            },
-            SetupDependencyKind.OpusExt => new[]
-            {
-                Path.Combine(_appPaths.ToolsRootPath, "opusext.exe"),
-                Path.Combine(_appPaths.ToolsRootPath, "OpusExt.exe"),
-                Path.Combine(_appPaths.ToolsRootPath, "opusenc.exe"),
-                Path.Combine(_appPaths.ToolsRootPath, "OpusEnc.exe")
-            },
-            _ => Array.Empty<string>()
-        };
     }
 
     private IReadOnlyList<string> GetManualPathKeys(SetupDependencyKind kind)

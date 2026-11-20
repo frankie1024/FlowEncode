@@ -7,18 +7,27 @@ internal static class ManagedDirectoryInstaller
     public static void ReplaceDirectoryContents(
         string sourceDirectory,
         string targetDirectory,
-        Action<string>? prepareStagedDirectory = null)
+        Action<string>? prepareStagedDirectory = null,
+        bool skipReparsePoints = false)
     {
         if (!Directory.Exists(sourceDirectory))
         {
             throw new DirectoryNotFoundException($"Source directory was not found: {sourceDirectory}");
         }
 
+        ReplaceDirectory(targetDirectory, stagingDirectory =>
+        {
+            CopyDirectoryContents(sourceDirectory, stagingDirectory, skipReparsePoints);
+            prepareStagedDirectory?.Invoke(stagingDirectory);
+        });
+    }
+
+    public static void ReplaceDirectory(string targetDirectory, Action<string> stageContents)
+    {
         var stagingDirectory = CreateSiblingTemporaryDirectory(targetDirectory, "install");
         try
         {
-            CopyDirectoryContents(sourceDirectory, stagingDirectory);
-            prepareStagedDirectory?.Invoke(stagingDirectory);
+            stageContents(stagingDirectory);
             ReplaceTargetWithStaging(stagingDirectory, targetDirectory);
         }
         finally
@@ -27,15 +36,21 @@ internal static class ManagedDirectoryInstaller
         }
     }
 
-    private static void CopyDirectoryContents(string sourceDirectory, string targetDirectory)
+    private static void CopyDirectoryContents(string sourceDirectory, string targetDirectory, bool skipReparsePoints)
     {
-        foreach (var directory in Directory.EnumerateDirectories(sourceDirectory, "*", SearchOption.AllDirectories))
+        var options = new EnumerationOptions
+        {
+            RecurseSubdirectories = true,
+            IgnoreInaccessible = false,
+            AttributesToSkip = skipReparsePoints ? FileAttributes.ReparsePoint : 0
+        };
+        foreach (var directory in Directory.EnumerateDirectories(sourceDirectory, "*", options))
         {
             var relativePath = Path.GetRelativePath(sourceDirectory, directory);
             Directory.CreateDirectory(Path.Combine(targetDirectory, relativePath));
         }
 
-        foreach (var file in Directory.EnumerateFiles(sourceDirectory, "*", SearchOption.AllDirectories))
+        foreach (var file in Directory.EnumerateFiles(sourceDirectory, "*", options))
         {
             var relativePath = Path.GetRelativePath(sourceDirectory, file);
             var destination = Path.Combine(targetDirectory, relativePath);
