@@ -46,7 +46,10 @@ public sealed class DeewPlanningService(IToolProbeService probes) : IDeewPlannin
         }
         catch (UnauthorizedAccessException ex) { throw new InvalidOperationException("Move deew and its complete toolchain to a writable portable directory. " + ex.Message, ex); }
         finally { File.Delete(writableProbe); File.Delete(writableProbe + ".replace"); }
+        var surroundAttenuation = snapshot?.AttenuatesTrueHdSurround(profile) == true;
+        if (surroundAttenuation) logs.Add(DeewConfigEditor.TrueHdSurroundAttenuationWarning);
         await DeewToolchain.ValidateAsync(deew, ffmpeg, ffprobe, profile, logs.Add, cancellationToken);
-        return new(source, profile, snapshot?.DdpMode ?? "standard", snapshot?.AtmosMode ?? "streaming", snapshot?.Bitrates ?? DeewBitrates.Defaults, logs);
+        return new(source, profile, snapshot?.DdpMode ?? "standard", snapshot?.AtmosMode ?? "streaming",
+            snapshot?.Bitrates ?? DeewBitrates.Defaults, logs, surroundAttenuation);
     }
 }

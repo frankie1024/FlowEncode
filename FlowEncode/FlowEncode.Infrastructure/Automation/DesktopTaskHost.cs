@@ -79,7 +79,8 @@ public sealed class DesktopTaskHost(TaskCoordinator tasks, ITaskPlanningService 
                 var tools = await Task.WhenAll(kinds.Select(k => probes.ProbeAsync(k, token))).ConfigureAwait(false);
                 return new { tools, encoders = encoders.DiscoverSystemBinaries(), deewFormats = DeewArguments.Formats,
                     supportedTaskKinds = Enum.GetNames<TaskKind>(), videoOutput = "Video elementary stream; audio/subtitles are not automatically muxed",
-                    deewVersionMinimum = DeewArguments.MinimumVersion, deeVersionMinimum = "6.7.0",
+                    deewVersionMinimum = DeewArguments.MinimumVersion, deewVersionRecommended = DeewArguments.RecommendedVersion,
+                    deeVersionMinimum = "6.7.0",
                     deewFeatures = new[] { "noPhaseShift", "atmosMeasureOnly", "loudnessMetrics", "lossless96kHzTrueHd" },
                     unverifiedFeatures = new[] { "Atmos real-media validation is pending; it requires TrueHD Atmos source and the corresponding licensed DEE components." } };
             case DesktopTaskMethods.ProbeMedia:

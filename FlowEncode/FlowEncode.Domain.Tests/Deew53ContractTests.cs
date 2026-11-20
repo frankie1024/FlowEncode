@@ -11,14 +11,15 @@ public sealed class Deew53ContractTests
 {
     [TestMethod]
     [DataRow("dd")][DataRow("ddp")][DataRow("ddp-atmos")]
-    public void NoPhaseShift_AliasesReachTheCommandAndKeepOtherFlagsDistinct(string format)
+    public void NoPhaseShift_StoredAliasesEmitTheNewCliOption(string format)
     {
         foreach (var option in new[] { "-nps", "--no-phase-shift" })
         {
             var profile = DeewArguments.Resolve(new(Format: format, AdditionalArguments: option), 6);
             Assert.IsTrue(profile.Options.NoPhaseShift);
             var arguments = DeewArguments.Build("input", "output", profile.Options);
-            Assert.AreEqual(1, arguments.Count(a => a == "-nps"));
+            CollectionAssert.AreEqual(new[] { "-sps", "off" }, arguments.TakeLast(2).ToArray());
+            CollectionAssert.DoesNotContain(arguments.ToList(), "-nps");
             Assert.AreEqual(1, arguments.Count(a => a == "-np"));
         }
         Assert.IsTrue(DeewArguments.Normalize(new(NoPhaseShift: true)).NoPhaseShift);
@@ -66,7 +67,7 @@ public sealed class Deew53ContractTests
             Assert.IsTrue(warnings.Any(w => w.Contains("ignored")));
             var command = DeewArguments.Build("input.thd", "output", profile.Options);
             CollectionAssert.Contains(command.ToList(), "-mo");
-            foreach (var ignored in new[] { "-dm", "-r", "-dn", "-b", "-nps", "-dl" })
+            foreach (var ignored in new[] { "-dm", "-r", "-dn", "-b", "-sps", "-dl" })
                 CollectionAssert.DoesNotContain(command.ToList(), ignored);
         }
         var ordinaryTrueHd = source with { ProfileName = "Dolby TrueHD" };
@@ -94,10 +95,20 @@ public sealed class Deew53ContractTests
     }
 
     [TestMethod]
+    [DataRow("true", true)][DataRow("'auto'", true)][DataRow("'always'", true)][DataRow("'never'", false)]
+    public void PipeModes_AreInterpretedForSingleInputAndPreservedInToml(string value, bool expectedPipe)
+    {
+        var line = $"pipe = {value} # user's preference";
+        var editor = new DeewConfigEditor(Encoding.UTF8.GetBytes(line + "\n" + Deew5ContractTests.Config));
+        Assert.AreEqual(expectedPipe, editor.Pipe);
+        StringAssert.Contains(Encoding.UTF8.GetString(editor.Edit(null)), line);
+    }
+
+    [TestMethod]
     public void RichLoudnessEvents_PreserveUnitsAndPartialUpdatesAndIgnoreMalformedExtras()
     {
         var reader = new DeewEventsReader(DeewArguments.Resolve(new(MeasureOnly: true), 6), _ => { }, (_, _, _, _) => { });
-        reader.Accept("""{"type":"hello","version":"5.3.1"}""");
+        reader.Accept("""{"type":"hello","version":"5.4.0"}""");
         reader.Accept("""{"type":"progress","job":0,"stage":"measure","percent":80,"db":-24,"gating":"dialogue","speech":16,"program":-18.9,"lra":13.1,"true_peak":-4.9}""");
         Assert.AreEqual(-24, reader.Db);
         Assert.AreEqual(new DeewLoudnessMetrics("dialogue", 16, -18.9, 13.1, -4.9), reader.LoudnessMetrics);
@@ -128,11 +139,11 @@ public sealed class Deew53ContractTests
     }
 
     [TestMethod]
-    public void EventsHello_RejectsTheOldAtmosMeasurementContract()
+    public void EventsHello_RejectsVersionsOlderThan54()
     {
         var reader = new DeewEventsReader(DeewArguments.Resolve(new(MeasureOnly: true), 2), _ => { }, (_, _, _, _) => { });
-        reader.Accept("""{"type":"hello","version":"5.3.0"}""");
-        StringAssert.Contains(reader.Error!, "5.3.1");
+        reader.Accept("""{"type":"hello","version":"5.3.1"}""");
+        StringAssert.Contains(reader.Error!, DeewArguments.MinimumVersion);
     }
 
     [TestMethod]

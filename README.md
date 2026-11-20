@@ -23,7 +23,7 @@
 
 ---
 
-3.0 正式版新增 deew 5.x 音频处理、本地 MCP 和共享任务服务，并改进主要页面的布局、依赖检查和并发安装。当前源码已适配 deew 5.3.1，支持关闭环绕相移、仅测量 Atmos 响度，并提供更多响度指标。参阅 [MCP 接入](docs/MCP.md)、[deew 5.3.1 验收](docs/DEEW531-VALIDATION.md) 与 [工具链兼容性](docs/TOOLCHAIN-COMPATIBILITY-3.0.md)。使用旧版 deew 工具链的用户，请选择 2.0.3 兼容维护版。
+3.0 正式版新增 deew 5.x 音频处理、本地 MCP 和共享任务服务，并改进主要页面的布局、依赖检查和并发安装。当前源码要求 deew 5.4.0 或更新版本，支持关闭环绕相移、仅测量 Atmos 响度，并提供更多响度指标。参阅 [MCP 接入](docs/MCP.md)、[3.0.3 验收](docs/DEEW531-VALIDATION.md) 与 [工具链兼容性](docs/TOOLCHAIN-COMPATIBILITY-3.0.md)。使用旧版 deew 工具链的用户，请选择 2.0.3 兼容维护版。
 
 FlowEncode 是 Windows x64 上的图形化编码工具，调用 `x264`、`x265`、`SVT-AV1`、`Av1an`、`FFmpeg`、`VapourSynth`、`VSPipe` 等公开工具链，完成蓝光解复用、脚本编辑与预览、视频压制、音频转码和自动压制。你可以管理任务队列、查看日志、复用模板，也可以拖入视频、音频文件或蓝光目录，进入对应流程。
 
@@ -121,7 +121,7 @@ flowchart LR
 
 前往 [GitHub Releases](https://github.com/frankie1024/FlowEncode/releases) 下载最新的 Windows x64 安装包。
 
-> **版本支持说明：2.0.3 是旧工具链的兼容维护版，支持 deew 3.x / DEE 5.2.1。** 当前源码要求 deew ≥5.3.1 / DEE ≥6.7.0，推荐 truehdd ≥0.6.3、dee_shim ≥0.2.0；此前 3.0.0 发布版的 deew 最低版本为 5.1.0。需要继续使用旧版 deew 3.x 的用户，请使用 2.0.3。工具链差异见 [2.0 基线](docs/TOOLCHAIN-BASELINE-2.0.md)。
+> **版本支持说明：2.0.3 是旧工具链的兼容维护版，支持 deew 3.x / DEE 5.2.1。** 当前源码要求 [deew 5.4.0](https://github.com/pcrlnd/deew/releases/tag/5.4.0) 或更新版本，以及 DEE ≥6.7.0。升级时可保留原来的配置和 DEE 工具集。建议搭配 truehdd ≥0.6.3 和 dee_shim ≥0.2.0。此前 3.0.0 发布版的 deew 最低版本为 5.1.0。需要继续使用旧版 deew 3.x 的用户，请使用 2.0.3。工具链差异见 [2.0 基线](docs/TOOLCHAIN-BASELINE-2.0.md)。
 
 当前发布资产以安装版为主：
 

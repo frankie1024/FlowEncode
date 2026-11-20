@@ -1021,7 +1021,10 @@ public sealed class AppText
     public string DeewBitrateHeader => Pick("码率 (kbps)", "Bitrate (kbps)");
     public string DeewDownmixHeader => Pick("声道混合", "Downmix channels");
     public string DeewLfeHeader => Pick("禁用 LFE", "Disable LFE");
-    public string DeewNoPhaseShiftHeader => Pick("关闭环绕 90° 相移 (-nps)", "No surround phase shift (-nps)");
+    public string DeewNoPhaseShiftHeader => Pick("关闭环绕声道的 90° 相移", "Disable 90° surround phase shift");
+    public string DeewTrueHdSurroundAttenuationWarning => Pick(
+        "deew 配置会将 TrueHD 的环绕声道衰减 3 dB，解码后的音频会与源音频不同。",
+        "The deew config reduces the TrueHD surround channels by 3 dB. The decoded audio will differ from the source.");
     public string DeewDelayHeader => Pick("延迟（如 -5ms）", "Delay (e.g. -5ms)");
     public string DeewTrackHeader => Pick("音轨索引（从 0 开始）", "Track index (zero-based)");
     public string DeewAdvancedHeader => Pick("高级参数", "Advanced parameters");

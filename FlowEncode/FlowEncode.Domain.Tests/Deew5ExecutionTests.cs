@@ -210,9 +210,12 @@ public sealed class Deew5ExecutionTests
     public async Task MissingConfig_IsInitializedOnceAndNewBaselineIsPreserved()
     {
         using var fixture = new Fixture(); File.Delete(fixture.ConfigPath);
-        var first = await fixture.Runner.RunAsync(fixture.Request());
+        var first = await fixture.Runner.RunAsync(fixture.Request(new(NoPhaseShift: true)));
         Assert.AreEqual(EncodingJobState.Completed, first.State, first.Log);
+        CollectionAssert.AreEqual(new[] { "-sps", "off" },
+            CommandArgumentTokenizer.Tokenize(first.DisplayCommand).TakeLast(2).ToArray());
         var generated = await File.ReadAllBytesAsync(fixture.ConfigPath);
+        StringAssert.Contains(Encoding.UTF8.GetString(generated), "pipe = 'auto'");
         var second = await fixture.Runner.RunAsync(fixture.Request());
         Assert.AreEqual(EncodingJobState.Completed, second.State, second.Log);
         CollectionAssert.AreEqual(generated, await File.ReadAllBytesAsync(fixture.ConfigPath));

@@ -1,5 +1,6 @@
 using System.Text;
 using System.Text.Json;
+using FlowEncode.Domain;
 using Tomlyn;
 using Tomlyn.Model;
 using Tomlyn.Syntax;
@@ -8,13 +9,16 @@ namespace FlowEncode.Infrastructure;
 
 internal sealed class DeewConfigEditor
 {
+    internal const string TrueHdSurroundAttenuationWarning =
+        "The deew config reduces the TrueHD surround channels by 3 dB. The decoded audio will differ from the source.";
+
     private readonly string _text;
     private readonly DocumentSyntax _syntax;
     public TomlTable Model { get; }
     public string DdpMode => Mode("ddp", "standard");
     public string AtmosMode => Mode("ddp_atmos", "streaming");
     public string TempPath => (string)Model["temp_path"];
-    public bool Pipe => !Model.TryGetValue("pipe", out var value) || (bool)value;
+    public bool Pipe { get; }
     public bool SurroundPhaseShift => !Model.TryGetValue("surround_phase_shift", out var value) || (bool)value;
     public IReadOnlyDictionary<string, int> Bitrates => ((TomlTable)Model["default_bitrates"])
         .ToDictionary(p => p.Key, p => checked((int)(long)p.Value));
@@ -26,7 +30,14 @@ internal sealed class DeewConfigEditor
         if (_syntax.HasErrors) throw new InvalidDataException("Invalid deew config.toml: " + _syntax.Diagnostics);
         Model = _syntax.ToModel();
         Require<string>(Model, "temp_path");
-        foreach (var key in new[] { "pipe", "surround_phase_shift" })
+        // FlowEncode passes one input per process, so auto uses the pipe when the format allows it.
+        Pipe = Model.TryGetValue("pipe", out var pipe) ? pipe switch
+        {
+            true or "auto" or "always" => true,
+            false or "never" => false,
+            _ => throw new InvalidDataException("deew config: pipe must be a boolean or 'auto', 'always' or 'never'.")
+        } : true;
+        foreach (var key in new[] { "surround_phase_shift", "surround_3db_attenuation" })
             if (Model.ContainsKey(key)) Require<bool>(Model, key);
         Require<long>(Model, "logo");
         if (!Model.TryGetValue("max_instances", out var instances) || instances is not (string or long))
@@ -47,6 +58,10 @@ internal sealed class DeewConfigEditor
         if (DdpMode is not ("standard" or "bluray") || AtmosMode is not ("streaming" or "standard" or "bluray"))
             throw new InvalidDataException("deew config: unsupported default_modes value.");
     }
+
+    internal bool AttenuatesTrueHdSurround(DeewEffectiveOutputProfile profile) =>
+        profile.Options.Format == "thd" && profile.OutputSlots >= 6
+        && Model.TryGetValue("surround_3db_attenuation", out var enabled) && enabled is true;
 
     private string Mode(string key, string fallback)
     {

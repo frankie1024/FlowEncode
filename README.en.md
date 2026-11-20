@@ -23,7 +23,7 @@
 
 ---
 
-The 3.0 stable release adds deew 5.x audio workflows, local MCP automation and a shared task service, with improved page layouts, dependency checks and concurrent installation. Current source supports deew 5.3.1, including no surround phase shift, Atmos measurement and richer loudness metrics. See [MCP setup](docs/MCP.md), [deew 5.3.1 acceptance](docs/DEEW531-VALIDATION.md), and [toolchain compatibility](docs/TOOLCHAIN-COMPATIBILITY-3.0.md). Use the 2.0.3 compatibility release for the legacy deew toolchain.
+The 3.0 stable release adds deew 5.x audio workflows, local MCP automation and a shared task service, with improved page layouts, dependency checks and concurrent installation. Current source requires deew 5.4.0 or newer and supports the option to disable surround phase shift, Atmos measurement and richer loudness metrics. See [MCP setup](docs/MCP.md), [3.0.3 acceptance testing](docs/DEEW531-VALIDATION.md), and [toolchain compatibility](docs/TOOLCHAIN-COMPATIBILITY-3.0.md). Use the 2.0.3 compatibility release for the legacy deew toolchain.
 
 FlowEncode is a Windows x64 desktop frontend for video encoding workflows. It coordinates `x264`, `x265`, `SVT-AV1`, `Av1an`, `FFmpeg`, `VapourSynth`, `VSPipe` and related public toolchains through one interface for Blu-ray demuxing, script editing and preview, video encoding, audio transcoding, auto encoding, queue execution, log inspection, template reuse, and drag-and-drop entry points for video, audio, and Blu-ray sources.
 
@@ -121,7 +121,7 @@ In-app automatic installation or updates mainly cover `Python 3.14`, `VapourSynt
 
 Download the latest Windows x64 installer from [GitHub Releases](https://github.com/frankie1024/FlowEncode/releases).
 
-> **Version support: 2.0.3 is the compatibility maintenance release for deew 3.x / DEE 5.2.1.** Current source requires deew ≥5.3.1 / DEE ≥6.7.0; truehdd ≥0.6.3 and dee_shim ≥0.2.0 are recommended. The earlier 3.0.0 release required deew ≥5.1.0. Use 2.0.3 for legacy deew 3.x support. See the [2.0 toolchain baseline](docs/TOOLCHAIN-BASELINE-2.0.md).
+> **Version support: 2.0.3 is the compatibility maintenance release for deew 3.x / DEE 5.2.1.** Current source requires [deew 5.4.0](https://github.com/pcrlnd/deew/releases/tag/5.4.0) or newer and DEE ≥6.7.0. You can keep your existing configuration and DEE toolset when upgrading. We also recommend truehdd ≥0.6.3 and dee_shim ≥0.2.0. The earlier 3.0.0 release required deew ≥5.1.0. Use 2.0.3 for legacy deew 3.x support. See the [2.0 toolchain baseline](docs/TOOLCHAIN-BASELINE-2.0.md).
 
 Current release assets are installer-based:
 

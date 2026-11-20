@@ -1,6 +1,6 @@
 # deew 5.3.1 适配与验收
 
-日期：2026-11-18（Asia/Shanghai）。本文记录当前源码的工具要求和验证范围；5.3.0 的测试结果保留在 [上一份记录](DEEW53-VALIDATION.md)。
+日期：2026-11-18（Asia/Shanghai）。本文记录 FlowEncode 3.0.3 的工具要求和验证范围；5.3.0 的测试结果保留在 [上一份记录](DEEW53-VALIDATION.md)。
 
 ## 上游变化与适配
 
@@ -8,7 +8,7 @@ deew 5.3.1 于 2026-11-14 21:21（北京时间）发布。CLI 的主要变化是
 
 依据：[5.3.1 发布说明](https://github.com/pcrlnd/deew/releases/tag/5.3.1)、[5.3.0→5.3.1 源码差异](https://github.com/pcrlnd/deew/compare/5.3.0...5.3.1)。
 
-- 当前源码最低要求 **deew 5.3.1**。工具检测、执行检查、事件版本检查、MCP 描述和设置提示使用同一要求，避免旧版仍走另一套 Atmos 测量流程。
+- FlowEncode 3.0.3 最低要求 **deew 5.3.1**。工具检测、执行检查、事件版本检查、MCP 描述和设置提示使用同一要求，避免旧版仍走另一套 Atmos 测量流程。
 - TrueHD Atmos 只测量需要 `truehdd` 和 `dee_measure_loudness`，不再要求 `dee_ddpjoc_encoder`。桌面预览、MCP 计划和执行共用此规则。普通 7.0/7.1 输入仍用 `dee_ddp_encoder` 测量。
 - 修复低响度输入被误判为测量失败的问题：`measureOnly` 接收低于 −31 dB 的有限测量值，不再套用编码 dialnorm 的 −31..0 范围。运行中进度、结果和重启后的任务历史均保留该值。
 - 保留 5.3.0 已有的相移开关、AC4 Atmos DRC、96 kHz TrueHD shim 检查和扩展响度指标。

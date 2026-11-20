@@ -22,7 +22,8 @@ public sealed record DeewEffectiveOutputProfile(
 
 public static class DeewArguments
 {
-    public const string MinimumVersion = "5.3.1";
+    public const string MinimumVersion = "5.4.0";
+    public const string RecommendedVersion = "5.4.0";
     public static readonly string[] Formats = ["dd", "ddp", "ddp-atmos", "thd", "thd-atmos", "ac4", "ac4-atmos", "aac"];
     public static bool HasPhaseShift(string format) => format is "dd" or "ddp" or "ddp-atmos";
     private static readonly (string Short, string Long, bool Flag)[] Allowed =
@@ -30,6 +31,7 @@ public static class DeewArguments
         ("-b", "--bitrate", false), ("-r", "--drc", false),
         ("--ddp-mode", "--ddp-mode", false), ("--ddp-atmos-mode", "--ddp-atmos-mode", false),
         ("-dm", "--downmix", false), ("-dl", "--disable-lfe", true),
+        // Saved advanced arguments may still use these aliases. Build emits -sps off.
         ("-nps", "--no-phase-shift", true),
         ("-dn", "--dialnorm", false), ("-d", "--delay", false),
         ("-ti", "--track-index", false), ("-in", "--instances", false),
@@ -157,7 +159,8 @@ public static class DeewArguments
         foreach (var spec in Allowed)
             if (values.TryGetValue(spec.Short, out var value))
             {
-                if (spec.Flag) result.Add(spec.Short);
+                if (spec.Short == "-nps") result.AddRange(["-sps", "off"]);
+                else if (spec.Flag) result.Add(spec.Short);
                 else if (spec.Short == "-d" && value.StartsWith('-')) result.Add("-d=" + value);
                 else { result.Add(spec.Short); result.Add(value); }
             }

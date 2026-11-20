@@ -127,7 +127,7 @@ public sealed class SetupBootstrapOfflineStatusTests
         {
             var readiness = new EnvironmentReadinessReport(DateTimeOffset.Now,
                 [new ToolProbeResult(RegisteredToolKind.Deew, ReadinessState.Ready, ToolDetectionSource.ManualSelection,
-                    "test", deew, "5.3.1", "", ""),
+                    "test", deew, DeewArguments.MinimumVersion, "", ""),
                  new ToolProbeResult(RegisteredToolKind.Dee, ReadinessState.Ready, ToolDetectionSource.ManualSelection,
                     "test", Path.Combine(portable, "dee.exe"), "5.2.1", "", "")], []);
             var report = await service.GetLocalStatusReportAsync(readiness);

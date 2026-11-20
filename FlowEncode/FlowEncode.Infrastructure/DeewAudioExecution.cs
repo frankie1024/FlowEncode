@@ -120,6 +120,8 @@ public sealed partial class CliAudioProcessingRunner
                 catch (IOException) { }
             }
             options = profile.Options;
+            if (lease.Snapshot.AttenuatesTrueHdSurround(profile))
+                warnings.Add(DeewConfigEditor.TrueHdSurroundAttenuationWarning);
             foreach (var warning in warnings) Log("warning: " + warning);
             await DeewToolchain.ValidateAsync(deew, ffmpeg, ffprobe, profile, Log, token);
             command = $"{Quote(deew)} {string.Join(" ", DeewArguments.Build(request.SourcePath, request.OutputPath, options).Select(Quote))}";

@@ -74,6 +74,24 @@ public sealed class Deew53ExecutionTests
         Assert.AreEqual(Deew5ContractTests.Config, await File.ReadAllTextAsync(fixture.ConfigPath));
     }
 
+    [TestMethod]
+    [DataRow(2, false)][DataRow(6, true)][DataRow(8, true)]
+    public async Task TrueHdSurroundAttenuation_IsReportedInThePlanAndRunLog(int channels, bool expected)
+    {
+        using var fixture = new Deew5ExecutionTests.Fixture(["dee_dthd_encoder", "dee_shim"]);
+        var config = "surround_3db_attenuation = true\n" + Deew5ContractTests.Config;
+        await File.WriteAllTextAsync(fixture.ConfigPath, config);
+        var request = fixture.Request(new(Format: "thd"), channels: channels);
+        var plan = await new DeewPlanningService(fixture.Probes).InspectAsync(request.SourcePath, request.Deew!);
+        Assert.AreEqual(expected, plan.TrueHdSurroundAttenuation);
+        Assert.AreEqual(expected, plan.Diagnostics.Contains(DeewConfigEditor.TrueHdSurroundAttenuationWarning));
+
+        var result = await fixture.Runner.RunAsync(request);
+        Assert.AreEqual(EncodingJobState.Completed, result.State, result.Log);
+        Assert.AreEqual(expected, result.Log.Contains(DeewConfigEditor.TrueHdSurroundAttenuationWarning, StringComparison.Ordinal));
+        Assert.AreEqual(config, await File.ReadAllTextAsync(fixture.ConfigPath));
+    }
+
     private sealed class InlineProgress(Action<AudioProcessingProgress> report) : IProgress<AudioProcessingProgress>
     { public void Report(AudioProcessingProgress value) => report(value); }
 }

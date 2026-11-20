@@ -1,6 +1,6 @@
 # deew 5.3 适配与验收
 
-日期：2026-11-14（Asia/Shanghai）。本文保留 deew 5.3.0 的适配与验收记录；当前源码已适配 [deew 5.3.1](DEEW531-VALIDATION.md)。此前 3.0.0 发布版的 5.1 基线保留在 [原验收记录](DEEW5-VALIDATION.md)。
+日期：2026-11-14（Asia/Shanghai）。本文保留 deew 5.3.0 的适配与验收记录；后续 3.0.3 适配了 [deew 5.3.1](DEEW531-VALIDATION.md)。此前 3.0.0 发布版的 5.1 基线保留在 [原验收记录](DEEW5-VALIDATION.md)。
 
 ## 工具基线与升级
 

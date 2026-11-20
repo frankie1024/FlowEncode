@@ -30,7 +30,9 @@ public sealed class TaskPlanningServiceTests
         var settings = new SharedTaskCoordinatorTests.Settings(); var tasks = new TaskCoordinator(settings);
         var runner = new CoordinatedAudioRunner(fixture.Runner, tasks);
         var plans = new TaskPlanningService(tasks, settings, fixture.Probes, null!, new DeewPlanningService(fixture.Probes), null!, runner, null!, null!);
-        var plan = await plans.CreateAsync(new(TaskKind.Audio, Audio: fixture.Request(new(Dialnorm: -27)) with { OverwriteOutput = false }));
+        var plan = await plans.CreateAsync(new(TaskKind.Audio, Audio: fixture.Request(new(Dialnorm: -27, NoPhaseShift: true)) with { OverwriteOutput = false }));
+        CollectionAssert.AreEqual(new[] { "-sps", "off" },
+            CommandArgumentTokenizer.Tokenize(plan.DisplayCommand).SkipWhile(argument => argument != "-sps").Take(2).ToArray());
         var receipts = await Task.WhenAll(Enumerable.Range(0, 8).Select(_ => plans.SubmitAsync(plan.PlanId, "same-request")));
         Assert.AreEqual(1, receipts.Select(r => r.TaskId).Distinct().Count());
         var taskId = receipts[0].TaskId;

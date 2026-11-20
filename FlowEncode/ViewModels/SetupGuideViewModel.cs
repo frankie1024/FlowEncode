@@ -1306,8 +1306,8 @@ public sealed class SetupGuideViewModel : ObservableObject, ISetupDependencyModu
             SetupDependencyKind.DgDemux => Texts.Pick("蓝光播放列表扫描与解复用默认后端。", "Default backend for Blu-ray playlist scanning and demux."),
             SetupDependencyKind.Eac3To => Texts.Pick("音频扫描与 FLAC 转换。", "Audio scanning and FLAC conversion."),
             SetupDependencyKind.Deew => Texts.Pick(
-                "请将 deew ≥5.3.1 放在用户可写的便携目录中。Atmos 需要 truehdd，部分 Atmos 格式和 96 kHz TrueHD 还需要 dee_shim。推荐 truehdd ≥0.6.3、dee_shim ≥0.2.0。",
-                "Keep deew ≥5.3.1 in a writable portable directory. Atmos requires truehdd. Some Atmos formats and 96 kHz TrueHD also require dee_shim. Recommended versions are truehdd ≥0.6.3 and dee_shim ≥0.2.0."),
+                $"请将 deew {DeewArguments.MinimumVersion} 或更新版本放在用户可写的便携目录中。Atmos 需要 truehdd，部分 Atmos 格式和 96 kHz TrueHD 还需要 dee_shim。推荐 truehdd ≥0.6.3、dee_shim ≥0.2.0。",
+                $"Keep deew {DeewArguments.MinimumVersion} or newer in a writable portable directory. Atmos requires truehdd. Some Atmos formats and 96 kHz TrueHD also require dee_shim. Recommended versions are truehdd ≥0.6.3 and dee_shim ≥0.2.0."),
             SetupDependencyKind.Dee => Texts.Pick(
                 $"请自行准备授权的 DEE ≥{DeewToolchain.MinimumDeeVersion}。保留原文件名和目录结构。FlowEncode 依次查找当前 deew.exe 旁的 dee 子文件夹、deew.exe 所在目录和 PATH。deew -gt 不提供 DEE。每个音频任务只检查所需组件。",
                 $"Provide a licensed copy of DEE ≥{DeewToolchain.MinimumDeeVersion}. Keep the original filenames and directory structure. FlowEncode searches the dee subfolder next to the selected deew.exe, the directory containing deew.exe, then PATH. deew -gt does not provide DEE. Each audio task checks only the components it needs."),

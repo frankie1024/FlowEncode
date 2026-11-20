@@ -45,10 +45,11 @@ if (tool == "python" && args.Contains("-c"))
     return 0;
 }
 if (args.Contains("--hold-child")) { await Task.Delay(TimeSpan.FromMinutes(1)); return 0; }
+const string deewVersion = "5.4.0";
 if (args.Contains("--version") || args.Contains("-version") || args.Contains("--help"))
 {
     var deeVersion = businessScenario == "legacy-dee" ? "6.6.0" : "6.7.0+test";
-    Console.WriteLine(tool.StartsWith("deew") ? "deew 5.3.1" : tool.StartsWith("dee_") ? $"Dolby Encoding Engine version {deeVersion}" : tool + " version 1.0.0");
+    Console.WriteLine(tool.StartsWith("deew") ? $"deew {deewVersion}" : tool.StartsWith("dee_") ? $"Dolby Encoding Engine version {deeVersion}" : tool + " version 1.0.0");
     return 0;
 }
 if (tool == "vspipe" && args.Contains("--info"))
@@ -104,7 +105,7 @@ if (args.Contains("-gc"))
 {
     var keys = "dd_1_0 dd_2_0 dd_5_1 ddp_1_0 ddp_2_0 ddp_5_1 ddp_7_1_standard ddp_7_1_bluray ddp_atmos_streaming ddp_atmos_standard ddp_atmos_bluray ac4_2_0 ac4_5_1 ac4_atmos aac_2_0".Split(' ');
     await File.WriteAllTextAsync(Path.Combine(AppContext.BaseDirectory, "config.toml"),
-        "temp_path = ''\nlogo = 1\nmax_instances = '50%'\n[output]\nto_input = true\n[default_bitrates]\n" +
+        "pipe = 'auto'\ntemp_path = ''\nlogo = 1\nmax_instances = '50%'\n[output]\nto_input = true\n[default_bitrates]\n" +
         string.Join("\n", keys.Select(k => k + " = 256")) + "\n[summary_sections]\ndeew_info = true\nbinaries = true\ninput_info = true\noutput_info = true\nother = true\n");
     return 0;
 }
@@ -124,6 +125,11 @@ if (tool == "ffprobe")
     Console.WriteLine(JsonSerializer.Serialize(new { streams = new[] { new { codec_name = codec, profile, channels, channel_layout = layout, sample_rate = rate, bits_per_sample = "24", duration = "60" } } }));
     return 0;
 }
+if (args.Contains("-nps") || args.Contains("--no-phase-shift"))
+{
+    Console.Error.WriteLine("Unrecognized surround phase-shift option.");
+    return 2;
+}
 var configPath = Path.Combine(AppContext.BaseDirectory, "config.toml");
 var config = await File.ReadAllTextAsync(configPath);
 var temp = JsonSerializer.Deserialize<string>(Regex.Match(config, "(?m)^temp_path\\s*=\\s*(\".*\")").Groups[1].Value)!;
@@ -133,7 +139,7 @@ var events = Environment.GetEnvironmentVariable("DEEW_EVENTS_FILE")!;
 if (scenario == "cancel")
     await File.WriteAllTextAsync(Path.Combine(temp, "process-id.txt"), Environment.ProcessId.ToString());
 async Task Event(object value) => await File.AppendAllTextAsync(events, JsonSerializer.Serialize(value) + "\n");
-await Event(new { type = "hello", version = "5.3.1" });
+await Event(new { type = "hello", version = deewVersion });
 await Event(new { type = "progress", job = 0, stage = "starting", percent = (double?)null, db = (double?)null });
 await Event(new { type = "warning", text = "测试诊断" });
 if (scenario == "live-log")

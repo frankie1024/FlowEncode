@@ -11,7 +11,7 @@ public sealed class Deew5ExternalSmokeTests
 {
     [TestMethod]
     [TestCategory("ExternalToolSmoke")]
-    public async Task RealDeew531_ShortSampleEncodingMeasurementAndRecovery()
+    public async Task RealDeew54_ShortSampleEncodingMeasurementAndRecovery()
     {
         var input = Environment.GetEnvironmentVariable("FLOWENCODE_DEEW5_SMOKE_INPUT");
         var deew = Environment.GetEnvironmentVariable("FLOWENCODE_DEEW5_SMOKE_TOOL");
@@ -70,7 +70,7 @@ public sealed class Deew5ExternalSmokeTests
 
     [TestMethod]
     [TestCategory("ExternalToolSmoke")]
-    public async Task RealDeew531_PhaseShiftRichMeasurementAnd96kHzLosslessRoundTrip()
+    public async Task RealDeew54_PhaseShiftRichMeasurementAnd96kHzLosslessRoundTrip()
     {
         var input = Environment.GetEnvironmentVariable("FLOWENCODE_DEEW5_SMOKE_INPUT");
         var deew = Environment.GetEnvironmentVariable("FLOWENCODE_DEEW5_SMOKE_TOOL");
