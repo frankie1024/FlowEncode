@@ -1106,10 +1106,6 @@ public partial class MainWindowViewModel
             BluRayDemuxProgressIsIndeterminate = false;
             BluRayDemuxProgressPercent = update.ProgressFraction.Value * 100.0;
         }
-        else if (update.State == EncodingJobState.Running)
-        {
-            BluRayDemuxProgressIsIndeterminate = true;
-        }
 
         var isStaleRunningUpdate = _isBluRayDemuxCancellationRequested && update.State == EncodingJobState.Running;
         var summary = ResolveBluRayDemuxRunningSummary(update);

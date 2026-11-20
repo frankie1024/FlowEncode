@@ -1,10 +1,8 @@
 using System;
 using System.Collections.Generic;
 using System.Runtime.CompilerServices;
-using Microsoft.UI.Dispatching;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
-using Microsoft.UI.Xaml.Controls.Primitives;
 using Microsoft.UI.Xaml.Input;
 using Microsoft.UI.Xaml.Media;
 using Microsoft.UI.Xaml.Media.Animation;
@@ -14,7 +12,6 @@ namespace FlowEncode.Controls.Shared;
 public static class UiMotion
 {
     private static readonly ConditionalWeakTable<DependencyObject, Dictionary<string, Storyboard>> ActiveAnimations = new();
-    private static readonly ConditionalWeakTable<DependencyObject, Dictionary<string, SmoothAnimationState>> SmoothAnimationStates = new();
     private static readonly ConditionalWeakTable<FrameworkElement, HoverLiftState> HoverLiftStates = new();
     private static readonly ConditionalWeakTable<FrameworkElement, VisibilityState> VisibilityStates = new();
     private static readonly ConditionalWeakTable<ListViewBase, ListEntranceState> ListEntranceStates = new();
@@ -31,18 +28,6 @@ public static class UiMotion
         typeof(UiMotion),
         new PropertyMetadata(false, OnAnimateOnVisibleChanged));
 
-    public static readonly DependencyProperty SmoothProgressValueProperty = DependencyProperty.RegisterAttached(
-        "SmoothProgressValue",
-        typeof(double),
-        typeof(UiMotion),
-        new PropertyMetadata(0d, OnSmoothProgressValueChanged));
-
-    public static readonly DependencyProperty SmoothScaleXProperty = DependencyProperty.RegisterAttached(
-        "SmoothScaleX",
-        typeof(double),
-        typeof(UiMotion),
-        new PropertyMetadata(0d, OnSmoothScaleXChanged));
-
     public static readonly DependencyProperty AnimateListEntranceProperty = DependencyProperty.RegisterAttached(
         "AnimateListEntrance",
         typeof(bool),
@@ -54,12 +39,6 @@ public static class UiMotion
 
     public static bool GetAnimateOnVisible(DependencyObject obj) => (bool)obj.GetValue(AnimateOnVisibleProperty);
     public static void SetAnimateOnVisible(DependencyObject obj, bool value) => obj.SetValue(AnimateOnVisibleProperty, value);
-
-    public static double GetSmoothProgressValue(DependencyObject obj) => (double)obj.GetValue(SmoothProgressValueProperty);
-    public static void SetSmoothProgressValue(DependencyObject obj, double value) => obj.SetValue(SmoothProgressValueProperty, value);
-
-    public static double GetSmoothScaleX(DependencyObject obj) => (double)obj.GetValue(SmoothScaleXProperty);
-    public static void SetSmoothScaleX(DependencyObject obj, double value) => obj.SetValue(SmoothScaleXProperty, value);
 
     public static bool GetAnimateListEntrance(DependencyObject obj) => (bool)obj.GetValue(AnimateListEntranceProperty);
     public static void SetAnimateListEntrance(DependencyObject obj, bool value) => obj.SetValue(AnimateListEntranceProperty, value);
@@ -173,54 +152,6 @@ public static class UiMotion
         return new VisibilityState(element);
     }
 
-    private static void OnSmoothProgressValueChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
-    {
-        if (d is not ProgressBar progressBar)
-        {
-            return;
-        }
-
-        var targetValue = CoerceProgressValue(progressBar, (double)e.NewValue);
-        if (!AnimationsEnabled || progressBar.IsIndeterminate)
-        {
-            StopSmoothAnimation(progressBar, nameof(RangeBase.Value));
-            StopAnimation(progressBar, GetStoryboardKey(progressBar, nameof(RangeBase.Value)));
-            progressBar.Value = targetValue;
-            return;
-        }
-
-        QueueSmoothAnimation(
-            progressBar,
-            nameof(RangeBase.Value),
-            () => progressBar.Value,
-            targetValue,
-            true);
-    }
-
-    private static void OnSmoothScaleXChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
-    {
-        if (d is not ScaleTransform transform)
-        {
-            return;
-        }
-
-        var targetValue = Math.Clamp((double)e.NewValue, 0, 1);
-        if (!AnimationsEnabled)
-        {
-            StopSmoothAnimation(transform, nameof(ScaleTransform.ScaleX));
-            StopAnimation(transform, GetStoryboardKey(transform, nameof(ScaleTransform.ScaleX)));
-            transform.ScaleX = targetValue;
-            return;
-        }
-
-        QueueSmoothAnimation(
-            transform,
-            nameof(ScaleTransform.ScaleX),
-            () => transform.ScaleX,
-            targetValue,
-            false);
-    }
-
     private static void OnAnimateListEntranceChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
     {
         if (d is not ListViewBase listView)
@@ -274,18 +205,6 @@ public static class UiMotion
         element.RenderTransformOrigin = new Windows.Foundation.Point(0.5, 0.5);
         element.RenderTransform = transform;
         return transform;
-    }
-
-    private static double CoerceProgressValue(ProgressBar progressBar, double value)
-    {
-        var minimum = progressBar.Minimum;
-        var maximum = progressBar.Maximum;
-        if (maximum <= minimum)
-        {
-            return minimum;
-        }
-
-        return Math.Clamp(value, minimum, maximum);
     }
 
     private static void AnimateDouble(
@@ -347,34 +266,6 @@ public static class UiMotion
         return $"{target.GetType().FullName}:{propertyName}";
     }
 
-    private static void QueueSmoothAnimation(
-        DependencyObject target,
-        string propertyName,
-        Func<double> currentValue,
-        double targetValue,
-        bool enableDependentAnimation)
-    {
-        var states = SmoothAnimationStates.GetOrCreateValue(target);
-        if (!states.TryGetValue(propertyName, out var state))
-        {
-            state = new SmoothAnimationState(target, propertyName);
-            states[propertyName] = state;
-        }
-
-        state.Queue(currentValue, targetValue, enableDependentAnimation);
-    }
-
-    private static void StopSmoothAnimation(DependencyObject target, string propertyName)
-    {
-        if (!SmoothAnimationStates.TryGetValue(target, out var states)
-            || !states.Remove(propertyName, out var state))
-        {
-            return;
-        }
-
-        state.Cancel();
-    }
-
     private static void RemoveAnimation(DependencyObject target, string key, Storyboard storyboard)
     {
         if (!ActiveAnimations.TryGetValue(target, out var storyboards)
@@ -385,94 +276,6 @@ public static class UiMotion
         }
 
         storyboards.Remove(key);
-    }
-
-    private sealed class SmoothAnimationState
-    {
-        private readonly DependencyObject _target;
-        private readonly string _propertyName;
-        private DispatcherQueueTimer? _timer;
-        private PendingAnimation? _pendingAnimation;
-        private long _lastAnimationStart;
-
-        public SmoothAnimationState(DependencyObject target, string propertyName)
-        {
-            _target = target;
-            _propertyName = propertyName;
-        }
-
-        public void Queue(Func<double> currentValue, double targetValue, bool enableDependentAnimation)
-        {
-            _pendingAnimation = new PendingAnimation(currentValue, targetValue, enableDependentAnimation);
-            var elapsed = Environment.TickCount64 - _lastAnimationStart;
-            if (_lastAnimationStart == 0 || elapsed >= UiTokens.MotionInstant)
-            {
-                FlushLatest();
-                return;
-            }
-
-            var remaining = Math.Max(1, UiTokens.MotionInstant - elapsed);
-            EnsureTimer(TimeSpan.FromMilliseconds(remaining));
-        }
-
-        public void Cancel()
-        {
-            _pendingAnimation = null;
-            _lastAnimationStart = 0;
-            if (_timer is null)
-            {
-                return;
-            }
-
-            _timer.Stop();
-            _timer.Tick -= Timer_Tick;
-            _timer = null;
-        }
-
-        private void EnsureTimer(TimeSpan interval)
-        {
-            _timer ??= DispatcherQueue.GetForCurrentThread().CreateTimer();
-            _timer.Interval = interval;
-            _timer.Tick -= Timer_Tick;
-            _timer.Tick += Timer_Tick;
-            _timer.Start();
-        }
-
-        private void Timer_Tick(DispatcherQueueTimer sender, object args)
-        {
-            sender.Stop();
-            FlushLatest();
-        }
-
-        private void FlushLatest()
-        {
-            if (_pendingAnimation is not { } pending)
-            {
-                return;
-            }
-
-            _pendingAnimation = null;
-            _timer?.Stop();
-            if (!AnimationsEnabled)
-            {
-                return;
-            }
-
-            _lastAnimationStart = Environment.TickCount64;
-            AnimateDouble(
-                _target,
-                _propertyName,
-                pending.CurrentValue(),
-                pending.TargetValue,
-                new Duration(TimeSpan.FromMilliseconds(UiTokens.MotionProgressSmoothMilliseconds)),
-                UiTokens.MotionEasingInOut,
-                pending.EnableDependentAnimation);
-        }
-
-        private readonly record struct PendingAnimation(
-            Func<double> CurrentValue,
-            double TargetValue,
-            bool EnableDependentAnimation);
     }
 
     private sealed class HoverLiftState

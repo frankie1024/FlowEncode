@@ -1436,10 +1436,6 @@ public partial class MainWindowViewModel
         {
             ClampAudioProcessingProgressForTerminalState(progress.State);
         }
-        else if (_isAudioProcessingRunning)
-        {
-            AudioProcessingProgressIsIndeterminate = true;
-        }
 
         if (!isStaleRunningUpdate && !string.IsNullOrWhiteSpace(progress.Summary))
         {

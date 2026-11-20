@@ -193,7 +193,7 @@
                                 <ProgressBar
                                     Style="{StaticResource DashboardCardProgressBarStyle}"
                                     IsIndeterminate="{Binding DashboardBluRayDemuxProgressIsIndeterminate}"
-                                    shared:UiMotion.SmoothProgressValue="{Binding DashboardBluRayDemuxProgressValue}"
+                                    Value="{Binding DashboardBluRayDemuxProgressValue}"
                                     Visibility="{Binding DashboardBluRayDemuxProgressVisibility}" />
                                 <SymbolIcon Grid.Column="1" Symbol="Forward" />
                             </Grid>
@@ -264,7 +264,7 @@
                                 <ProgressBar
                                     Style="{StaticResource DashboardCardProgressBarStyle}"
                                     IsIndeterminate="{Binding DashboardOverviewProgressIsIndeterminate}"
-                                    shared:UiMotion.SmoothProgressValue="{Binding DashboardOverviewProgressValue}"
+                                    Value="{Binding DashboardOverviewProgressValue}"
                                     Visibility="{Binding DashboardOverviewProgressVisibility}" />
                                 <SymbolIcon Grid.Column="1" Symbol="Forward" />
                             </Grid>
@@ -308,7 +308,7 @@
                                 <ProgressBar
                                     Style="{StaticResource DashboardCardProgressBarStyle}"
                                     IsIndeterminate="{Binding DashboardAudioProcessingProgressIsIndeterminate}"
-                                    shared:UiMotion.SmoothProgressValue="{Binding DashboardAudioProcessingProgressValue}"
+                                    Value="{Binding DashboardAudioProcessingProgressValue}"
                                     Visibility="{Binding DashboardAudioProcessingProgressVisibility}" />
                                 <SymbolIcon Grid.Column="1" Symbol="Forward" />
                             </Grid>
@@ -352,7 +352,7 @@
                                 <ProgressBar
                                     Style="{StaticResource DashboardCardProgressBarStyle}"
                                     IsIndeterminate="{Binding DashboardAutoCompressionProgressIsIndeterminate}"
-                                    shared:UiMotion.SmoothProgressValue="{Binding DashboardAutoCompressionProgressValue}"
+                                    Value="{Binding DashboardAutoCompressionProgressValue}"
                                     Visibility="{Binding DashboardAutoCompressionProgressVisibility}" />
                                 <SymbolIcon Grid.Column="1" Symbol="Forward" />
                             </Grid>

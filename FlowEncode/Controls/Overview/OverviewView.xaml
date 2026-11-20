@@ -393,7 +393,7 @@
                                                     <TextBlock Grid.Column="2" HorizontalAlignment="Center" VerticalAlignment="Center" Text="{Binding StateLabel}" />
                                                     <StackPanel Grid.Column="3" HorizontalAlignment="Center" VerticalAlignment="Center" Spacing="{StaticResource AppSpacingXS}">
                                                         <TextBlock HorizontalAlignment="Center" Text="{Binding ProgressPercentLabel}" />
-                                                        <ProgressBar HorizontalAlignment="Stretch" Height="6" Maximum="1" Foreground="{ThemeResource QueueAccentBrush}" IsIndeterminate="{Binding IsProgressIndeterminate}" shared:UiMotion.SmoothProgressValue="{Binding ProgressValue}" />
+                                                        <ProgressBar HorizontalAlignment="Stretch" Height="6" Maximum="1" Foreground="{ThemeResource QueueAccentBrush}" IsIndeterminate="{Binding IsProgressIndeterminate}" Value="{Binding ProgressValue}" />
                                                     </StackPanel>
                                                     </Grid>
                                                 </Grid>
@@ -425,7 +425,7 @@
                                     <Grid Height="52">
                                         <Rectangle RadiusX="8" RadiusY="8" Fill="{ThemeResource QueueProgressAreaBrush}" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" RenderTransformOrigin="0,0.5">
                                             <Rectangle.RenderTransform>
-                                                <ScaleTransform ScaleX="0" shared:UiMotion.SmoothScaleX="{Binding SelectedJobProgressValue, FallbackValue=0}" />
+                                                <ScaleTransform ScaleX="{Binding SelectedJobProgressValue, FallbackValue=0}" />
                                             </Rectangle.RenderTransform>
                                         </Rectangle>
                                         <Border Margin="1" Background="{ThemeResource AppProgressOverlayBrush}" CornerRadius="{StaticResource AppCardCornerRadius}" />

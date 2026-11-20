@@ -865,10 +865,6 @@ public partial class MainWindowViewModel
         {
             ClampAutoCompressionProgressForTerminalState(progress.State);
         }
-        else if (_isAutoCompressionRunning)
-        {
-            AutoCompressionProgressIsIndeterminate = true;
-        }
 
         if (!isStaleRunningUpdate && !string.IsNullOrWhiteSpace(progress.Summary))
         {

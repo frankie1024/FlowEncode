@@ -75,7 +75,6 @@
             <x:Double x:Key="ElevationZ_E0">0</x:Double>
 
             <!-- Motion tokens (single source for custom UI animation durations, ms) -->
-            <x:Double x:Key="MotionInstant">80</x:Double>
             <x:Double x:Key="MotionFast">120</x:Double>
             <x:Double x:Key="MotionNormal">180</x:Double>
             <x:Double x:Key="MotionEmphasis">240</x:Double>
@@ -90,7 +89,6 @@
             <x:Double x:Key="MotionFieldOffsetY">8</x:Double>
             <x:Double x:Key="MotionHoverLiftY">2</x:Double>
             <x:Double x:Key="MotionListInsertOffsetY">8</x:Double>
-            <x:Double x:Key="MotionProgressSmoothMilliseconds">220</x:Double>
 
             <Style TargetType="ComboBox" BasedOn="{StaticResource DefaultComboBoxStyle}">
                 <Setter Property="HorizontalAlignment" Value="Stretch" />

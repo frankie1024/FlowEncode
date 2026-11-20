@@ -434,7 +434,11 @@ public sealed class EncodingJobItemViewModel : ObservableObject
         }
 
         SourcePreparationText = string.Empty;
-        ProgressFraction = progress.ProgressFraction;
+        if (progress.ProgressFraction is { } fraction)
+        {
+            ProgressFraction = Math.Max(ProgressFraction ?? 0, fraction);
+        }
+
         ApplySnapshot(progress.Snapshot);
         Summary = progress.Summary;
         DetailLine = progress.DetailLine;
