@@ -95,7 +95,7 @@ public sealed class SetupBootstrapService : ISetupBootstrapService, IDisposable
         CancellationToken cancellationToken = default)
     {
         cancellationToken.ThrowIfCancellationRequested();
-        PrepareVsrepoBaseline();
+        VsrepoCommand.PrepareBaseline(_paths);
         return Task.CompletedTask;
     }
 
@@ -820,9 +820,10 @@ public sealed class SetupBootstrapService : ISetupBootstrapService, IDisposable
             ["vsrepo"]);
         await EnsureVsrepoArchiveExtractorAsync(pythonPath, progress, cancellationToken);
         await EnsureVsrepoUserSiteDirectoryAsync(pythonPath, cancellationToken);
+        string? baselineRoot = null;
         if (useBaseline)
         {
-            PrepareVsrepoBaseline();
+            baselineRoot = VsrepoCommand.PrepareBaseline(_paths);
             ReportProgress(progress, SetupDependencyKind.VsPluginBundle, 5, "Using the pinned plugin manifest; preserving the user's existing definitions.");
         }
         else
@@ -832,7 +833,7 @@ public sealed class SetupBootstrapService : ISetupBootstrapService, IDisposable
         {
             await RunProcessAsync(
                 pythonPath,
-                ["-m", "vsrepo.vsrepo", "-t", GetVsrepoTarget(), "update"],
+                VsrepoCommand.CreateArguments("update", []),
                 cancellationToken,
                 timeoutMs: 120_000,
                 onOutput: line => ReportProgress(progress, SetupDependencyKind.VsPluginBundle, 10, line),
@@ -876,7 +877,7 @@ public sealed class SetupBootstrapService : ISetupBootstrapService, IDisposable
 
             await RunProcessAsync(
                 pythonPath,
-                BuildVsrepoInstallArguments(operation, packages, useBaseline),
+                VsrepoCommand.CreateArguments(operation, packages, baselineRoot),
                 cancellationToken,
                 timeoutMs: 600_000,
                 onOutput: line => ReportProgress(
@@ -909,18 +910,16 @@ public sealed class SetupBootstrapService : ISetupBootstrapService, IDisposable
         _cliEnvironmentIntegrationService.RecordComponentOwnership(
             CliEnvironmentIntegrationService.GetVsPluginBundleComponentKey(),
             ownsComponent: packagePlan.InstallPackages.Count > 0,
-            GetVsrepoTarget(),
+            VsrepoCommand.Target,
             string.Join(",", installedPackages.Values.Select(static package => package.InstalledVersion).Distinct()),
             packagePlan.InstallPackages);
 
         ReportProgress(progress, SetupDependencyKind.VsPluginBundle, 100, "VS plugin bundle is ready.");
     }
 
-    private string VsrepoBaselineRoot => Path.Combine(_paths.DownloadsRootPath, "vsrepo-baseline-2026-11-12");
-
     internal static IReadOnlyList<string> GetVsrepoBaselinePackageIdentifiers()
     {
-        using var stream = typeof(SetupBootstrapService).Assembly.GetManifestResourceStream("FlowEncode.Infrastructure.Resources.VsrepoBaseline.json")
+        using var stream = typeof(SetupBootstrapService).Assembly.GetManifestResourceStream(VsrepoCommand.BaselineResourceName)
             ?? throw new InvalidOperationException("The pinned VS plugin manifest is missing.");
         using var document = JsonDocument.Parse(stream);
         return document.RootElement.GetProperty("packages").EnumerateArray()
@@ -932,31 +931,12 @@ public sealed class SetupBootstrapService : ISetupBootstrapService, IDisposable
 
     internal static bool MatchesVsrepoBaselineVersions(IReadOnlyDictionary<string, string> installedVersions)
     {
-        using var stream = typeof(SetupBootstrapService).Assembly.GetManifestResourceStream("FlowEncode.Infrastructure.Resources.VsrepoBaseline.json")!;
+        using var stream = typeof(SetupBootstrapService).Assembly.GetManifestResourceStream(VsrepoCommand.BaselineResourceName)!;
         using var document = JsonDocument.Parse(stream);
         return document.RootElement.GetProperty("packages").EnumerateArray().All(package =>
             (installedVersions.TryGetValue(package.GetProperty("identifier").GetString()!, out var actual)
                 || installedVersions.TryGetValue(package.GetProperty("name").GetString()!, out actual))
             && string.Equals(actual, package.GetProperty("releases")[0].GetProperty("version").GetString(), StringComparison.OrdinalIgnoreCase));
-    }
-
-    private void PrepareVsrepoBaseline()
-    {
-        using var stream = typeof(SetupBootstrapService).Assembly.GetManifestResourceStream("FlowEncode.Infrastructure.Resources.VsrepoBaseline.json")
-            ?? throw new InvalidOperationException("The pinned VS plugin manifest is missing.");
-        using var reader = new StreamReader(stream);
-        PersistentFileWriter.WriteAllText(Path.Combine(VsrepoBaselineRoot, "vsrepo", "vspackages3.json"), reader.ReadToEnd(), new System.Text.UTF8Encoding(false));
-    }
-
-    private IReadOnlyList<string> BuildVsrepoInstallArguments(string operation, IReadOnlyList<string> packages, bool useBaseline)
-    {
-        if (!useBaseline) return ["-m", "vsrepo.vsrepo", "-t", GetVsrepoTarget(), operation, .. packages];
-        // Change APPDATA only after Python/site initialization and only in this child.
-        // Plugin/script destinations stay in the selected environment; the user's database stays intact.
-        const string runner = "import os,runpy,sys,vapoursynth; os.environ['APPDATA']=sys.argv[1]; sys.argv=['vsrepo']+sys.argv[2:]; runpy.run_module('vsrepo.vsrepo',run_name='__main__')";
-        return operation == "upgrade"
-            ? ["-c", runner, VsrepoBaselineRoot, "-t", GetVsrepoTarget(), "-f", "upgrade-all"]
-            : ["-c", runner, VsrepoBaselineRoot, "-t", GetVsrepoTarget(), operation, .. packages];
     }
 
     internal static VsPluginBundlePackagePlan BuildVsPluginBundlePackagePlan(
@@ -1203,7 +1183,7 @@ public sealed class SetupBootstrapService : ISetupBootstrapService, IDisposable
         ReportProgress(progress, SetupDependencyKind.VsPluginBundle, 10, "Removing VS plugin bundle...");
         await RunProcessAsync(
             pythonPath,
-            ["-m", "vsrepo.vsrepo", "-t", GetVsrepoTarget(), "uninstall", .. packages],
+            VsrepoCommand.CreateArguments("uninstall", packages),
             cancellationToken,
             timeoutMs: 600_000,
             onOutput: line =>
@@ -1781,15 +1761,15 @@ public sealed class SetupBootstrapService : ISetupBootstrapService, IDisposable
         try
         {
             await EnsureVsrepoUserSiteDirectoryAsync(pythonPath, cancellationToken);
-            if (useBaseline) PrepareVsrepoBaseline();
-            else if (refreshPackageDefinitions)
+            var baselineRoot = useBaseline ? VsrepoCommand.PrepareBaseline(_paths) : null;
+            if (!useBaseline && refreshPackageDefinitions)
             {
                 await TryUpdateVsrepoPackageDefinitionsAsync(pythonPath, cancellationToken);
             }
 
             var result = await RunProcessAsync(
                 pythonPath,
-                BuildVsrepoInstallArguments("installed", [], useBaseline),
+                VsrepoCommand.CreateArguments("installed", [], baselineRoot),
                 cancellationToken,
                 timeoutMs: 30_000);
             if (result.ExitCode != 0)
@@ -1814,7 +1794,7 @@ public sealed class SetupBootstrapService : ISetupBootstrapService, IDisposable
             await EnsureVsrepoUserSiteDirectoryAsync(pythonPath, cancellationToken);
             await RunProcessAsync(
                 pythonPath,
-                ["-m", "vsrepo.vsrepo", "-t", GetVsrepoTarget(), "update"],
+                VsrepoCommand.CreateArguments("update", []),
                 cancellationToken,
                 timeoutMs: 120_000);
         }
@@ -1978,7 +1958,7 @@ public sealed class SetupBootstrapService : ISetupBootstrapService, IDisposable
     {
         var scriptsDirectory = Path.Combine(Path.GetDirectoryName(pythonPath) ?? string.Empty, "Scripts");
         var vsrepoPath = Path.Combine(scriptsDirectory, "vsrepo.exe");
-        if (await IsCliCommandHealthyAsync(vsrepoPath, ["installed"], cancellationToken))
+        if (await IsCliCommandHealthyAsync(vsrepoPath, [VsrepoCommand.LauncherProbeArgument], cancellationToken))
         {
             return;
         }
@@ -1988,7 +1968,7 @@ public sealed class SetupBootstrapService : ISetupBootstrapService, IDisposable
             ["-m", "pip", "install", "--upgrade", "--force-reinstall", "--no-deps", "--disable-pip-version-check", "--progress-bar", "off", VapourSynthToolchainPolicy.PackageSpec("vsrepo")],
             cancellationToken,
             timeoutMs: 600_000);
-        if (!await IsCliCommandHealthyAsync(vsrepoPath, ["installed"], cancellationToken))
+        if (!await IsCliCommandHealthyAsync(vsrepoPath, [VsrepoCommand.LauncherProbeArgument], cancellationToken))
         {
             throw new InvalidOperationException($"vsrepo was installed for '{pythonPath}', but the vsrepo command-line launcher is not usable.");
         }
@@ -2720,11 +2700,6 @@ public sealed class SetupBootstrapService : ISetupBootstrapService, IDisposable
         bool isIndeterminate = false)
     {
         progress?.Report(new SetupInstallProgress(kind, Math.Clamp(percent, 0, 100), statusText, isIndeterminate));
-    }
-
-    private static string GetVsrepoTarget()
-    {
-        return Environment.Is64BitOperatingSystem ? "win64" : "win32";
     }
 
     private static string GetValueOrEmpty(IReadOnlyDictionary<string, string> dictionary, string key)

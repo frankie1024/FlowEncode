@@ -20,6 +20,24 @@ if (businessScenario is not null)
 }
 if (tool is "vspipe" or "x264")
     await File.AppendAllTextAsync(Path.Combine(AppContext.BaseDirectory, tool + "-calls.log"), string.Join(" ", args) + "\n");
+if ((businessScenario is "vsrepo-clean-profile" or "vsrepo-existing-profile") && args.Contains("installed"))
+{
+    if (businessScenario == "vsrepo-clean-profile" && !args.Contains("-c"))
+    {
+        Console.Error.WriteLine("Failed to open vspackages3.json. Run update command.");
+        return 1;
+    }
+
+    if (args.Contains("-c") && !File.Exists(Path.Combine(args[2], "vsrepo", "vspackages3.json")))
+    {
+        Console.Error.WriteLine("The pinned manifest was not prepared.");
+        return 1;
+    }
+
+    Console.WriteLine("Name                      Namespace       Installed   Latest      Identifier");
+    Console.WriteLine("FFmpegSource2             ffms2           5.0         5.0         com.vapoursynth.ffms2");
+    return 0;
+}
 if (tool == "python" && args.Contains("-c"))
 {
     await File.AppendAllTextAsync(Path.Combine(AppContext.BaseDirectory, "python-probes.log"), "probe\n");

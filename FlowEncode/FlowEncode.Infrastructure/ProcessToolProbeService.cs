@@ -216,7 +216,10 @@ public sealed class ProcessToolProbeService : IToolProbeService
                 return EnrichPythonRuntimeCompatibility(definition, candidate);
             }
 
-            var ready = CreateReadyResult(definition, candidate, ResolveVersionText(definition, candidate.Path, output));
+            var version = definition.Kind == RegisteredToolKind.VsrepoCli
+                ? string.Empty
+                : ResolveVersionText(definition, candidate.Path, output);
+            var ready = CreateReadyResult(definition, candidate, version);
             if (definition.Kind == RegisteredToolKind.Deew)
             {
                 var deewLine = output.Split('\n').FirstOrDefault(l => l.TrimStart().StartsWith("deew ", StringComparison.OrdinalIgnoreCase)) ?? output;
@@ -311,11 +314,26 @@ public sealed class ProcessToolProbeService : IToolProbeService
             return cached;
         }
 
+        var result = RunVsrepoInstalledProbe(candidate.Path, VsrepoCommand.CreateArguments("installed", []));
+        if (!result.IsTimedOut && !string.IsNullOrWhiteSpace(result.FailureReason))
+        {
+            var baselineRoot = VsrepoCommand.PrepareBaseline(_paths);
+            var baseline = RunVsrepoInstalledProbe(candidate.Path, VsrepoCommand.CreateArguments("installed", [], baselineRoot));
+            if (!baseline.IsMissingVsrepoModule && string.IsNullOrWhiteSpace(baseline.FailureReason))
+            {
+                result = baseline;
+            }
+        }
+
+        vsrepoInstalledCache[candidate.Path] = result;
+        return result;
+    }
+
+    private static VsrepoInstalledProbeResult RunVsrepoInstalledProbe(string pythonPath, IReadOnlyList<string> arguments)
+    {
         using var process = new Process
         {
-            StartInfo = CreatePythonModuleProcessStartInfo(
-                candidate.Path,
-                ["-m", "vsrepo.vsrepo", "-t", GetVsrepoTarget(), "installed"])
+            StartInfo = CreatePythonModuleProcessStartInfo(pythonPath, arguments)
         };
 
         using var _ = ErrorDialogSuppression.Enter();
@@ -366,7 +384,6 @@ public sealed class ProcessToolProbeService : IToolProbeService
             }
         }
 
-        vsrepoInstalledCache[candidate.Path] = result;
         return result;
     }
 
@@ -1364,11 +1381,6 @@ public sealed class ProcessToolProbeService : IToolProbeService
         return output
             .Split(['\r', '\n'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
             .Where(static line => !string.IsNullOrWhiteSpace(line));
-    }
-
-    private static string GetVsrepoTarget()
-    {
-        return Environment.Is64BitOperatingSystem ? "win64" : "win32";
     }
 
     private static string EscapePythonSingleQuotedString(string value)

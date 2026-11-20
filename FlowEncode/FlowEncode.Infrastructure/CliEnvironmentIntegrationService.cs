@@ -423,7 +423,7 @@ public sealed class CliEnvironmentIntegrationService
 
             if (dependencyKind is SetupDependencyKind.Vsrepo or SetupDependencyKind.VsPluginBundle)
             {
-                AddIfExists(commands, Path.Combine(scriptsRoot, "vsrepo.exe"), "vsrepo", "installed");
+                AddIfExists(commands, Path.Combine(scriptsRoot, "vsrepo.exe"), "vsrepo", VsrepoCommand.LauncherProbeArgument);
             }
         }
 
