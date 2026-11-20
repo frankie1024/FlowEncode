@@ -60,6 +60,95 @@ public sealed class SetupBootstrapOfflineStatusTests
         Assert.AreEqual(0, factory.RequestCount);
     }
 
+    [TestMethod]
+    [DoNotParallelize]
+    public async Task LocalStatus_ProbesDeeSubfolderThenDeewDirectoryThenPath()
+    {
+        using var root = new SharedTaskCoordinatorTests.TestRoot();
+        var paths = new LocalAppPaths(root.Path, root.Path);
+        using var factory = new OfflineFactory();
+        using var service = new SetupBootstrapService(paths, null!, null!, null!,
+            new CliEnvironmentIntegrationService(paths), factory);
+        var portable = Directory.CreateDirectory(Path.Combine(root.Path, "portable")).FullName;
+        var deew = Path.Combine(portable, "deew.exe");
+        var adjacent = Directory.CreateDirectory(Path.Combine(portable, "dee")).FullName;
+        var onPath = Directory.CreateDirectory(Path.Combine(root.Path, "path")).FullName;
+        var oldPath = Environment.GetEnvironmentVariable("PATH");
+        try
+        {
+            Environment.SetEnvironmentVariable("PATH", onPath);
+            var missing = await CheckAsync();
+            Assert.AreEqual(ReadinessState.Missing, missing.State);
+
+            var localEncoder = AddComponent(adjacent, "dee_ddp_encoder");
+            var flatEncoder = AddComponent(portable, "dee_ddp_encoder");
+            var fallbackEncoder = AddComponent(onPath, "dee_ddp_encoder");
+            var scenario = Path.Combine(adjacent, "business-scenario.txt");
+            await File.WriteAllTextAsync(scenario, "legacy-dee");
+
+            var incompatible = await CheckAsync();
+            Assert.AreEqual(ReadinessState.Misconfigured, incompatible.State);
+            Assert.AreEqual("6.6.0", incompatible.InstalledVersion);
+            StringAssert.Contains(incompatible.Detail, localEncoder);
+            Assert.IsFalse(incompatible.Detail.Contains(flatEncoder, StringComparison.OrdinalIgnoreCase));
+            Assert.IsFalse(incompatible.Detail.Contains(fallbackEncoder, StringComparison.OrdinalIgnoreCase));
+
+            File.Delete(scenario);
+            var aac = AddComponent(portable, "dee_aac_encoder");
+            var pathAac = AddComponent(onPath, "dee_aac_encoder");
+            var measurement = AddComponent(onPath, "dee_measure_loudness");
+            var partial = await CheckAsync();
+            Assert.AreEqual(ReadinessState.Partial, partial.State);
+            Assert.AreEqual("6.7.0", partial.InstalledVersion);
+            StringAssert.Contains(partial.Detail, aac);
+            Assert.IsFalse(partial.Detail.Contains(pathAac, StringComparison.OrdinalIgnoreCase));
+            StringAssert.Contains(partial.Detail, measurement);
+            StringAssert.Contains(partial.Detail, "dee_ddpjoc_encoder: Missing");
+
+            var executionPath = DeewToolchain.StartInfo(deew, "", "").Environment["PATH"];
+            Assert.AreEqual(aac, DeewToolchain.Resolve(deew, "dee_aac_encoder", executionPath!));
+
+            foreach (var name in new[] { "dee_ddpjoc_encoder", "dee_dthd_encoder", "dee_ac4_encoder", "dee_ac4ajoc_encoder" })
+            {
+                AddComponent(adjacent, name);
+            }
+
+            var ready = await CheckAsync();
+            Assert.AreEqual(ReadinessState.Ready, ready.State);
+            Assert.IsFalse(ready.IsInstallSupported);
+            Assert.AreEqual(0, factory.RequestCount);
+        }
+        finally
+        {
+            Environment.SetEnvironmentVariable("PATH", oldPath);
+        }
+
+        async Task<SetupDependencyStatus> CheckAsync()
+        {
+            var readiness = new EnvironmentReadinessReport(DateTimeOffset.Now,
+                [new ToolProbeResult(RegisteredToolKind.Deew, ReadinessState.Ready, ToolDetectionSource.ManualSelection,
+                    "test", deew, "5.3.1", "", ""),
+                 new ToolProbeResult(RegisteredToolKind.Dee, ReadinessState.Ready, ToolDetectionSource.ManualSelection,
+                    "test", Path.Combine(portable, "dee.exe"), "5.2.1", "", "")], []);
+            var report = await service.GetLocalStatusReportAsync(readiness);
+            return report.Dependencies.Single(item => item.Kind == SetupDependencyKind.Dee);
+        }
+
+        static string AddComponent(string directory, string name)
+        {
+            var stubDirectory = Path.Combine(AppContext.BaseDirectory, "ToolStub");
+            foreach (var file in Directory.EnumerateFiles(stubDirectory, "FlowEncode.ToolStub.*")
+                .Where(file => !file.EndsWith(".exe", StringComparison.OrdinalIgnoreCase)))
+            {
+                File.Copy(file, Path.Combine(directory, Path.GetFileName(file)), overwrite: true);
+            }
+
+            var path = Path.Combine(directory, name + ".exe");
+            File.Copy(Path.Combine(stubDirectory, "FlowEncode.ToolStub.exe"), path);
+            return path;
+        }
+    }
+
     private sealed class OfflineFactory : HttpMessageHandler, IFlowEncodeHttpClientFactory
     {
         public int RequestCount { get; private set; }

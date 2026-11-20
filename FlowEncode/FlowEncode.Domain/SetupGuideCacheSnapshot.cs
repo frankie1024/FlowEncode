@@ -10,7 +10,7 @@ public sealed record SetupGuideCacheSnapshot(
     string EnvironmentSignature = "",
     DateTimeOffset? EnvironmentCheckedAt = null)
 {
-    public const int CurrentSchemaVersion = 4;
+    public const int CurrentSchemaVersion = 5;
 }
 
 public sealed record SetupGuideCacheStatusReport(

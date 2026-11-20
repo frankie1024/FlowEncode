@@ -249,6 +249,7 @@ public sealed class SetupBootstrapService : ISetupBootstrapService, IDisposable
                 : null;
         var vsrepoPackages = await QueryVsrepoInstalledPackagesAsync(
             targetPython?.ExecutablePath, refreshVsrepoPackageDefinitions, cancellationToken);
+        var deeStatus = await BuildDeeStatusAsync(readiness, cancellationToken);
 
         var context = new SetupStatusLocalContext(
             targetPython,
@@ -256,7 +257,8 @@ public sealed class SetupBootstrapService : ISetupBootstrapService, IDisposable
             targetPython is not null,
             vsrepoPackages,
             GetToolResult(readiness, RegisteredToolKind.PythonModuleAwsmfunc).DetectedVersion,
-            GetToolResult(readiness, RegisteredToolKind.PythonModuleVsjetpack).DetectedVersion);
+            GetToolResult(readiness, RegisteredToolKind.PythonModuleVsjetpack).DetectedVersion,
+            deeStatus);
         _localContextReadiness = readiness;
         _localContext = context;
         return context;
@@ -288,7 +290,7 @@ public sealed class SetupBootstrapService : ISetupBootstrapService, IDisposable
             BuildToolStatus(readiness, SetupDependencyKind.DgDemux, RegisteredToolKind.DgDemux),
             BuildToolStatus(readiness, SetupDependencyKind.Eac3To, RegisteredToolKind.Eac3To),
             BuildToolStatus(readiness, SetupDependencyKind.Deew, RegisteredToolKind.Deew),
-            BuildToolStatus(readiness, SetupDependencyKind.Dee, RegisteredToolKind.Dee),
+            localContext.DeeStatus,
             BuildToolStatus(readiness, SetupDependencyKind.OpusExt, RegisteredToolKind.OpusExt)
         };
 
@@ -599,6 +601,58 @@ public sealed class SetupBootstrapService : ISetupBootstrapService, IDisposable
             installSupported,
             installSupported,
             BuildToolDetail(probe));
+    }
+
+    private static async Task<SetupDependencyStatus> BuildDeeStatusAsync(
+        EnvironmentReadinessReport readiness,
+        CancellationToken cancellationToken)
+    {
+        var deewPath = GetToolResult(readiness, RegisteredToolKind.Deew).ExecutablePath;
+        var ffmpegPath = GetToolResult(readiness, RegisteredToolKind.Ffmpeg).ExecutablePath;
+        var ffprobePath = GetToolResult(readiness, RegisteredToolKind.Ffprobe).ExecutablePath;
+        var searchPath = DeewToolchain.BuildSearchPath(deewPath, ffmpegPath, ffprobePath);
+        string[] names = ["dee_ddp_encoder", "dee_ddpjoc_encoder", "dee_dthd_encoder", "dee_ac4_encoder",
+            "dee_ac4ajoc_encoder", "dee_aac_encoder", "dee_measure_loudness"];
+        var components = await Task.WhenAll(names.Select(ProbeComponentAsync));
+        var state = components.Count(component => component.State == ReadinessState.Ready) switch
+        {
+            var ready when ready == components.Length => ReadinessState.Ready,
+            > 0 => ReadinessState.Partial,
+            _ when components.All(component => component.State == ReadinessState.Missing) => ReadinessState.Missing,
+            _ => ReadinessState.Misconfigured
+        };
+        var versions = components.Select(component => component.Version).OfType<Version>().Distinct().ToArray();
+        return new SetupDependencyStatus(SetupDependencyKind.Dee, state,
+            versions.Length == 1 ? versions[0].ToString() : string.Empty,
+            string.Empty, false, string.Empty, string.Empty, false, false,
+            string.Join(Environment.NewLine, components.Select(component => component.Detail)));
+
+        async Task<(ReadinessState State, Version? Version, string Detail)> ProbeComponentAsync(string name)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            var path = DeewToolchain.FindTool(deewPath, name, searchPath);
+            if (path is null)
+                return (ReadinessState.Missing, null, $"{name}: Missing");
+
+            try
+            {
+                var output = await DeewToolchain.ProbeAsync(
+                    DeewToolchain.StartInfo(path, searchPath), "--help", cancellationToken);
+                var version = DeewToolchain.ReadDeeVersion(output);
+                if (version is null)
+                    return (ReadinessState.Misconfigured, null, $"{name}: DEE version unavailable | {path}");
+                if (version < DeewToolchain.MinimumDeeVersion)
+                    return (ReadinessState.Misconfigured, version,
+                        $"{name}: {version} (requires ≥{DeewToolchain.MinimumDeeVersion}) | {path}");
+
+                return (ReadinessState.Ready, version, $"{name}: {version} | {path}");
+            }
+            catch (Exception ex) when (ex is System.ComponentModel.Win32Exception or IOException
+                or UnauthorizedAccessException or InvalidOperationException)
+            {
+                return (ReadinessState.Misconfigured, null, $"{name}: {ex.Message.Split('\n', 2)[0].TrimEnd()}");
+            }
+        }
     }
 
     private SetupDependencyStatus BuildAv1anBackendStatus(
@@ -2830,7 +2884,8 @@ public sealed class SetupBootstrapService : ISetupBootstrapService, IDisposable
         bool CompatiblePythonReady,
         IReadOnlyDictionary<string, VsrepoInstalledPackage> VsrepoPackages,
         string AwsmfuncVersion,
-        string VsjetpackVersion);
+        string VsjetpackVersion,
+        SetupDependencyStatus DeeStatus);
 
     private sealed record PythonUninstallEntry(
         string DisplayName,

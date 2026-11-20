@@ -6,13 +6,18 @@ namespace FlowEncode.Infrastructure;
 
 internal static class DeewToolchain
 {
+    internal static readonly Version MinimumDeeVersion = new(6, 7, 0);
+
     internal static bool IsSupportedVersion(string text)
     {
         var match = Regex.Match(text, @"(?<!\d)(\d+\.\d+\.\d+)(?!\d)");
         return match.Success && Version.TryParse(match.Value, out var version) && version >= Version.Parse(DeewArguments.MinimumVersion);
     }
 
-    public static ProcessStartInfo StartInfo(string executable, string ffmpeg, string ffprobe)
+    public static ProcessStartInfo StartInfo(string deew, string ffmpeg, string ffprobe) =>
+        StartInfo(deew, BuildSearchPath(deew, ffmpeg, ffprobe));
+
+    internal static ProcessStartInfo StartInfo(string executable, string searchPath)
     {
         var info = new ProcessStartInfo(executable)
         {
@@ -20,43 +25,72 @@ internal static class DeewToolchain
             CreateNoWindow = true, WorkingDirectory = Path.GetDirectoryName(Path.GetFullPath(executable))!,
             StandardOutputEncoding = System.Text.Encoding.UTF8, StandardErrorEncoding = System.Text.Encoding.UTF8
         };
-        info.Environment["PATH"] = string.Join(Path.PathSeparator, new[] { Path.GetDirectoryName(ffmpeg), Path.GetDirectoryName(ffprobe), Environment.GetEnvironmentVariable("PATH") }.Where(x => !string.IsNullOrWhiteSpace(x)));
+        info.Environment["PATH"] = searchPath;
         info.Environment["NO_COLOR"] = "1";
         return info;
     }
 
-    public static string Resolve(string deew, string name, string path)
+    internal static string BuildSearchPath(string deew, string ffmpeg, string ffprobe) =>
+        string.Join(Path.PathSeparator, new[]
+        {
+            string.IsNullOrWhiteSpace(deew) ? null : Path.GetDirectoryName(Path.GetFullPath(deew)),
+            Path.GetDirectoryName(ffmpeg),
+            Path.GetDirectoryName(ffprobe),
+            Environment.GetEnvironmentVariable("PATH")
+        }.Where(directory => !string.IsNullOrWhiteSpace(directory)));
+
+    public static string Resolve(string deew, string name, string path) =>
+        FindTool(deew, name, path)
+        ?? throw new FileNotFoundException($"deew requires {ExecutableName(name)}. Searched {AdjacentToolPath(deew, name)}, then child process PATH. Keep DEE tools under their standard names in the adjacent dee directory, next to deew, or on PATH.");
+
+    internal static string? FindTool(string deew, string name, string path)
     {
-        var exeName = name + (OperatingSystem.IsWindows() ? ".exe" : "");
-        var directory = Path.GetDirectoryName(Path.GetFullPath(deew))!;
-        var local = Path.Combine(directory, name.StartsWith("dee_", StringComparison.Ordinal) && name != "dee_shim" ? "dee" : "", exeName);
-        if (File.Exists(local)) return local;
+        if (!string.IsNullOrWhiteSpace(deew))
+        {
+            var local = AdjacentToolPath(deew, name);
+            if (File.Exists(local)) return local;
+        }
+
         foreach (var entry in path.Split(Path.PathSeparator, StringSplitOptions.RemoveEmptyEntries))
         {
-            var candidate = Path.Combine(entry.Trim('"'), exeName);
+            var candidate = Path.Combine(entry.Trim('"'), ExecutableName(name));
             if (File.Exists(candidate)) return Path.GetFullPath(candidate);
         }
-        throw new FileNotFoundException($"deew requires {exeName}. Searched {local}, then child process PATH. Use the standard filename; DEE 6.7 tools belong in the adjacent dee directory.");
+        return null;
+    }
+
+    private static string AdjacentToolPath(string deew, string name) =>
+        Path.Combine(Path.GetDirectoryName(Path.GetFullPath(deew))!, IsDeeComponent(name) ? "dee" : "", ExecutableName(name));
+
+    private static string ExecutableName(string name) => name + (OperatingSystem.IsWindows() ? ".exe" : "");
+
+    private static bool IsDeeComponent(string name) => name.StartsWith("dee_", StringComparison.Ordinal) && name != "dee_shim";
+
+    internal static Version? ReadDeeVersion(string output)
+    {
+        var match = Regex.Match(output, @"Dolby\s+Encoding\s+Engine\s+version\s+(?<version>\d+\.\d+\.\d+)", RegexOptions.IgnoreCase);
+        return match.Success && Version.TryParse(match.Groups["version"].Value, out var version) ? version : null;
     }
 
     public static async Task ValidateAsync(string deew, string ffmpeg, string ffprobe,
         DeewEffectiveOutputProfile profile, Action<string> log, CancellationToken token)
     {
         var environment = StartInfo(deew, ffmpeg, ffprobe);
+        var searchPath = environment.Environment["PATH"] ?? "";
         var version = await ProbeAsync(environment, "--version", token);
         var deewLine = version.Split('\n').FirstOrDefault(l => Regex.IsMatch(l.TrimStart(), @"^deew\s", RegexOptions.IgnoreCase)) ?? "";
         if (!IsSupportedVersion(deewLine)) throw new InvalidOperationException($"FlowEncode requires deew >={DeewArguments.MinimumVersion}. Upgrade the portable deew executable. " + deewLine);
         foreach (var name in new[] { "ffmpeg", "ffprobe" }.Concat(profile.RequiredTools))
         {
-            var actual = Resolve(deew, name, environment.Environment["PATH"] ?? "");
-            var dee = name.StartsWith("dee_", StringComparison.Ordinal) && name != "dee_shim";
-            var info = StartInfo(actual, ffmpeg, ffprobe);
+            var actual = Resolve(deew, name, searchPath);
+            var dee = IsDeeComponent(name);
+            var info = StartInfo(actual, searchPath);
             var output = await ProbeAsync(info, dee ? "--help" : name is "ffmpeg" or "ffprobe" ? "-version" : "--version", token);
             if (dee)
             {
-                var match = Regex.Match(output, @"Dolby\s+Encoding\s+Engine\s+version\s+(?<version>\d+\.\d+\.\d+)", RegexOptions.IgnoreCase);
-                if (!match.Success || !Version.TryParse(match.Groups["version"].Value, out var v) || v < new Version(6, 7, 0))
-                    throw new InvalidOperationException($"{name} at {actual} requires a readable DEE version >=6.7.0.");
+                var versionFound = ReadDeeVersion(output);
+                if (versionFound is null || versionFound < MinimumDeeVersion)
+                    throw new InvalidOperationException($"{name} at {actual} requires a readable DEE version >={MinimumDeeVersion}.");
             }
             log($"{name}: {actual} — {output.Split('\n').FirstOrDefault()?.Trim()}");
         }

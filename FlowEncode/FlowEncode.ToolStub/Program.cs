@@ -29,7 +29,8 @@ if (tool == "python" && args.Contains("-c"))
 if (args.Contains("--hold-child")) { await Task.Delay(TimeSpan.FromMinutes(1)); return 0; }
 if (args.Contains("--version") || args.Contains("-version") || args.Contains("--help"))
 {
-    Console.WriteLine(tool.StartsWith("deew") ? "deew 5.3.1" : tool.StartsWith("dee_") ? "Dolby Encoding Engine version 6.7.0+test" : tool + " version 1.0.0");
+    var deeVersion = businessScenario == "legacy-dee" ? "6.6.0" : "6.7.0+test";
+    Console.WriteLine(tool.StartsWith("deew") ? "deew 5.3.1" : tool.StartsWith("dee_") ? $"Dolby Encoding Engine version {deeVersion}" : tool + " version 1.0.0");
     return 0;
 }
 if (tool == "vspipe" && args.Contains("--info"))

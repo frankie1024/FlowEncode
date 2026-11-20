@@ -870,6 +870,7 @@ public sealed class SetupGuideViewModel : ObservableObject, ISetupDependencyModu
                     BuildSetupDependencyItem(SetupDependencyKind.DgDemux),
                     BuildSetupDependencyItem(SetupDependencyKind.Eac3To),
                     BuildSetupDependencyItem(SetupDependencyKind.Deew),
+                    BuildSetupDependencyItem(SetupDependencyKind.Dee),
                     BuildSetupDependencyItem(SetupDependencyKind.OpusExt)
                 ])
         };
@@ -1031,7 +1032,6 @@ public sealed class SetupGuideViewModel : ObservableObject, ISetupDependencyModu
                 SetupDependencyKind.DgDemux => RegisteredToolKind.DgDemux,
                 SetupDependencyKind.Eac3To => RegisteredToolKind.Eac3To,
                 SetupDependencyKind.Deew => RegisteredToolKind.Deew,
-                SetupDependencyKind.Dee => RegisteredToolKind.Dee,
                 SetupDependencyKind.OpusExt => RegisteredToolKind.OpusExt,
                 _ => (RegisteredToolKind?)null
             };
@@ -1082,10 +1082,11 @@ public sealed class SetupGuideViewModel : ObservableObject, ISetupDependencyModu
         var status = ResolveSetupStatus(kind);
         var title = GetSetupDependencyTitle(kind);
         var description = GetSetupDependencyDescription(kind);
+        var canManage = kind != SetupDependencyKind.Dee;
         var isInstalled = IsSetupDependencyInstalled(kind, status);
         var hasUpdateAvailable = HasSetupDependencyUpdate(kind, status);
-        var canUninstall = CanUninstallSetupDependency(kind, status, isInstalled);
-        var isManualPinned = HasManualPinnedSetupDependency(kind);
+        var canUninstall = canManage && CanUninstallSetupDependency(kind, status, isInstalled);
+        var isManualPinned = canManage && HasManualPinnedSetupDependency(kind);
         var statusText = BuildSetupStatusText(kind, status);
         var warningText = BuildSetupWarningText(kind, status, isInstalled, canUninstall, hasUpdateAvailable, isManualPinned);
         var primaryActionText = GetSetupPrimaryActionText(kind, status, isInstalled, hasUpdateAvailable);
@@ -1110,15 +1111,15 @@ public sealed class SetupGuideViewModel : ObservableObject, ISetupDependencyModu
             status.ExecutablePath,
             status.ReleaseUrl,
             primaryActionText,
-            RequiresSetupDependencyManualImport(kind) || ShouldShowSetupPrimaryAction(status, isInstalled, hasUpdateAvailable),
-            IsSetupPrimaryActionEnabled(kind, status, isInstalled),
-            isInstalled || canUninstall,
+            canManage && (RequiresSetupDependencyManualImport(kind) || ShouldShowSetupPrimaryAction(status, isInstalled, hasUpdateAvailable)),
+            canManage && IsSetupPrimaryActionEnabled(kind, status, isInstalled),
+            canManage && (isInstalled || canUninstall),
             canUninstall,
-            CanManuallySelectSetupDependency(kind),
+            canManage && CanManuallySelectSetupDependency(kind),
             isManualPinned,
             Texts.Pick("更多", "More"),
             Texts.Pick("更新工具（不推荐）", "Update tool (not recommended)"),
-            isInstalled && ShouldShowSetupPrimaryAction(status, isInstalled, hasUpdateAvailable)
+            canManage && isInstalled && ShouldShowSetupPrimaryAction(status, isInstalled, hasUpdateAvailable)
                 && !ToolchainBaseline.HasBaseline(kind) && !RequiresSetupDependencyManualImport(kind),
             ToolchainBaseline.HasBaseline(kind) ? Texts.RecommendedVersionHelp : string.Empty,
             BuildPythonUpgradeHelp(kind, isInstalled));
@@ -1203,7 +1204,6 @@ public sealed class SetupGuideViewModel : ObservableObject, ISetupDependencyModu
             SetupDependencyKind.DgDemux => BuildFallbackToolStatus(kind, RegisteredToolKind.DgDemux, true, installSupported: false),
             SetupDependencyKind.Eac3To => BuildFallbackToolStatus(kind, RegisteredToolKind.Eac3To, true, installSupported: false),
             SetupDependencyKind.Deew => BuildFallbackToolStatus(kind, RegisteredToolKind.Deew, true, installSupported: false),
-            SetupDependencyKind.Dee => BuildFallbackToolStatus(kind, RegisteredToolKind.Dee, true, installSupported: false),
             SetupDependencyKind.OpusExt => BuildFallbackToolStatus(kind, RegisteredToolKind.OpusExt, true, installSupported: false),
             _ => new SetupDependencyStatus(kind, ReadinessState.Unknown, string.Empty, string.Empty, false, string.Empty, string.Empty, false, false, string.Empty)
         };
@@ -1305,8 +1305,12 @@ public sealed class SetupGuideViewModel : ObservableObject, ISetupDependencyModu
             SetupDependencyKind.Avs2PipeMod => Texts.Pick("AviSynth 输入桥接工具。", "Bridge tool for AviSynth input."),
             SetupDependencyKind.DgDemux => Texts.Pick("蓝光播放列表扫描与解复用默认后端。", "Default backend for Blu-ray playlist scanning and demux."),
             SetupDependencyKind.Eac3To => Texts.Pick("音频扫描与 FLAC 转换。", "Audio scanning and FLAC conversion."),
-            SetupDependencyKind.Deew => Texts.Pick("需要 deew ≥5.3.1，请放在用户可写的便携目录中。将完整的 DEE ≥6.7.0 工具集放入实际使用的 deew.exe 旁的 dee 文件夹，或以标准文件名放入 PATH。Atmos 根据格式需要 truehdd / dee_shim；96 kHz TrueHD 也需要 dee_shim。推荐 truehdd ≥0.6.3、dee_shim ≥0.2.0。deew -gt 不包含 DEE。", "Requires deew >=5.3.1 in a writable portable directory. Put the complete DEE >=6.7.0 toolset in the dee folder next to deew.exe (or standard filenames on PATH). Atmos requires format-specific truehdd / dee_shim tools; 96 kHz TrueHD also requires dee_shim. Recommended: truehdd >=0.6.3 and dee_shim >=0.2.0. deew -gt does not include DEE."),
-            SetupDependencyKind.Dee => Texts.Pick("DEE 6.7 工具集由 deew 目录托管；旧 dee.exe 不适用于 3.0。", "The DEE 6.7 toolset is managed in the deew directory; legacy dee.exe is not used by 3.0."),
+            SetupDependencyKind.Deew => Texts.Pick(
+                "请将 deew ≥5.3.1 放在用户可写的便携目录中。Atmos 需要 truehdd，部分 Atmos 格式和 96 kHz TrueHD 还需要 dee_shim。推荐 truehdd ≥0.6.3、dee_shim ≥0.2.0。",
+                "Keep deew ≥5.3.1 in a writable portable directory. Atmos requires truehdd. Some Atmos formats and 96 kHz TrueHD also require dee_shim. Recommended versions are truehdd ≥0.6.3 and dee_shim ≥0.2.0."),
+            SetupDependencyKind.Dee => Texts.Pick(
+                $"请自行准备授权的 DEE ≥{DeewToolchain.MinimumDeeVersion}。保留原文件名和目录结构。FlowEncode 依次查找当前 deew.exe 旁的 dee 子文件夹、deew.exe 所在目录和 PATH。deew -gt 不提供 DEE。每个音频任务只检查所需组件。",
+                $"Provide a licensed copy of DEE ≥{DeewToolchain.MinimumDeeVersion}. Keep the original filenames and directory structure. FlowEncode searches the dee subfolder next to the selected deew.exe, the directory containing deew.exe, then PATH. deew -gt does not provide DEE. Each audio task checks only the components it needs."),
             SetupDependencyKind.OpusExt => Texts.Pick("Opus 命令行编码器。", "Command-line Opus encoder."),
             _ => string.Empty
         };
@@ -1335,7 +1339,15 @@ public sealed class SetupGuideViewModel : ObservableObject, ISetupDependencyModu
             SetupDependencyKind.FfmpegBundle => BuildGenericSetupStatusText(status,
                 Texts.Pick("FFmpeg / FFprobe 已就绪。", "FFmpeg / FFprobe are ready."),
                 Texts.Pick("FFmpeg / FFprobe 缺失。", "FFmpeg / FFprobe are missing.")),
-            SetupDependencyKind.X264 or SetupDependencyKind.X265 or SetupDependencyKind.SvtAv1 or SetupDependencyKind.Av1an or SetupDependencyKind.Avs2PipeMod or SetupDependencyKind.DgDemux or SetupDependencyKind.Eac3To or SetupDependencyKind.Deew or SetupDependencyKind.Dee or SetupDependencyKind.OpusExt
+            SetupDependencyKind.Dee => status.State switch
+            {
+                ReadinessState.Ready => Texts.Pick("DEE 组件已通过版本检测。", "The DEE components passed the version check."),
+                ReadinessState.Partial => Texts.Pick("部分 DEE 组件可用，具体结果见下方。", "Some DEE components are available. See the results below."),
+                ReadinessState.Misconfigured => Texts.Pick("找到了 DEE 组件，但版本过低、无法识别或无法运行。", "DEE components were found, but they are too old, their versions could not be read, or they could not run."),
+                ReadinessState.Missing => Texts.Pick("未找到 DEE 组件。", "No DEE components were found."),
+                _ => Texts.Pick("尚未检测 DEE 组件。", "DEE components have not been checked yet.")
+            },
+            SetupDependencyKind.X264 or SetupDependencyKind.X265 or SetupDependencyKind.SvtAv1 or SetupDependencyKind.Av1an or SetupDependencyKind.Avs2PipeMod or SetupDependencyKind.DgDemux or SetupDependencyKind.Eac3To or SetupDependencyKind.Deew or SetupDependencyKind.OpusExt
                 => BuildGenericSetupStatusText(status,
                     Texts.Pick($"已检测到 {GetSetupDependencyTitle(kind)}。", $"{GetSetupDependencyTitle(kind)} was detected."),
                     Texts.Pick($"未检测到 {GetSetupDependencyTitle(kind)}。", $"{GetSetupDependencyTitle(kind)} was not detected.")),
