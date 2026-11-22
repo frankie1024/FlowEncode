@@ -158,9 +158,11 @@ public sealed class TaskPlanningService(TaskCoordinator tasks, IAppSettingsServi
                 break;
             case TaskKind.BluRay:
                 var bluray = request.BluRay!;
-                if (BluRayDemuxSourceSupport.IsMkvSourcePath(bluray.DiscPath) && bluray.Backend != BluRayDemuxBackend.Eac3To)
+                if (BluRayDemuxSourceSupport.IsMkvDemuxTarget(bluray) && bluray.Backend != BluRayDemuxBackend.Eac3To)
                     throw new InvalidOperationException("MKV demuxing requires the eac3to backend.");
                 await Tool(bluray.Backend == BluRayDemuxBackend.DgDemux ? RegisteredToolKind.DgDemux : RegisteredToolKind.Eac3To);
+                if (bluray.Selections.Any(static s => BluRayDemuxSourceSupport.IsMkvChaptersTrack(s.Track)))
+                    await Tool(RegisteredToolKind.Ffprobe);
                 stamps.Add(Stamp(bluray.Playlist.SourcePath));
                 command = bluRayRunner.BuildDisplayCommand(bluray);
                 outputs = bluray.Selections.Select(s => new OutputArtifact(s.OutputPath, OutputArtifactKind.Media)).ToArray();

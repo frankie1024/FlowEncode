@@ -1,5 +1,6 @@
 using System.Globalization;
 using System.Text;
+using System.Text.Json;
 using System.Text.RegularExpressions;
 using FlowEncode.Application;
 using FlowEncode.Domain;
@@ -8,8 +9,9 @@ namespace FlowEncode.Infrastructure;
 
 public sealed class Eac3ToBackendAdapter : CliBluRayDemuxBackendAdapterBase
 {
-    private static readonly Regex TitleLineRegex = new(@"^(?<index>\d+)\)\s+(?<source>.+?),\s+(?<duration>\d{1,2}:\d{2}:\d{2})$", RegexOptions.Compiled | RegexOptions.IgnoreCase);
-    private static readonly Regex ChapterSummaryRegex = new(@"^-\s*Chapters,\s*(?<count>\d+)\s+chapters$", RegexOptions.Compiled | RegexOptions.IgnoreCase);
+    private static readonly Regex TitleLineRegex = new(@"^(?<index>\d+)\)\s+(?<body>.+)$", RegexOptions.Compiled);
+    private static readonly Regex MplsFileRegex = new(@"(?<id>[^,\s\\/\(\)\[\]]+)\.mpls\b", RegexOptions.Compiled | RegexOptions.IgnoreCase);
+    private static readonly Regex ChapterSummaryRegex = new(@"^-\s*Chapters,\s*(?<count>\d+)\s+chapters", RegexOptions.Compiled | RegexOptions.IgnoreCase);
     private static readonly Regex ChapterTrackCountRegex = new(@"^Chapters,\s*(?<count>\d+)\s+chapters", RegexOptions.Compiled | RegexOptions.IgnoreCase);
     private static readonly Regex MkvDurationRegex = new(@"\b(?<duration>\d{1,2}:\d{2}:\d{2})\b", RegexOptions.Compiled);
     private static readonly Regex TrackLineRegex = new(@"^(?<index>\d+):\s+(?<body>.+)$", RegexOptions.Compiled);
@@ -51,6 +53,8 @@ public sealed class Eac3ToBackendAdapter : CliBluRayDemuxBackendAdapterBase
 
     public override BluRayDemuxBackend Backend => BluRayDemuxBackend.Eac3To;
 
+    protected override bool UseWindowsAnsiOutputDecoding => true;
+
     public override async Task<IReadOnlyList<BluRayPlaylistItem>> ScanDiscAsync(string discPath, CancellationToken cancellationToken = default)
     {
         if (BluRayDemuxSourceSupport.IsMkvSourcePath(discPath))
@@ -59,65 +63,47 @@ public sealed class Eac3ToBackendAdapter : CliBluRayDemuxBackendAdapterBase
             return [mkvItem];
         }
 
-        var eac3ToPath = await ResolveToolPathAsync(RegisteredToolKind.Eac3To, cancellationToken);
-        Directory.CreateDirectory(_appPaths.LogsRootPath);
-        var startInfo = CreateStartInfo(eac3ToPath, _appPaths.LogsRootPath);
-        startInfo.ArgumentList.Add(discPath);
-        startInfo.ArgumentList.Add("-minDuration=0");
-
-        var capture = await CaptureProcessAsync(startInfo, cancellationToken);
-        if (capture.ExitCode != 0)
+        if (Directory.Exists(discPath) && !BluRayDemuxSourceSupport.IsBluRayDiscDirectory(discPath))
         {
-            throw new InvalidOperationException(MeaningfulLineHelpers.FirstMeaningfulLine(capture.Output, "eac3to 无法读取蓝光目录。"));
+            var mkvFiles = BluRayDemuxSourceSupport.FindMkvFilesInDirectory(discPath);
+            if (mkvFiles.Count > 0)
+            {
+                await ResolveToolPathAsync(RegisteredToolKind.Eac3To, cancellationToken);
+                return BuildMkvDirectoryItems(mkvFiles);
+            }
         }
 
-        var playlists = new List<BluRayPlaylistItem>();
-        var lines = capture.Output
-            .Split(["\r\n", "\n"], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
-            .ToList();
+        var eac3ToPath = await ResolveToolPathAsync(RegisteredToolKind.Eac3To, cancellationToken);
+        Directory.CreateDirectory(_appPaths.LogsRootPath);
 
-        for (var index = 0; index < lines.Count; index++)
+        var capture = await CaptureBluRayScanAsync(eac3ToPath, discPath, includeMinDuration: true, cancellationToken);
+        var lines = NormalizeEac3ToOutputLines(capture.Output);
+        var playlists = capture.ExitCode == 0 ? ParsePlaylists(discPath, lines) : [];
+
+        if (playlists.Count == 0)
         {
-            var titleMatch = TitleLineRegex.Match(lines[index]);
-            if (!titleMatch.Success)
+            var fallbackCapture = await CaptureBluRayScanAsync(eac3ToPath, discPath, includeMinDuration: false, cancellationToken);
+            var fallbackLines = NormalizeEac3ToOutputLines(fallbackCapture.Output);
+            var fallbackPlaylists = fallbackCapture.ExitCode == 0 ? ParsePlaylists(discPath, fallbackLines) : [];
+            if (fallbackPlaylists.Count > 0 || (capture.ExitCode != 0 && fallbackCapture.ExitCode == 0))
             {
-                continue;
+                capture = fallbackCapture;
+                lines = fallbackLines;
+                playlists = fallbackPlaylists;
             }
+        }
 
-            var titleIndex = titleMatch.Groups["index"].Value;
-            var playlistId = ResolvePlaylistId(titleMatch.Groups["source"].Value.Trim());
-            if (string.IsNullOrWhiteSpace(playlistId))
-            {
-                continue;
-            }
-
-            var durationText = titleMatch.Groups["duration"].Value;
-            int? chapterCount = null;
-
-            if (index + 1 < lines.Count)
-            {
-                var chapterMatch = ChapterSummaryRegex.Match(lines[index + 1]);
-                if (chapterMatch.Success
-                    && int.TryParse(chapterMatch.Groups["count"].Value, NumberStyles.Integer, CultureInfo.InvariantCulture, out var parsedCount))
-                {
-                    chapterCount = parsedCount;
-                }
-            }
-
-            playlists.Add(new BluRayPlaylistItem(
-                playlistId,
-                $"{playlistId}.mpls",
-                chapterCount.HasValue ? $"{durationText} · {chapterCount.Value} chapters" : durationText,
-                Path.Combine(discPath, "BDMV", "PLAYLIST", $"{playlistId}.mpls"),
-                $"{titleIndex})",
-                durationText,
-                TryParseDuration(durationText),
-                chapterCount));
+        if (capture.ExitCode != 0)
+        {
+            throw new InvalidOperationException(FirstEac3ToMeaningfulLine(lines, "eac3to 无法读取蓝光目录。"));
         }
 
         if (playlists.Count == 0)
         {
-            throw new InvalidOperationException("eac3to 未返回可用播放列表。");
+            var detail = FirstEac3ToMeaningfulLine(lines, string.Empty);
+            throw new InvalidOperationException(string.IsNullOrWhiteSpace(detail)
+                ? "eac3to 未返回可用播放列表。"
+                : $"eac3to 未返回可用播放列表（{detail}）。");
         }
 
         return playlists;
@@ -125,8 +111,8 @@ public sealed class Eac3ToBackendAdapter : CliBluRayDemuxBackendAdapterBase
 
     public override async Task<BluRayPlaylistScanResult> ScanPlaylistAsync(string discPath, BluRayPlaylistItem playlist, CancellationToken cancellationToken = default)
     {
-        var isMkvSource = BluRayDemuxSourceSupport.IsMkvSourcePath(discPath)
-            || (string.IsNullOrWhiteSpace(playlist.SelectionToken) && BluRayDemuxSourceSupport.IsMkvSourcePath(playlist.SourcePath));
+        var isMkvSource = BluRayDemuxSourceSupport.IsMkvSourcePath(playlist.SourcePath)
+            || BluRayDemuxSourceSupport.IsMkvSourcePath(discPath);
         if (isMkvSource)
         {
             return await ScanMkvPlaylistAsync(discPath, playlist, cancellationToken);
@@ -142,14 +128,11 @@ public sealed class Eac3ToBackendAdapter : CliBluRayDemuxBackendAdapterBase
         }
 
         var capture = await CaptureProcessAsync(startInfo, cancellationToken);
+        var lines = NormalizeEac3ToOutputLines(capture.Output);
         if (capture.ExitCode != 0)
         {
-            throw new InvalidOperationException(MeaningfulLineHelpers.FirstMeaningfulLine(capture.Output, "eac3to 无法读取播放列表。"));
+            throw new InvalidOperationException(FirstEac3ToMeaningfulLine(lines, "eac3to 无法读取播放列表。"));
         }
-
-        var lines = capture.Output
-            .Split(["\r\n", "\n"], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
-            .ToList();
 
         var tracks = ParseTracks(lines);
         if (tracks.Count == 0)
@@ -173,40 +156,78 @@ public sealed class Eac3ToBackendAdapter : CliBluRayDemuxBackendAdapterBase
     {
         ValidateInput(request);
         var stagedRequest = CreateStagedRequest(request);
-        var eac3ToPath = await ResolveToolPathAsync(RegisteredToolKind.Eac3To, cancellationToken);
-        Directory.CreateDirectory(_appPaths.LogsRootPath);
+        var orderedSelections = stagedRequest.Selections.OrderBy(static item => item.Track.Order).ToList();
+        var mkvChapterSelections = orderedSelections.Where(static item => BluRayDemuxSourceSupport.IsMkvChaptersTrack(item.Track)).ToList();
+        var eac3ToSelections = orderedSelections.Where(static item => !BluRayDemuxSourceSupport.IsMkvChaptersTrack(item.Track)).ToList();
+        var sourcePath = BluRayDemuxSourceSupport.ResolveExecutionSourcePath(stagedRequest);
+        var displayCommand = BuildDisplayCommand(request);
+
         ExecutionOutputStaging.EnsureFreshDirectory(stagedRequest.OutputDirectory);
-
-        var startInfo = CreateStartInfo(eac3ToPath, _appPaths.LogsRootPath);
-        startInfo.ArgumentList.Add(stagedRequest.DiscPath);
-        if (!string.IsNullOrWhiteSpace(stagedRequest.Playlist.SelectionToken))
-        {
-            startInfo.ArgumentList.Add(stagedRequest.Playlist.SelectionToken);
-        }
-
-        foreach (var selection in stagedRequest.Selections.OrderBy(static item => item.Track.Order))
-        {
-            startInfo.ArgumentList.Add($"{selection.Track.DemuxToken}:");
-            startInfo.ArgumentList.Add(selection.OutputPath);
-        }
-
-        startInfo.ArgumentList.Add("-progressnumbers");
 
         var preserveStagedOutput = false;
         try
         {
-            var result = await RunProcessAsync(
-                request,
-                BuildDisplayCommand(request),
-                startInfo,
-                ParseProgress,
-                IsSuccessfulTerminalLine,
-                "eac3to 解复用中",
-                "eac3to 解复用完成",
-                "eac3to 解复用已取消",
-                "eac3to 解复用失败",
-                progress,
-                cancellationToken);
+            BluRayDemuxResult result;
+            if (eac3ToSelections.Count == 0)
+            {
+                progress?.Report(new(request.JobId, EncodingJobState.Running, null, "正在提取 MKV 章节...", string.Empty));
+                var chapterLog = await ExportMkvChaptersAsync(sourcePath, mkvChapterSelections, cancellationToken);
+                result = new BluRayDemuxResult(
+                    request.JobId,
+                    EncodingJobState.Completed,
+                    0,
+                    "MKV 章节提取完成",
+                    chapterLog,
+                    displayCommand,
+                    request.Selections.Select(static selection => selection.OutputPath).ToList());
+            }
+            else
+            {
+                var eac3ToPath = await ResolveToolPathAsync(RegisteredToolKind.Eac3To, cancellationToken);
+                Directory.CreateDirectory(_appPaths.LogsRootPath);
+
+                var startInfo = CreateStartInfo(eac3ToPath, _appPaths.LogsRootPath);
+                startInfo.ArgumentList.Add(sourcePath);
+                if (!string.IsNullOrWhiteSpace(stagedRequest.Playlist.SelectionToken))
+                {
+                    startInfo.ArgumentList.Add(stagedRequest.Playlist.SelectionToken);
+                }
+
+                foreach (var selection in eac3ToSelections)
+                {
+                    startInfo.ArgumentList.Add($"{selection.Track.DemuxToken}:");
+                    startInfo.ArgumentList.Add(selection.OutputPath);
+                }
+
+                startInfo.ArgumentList.Add("-progressnumbers");
+
+                result = await RunProcessAsync(
+                    request,
+                    displayCommand,
+                    startInfo,
+                    ParseProgress,
+                    IsSuccessfulTerminalLine,
+                    "eac3to 解复用中",
+                    "eac3to 解复用完成",
+                    "eac3to 解复用已取消",
+                    "eac3to 解复用失败",
+                    progress,
+                    cancellationToken);
+
+                if (result.State == EncodingJobState.Completed && mkvChapterSelections.Count > 0)
+                {
+                    var chapterLog = await ExportMkvChaptersAsync(sourcePath, mkvChapterSelections, cancellationToken);
+                    if (!string.IsNullOrWhiteSpace(chapterLog))
+                    {
+                        result = result with
+                        {
+                            Log = string.IsNullOrWhiteSpace(result.Log)
+                                ? chapterLog
+                                : $"{result.Log}{Environment.NewLine}{chapterLog}"
+                        };
+                    }
+                }
+            }
 
             if (result.State == EncodingJobState.Completed)
             {
@@ -228,26 +249,77 @@ public sealed class Eac3ToBackendAdapter : CliBluRayDemuxBackendAdapterBase
 
     public override string BuildDisplayCommand(BluRayDemuxRequest request)
     {
-        var builder = new StringBuilder();
-        builder.Append("eac3to.exe ");
-        builder.Append(Quote(request.DiscPath));
-        if (!string.IsNullOrWhiteSpace(request.Playlist.SelectionToken))
+        var sourcePath = BluRayDemuxSourceSupport.ResolveExecutionSourcePath(request);
+        var orderedSelections = request.Selections.OrderBy(static item => item.Track.Order).ToList();
+        var eac3ToSelections = orderedSelections.Where(static item => !BluRayDemuxSourceSupport.IsMkvChaptersTrack(item.Track)).ToList();
+        var mkvChapterSelections = orderedSelections.Where(static item => BluRayDemuxSourceSupport.IsMkvChaptersTrack(item.Track)).ToList();
+        var commands = new List<string>();
+
+        if (eac3ToSelections.Count > 0)
         {
-            builder.Append(' ');
-            builder.Append(request.Playlist.SelectionToken);
+            var builder = new StringBuilder();
+            builder.Append("eac3to.exe ");
+            builder.Append(Quote(sourcePath));
+            if (!string.IsNullOrWhiteSpace(request.Playlist.SelectionToken))
+            {
+                builder.Append(' ');
+                builder.Append(request.Playlist.SelectionToken);
+            }
+
+            foreach (var selection in eac3ToSelections)
+            {
+                builder.Append(' ');
+                builder.Append(selection.Track.DemuxToken);
+                builder.Append(':');
+                builder.Append(' ');
+                builder.Append(Quote(selection.OutputPath));
+            }
+
+            builder.Append(" -progressnumbers");
+            commands.Add(builder.ToString());
         }
 
-        foreach (var selection in request.Selections.OrderBy(static item => item.Track.Order))
+        foreach (var chapterSelection in mkvChapterSelections)
         {
-            builder.Append(' ');
-            builder.Append(selection.Track.DemuxToken);
-            builder.Append(':');
-            builder.Append(' ');
-            builder.Append(Quote(selection.OutputPath));
+            commands.Add($"ffprobe.exe -v error -show_chapters -of json {Quote(sourcePath)} -> {Quote(chapterSelection.OutputPath)}");
         }
 
-        builder.Append(" -progressnumbers");
-        return builder.ToString();
+        return string.Join(Environment.NewLine, commands);
+    }
+
+    private static IReadOnlyList<BluRayPlaylistItem> BuildMkvDirectoryItems(IReadOnlyList<string> mkvFiles)
+    {
+        var items = new List<BluRayPlaylistItem>(mkvFiles.Count);
+        foreach (var mkvFile in mkvFiles)
+        {
+            var fullPath = Path.GetFullPath(mkvFile);
+            var fileName = Path.GetFileName(fullPath);
+            var summary = "MKV";
+            try
+            {
+                var info = new FileInfo(fullPath);
+                if (info.Exists)
+                {
+                    summary = $"MKV · {BluRayDemuxSourceSupport.FormatFileSize(info.Length)}";
+                }
+            }
+            catch
+            {
+                // Fall back to plain MKV summary if file metadata cannot be read.
+            }
+
+            items.Add(new BluRayPlaylistItem(
+                BluRayDemuxSourceSupport.SanitizeOutputStem(Path.GetFileNameWithoutExtension(fullPath)),
+                fileName,
+                summary,
+                fullPath,
+                string.Empty,
+                string.Empty,
+                null,
+                null));
+        }
+
+        return items;
     }
 
     private async Task<BluRayPlaylistItem> ScanMkvSourceAsync(string sourcePath, CancellationToken cancellationToken)
@@ -268,9 +340,9 @@ public sealed class Eac3ToBackendAdapter : CliBluRayDemuxBackendAdapterBase
         BluRayPlaylistItem playlist,
         CancellationToken cancellationToken)
     {
-        var rawPath = BluRayDemuxSourceSupport.IsMkvSourcePath(discPath)
-            ? discPath
-            : playlist.SourcePath;
+        var rawPath = BluRayDemuxSourceSupport.IsMkvSourcePath(playlist.SourcePath)
+            ? playlist.SourcePath
+            : discPath;
         var fullPath = Path.GetFullPath(rawPath.Trim());
         if (!File.Exists(fullPath))
         {
@@ -302,16 +374,30 @@ public sealed class Eac3ToBackendAdapter : CliBluRayDemuxBackendAdapterBase
         startInfo.ArgumentList.Add(fullMkvPath);
 
         var capture = await CaptureProcessAsync(startInfo, cancellationToken);
+        var lines = NormalizeEac3ToOutputLines(capture.Output);
         if (capture.ExitCode != 0)
         {
-            throw new InvalidOperationException(MeaningfulLineHelpers.FirstMeaningfulLine(capture.Output, "eac3to 无法读取 MKV 文件。"));
+            throw new InvalidOperationException(FirstEac3ToMeaningfulLine(lines, "eac3to 无法读取 MKV 文件。"));
         }
 
-        var lines = capture.Output
-            .Split(["\r\n", "\n"], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
-            .ToList();
-
         var tracks = ParseTracks(lines);
+        if (!tracks.Any(static track => track.Kind == BluRayTrackKind.Chapters))
+        {
+            var chapters = await ProbeMkvChaptersAsync(fullMkvPath, cancellationToken);
+            if (chapters.Count > 0)
+            {
+                var nextOrder = tracks.Count > 0 ? tracks.Max(static track => track.Order) + 1 : 1;
+                tracks.Add(new BluRayTrackItem(
+                    "chapters",
+                    nextOrder,
+                    BluRayDemuxSourceSupport.MkvChaptersDemuxToken,
+                    BluRayTrackKind.Chapters,
+                    $"#{nextOrder:00} · Chapters",
+                    $"Chapters, {chapters.Count} chapters",
+                    string.Empty));
+            }
+        }
+
         if (tracks.Count == 0)
         {
             throw new InvalidOperationException("eac3to 未从 MKV 文件解析出可选轨道。");
@@ -488,12 +574,159 @@ public sealed class Eac3ToBackendAdapter : CliBluRayDemuxBackendAdapterBase
         return string.Join(" · ", parts);
     }
 
+    private Task<ProcessCaptureResult> CaptureBluRayScanAsync(
+        string eac3ToPath,
+        string discPath,
+        bool includeMinDuration,
+        CancellationToken cancellationToken)
+    {
+        var startInfo = CreateStartInfo(eac3ToPath, _appPaths.LogsRootPath);
+        startInfo.ArgumentList.Add(discPath);
+        if (includeMinDuration)
+        {
+            startInfo.ArgumentList.Add("-minDuration=0");
+        }
+
+        return CaptureProcessAsync(startInfo, cancellationToken);
+    }
+
+    internal static List<string> NormalizeEac3ToOutputLines(string output)
+    {
+        if (string.IsNullOrWhiteSpace(output))
+        {
+            return [];
+        }
+
+        var segments = output.Split(["\r\n", "\n", "\r"], StringSplitOptions.RemoveEmptyEntries);
+        var normalizedLines = new List<string>(segments.Length);
+        foreach (var segment in segments)
+        {
+            var resolved = ApplyBackspaces(segment);
+            var normalized = ConsoleOutputLineNormalizer.Normalize(resolved);
+            if (!string.IsNullOrWhiteSpace(normalized))
+            {
+                normalizedLines.Add(normalized);
+            }
+        }
+
+        return normalizedLines;
+    }
+
+    internal static List<BluRayPlaylistItem> ParsePlaylists(string discPath, IReadOnlyList<string> lines)
+    {
+        var playlists = new List<BluRayPlaylistItem>();
+        for (var index = 0; index < lines.Count; index++)
+        {
+            var titleMatch = TitleLineRegex.Match(lines[index]);
+            if (!titleMatch.Success)
+            {
+                continue;
+            }
+
+            var titleIndex = titleMatch.Groups["index"].Value;
+            var body = titleMatch.Groups["body"].Value.Trim();
+            var playlistId = ResolvePlaylistId(body);
+            if (string.IsNullOrWhiteSpace(playlistId))
+            {
+                continue;
+            }
+
+            var durationText = TryExtractMkvDuration(body);
+            int? chapterCount = null;
+
+            for (var lookAhead = index + 1; lookAhead < lines.Count; lookAhead++)
+            {
+                if (TitleLineRegex.IsMatch(lines[lookAhead]))
+                {
+                    break;
+                }
+
+                var chapterMatch = ChapterSummaryRegex.Match(lines[lookAhead]);
+                if (chapterMatch.Success
+                    && int.TryParse(chapterMatch.Groups["count"].Value, NumberStyles.Integer, CultureInfo.InvariantCulture, out var parsedCount))
+                {
+                    chapterCount = parsedCount;
+                    break;
+                }
+            }
+
+            var summary = BuildPlaylistSummary(durationText, chapterCount, body);
+            playlists.Add(new BluRayPlaylistItem(
+                playlistId,
+                $"{playlistId}.mpls",
+                summary,
+                Path.Combine(discPath, "BDMV", "PLAYLIST", $"{playlistId}.mpls"),
+                $"{titleIndex})",
+                durationText,
+                TryParseDuration(durationText),
+                chapterCount));
+        }
+
+        return playlists;
+    }
+
+    private static string ApplyBackspaces(string value)
+    {
+        if (!value.Contains('\b', StringComparison.Ordinal))
+        {
+            return value;
+        }
+
+        var builder = new StringBuilder(value.Length);
+        foreach (var character in value)
+        {
+            if (character == '\b')
+            {
+                if (builder.Length > 0)
+                {
+                    builder.Length--;
+                }
+
+                continue;
+            }
+
+            builder.Append(character);
+        }
+
+        return builder.ToString();
+    }
+
+    private static string BuildPlaylistSummary(string durationText, int? chapterCount, string fallbackBody)
+    {
+        if (!string.IsNullOrWhiteSpace(durationText))
+        {
+            return chapterCount.HasValue
+                ? $"{durationText} · {chapterCount.Value} chapters"
+                : durationText;
+        }
+
+        return chapterCount.HasValue
+            ? $"{chapterCount.Value} chapters"
+            : fallbackBody;
+    }
+
+    private static string FirstEac3ToMeaningfulLine(IReadOnlyList<string> lines, string fallback)
+    {
+        foreach (var line in lines)
+        {
+            if (string.IsNullOrWhiteSpace(line)
+                || line.Equals("Fast mode enabled", StringComparison.OrdinalIgnoreCase)
+                || line.Equals("Keeping dialnorm", StringComparison.OrdinalIgnoreCase)
+                || line.StartsWith("analyze:", StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
+            return line;
+        }
+
+        return lines.FirstOrDefault(static line => !string.IsNullOrWhiteSpace(line)) ?? fallback;
+    }
+
     private static string ResolvePlaylistId(string source)
     {
-        var index = source.IndexOf(".mpls", StringComparison.OrdinalIgnoreCase);
-        return index <= 0
-            ? string.Empty
-            : source[..index];
+        var match = MplsFileRegex.Match(source);
+        return match.Success ? match.Groups["id"].Value : string.Empty;
     }
 
     internal static BluRayTrackKind ResolveTrackKind(string body)
@@ -622,5 +855,161 @@ public sealed class Eac3ToBackendAdapter : CliBluRayDemuxBackendAdapterBase
             : null;
     }
 
+    private async Task<IReadOnlyList<MkvChapterEntry>> ProbeMkvChaptersAsync(
+        string fullMkvPath,
+        CancellationToken cancellationToken,
+        bool throwOnError = false)
+    {
+        var ffprobePath = await TryResolveToolPathAsync(RegisteredToolKind.Ffprobe, cancellationToken);
+        if (string.IsNullOrWhiteSpace(ffprobePath))
+        {
+            if (throwOnError)
+            {
+                throw new InvalidOperationException("未找到可用的 ffprobe，无法提取 MKV 章节。");
+            }
+
+            return [];
+        }
+
+        try
+        {
+            var startInfo = CreateStartInfo(ffprobePath);
+            startInfo.ArgumentList.Add("-v");
+            startInfo.ArgumentList.Add("error");
+            startInfo.ArgumentList.Add("-show_chapters");
+            startInfo.ArgumentList.Add("-of");
+            startInfo.ArgumentList.Add("json");
+            startInfo.ArgumentList.Add(fullMkvPath);
+
+            var result = await ProcessProbeRunner.RunAsync(
+                startInfo,
+                TimeSpan.FromSeconds(30),
+                "MKV chapter probe timed out / MKV 章节扫描超时。",
+                cancellationToken);
+            if (result.ExitCode != 0 || string.IsNullOrWhiteSpace(result.StandardOutput))
+            {
+                if (throwOnError)
+                {
+                    throw new InvalidOperationException(MeaningfulLineHelpers.FirstMeaningfulLine(result.StandardError, "ffprobe 无法读取 MKV 章节。"));
+                }
+
+                return [];
+            }
+
+            return ParseFfprobeChaptersJson(result.StandardOutput);
+        }
+        catch when (!throwOnError)
+        {
+            return [];
+        }
+    }
+
+    private async Task<string> ExportMkvChaptersAsync(
+        string sourcePath,
+        IReadOnlyList<BluRayTrackSelection> chapterSelections,
+        CancellationToken cancellationToken)
+    {
+        var chapters = await ProbeMkvChaptersAsync(sourcePath, cancellationToken, throwOnError: true);
+        if (chapters.Count == 0)
+        {
+            throw new InvalidOperationException("未在 MKV 文件中检测到可导出的章节。");
+        }
+
+        var content = FormatOggChapters(chapters);
+        var utf8NoBom = new UTF8Encoding(encoderShouldEmitUTF8Identifier: false);
+        var logLines = new List<string>(chapterSelections.Count);
+        foreach (var selection in chapterSelections)
+        {
+            var directory = Path.GetDirectoryName(selection.OutputPath);
+            if (!string.IsNullOrWhiteSpace(directory))
+            {
+                Directory.CreateDirectory(directory);
+            }
+
+            await File.WriteAllTextAsync(selection.OutputPath, content, utf8NoBom, cancellationToken);
+            logLines.Add($"Exported {chapters.Count} MKV chapters -> {Path.GetFileName(selection.OutputPath)}");
+        }
+
+        return string.Join(Environment.NewLine, logLines);
+    }
+
+    internal static IReadOnlyList<MkvChapterEntry> ParseFfprobeChaptersJson(string json)
+    {
+        using var document = JsonDocument.Parse(json);
+        if (!document.RootElement.TryGetProperty("chapters", out var chaptersElement)
+            || chaptersElement.ValueKind != JsonValueKind.Array)
+        {
+            return [];
+        }
+
+        var entries = new List<MkvChapterEntry>();
+        foreach (var item in chaptersElement.EnumerateArray())
+        {
+            var startMs = TryReadChapterStartMilliseconds(item);
+            var title = string.Empty;
+            if (item.TryGetProperty("tags", out var tags)
+                && tags.ValueKind == JsonValueKind.Object
+                && tags.TryGetProperty("title", out var titleElement)
+                && titleElement.ValueKind == JsonValueKind.String)
+            {
+                title = titleElement.GetString()?.Trim() ?? string.Empty;
+            }
+
+            entries.Add(new MkvChapterEntry(startMs, title));
+        }
+
+        return entries;
+    }
+
+    internal static string FormatOggChapters(IReadOnlyList<MkvChapterEntry> chapters)
+    {
+        var builder = new StringBuilder();
+        for (var index = 0; index < chapters.Count; index++)
+        {
+            var number = index + 1;
+            var chapter = chapters[index];
+            builder.AppendLine($"CHAPTER{number:00}={FormatChapterTimecode(chapter.StartMilliseconds)}");
+            builder.AppendLine($"CHAPTER{number:00}NAME={chapter.Title}");
+        }
+
+        return builder.ToString();
+    }
+
+    private static long TryReadChapterStartMilliseconds(JsonElement item)
+    {
+        if (item.TryGetProperty("start_time", out var startTimeElement))
+        {
+            var raw = startTimeElement.ValueKind == JsonValueKind.String
+                ? startTimeElement.GetString()
+                : startTimeElement.GetRawText();
+            if (double.TryParse(raw, NumberStyles.Float, CultureInfo.InvariantCulture, out var seconds)
+                && !double.IsNaN(seconds)
+                && !double.IsInfinity(seconds))
+            {
+                return Math.Max(0L, (long)Math.Round(seconds * 1000.0, MidpointRounding.AwayFromZero));
+            }
+        }
+
+        return 0L;
+    }
+
+    private static string FormatChapterTimecode(long totalMilliseconds)
+    {
+        var clamped = Math.Max(0L, totalMilliseconds);
+        var hours = clamped / 3_600_000;
+        var minutes = (clamped % 3_600_000) / 60_000;
+        var seconds = (clamped % 60_000) / 1_000;
+        var milliseconds = clamped % 1_000;
+        return string.Format(
+            CultureInfo.InvariantCulture,
+            "{0:00}:{1:00}:{2:00}.{3:000}",
+            hours,
+            minutes,
+            seconds,
+            milliseconds);
+    }
+
     private sealed record MkvScanCacheEntry(string FileStamp, BluRayPlaylistScanResult ScanResult);
+
+    internal sealed record MkvChapterEntry(long StartMilliseconds, string Title);
 }

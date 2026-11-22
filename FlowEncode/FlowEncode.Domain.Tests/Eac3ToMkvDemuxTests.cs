@@ -49,6 +49,53 @@ public sealed class Eac3ToMkvDemuxTests
     }
 
     [TestMethod]
+    public void WindowsConsoleTextDecoder_DecodesGbkChineseTrackTitles()
+    {
+        if (!OperatingSystem.IsWindows())
+        {
+            return;
+        }
+
+        // Exact GBK bytes for "英文", "简体中文", "繁体中文"
+        Assert.AreEqual("英文", WindowsConsoleTextDecoder.Decode([0xD3, 0xA2, 0xCE, 0xC4], 936));
+        Assert.AreEqual("简体中文", WindowsConsoleTextDecoder.Decode([0xBC, 0xF2, 0xCC, 0xE5, 0xD6, 0xD0, 0xCE, 0xC4], 936));
+        Assert.AreEqual("繁体中文", WindowsConsoleTextDecoder.Decode([0xB7, 0xB1, 0xCC, 0xE5, 0xD6, 0xD0, 0xCE, 0xC4], 936));
+
+        var subtitleLine = $"6: Subtitle (PGS), [eng], \"{WindowsConsoleTextDecoder.Decode([0xD3, 0xA2, 0xCE, 0xC4], 936)}\"";
+        var tracks = Eac3ToBackendAdapter.ParseTracks([subtitleLine]);
+        Assert.AreEqual(1, tracks.Count);
+        Assert.AreEqual("eng", tracks[0].Language);
+        StringAssert.Contains(tracks[0].Detail, "\"英文\"");
+    }
+
+    [TestMethod]
+    public void ParsePlaylists_HandlesBackspacesCarriageReturnsSeamlessBranchingAndAngleFormats()
+    {
+        var rawOutput =
+            "Fast mode enabled\r\n" +
+            "Keeping dialnorm\r\n" +
+            "----------\b\b\b\b\b\b\b\b\b\b1) 00001.mpls, 00001.m2ts, 2:19:03\r\n" +
+            "   - Chapters, 12 chapters\r\n" +
+            "analyze: 100%\r2) 00041.mpls (angle 1), 2:00:22, [112+127+115].m2ts\r\n" +
+            "   [112+127+115].m2ts\r\n" +
+            "   - Chapters, 16 chapters\r\n";
+
+        var lines = Eac3ToBackendAdapter.NormalizeEac3ToOutputLines(rawOutput);
+        var playlists = Eac3ToBackendAdapter.ParsePlaylists(@"E:\BD\Movie", lines);
+
+        Assert.AreEqual(2, playlists.Count);
+        Assert.AreEqual("00001", playlists[0].Id);
+        Assert.AreEqual("1)", playlists[0].SelectionToken);
+        Assert.AreEqual("2:19:03", playlists[0].DurationText);
+        Assert.AreEqual(12, playlists[0].ChapterCount);
+
+        Assert.AreEqual("00041", playlists[1].Id);
+        Assert.AreEqual("2)", playlists[1].SelectionToken);
+        Assert.AreEqual("2:00:22", playlists[1].DurationText);
+        Assert.AreEqual(16, playlists[1].ChapterCount);
+    }
+
+    [TestMethod]
     public void ResolveTrackOutputPath_Eac3ToSubtitlesAndChapters_UsesExplicitExtensions()
     {
         var playlist = new BluRayPlaylistItem("Movie", "Movie.mkv", "MKV", @"D:\Movie.mkv", string.Empty, "0:00:02", TimeSpan.FromSeconds(2), 12);
@@ -152,5 +199,104 @@ public sealed class Eac3ToMkvDemuxTests
 
         await Assert.ThrowsExactlyAsync<FileNotFoundException>(() => adapter.ScanDiscAsync(missingMkv));
         Assert.IsFalse(File.Exists(Path.Combine(fixture.Root, "eac3to-calls.log")));
+    }
+
+    [TestMethod]
+    public async Task Eac3To_FolderWithMultipleMkvs_ListsInNaturalOrderAndDemuxesSelectedMkv()
+    {
+        using var fixture = new BusinessExecutionSafetyTests.Fixture("mkv-demux");
+        var folder = Path.Combine(fixture.Root, "season");
+        Directory.CreateDirectory(folder);
+        await File.WriteAllTextAsync(Path.Combine(folder, "EP10.mkv"), "ep10");
+        await File.WriteAllTextAsync(Path.Combine(folder, "EP2.mkv"), "ep2");
+        await File.WriteAllTextAsync(Path.Combine(folder, "EP1.mkv"), "ep1");
+
+        var dgDemux = new DgDemuxBackendAdapter(fixture.Probes);
+        await Assert.ThrowsExactlyAsync<InvalidOperationException>(() => dgDemux.ScanDiscAsync(folder));
+        Assert.IsFalse(File.Exists(Path.Combine(fixture.Root, "dgdemux-calls.log")));
+
+        var adapter = new Eac3ToBackendAdapter(fixture.Probes, fixture.Paths);
+        var items = await adapter.ScanDiscAsync(folder);
+        CollectionAssert.AreEqual(
+            new[] { "EP1.mkv", "EP2.mkv", "EP10.mkv" },
+            items.Select(static item => item.DisplayName).ToArray());
+        Assert.IsFalse(File.Exists(Path.Combine(fixture.Root, "eac3to-calls.log")), "Listing MKVs in a folder should not launch eac3to until an item is selected.");
+
+        var selected = items[1];
+        var scanResult = await adapter.ScanPlaylistAsync(folder, selected);
+        Assert.AreEqual(5, scanResult.Tracks.Count);
+
+        var outputDirectory = Path.Combine(fixture.Root, "season_demux");
+        var selections = scanResult.Tracks
+            .Select(track => new BluRayTrackSelection(
+                track,
+                BluRayDemuxSourceSupport.ResolveTrackOutputPath(BluRayDemuxBackend.Eac3To, outputDirectory, selected, track)))
+            .ToList();
+        var request = new BluRayDemuxRequest(
+            Guid.NewGuid(),
+            BluRayDemuxBackend.Eac3To,
+            folder,
+            outputDirectory,
+            Path.Combine(outputDirectory, selected.Id),
+            selected,
+            selections);
+
+        var displayCommand = adapter.BuildDisplayCommand(request);
+        StringAssert.StartsWith(displayCommand, $"eac3to.exe \"{selected.SourcePath}\" 1: ");
+
+        var result = await adapter.RunAsync(request);
+        Assert.AreEqual(EncodingJobState.Completed, result.State, result.Log);
+        Assert.IsTrue(File.Exists(Path.Combine(outputDirectory, "EP2_T02_video.h265")));
+        Assert.IsTrue(File.Exists(Path.Combine(outputDirectory, "EP2_T04_subtitle_chi.srt")));
+    }
+
+    [TestMethod]
+    public async Task Eac3To_MkvWithoutEac3ToChapters_ProbesAndExportsChaptersViaFfprobe()
+    {
+        using var fixture = new BusinessExecutionSafetyTests.Fixture("mkv-demux-no-chapters");
+        var mkvPath = Path.Combine(fixture.Root, "movie_with_chapters.mkv");
+        await File.WriteAllTextAsync(mkvPath, "fake mkv");
+        var outputDirectory = Path.Combine(fixture.Root, "movie_demux");
+        var adapter = new Eac3ToBackendAdapter(fixture.Probes, fixture.Paths);
+
+        var items = await adapter.ScanDiscAsync(mkvPath);
+        Assert.AreEqual(1, items.Count);
+        Assert.AreEqual(2, items[0].ChapterCount);
+
+        var scanResult = await adapter.ScanPlaylistAsync(mkvPath, items[0]);
+        Assert.AreEqual(4, scanResult.Tracks.Count);
+        var chapterTrack = scanResult.Tracks.Single(static track => track.Kind == BluRayTrackKind.Chapters);
+        Assert.AreEqual(BluRayDemuxSourceSupport.MkvChaptersDemuxToken, chapterTrack.DemuxToken);
+        Assert.AreEqual("Chapters, 2 chapters", chapterTrack.Detail);
+
+        var selections = scanResult.Tracks
+            .Select(track => new BluRayTrackSelection(
+                track,
+                BluRayDemuxSourceSupport.ResolveTrackOutputPath(BluRayDemuxBackend.Eac3To, outputDirectory, items[0], track)))
+            .ToList();
+        var request = new BluRayDemuxRequest(
+            Guid.NewGuid(),
+            BluRayDemuxBackend.Eac3To,
+            mkvPath,
+            outputDirectory,
+            Path.Combine(outputDirectory, items[0].Id),
+            items[0],
+            selections);
+
+        var displayCommand = adapter.BuildDisplayCommand(request);
+        StringAssert.Contains(displayCommand, "eac3to.exe");
+        StringAssert.Contains(displayCommand, "ffprobe.exe -v error -show_chapters -of json");
+        Assert.IsFalse(displayCommand.Contains("mkv-chapters:", StringComparison.Ordinal));
+
+        var result = await adapter.RunAsync(request);
+        Assert.AreEqual(EncodingJobState.Completed, result.State, result.Log);
+
+        var chapterFile = Path.Combine(outputDirectory, "movie_with_chapters_T04_chapters.txt");
+        Assert.IsTrue(File.Exists(chapterFile));
+        var chapterText = await File.ReadAllTextAsync(chapterFile);
+        StringAssert.Contains(chapterText, "CHAPTER01=00:00:00.000");
+        StringAssert.Contains(chapterText, "CHAPTER01NAME=序幕");
+        StringAssert.Contains(chapterText, "CHAPTER02=00:05:12.345");
+        StringAssert.Contains(chapterText, "CHAPTER02NAME=第一章");
     }
 }

@@ -291,11 +291,16 @@ public partial class MainWindowViewModel
         {
             var playlists = await _bluRayDiscProbeService.ScanDiscAsync(backend, NormalizeBluRayDiscRoot(BluRayDemuxSourcePath, requireExists: true), cancellationTokenSource.Token);
             ReplaceItems(BluRayPlaylists, playlists);
-            if (isMkvSource && playlists.Count == 1)
+            var isMkvPlaylistList = playlists.Count > 0 && playlists.All(static item => BluRayDemuxSourceSupport.IsMkvSourcePath(item.SourcePath));
+            if (isMkvPlaylistList && playlists.Count == 1)
             {
                 _bluRayDiscSummaryText = playlists[0].Summary;
                 SelectedBluRayPlaylist = playlists[0];
                 autoLoadMkvTracks = true;
+            }
+            else if (isMkvPlaylistList)
+            {
+                _bluRayDiscSummaryText = Texts.BluRayMkvFolderScanCompletedStatus(backendLabel, playlists.Count);
             }
             else
             {
@@ -965,7 +970,21 @@ public partial class MainWindowViewModel
             }
         }
 
-        throw new InvalidOperationException(Texts.BluRayDiscStructureInvalidError);
+        if (BluRayDemuxSourceSupport.FindMkvFilesInDirectory(normalized).Count > 0)
+        {
+            var backend = SelectedBluRayDemuxBackend?.Value ?? BluRayDemuxBackend.DgDemux;
+            if (backend != BluRayDemuxBackend.Eac3To)
+            {
+                throw new InvalidOperationException(Texts.BluRayMkvRequiresEac3ToError);
+            }
+
+            return normalized;
+        }
+
+        throw new InvalidOperationException(
+            (SelectedBluRayDemuxBackend?.Value ?? BluRayDemuxBackend.DgDemux) == BluRayDemuxBackend.Eac3To
+                ? Texts.BluRayEac3ToSourceStructureInvalidError
+                : Texts.BluRayDiscStructureInvalidError);
     }
 
     private static string NormalizeBluRayDiscRootByPathShape(string normalizedPath)

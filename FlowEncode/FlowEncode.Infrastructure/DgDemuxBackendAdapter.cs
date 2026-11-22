@@ -22,7 +22,9 @@ public sealed class DgDemuxBackendAdapter : CliBluRayDemuxBackendAdapterBase
 
     public override async Task<IReadOnlyList<BluRayPlaylistItem>> ScanDiscAsync(string discPath, CancellationToken cancellationToken = default)
     {
-        if (BluRayDemuxSourceSupport.IsMkvSourcePath(discPath))
+        if (BluRayDemuxSourceSupport.IsMkvSourcePath(discPath)
+            || (!BluRayDemuxSourceSupport.IsBluRayDiscDirectory(discPath)
+                && BluRayDemuxSourceSupport.FindMkvFilesInDirectory(discPath).Count > 0))
         {
             throw new InvalidOperationException("DGDemux 仅支持蓝光目录，不支持 MKV 文件。请切换为 eac3to 后端。");
         }

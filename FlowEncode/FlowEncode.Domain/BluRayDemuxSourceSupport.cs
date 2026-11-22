@@ -1,4 +1,6 @@
 using System;
+using System.Collections.Generic;
+using System.Globalization;
 using System.IO;
 using System.Linq;
 using System.Text;
@@ -7,6 +9,14 @@ namespace FlowEncode.Domain;
 
 public static class BluRayDemuxSourceSupport
 {
+    public const string MkvChaptersDemuxToken = "mkv-chapters";
+
+    public static bool IsMkvChaptersTrack(BluRayTrackItem track)
+    {
+        return track.Kind == BluRayTrackKind.Chapters
+            && string.Equals(track.DemuxToken, MkvChaptersDemuxToken, StringComparison.OrdinalIgnoreCase);
+    }
+
     public static bool IsMkvSourcePath(string? path)
     {
         if (string.IsNullOrWhiteSpace(path))
@@ -27,6 +37,106 @@ public static class BluRayDemuxSourceSupport
     public static bool SupportsFileSource(BluRayDemuxBackend backend, string? path)
     {
         return backend == BluRayDemuxBackend.Eac3To && IsMkvSourcePath(path);
+    }
+
+    public static bool IsMkvDemuxTarget(BluRayDemuxRequest request)
+    {
+        return IsMkvSourcePath(request.DiscPath) || IsMkvSourcePath(request.Playlist.SourcePath);
+    }
+
+    public static string ResolveExecutionSourcePath(BluRayDemuxRequest request)
+    {
+        return IsMkvSourcePath(request.Playlist.SourcePath)
+            ? request.Playlist.SourcePath
+            : request.DiscPath;
+    }
+
+    public static bool IsBluRayDiscDirectory(string? directoryPath)
+    {
+        if (string.IsNullOrWhiteSpace(directoryPath))
+        {
+            return false;
+        }
+
+        try
+        {
+            var fullPath = Path.GetFullPath(directoryPath.Trim());
+            if (!Directory.Exists(fullPath))
+            {
+                return false;
+            }
+
+            if (Directory.Exists(Path.Combine(fullPath, "BDMV", "PLAYLIST")))
+            {
+                return true;
+            }
+
+            if (Path.GetFileName(fullPath).Equals("BDMV", StringComparison.OrdinalIgnoreCase)
+                && Directory.Exists(Path.Combine(fullPath, "PLAYLIST")))
+            {
+                return true;
+            }
+
+            if (Path.GetFileName(fullPath).Equals("PLAYLIST", StringComparison.OrdinalIgnoreCase))
+            {
+                var bdmvDirectory = Directory.GetParent(fullPath);
+                return bdmvDirectory is not null
+                    && bdmvDirectory.Name.Equals("BDMV", StringComparison.OrdinalIgnoreCase)
+                    && bdmvDirectory.Parent is not null;
+            }
+
+            return false;
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    public static IReadOnlyList<string> FindMkvFilesInDirectory(string? directoryPath)
+    {
+        if (string.IsNullOrWhiteSpace(directoryPath))
+        {
+            return [];
+        }
+
+        try
+        {
+            var fullPath = Path.GetFullPath(directoryPath.Trim());
+            if (!Directory.Exists(fullPath))
+            {
+                return [];
+            }
+
+            return Directory.EnumerateFiles(fullPath, "*.mkv", SearchOption.TopDirectoryOnly)
+                .OrderBy(static path => Path.GetFileName(path), NaturalFileNameComparer.Instance)
+                .ToList();
+        }
+        catch
+        {
+            return [];
+        }
+    }
+
+    public static string FormatFileSize(long bytes)
+    {
+        if (bytes < 0)
+        {
+            return "0 B";
+        }
+
+        string[] units = ["B", "KB", "MB", "GB", "TB"];
+        double value = bytes;
+        var unitIndex = 0;
+        while (value >= 1024 && unitIndex < units.Length - 1)
+        {
+            value /= 1024;
+            unitIndex++;
+        }
+
+        return unitIndex == 0
+            ? string.Format(CultureInfo.InvariantCulture, "{0:0} {1}", value, units[unitIndex])
+            : string.Format(CultureInfo.InvariantCulture, "{0:0.##} {1}", value, units[unitIndex]);
     }
 
     public static string? TryResolveBluRayDiscRootFromEntryFile(string? path)
@@ -186,4 +296,45 @@ public static class BluRayDemuxSourceSupport
         BluRayTrackKind.Subtitle => "subtitle",
         _ => "track"
     };
+
+    private sealed class NaturalFileNameComparer : IComparer<string>
+    {
+        public static NaturalFileNameComparer Instance { get; } = new();
+
+        public int Compare(string? x, string? y)
+        {
+            if (ReferenceEquals(x, y)) return 0;
+            if (x is null) return -1;
+            if (y is null) return 1;
+
+            var ix = 0;
+            var iy = 0;
+            while (ix < x.Length && iy < y.Length)
+            {
+                if (char.IsDigit(x[ix]) && char.IsDigit(y[iy]))
+                {
+                    var sx = ix;
+                    while (ix < x.Length && char.IsDigit(x[ix])) ix++;
+                    var sy = iy;
+                    while (iy < y.Length && char.IsDigit(y[iy])) iy++;
+
+                    var nx = x.AsSpan(sx, ix - sx).TrimStart('0');
+                    var ny = y.AsSpan(sy, iy - sy).TrimStart('0');
+                    if (nx.Length != ny.Length) return nx.Length.CompareTo(ny.Length);
+                    var numCmp = nx.SequenceCompareTo(ny);
+                    if (numCmp != 0) return numCmp;
+                    if ((ix - sx) != (iy - sy)) return (ix - sx).CompareTo(iy - sy);
+                    continue;
+                }
+
+                var cx = char.ToUpperInvariant(x[ix]);
+                var cy = char.ToUpperInvariant(y[iy]);
+                if (cx != cy) return cx.CompareTo(cy);
+                ix++;
+                iy++;
+            }
+
+            return x.Length.CompareTo(y.Length);
+        }
+    }
 }

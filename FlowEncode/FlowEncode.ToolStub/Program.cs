@@ -69,6 +69,12 @@ if (tool == "vspipe" && args.Contains("--info"))
 if (tool == "x264") return 0;
 if (businessScenario is not null && tool == "ffprobe")
 {
+    if (args.Contains("-show_chapters"))
+    {
+        Console.WriteLine("{\"chapters\":[{\"id\":1,\"start_time\":\"0.000000\",\"tags\":{\"title\":\"序幕\"}},{\"id\":2,\"start_time\":\"312.345000\",\"tags\":{\"title\":\"第一章\"}}]}");
+        return 0;
+    }
+
     var isVideoCheck = Option("-of") == "csv=p=0";
     Console.WriteLine(isVideoCheck ? businessScenario == "broken-output" ? "" : "video"
         : "{\"streams\":[{\"codec_name\":\"pcm_s24le\",\"channels\":2,\"channel_layout\":\"stereo\",\"sample_rate\":\"48000\"}]}");
@@ -89,7 +95,7 @@ if (businessScenario is not null && tool == "av1an")
     if (businessScenario == "complete-then-failure") Emit("run_failed");
     return 0;
 }
-if (businessScenario == "mkv-demux" && tool == "eac3to")
+if (businessScenario is "mkv-demux" or "mkv-demux-no-chapters" && tool == "eac3to")
 {
     if (args.Length == 1 && args[0].EndsWith(".mkv", StringComparison.OrdinalIgnoreCase))
     {
@@ -97,12 +103,21 @@ if (businessScenario == "mkv-demux" && tool == "eac3to")
         Console.WriteLine("Keeping dialnorm");
         Console.WriteLine("analyze: 100%");
         Console.WriteLine("MKV, 1 video track, 1 audio track, 2 subtitle tracks, 0:00:02, 24p");
-        Console.WriteLine("1: Chapters, 12 chapters");
-        Console.WriteLine("2: h265/HEVC, 1920x1080p24");
-        Console.WriteLine("3: FLAC, [jpn], 2.0 channels, 0:00:02, 24 bits, 48kHz");
-        Console.WriteLine("   \"Japanese FLAC\"");
-        Console.WriteLine("4: Subtitle (SRT), [chi]");
-        Console.WriteLine("5: Subtitle (ASS), [eng]");
+        if (businessScenario == "mkv-demux")
+        {
+            Console.WriteLine("1: Chapters, 12 chapters");
+            Console.WriteLine("2: h265/HEVC, 1920x1080p24");
+            Console.WriteLine("3: FLAC, [jpn], 2.0 channels, 0:00:02, 24 bits, 48kHz");
+            Console.WriteLine("   \"Japanese FLAC\"");
+            Console.WriteLine("4: Subtitle (SRT), [chi]");
+            Console.WriteLine("5: Subtitle (ASS), [eng]");
+        }
+        else
+        {
+            Console.WriteLine("1: h265/HEVC, 1920x1080p24");
+            Console.WriteLine("2: FLAC, [jpn], 2.0 channels, 0:00:02, 24 bits, 48kHz");
+            Console.WriteLine("3: Subtitle (SRT), [chi]");
+        }
         return 0;
     }
 

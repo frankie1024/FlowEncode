@@ -20,6 +20,8 @@ public abstract class CliBluRayDemuxBackendAdapterBase : IBluRayDemuxBackendAdap
 
     public abstract BluRayDemuxBackend Backend { get; }
 
+    protected virtual bool UseWindowsAnsiOutputDecoding => false;
+
     public abstract Task<IReadOnlyList<BluRayPlaylistItem>> ScanDiscAsync(
         string discPath,
         CancellationToken cancellationToken = default);
@@ -57,6 +59,21 @@ public abstract class CliBluRayDemuxBackendAdapterBase : IBluRayDemuxBackendAdap
             : result.FailureReason);
     }
 
+    protected async Task<string?> TryResolveToolPathAsync(RegisteredToolKind kind, CancellationToken cancellationToken)
+    {
+        try
+        {
+            var result = await _toolProbeService.ProbeAsync(kind, cancellationToken);
+            return result.IsReady && File.Exists(result.ExecutablePath)
+                ? result.ExecutablePath
+                : null;
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
     protected static ProcessStartInfo CreateStartInfo(string executablePath, string? workingDirectory = null)
     {
         return new ProcessStartInfo
@@ -77,18 +94,20 @@ public abstract class CliBluRayDemuxBackendAdapterBase : IBluRayDemuxBackendAdap
     protected async Task<ProcessCaptureResult> CaptureProcessAsync(ProcessStartInfo startInfo, CancellationToken cancellationToken)
     {
         var result = await ProcessProbeRunner.RunAsync(startInfo, TimeSpan.FromMinutes(2),
-            "Blu-ray scan timed out / 蓝光扫描超时。", cancellationToken);
+            "Blu-ray scan timed out / 蓝光扫描超时。", cancellationToken, useWindowsAnsiDecoding: UseWindowsAnsiOutputDecoding);
         return new ProcessCaptureResult(result.ExitCode,
             $"{result.StandardOutput}{Environment.NewLine}{result.StandardError}".Trim());
     }
 
     protected static void ValidateInput(BluRayDemuxRequest request)
     {
-        var isSupportedFileSource = BluRayDemuxSourceSupport.SupportsFileSource(request.Backend, request.DiscPath);
-        if (isSupportedFileSource)
+        var isMkvTarget = BluRayDemuxSourceSupport.IsMkvDemuxTarget(request);
+        if (isMkvTarget)
         {
-            if (!File.Exists(request.DiscPath))
-                throw new FileNotFoundException($"MKV source file not found / 未找到 MKV 源文件：{request.DiscPath}", request.DiscPath);
+            if (request.Backend != BluRayDemuxBackend.Eac3To)
+                throw new InvalidOperationException("MKV demuxing requires eac3to / MKV 解复用仅支持 eac3to 后端。");
+            if (!File.Exists(request.DiscPath) && !Directory.Exists(request.DiscPath))
+                throw new FileNotFoundException($"MKV source not found / 未找到 MKV 输入源：{request.DiscPath}", request.DiscPath);
         }
         else if (!Directory.Exists(request.DiscPath))
         {
@@ -97,7 +116,7 @@ public abstract class CliBluRayDemuxBackendAdapterBase : IBluRayDemuxBackendAdap
 
         if (!File.Exists(request.Playlist.SourcePath))
             throw new FileNotFoundException(
-                isSupportedFileSource
+                isMkvTarget
                     ? "MKV source file not found / 未找到 MKV 源文件。"
                     : "Blu-ray playlist not found / 未找到蓝光播放列表。",
                 request.Playlist.SourcePath);
@@ -199,8 +218,12 @@ public abstract class CliBluRayDemuxBackendAdapterBase : IBluRayDemuxBackendAdap
                     execution.Terminate();
                 }
             }, activeExecution);
-            pumpOutput = ReadLinesAsync(process.StandardOutput, null, HandleLine, cancellationToken);
-            pumpError = ReadLinesAsync(process.StandardError, null, HandleLine, cancellationToken);
+            pumpOutput = UseWindowsAnsiOutputDecoding
+                ? ReadLinesWindowsAnsiAsync(process.StandardOutput.BaseStream, null, HandleLine, cancellationToken)
+                : ReadLinesAsync(process.StandardOutput, null, HandleLine, cancellationToken);
+            pumpError = UseWindowsAnsiOutputDecoding
+                ? ReadLinesWindowsAnsiAsync(process.StandardError.BaseStream, null, HandleLine, cancellationToken)
+                : ReadLinesAsync(process.StandardError, null, HandleLine, cancellationToken);
 
             await ProcessExecutionMonitor.WaitForExitAsync(process, cancellationToken, pumpOutput, pumpError);
             activeExecution.Terminate();
@@ -358,6 +381,65 @@ public abstract class CliBluRayDemuxBackendAdapterBase : IBluRayDemuxBackendAdap
                 {
                     segmentBuilder.Append(character);
                 }
+            }
+        }
+
+        FlushConsoleSegment(segmentBuilder, sink, lineHandler);
+    }
+
+    private static async Task ReadLinesWindowsAnsiAsync(
+        Stream stream,
+        StringBuilder? sink,
+        Action<string>? lineHandler,
+        CancellationToken cancellationToken)
+    {
+        var buffer = new byte[1024];
+        using var lineBytes = new MemoryStream();
+
+        while (true)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            var read = await stream.ReadAsync(buffer.AsMemory(0, buffer.Length), cancellationToken);
+            if (read == 0)
+            {
+                break;
+            }
+
+            for (var index = 0; index < read; index++)
+            {
+                var value = buffer[index];
+                if (value is (byte)'\r' or (byte)'\n')
+                {
+                    FlushConsoleByteSegment(lineBytes, sink, lineHandler);
+                    continue;
+                }
+
+                lineBytes.WriteByte(value);
+            }
+        }
+
+        FlushConsoleByteSegment(lineBytes, sink, lineHandler);
+    }
+
+    private static void FlushConsoleByteSegment(
+        MemoryStream lineBytes,
+        StringBuilder? sink,
+        Action<string>? lineHandler)
+    {
+        if (lineBytes.Length == 0)
+        {
+            return;
+        }
+
+        var decoded = WindowsConsoleTextDecoder.Decode(lineBytes.GetBuffer().AsSpan(0, (int)lineBytes.Length));
+        lineBytes.SetLength(0);
+
+        var segmentBuilder = new StringBuilder(decoded.Length);
+        foreach (var character in decoded)
+        {
+            if (!char.IsControl(character) || character == '\t')
+            {
+                segmentBuilder.Append(character);
             }
         }
 

@@ -32,7 +32,8 @@ internal static class ProcessProbeRunner
         string timeoutMessage,
         CancellationToken cancellationToken = default,
         Func<string?, string>? standardErrorLineNormalizer = null,
-        Action<string>? standardErrorProgress = null)
+        Action<string>? standardErrorProgress = null,
+        bool useWindowsAnsiDecoding = false)
     {
         if (!startInfo.RedirectStandardOutput || !startInfo.RedirectStandardError)
         {
@@ -56,9 +57,13 @@ internal static class ProcessProbeRunner
         }
         using var execution = new ManagedProcessExecution(process);
 
-        var outputTask = process.StandardOutput.ReadToEndAsync();
+        var outputTask = useWindowsAnsiDecoding
+            ? ReadAllWindowsAnsiAsync(process.StandardOutput.BaseStream)
+            : process.StandardOutput.ReadToEndAsync();
         var errorTask = standardErrorLineNormalizer is null && standardErrorProgress is null
-            ? process.StandardError.ReadToEndAsync()
+            ? (useWindowsAnsiDecoding
+                ? ReadAllWindowsAnsiAsync(process.StandardError.BaseStream)
+                : process.StandardError.ReadToEndAsync())
             : ReadStandardErrorLinesAsync(
                 process.StandardError,
                 standardErrorLineNormalizer,
@@ -78,6 +83,13 @@ internal static class ProcessProbeRunner
         execution.Terminate();
         await AwaitOutputTasksAsync(startInfo.FileName, outputTask, errorTask).ConfigureAwait(false);
         return new ProcessProbeResult(outputTask.Result, errorTask.Result, process.ExitCode);
+    }
+
+    private static async Task<string> ReadAllWindowsAnsiAsync(Stream stream)
+    {
+        using var memory = new MemoryStream();
+        await stream.CopyToAsync(memory).ConfigureAwait(false);
+        return WindowsConsoleTextDecoder.Decode(memory.ToArray());
     }
 
     private static async Task<string> ReadStandardErrorLinesAsync(

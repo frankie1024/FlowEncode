@@ -2,7 +2,6 @@ using System;
 using System.Linq;
 using System.Threading.Tasks;
 using FlowEncode.Controls.Shared;
-using FlowEncode.Domain;
 using FlowEncode.ViewModels;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
@@ -151,39 +150,20 @@ public sealed partial class BluRayDemuxView : UserControl
 
     private async void BrowseBluRaySourceButton_Click(object sender, RoutedEventArgs e)
     {
-        await RunGuardedAsync(nameof(BrowseBluRaySourceButton_Click), PickBluRaySourceAsync);
+        await RunGuardedAsync(nameof(BrowseBluRaySourceButton_Click), PickBluRaySourceFolderAsync);
     }
 
     private async void BluRaySourcePathTextBox_DoubleTapped(object sender, DoubleTappedRoutedEventArgs e)
     {
         e.Handled = true;
-        await RunGuardedAsync(nameof(BluRaySourcePathTextBox_DoubleTapped), PickBluRaySourceAsync);
+        await RunGuardedAsync(nameof(BluRaySourcePathTextBox_DoubleTapped), PickBluRaySourceFolderAsync);
     }
 
-    private async Task PickBluRaySourceAsync()
+    private async Task PickBluRaySourceFolderAsync()
     {
         var discViewModel = DiscViewModel;
         if (discViewModel is null)
         {
-            return;
-        }
-
-        if (discViewModel.SelectedBluRayDemuxBackend?.Value == BluRayDemuxBackend.Eac3To)
-        {
-            var pickedFilePath = WindowInteractionHelper.PickOpenFilePath(
-                WindowInteractionHelper.GetMainWindowHandle(),
-                discViewModel.Texts.BluRayEac3ToSourceDialogTitle,
-                discViewModel.BluRayDemuxSourcePath,
-                new NativeFileDialogHelper.FileDialogFilter(discViewModel.Texts.BluRayEac3ToSourceFilterLabel, "*.mkv;index.bdmv;*.mpls"),
-                new NativeFileDialogHelper.FileDialogFilter(discViewModel.Texts.BluRayMkvFilterLabel, "*.mkv"),
-                new NativeFileDialogHelper.FileDialogFilter(discViewModel.Texts.BluRayEntryFilterLabel, "index.bdmv;*.mpls"),
-                new NativeFileDialogHelper.FileDialogFilter(discViewModel.Texts.AllFilesTypeDescription, "*.*"));
-            if (pickedFilePath is not null)
-            {
-                var resolvedPath = BluRayDemuxSourceSupport.TryResolveBluRayDiscRootFromEntryFile(pickedFilePath) ?? pickedFilePath;
-                await WindowInteractionHelper.ApplyPickedPathAsync(BluRaySourcePathTextBox, resolvedPath, path => discViewModel.BluRayDemuxSourcePath = path);
-            }
-
             return;
         }
 

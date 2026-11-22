@@ -481,7 +481,11 @@ public sealed partial class MainWindow : Window, ISettingsViewHost, IShellNaviga
             }
 
             var firstFolder = storageItems.OfType<StorageFolder>().FirstOrDefault();
-            if (firstFolder is not null && AppLaunchActivation.IsBluRayFolder(firstFolder.Path))
+            if (firstFolder is not null
+                && (AppLaunchActivation.IsBluRayFolder(firstFolder.Path)
+                    || (string.Equals(_activeShellSectionTag, MainShellSections.BluRayDemux, StringComparison.Ordinal)
+                        && ViewModel.SelectedBluRayDemuxBackend?.Value == BluRayDemuxBackend.Eac3To
+                        && BluRayDemuxSourceSupport.FindMkvFilesInDirectory(firstFolder.Path).Count > 0)))
             {
                 e.AcceptedOperation = DataPackageOperation.Copy;
                 NavigateToBluRayDemuxPage(firstFolder.Path);
@@ -1265,11 +1269,23 @@ public sealed partial class MainWindow : Window, ISettingsViewHost, IShellNaviga
             var firstFolder = storageItems
                 .OfType<StorageFolder>()
                 .FirstOrDefault();
-            if (firstFolder is not null && AppLaunchActivation.IsBluRayFolder(firstFolder.Path))
+            if (firstFolder is not null)
             {
-                _activeDragDataView = dataView;
-                _activeDragPayloadType = DragDropPayloadType.BluRayFolder;
-                return DragDropPayloadType.BluRayFolder;
+                if (AppLaunchActivation.IsBluRayFolder(firstFolder.Path))
+                {
+                    _activeDragDataView = dataView;
+                    _activeDragPayloadType = DragDropPayloadType.BluRayFolder;
+                    return DragDropPayloadType.BluRayFolder;
+                }
+
+                if (string.Equals(_activeShellSectionTag, MainShellSections.BluRayDemux, StringComparison.Ordinal)
+                    && ViewModel.SelectedBluRayDemuxBackend?.Value == BluRayDemuxBackend.Eac3To
+                    && BluRayDemuxSourceSupport.FindMkvFilesInDirectory(firstFolder.Path).Count > 0)
+                {
+                    _activeDragDataView = dataView;
+                    _activeDragPayloadType = DragDropPayloadType.DemuxMkv;
+                    return DragDropPayloadType.DemuxMkv;
+                }
             }
 
             _activeDragDataView = dataView;
