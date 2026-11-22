@@ -11,7 +11,8 @@ public enum DragDropPayloadType
     Script,
     Video,
     Audio,
-    BluRayFolder
+    BluRayFolder,
+    DemuxMkv
 }
 
 public sealed class AppLaunchActivation

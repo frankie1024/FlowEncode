@@ -86,10 +86,10 @@ public static class AudioSourceSupport
     public static void ValidateDeewInput(string path, DeewOptions options)
     {
         var extension = Path.GetExtension(path).ToLowerInvariant();
-        var atmos = options.Format.EndsWith("-atmos", StringComparison.Ordinal);
+        var allowsContainer = DeewArguments.HasTrueHddOptions(options.Format) || options.MeasureOnly;
         if (new[] { ".mkv", ".mka", ".m2ts", ".mp4", ".ts", ".avi", ".flv", ".mov" }.Contains(extension)
-            && ((!atmos && !options.MeasureOnly) || extension is not (".mkv" or ".mka" or ".m2ts")))
-            throw new InvalidOperationException("Container inputs are supported only for Atmos output or measure-only from MKV, MKA or M2TS. Extract a standalone audio track for other formats.");
+            && (!allowsContainer || extension is not (".mkv" or ".mka" or ".m2ts")))
+            throw new InvalidOperationException("Container inputs are supported only for Atmos / AC4 IMS output or measure-only from MKV, MKA or M2TS. Extract a standalone audio track for other formats.");
     }
 
     private static string BuildDialogPattern(IReadOnlyList<string> extensions) => string.Join(";", extensions.Select(static extension => $"*{extension}"));

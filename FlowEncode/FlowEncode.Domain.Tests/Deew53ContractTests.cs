@@ -108,7 +108,7 @@ public sealed class Deew53ContractTests
     public void RichLoudnessEvents_PreserveUnitsAndPartialUpdatesAndIgnoreMalformedExtras()
     {
         var reader = new DeewEventsReader(DeewArguments.Resolve(new(MeasureOnly: true), 6), _ => { }, (_, _, _, _) => { });
-        reader.Accept("""{"type":"hello","version":"5.4.0"}""");
+        reader.Accept("""{"type":"hello","version":"5.5.3"}""");
         reader.Accept("""{"type":"progress","job":0,"stage":"measure","percent":80,"db":-24,"gating":"dialogue","speech":16,"program":-18.9,"lra":13.1,"true_peak":-4.9}""");
         Assert.AreEqual(-24, reader.Db);
         Assert.AreEqual(new DeewLoudnessMetrics("dialogue", 16, -18.9, 13.1, -4.9), reader.LoudnessMetrics);
@@ -139,10 +139,10 @@ public sealed class Deew53ContractTests
     }
 
     [TestMethod]
-    public void EventsHello_RejectsVersionsOlderThan54()
+    public void EventsHello_RejectsVersionsOlderThanMinimum()
     {
         var reader = new DeewEventsReader(DeewArguments.Resolve(new(MeasureOnly: true), 2), _ => { }, (_, _, _, _) => { });
-        reader.Accept("""{"type":"hello","version":"5.3.1"}""");
+        reader.Accept("""{"type":"hello","version":"5.5.2"}""");
         StringAssert.Contains(reader.Error!, DeewArguments.MinimumVersion);
     }
 

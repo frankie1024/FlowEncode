@@ -23,7 +23,7 @@
 
 ---
 
-3.0 正式版新增 deew 5.x 音频处理、本地 MCP 和共享任务服务，并改进主要页面的布局、依赖检查和并发安装。当前源码要求 deew 5.4.0 或更新版本，支持关闭环绕相移、仅测量 Atmos 响度，并提供更多响度指标。参阅 [MCP 接入](docs/MCP.md)、[3.0.3 验收](docs/DEEW531-VALIDATION.md) 与 [工具链兼容性](docs/TOOLCHAIN-COMPATIBILITY-3.0.md)。使用旧版 deew 工具链的用户，请选择 2.0.3 兼容维护版。
+3.0 正式版新增 deew 5.x 音频处理、本地 MCP 和共享任务服务，并改进主要页面的布局、依赖检查和并发安装。当前源码要求 deew 5.5.3 或更新版本，支持 AC4 IMS、环绕相移、低通和 3 dB 衰减开关、TrueHD Atmos 解码选项（`-wm`/`-bc`）、自定义输出命名与模板（`-on`/`-ot`）、单次管道覆盖（`-p`）、仅测量 Atmos 响度和扩展响度指标。参阅 [MCP 接入](docs/MCP.md)、[deew 5.5.3 验收](docs/DEEW553-VALIDATION.md) 与 [工具链兼容性](docs/TOOLCHAIN-COMPATIBILITY-3.0.md)。使用旧版 deew 工具链的用户，请选择 2.0.3 兼容维护版。
 
 FlowEncode 是 Windows x64 上的图形化编码工具，调用 `x264`、`x265`、`SVT-AV1`、`Av1an`、`FFmpeg`、`VapourSynth`、`VSPipe` 等公开工具链，完成蓝光解复用、脚本编辑与预览、视频压制、音频转码和自动压制。你可以管理任务队列、查看日志、复用模板，也可以拖入视频、音频文件或蓝光目录，进入对应流程。
 
@@ -64,7 +64,7 @@ FlowEncode 提供视频压制的图形界面，协调外部编码器和工具完
 | 模块 | 能力 |
 | --- | --- |
 | 工作台 | 按流程进入解复用、VapourSynth、视频压制、音频转码、自动压制、模板库和设置，并显示活跃任务状态；支持将视频、音频文件和蓝光目录直接拖放到对应流程。 |
-| 蓝光解复用 | 扫描蓝光目录，调用已检测或导入的 `DGDemux` / `eac3to` 选择播放列表与轨道，导出视频、音频和字幕。 |
+| 蓝光 / MKV 解复用 | 扫描蓝光目录（`DGDemux` / `eac3to`）或 MKV 文件（`eac3to`），选择播放列表与轨道，导出视频、音频、字幕和章节。 |
 | VapourSynth | 提供 `.vpy` / `.py` 脚本编辑、拖放打开、标签页、左右对比、基础诊断、预览、帧属性、截图、章节、裁剪辅助和预览日志。 |
 | 视频压制 | 配置 `x264`、`x265`、`SVT-AV1` 常规编码任务，统一管理输入输出、HDR 参数导入、命令预览复制、任务队列、批量操作、键盘快捷键和实时日志。 |
 | 音频转码 | 调用 `eac3to`、`deew`、`FFmpeg` / `opusenc` 独立处理音频，支持 FLAC、AC3、DDP、Opus 等输出；DDP 输出需要用户自行提供已授权的 `Dolby Encoding Engine` / `DEE`。 |
@@ -87,7 +87,7 @@ flowchart LR
 
 常见使用方式：
 
-- 扫描蓝光目录，选择播放列表与轨道后用已准备好的 `DGDemux` 或 `eac3to` 解复用。
+- 扫描蓝光目录或 MKV 文件，选择播放列表与轨道后用已准备好的 `DGDemux`（蓝光目录）或 `eac3to`（蓝光目录与 MKV）解复用。
 - 将视频、音频文件或蓝光目录直接拖放到主窗口，快速进入对应工作流。
 - 使用 VapourSynth 编辑器维护 `.vpy` / `.py` 脚本，通过预览窗口检查输出帧、帧属性、章节和裁剪参数。
 - 拖放脚本到主窗口打开，或使用 Windows 资源管理器的新建菜单创建空 `.vpy` 脚本。
@@ -121,7 +121,7 @@ flowchart LR
 
 前往 [GitHub Releases](https://github.com/frankie1024/FlowEncode/releases) 下载最新的 Windows x64 安装包。
 
-> **版本支持说明：2.0.3 是旧工具链的兼容维护版，支持 deew 3.x / DEE 5.2.1。** 当前源码要求 [deew 5.4.0](https://github.com/pcrlnd/deew/releases/tag/5.4.0) 或更新版本，以及 DEE ≥6.7.0。升级时可保留原来的配置和 DEE 工具集。建议搭配 truehdd ≥0.6.3 和 dee_shim ≥0.2.0。此前 3.0.0 发布版的 deew 最低版本为 5.1.0。需要继续使用旧版 deew 3.x 的用户，请使用 2.0.3。工具链差异见 [2.0 基线](docs/TOOLCHAIN-BASELINE-2.0.md)。
+> **版本支持说明：2.0.3 是旧工具链的兼容维护版，支持 deew 3.x / DEE 5.2.1。** 当前源码要求 [deew 5.5.3](https://github.com/pcrlnd/deew/releases/tag/5.5.3) 或更新版本，以及 DEE ≥6.7.0。升级时可保留原来的配置和 DEE 工具集。建议搭配 truehdd ≥0.6.3 和 dee_shim ≥0.2.0。此前 3.0.0 发布版的 deew 最低版本为 5.1.0。需要继续使用旧版 deew 3.x 的用户，请使用 2.0.3。工具链差异见 [2.0 基线](docs/TOOLCHAIN-BASELINE-2.0.md)。
 
 当前发布资产以安装版为主：
 

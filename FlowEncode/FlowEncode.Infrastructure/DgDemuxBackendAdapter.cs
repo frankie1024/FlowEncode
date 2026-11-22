@@ -22,6 +22,11 @@ public sealed class DgDemuxBackendAdapter : CliBluRayDemuxBackendAdapterBase
 
     public override async Task<IReadOnlyList<BluRayPlaylistItem>> ScanDiscAsync(string discPath, CancellationToken cancellationToken = default)
     {
+        if (BluRayDemuxSourceSupport.IsMkvSourcePath(discPath))
+        {
+            throw new InvalidOperationException("DGDemux 仅支持蓝光目录，不支持 MKV 文件。请切换为 eac3to 后端。");
+        }
+
         var dgDemuxPath = await ResolveToolPathAsync(RegisteredToolKind.DgDemux, cancellationToken);
         var startInfo = CreateStartInfo(dgDemuxPath);
         startInfo.ArgumentList.Add("-d");
@@ -75,6 +80,11 @@ public sealed class DgDemuxBackendAdapter : CliBluRayDemuxBackendAdapterBase
 
     public override async Task<BluRayPlaylistScanResult> ScanPlaylistAsync(string discPath, BluRayPlaylistItem playlist, CancellationToken cancellationToken = default)
     {
+        if (BluRayDemuxSourceSupport.IsMkvSourcePath(discPath) || BluRayDemuxSourceSupport.IsMkvSourcePath(playlist.SourcePath))
+        {
+            throw new InvalidOperationException("DGDemux 仅支持蓝光目录，不支持 MKV 文件。请切换为 eac3to 后端。");
+        }
+
         var dgDemuxPath = await ResolveToolPathAsync(RegisteredToolKind.DgDemux, cancellationToken);
         var startInfo = CreateStartInfo(dgDemuxPath);
         startInfo.ArgumentList.Add("-i");

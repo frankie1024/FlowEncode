@@ -14,6 +14,7 @@ internal sealed class DeewEventsReader
     private readonly Action<string> _diagnostic;
     private readonly Action<double?, string, double?, DeewDbSource> _progress;
     private readonly DeewStageTimeEstimate _timeEstimate;
+    private readonly Dictionary<string, (double Start, double End)> _stageRanges;
     public bool HasHello { get; private set; }
     public string? Error { get; private set; }
     public double? Db { get; private set; }
@@ -22,10 +23,49 @@ internal sealed class DeewEventsReader
     public TimeSpan? Remaining => _timeEstimate.Remaining;
 
     public DeewEventsReader(DeewEffectiveOutputProfile profile, Action<string> diagnostic,
-        Action<double?, string, double?, DeewDbSource> progress, TimeProvider? clock = null)
+        Action<double?, string, double?, DeewDbSource> progress, TimeProvider? clock = null, bool piped = false)
     {
         _profile = profile; _diagnostic = diagnostic; _progress = progress;
         _timeEstimate = new(clock ?? TimeProvider.System);
+        _stageRanges = BuildStageRanges(profile, piped);
+    }
+
+    private static Dictionary<string, (double Start, double End)> BuildStageRanges(DeewEffectiveOutputProfile profile, bool piped)
+    {
+        var hasDecode = profile.RequiredTools.Contains("truehdd");
+        var effectivePiped = piped && !hasDecode && (profile.Options.MeasureOnly || profile.Options.Format is "dd" or "ddp" or "ac4" or "aac");
+        var hasFfmpeg = !hasDecode && !effectivePiped;
+        var stages = new List<(string Name, double Weight)>();
+
+        if (profile.Options.MeasureOnly)
+        {
+            if (hasFfmpeg) stages.Add(("ffmpeg", 15));
+            if (hasDecode) stages.Add(("decode", 25));
+            stages.Add(("measure", 60));
+        }
+        else
+        {
+            var dialnormSet = profile.Options.Dialnorm is not null and not 0;
+            var viaManifest = dialnormSet && profile.Options.Format == "ac4";
+            var skipped = dialnormSet && profile.Options.Format is "dd" or "ddp" or "ddp-atmos";
+            var hasMeasure = viaManifest || (!skipped && profile.Options.Format is not ("aac" or "thd"));
+
+            if (hasFfmpeg) stages.Add(("ffmpeg", 15));
+            if (hasDecode) stages.Add(("decode", 25));
+            if (hasMeasure) stages.Add(("measure", effectivePiped ? 40 : 25));
+            stages.Add(("encode", 60));
+        }
+
+        var total = stages.Sum(s => s.Weight);
+        var map = new Dictionary<string, (double Start, double End)>(StringComparer.Ordinal);
+        var cursor = 0.0;
+        for (var i = 0; i < stages.Count; i++)
+        {
+            var end = i == stages.Count - 1 ? 1.0 : cursor + stages[i].Weight / total;
+            map[stages[i].Name] = (cursor, end);
+            cursor = end;
+        }
+        return map;
     }
 
     public async Task ReadAvailableAsync(string path, bool final, CancellationToken token)
@@ -102,8 +142,9 @@ internal sealed class DeewEventsReader
                 }
                 var origin = ac4Manifest && stage == "encode" ? DeewDbSource.SpecifiedDialnorm : _profile.DbSource;
                 _timeEstimate.Update(stage, percent);
-                var range = stage switch { "ffmpeg" => (0.0, .15), "decode" => (.15, .35), "measure" => (.35, .45), "encode" => (.45, 1.0), _ => (0.0, 0.0) };
-                if (_profile.Options.MeasureOnly && stage == "measure") range = (0, 1);
+                var range = _stageRanges.TryGetValue(stage, out var planned)
+                    ? planned
+                    : stage switch { "ffmpeg" => (0.0, .15), "decode" => (0.0, .25), "measure" => (0.0, .40), "encode" => (.40, 1.0), _ => (0.0, 0.0) };
                 double? fraction = null;
                 if (percent.HasValue && range.Item2 > range.Item1)
                 {

@@ -26,11 +26,13 @@ public sealed class AudioProcessingFormViewModel : ModuleViewModelBase
 
     public Visibility DeewDdpModeVisibility => AudioDeewOptionsVisibility == Visibility.Visible ? Deew.DdpModeVisibility : Visibility.Collapsed;
     public Visibility DeewAtmosModeVisibility => AudioDeewOptionsVisibility == Visibility.Visible ? Deew.AtmosModeVisibility : Visibility.Collapsed;
+    public Visibility DeewAc4ImsModeVisibility => AudioDeewOptionsVisibility == Visibility.Visible ? Deew.Ac4ImsModeVisibility : Visibility.Collapsed;
     public Visibility DeewWarningVisibility => AudioDeewOptionsVisibility == Visibility.Visible ? Deew.WarningVisibility : Visibility.Collapsed;
     private void NotifyDeewModeVisibility()
     {
         OnPropertyChanged(nameof(DeewDdpModeVisibility));
         OnPropertyChanged(nameof(DeewAtmosModeVisibility));
+        OnPropertyChanged(nameof(DeewAc4ImsModeVisibility));
         OnPropertyChanged(nameof(DeewWarningVisibility));
     }
 

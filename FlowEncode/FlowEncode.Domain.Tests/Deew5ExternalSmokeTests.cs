@@ -11,7 +11,7 @@ public sealed class Deew5ExternalSmokeTests
 {
     [TestMethod]
     [TestCategory("ExternalToolSmoke")]
-    public async Task RealDeew54_ShortSampleEncodingMeasurementAndRecovery()
+    public async Task RealDeew55_ShortSampleEncodingMeasurementAndRecovery()
     {
         var input = Environment.GetEnvironmentVariable("FLOWENCODE_DEEW5_SMOKE_INPUT");
         var deew = Environment.GetEnvironmentVariable("FLOWENCODE_DEEW5_SMOKE_TOOL");
@@ -70,7 +70,7 @@ public sealed class Deew5ExternalSmokeTests
 
     [TestMethod]
     [TestCategory("ExternalToolSmoke")]
-    public async Task RealDeew54_PhaseShiftRichMeasurementAnd96kHzLosslessRoundTrip()
+    public async Task RealDeew55_PhaseShiftNamingPipeRichMeasurementAnd96kHzLosslessRoundTrip()
     {
         var input = Environment.GetEnvironmentVariable("FLOWENCODE_DEEW5_SMOKE_INPUT");
         var deew = Environment.GetEnvironmentVariable("FLOWENCODE_DEEW5_SMOKE_TOOL");
@@ -105,6 +105,14 @@ public sealed class Deew5ExternalSmokeTests
 
         await Run(input!, new(Format: "dd", NoPhaseShift: true, KeepLog: true));
         await Run(input!, new(NoPhaseShift: true, KeepLog: true));
+        var named = await Run(input!, new(Format: "ddp", PipeMode: "always", OutputName: "custom-ddp-output", KeepLog: true));
+        Assert.AreEqual("custom-ddp-output.ec3", Path.GetFileName(named.OutputFiles!.Single()));
+        var templated = await Run(input!, new(Format: "ddp", PipeMode: "never", OutputTemplate: "{stem}.{format}.{channels}", KeepLog: true));
+        StringAssert.EndsWith(Path.GetFileName(templated.OutputFiles!.Single()), ".ddp.5.1.ec3");
+        var imsGeneral = await Run(input!, new(Format: "ac4-ims", KeepLog: true));
+        StringAssert.EndsWith(imsGeneral.OutputFiles!.Single(), ".ac4");
+        var imsMusic = await Run(input!, new(Format: "ac4-ims", Ac4ImsMode: "music", OutputName: "custom-ims-music", KeepLog: true));
+        Assert.AreEqual("custom-ims-music.ac4", Path.GetFileName(imsMusic.OutputFiles!.Single()));
         // The selected Atmos output does not restrict measurement to Atmos input.
         var measured = await Run(input!, new(Format: "thd-atmos", MeasureOnly: true, DownmixChannels: 2, Drc: "none", KeepLog: true));
         Assert.IsNotNull(measured.LoudnessMetrics?.LoudnessRangeLu);

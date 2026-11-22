@@ -62,6 +62,8 @@ public sealed class AppText
     public string DragDropAudioOverlayHint => Pick("支持 .flac / .wav / .thd / .truehd / .dts / .mka 等", "Supports .flac / .wav / .thd / .truehd / .dts / .mka, etc.");
     public string DragDropBluRayOverlayTitle => Pick("拖放蓝光目录以分离", "Drop a Blu-ray folder to demux");
     public string DragDropBluRayOverlayHint => Pick("支持包含 BDMV 的蓝光目录", "Supports Blu-ray folders containing BDMV");
+    public string DragDropDemuxMkvOverlayTitle => Pick("拖放 MKV 文件以解复用", "Drop an MKV file to demux");
+    public string DragDropDemuxMkvOverlayHint => Pick("使用当前 eac3to 后端读取轨道", "Uses the active eac3to backend to read tracks");
     public string OutputHeader => Pick("输出路径", "Output");
     public string OutputDirectoryHeader => Pick("输出目录", "Output Directory");
     public string SaveAsButton => Pick("另存为", "Save as");
@@ -132,12 +134,16 @@ public sealed class AppText
     public string AudioProcessingDescription => Pick(
         "选择转码器后即可处理音频。eac3to 可输出 FLAC 或 AC3，支持 -down16 / -mono；deew 用于 DDP。Opus 默认使用 ffmpeg + opusenc，请在下拉框中选择码率；也可切换到 FFmpeg libopus 并追加 -mapping_family 1。",
         "Dedicated audio workflow page. The app executes the encoder you choose directly: eac3to can output FLAC or AC3 with optional -down16 / -mono, deew handles DDP, and Opus uses ffmpeg plus opusenc by default with a user-selected bitrate, with an optional FFmpeg libopus mode that adds -mapping_family 1.");
-    public string BluRayDemuxTitle => Pick("蓝光解复用", "Blu-ray Demux");
+    public string BluRayDemuxTitle => Pick("蓝光 / MKV 解复用", "Blu-ray / MKV Demux");
     public string BluRayDemuxDescription => Pick(
-        "先扫描蓝光目录，再选择播放列表和需要导出的轨道。默认使用 DGDemux，也可切换为 eac3to。",
-        "Dedicated Blu-ray demux page. DGDemux is the default backend and eac3to is optional. Scan the disc folder first, then choose the playlist and tracks manually.");
+        "扫描蓝光目录或 MKV 文件，选择播放列表和需要导出的轨道。DGDemux 仅支持蓝光目录，eac3to 同时支持蓝光目录和 MKV 文件。",
+        "Scan a Blu-ray folder or MKV file, then choose the playlist and tracks to export. DGDemux supports Blu-ray folders only; eac3to supports both Blu-ray folders and MKV files.");
     public string BluRayDemuxBackendHeader => Pick("解复用后端", "Backend");
-    public string BluRayDemuxScanButton => Pick("扫描蓝光", "Scan Disc");
+    public string BluRayDemuxScanButton => Pick("扫描源", "Scan Source");
+    public string BluRayEac3ToSourceDialogTitle => Pick("选择 MKV 或蓝光入口文件", "Select MKV or Blu-ray Entry File");
+    public string BluRayEac3ToSourceFilterLabel => Pick("MKV / 蓝光 (*.mkv;index.bdmv;*.mpls)", "MKV / Blu-ray (*.mkv;index.bdmv;*.mpls)");
+    public string BluRayMkvFilterLabel => Pick("MKV 文件 (*.mkv)", "MKV Files (*.mkv)");
+    public string BluRayEntryFilterLabel => Pick("蓝光入口文件 (index.bdmv;*.mpls)", "Blu-ray Entry Files (index.bdmv;*.mpls)");
     public string BluRayPlaylistListTitle => Pick("播放列表", "Playlists");
     public string BluRayTracksTitle => Pick("轨道选择", "Tracks");
     public string BluRaySelectAllTracksButton => Pick("全部勾选", "Select All");
@@ -646,10 +652,10 @@ public sealed class AppText
     public string DraftInputPreparingPreviewNotes => Pick("路径已更新，正在刷新输出建议和命令预览。", "Path updated. Refreshing the output suggestion and command preview.");
     public string AutoCompressionInputPreparingStatus => Pick("路径已更新，正在准备自动压制预览。", "Path updated. Preparing the auto-encode preview.");
     public string AudioProcessingInputPreparingStatus => Pick("路径已更新，正在准备音频处理预览。", "Path updated. Preparing the audio preview.");
-    public string BluRayDemuxInputPreparingStatus => Pick("路径已更新，正在准备蓝光目录状态。", "Path updated. Preparing the Blu-ray folder state.");
-    public string BluRayDemuxSourceReadyStatus => Pick("目录已选择。需要读取播放列表时点击扫描。", "Folder selected. Scan when you are ready to read playlists.");
-    public string BluRayDiscSummaryPlaceholder => Pick("选择蓝光目录后手动点击扫描。", "Choose a Blu-ray folder, then scan manually.");
-    public string BluRayPlaylistSummaryPlaceholder => Pick("扫描完成后，手动选择一条播放列表以加载轨道。", "After scanning, choose a playlist manually to load tracks.");
+    public string BluRayDemuxInputPreparingStatus => Pick("路径已更新，正在准备输入源状态。", "Path updated. Preparing the source state.");
+    public string BluRayDemuxSourceReadyStatus => Pick("输入源已选择。需要读取播放列表或轨道时点击扫描。", "Source selected. Scan when you are ready to read playlists or tracks.");
+    public string BluRayDiscSummaryPlaceholder => Pick("选择蓝光目录或 MKV 文件（eac3to）后点击扫描。", "Choose a Blu-ray folder or MKV file (eac3to), then click Scan.");
+    public string BluRayPlaylistSummaryPlaceholder => Pick("扫描完成后，选择播放列表以加载轨道；MKV 文件会自动加载轨道。", "After scanning, choose a playlist to load tracks; MKV files load tracks automatically.");
     public string AudioSourceInfoPlaceholder => Pick("选择音频源后，程序会尝试用 FFprobe 自动读取声道、位深和采样率。", "After you choose a source, FFprobe will try to read channel, bit-depth, and sample-rate info automatically.");
     public string AudioSourceInspectingStatus => Pick("正在分析音频源信息。", "Inspecting audio source information.");
     public string AudioCapabilityPreparing => Pick("正在检查音频处理所需的依赖。", "Preparing audio workflow readiness.");
@@ -939,11 +945,11 @@ public sealed class AppText
         backend switch
         {
             BluRayDemuxBackend.DgDemux => Pick(
-                "DGDemux 按播放列表前缀输出，可能额外生成 .qp.txt 等辅助文件。",
-                "DGDemux writes files by playlist prefix and may emit auxiliary files such as .qp.txt."),
+                "DGDemux 仅支持蓝光目录，按播放列表前缀输出，可能额外生成 .qp.txt 等辅助文件。",
+                "DGDemux supports Blu-ray folders only, writes files by playlist prefix, and may emit auxiliary files such as .qp.txt."),
             BluRayDemuxBackend.Eac3To => Pick(
-                "eac3to 按轨道号导出，显式选轨时会自动决定原始扩展名；日志写入程序日志目录。",
-                "eac3to exports by track number, auto-resolves raw extensions for explicit selections, and writes logs to the app log folder."),
+                "eac3to 支持蓝光目录和 MKV 文件，按轨道号导出并匹配扩展名；日志写入程序日志目录。",
+                "eac3to supports both Blu-ray folders and MKV files, exports by track number with matched extensions, and writes logs to the app log folder."),
             _ => string.Empty
         };
 
@@ -1018,6 +1024,14 @@ public sealed class AppText
     public string DeewFormatHeader => Pick("输出格式", "Output format");
     public string DeewDdpModeHeader => Pick("DDP 档位", "DDP mode");
     public string DeewAtmosModeHeader => Pick("DDP Atmos 档位", "DDP Atmos mode");
+    public string DeewAc4ImsModeHeader => Pick("AC4 IMS 档位", "AC4 IMS mode");
+    public string DeewPipeModeHeader => Pick("管道模式 (-p)", "Pipe mode (-p)");
+    public string DeewWarpModeHeader => Pick("Atmos Warp 模式 (-wm)", "Atmos warp mode (-wm)");
+    public string DeewBedConformHeader => Pick("Bed 规整 (-bc)", "Bed conform (-bc)");
+    public string DeewOutputNameHeader => Pick("输出文件名 (-on)", "Output name (-on)");
+    public string DeewOutputNamePlaceholder => Pick("留空则按模板或源文件名命名", "Leave blank to use template or source name");
+    public string DeewOutputTemplateHeader => Pick("输出命名模板 (-ot)", "Output template (-ot)");
+    public string DeewOutputTemplatePlaceholder => Pick("默认 {stem}，如 {stem}.{lang}", "Default {stem}, e.g. {stem}.{lang}");
     public string DeewBitrateHeader => Pick("码率 (kbps)", "Bitrate (kbps)");
     public string DeewDownmixHeader => Pick("声道混合", "Downmix channels");
     public string DeewLfeHeader => Pick("禁用 LFE", "Disable LFE");
@@ -1359,17 +1373,23 @@ public sealed class AppText
     public string BluRayDiscScanStatus(string backendLabel) =>
         IsChinese ? $"正在使用 {backendLabel} 扫描蓝光目录..." : $"Scanning the Blu-ray folder with {backendLabel}...";
 
+    public string BluRayMkvScanStatus(string backendLabel) =>
+        IsChinese ? $"正在使用 {backendLabel} 扫描 MKV 文件..." : $"Scanning the MKV file with {backendLabel}...";
+
     public string BluRayDiscScanCompletedStatus(string backendLabel, int count) =>
         IsChinese ? $"{backendLabel} 扫描完成，共发现 {count} 条播放列表。" : $"{backendLabel} scan completed. Found {count} playlists.";
 
     public string BluRayDiscScanFailedStatus(string message) =>
-        IsChinese ? $"蓝光扫描失败：{message}" : $"Blu-ray scan failed: {message}";
+        IsChinese ? $"扫描失败：{message}" : $"Scan failed: {message}";
 
     public string BluRayPlaylistLoadStatus(string playlistName) =>
         IsChinese ? $"正在加载播放列表：{playlistName}" : $"Loading playlist: {playlistName}";
 
     public string BluRayPlaylistLoadedStatus(string playlistName, int trackCount) =>
         IsChinese ? $"播放列表已加载：{playlistName} · {trackCount} 条轨道" : $"Playlist loaded: {playlistName} · {trackCount} tracks";
+
+    public string BluRayMkvLoadedStatus(string fileName, int trackCount) =>
+        IsChinese ? $"MKV 已加载：{fileName} · {trackCount} 条轨道" : $"MKV loaded: {fileName} · {trackCount} tracks";
 
     public string BluRayPlaylistLoadFailedStatus(string message) =>
         IsChinese ? $"播放列表加载失败：{message}" : $"Playlist load failed: {message}";
@@ -1629,7 +1649,9 @@ public sealed class AppText
     public string AudioOutputDirectoryInvalidError => Pick("音频输出目录不能指向现有文件。请改为选择目录。", "The audio output directory cannot point to an existing file. Choose a folder instead.");
     public string AudioSourceOutputPathConflictError => Pick("音频输出文件不能与输入源相同。请更换输出目录或目标格式。", "The audio output file must be different from the source. Choose another output folder or target format.");
     public string AudioProcessingAlreadyRunningError => Pick("当前已有音频处理任务在运行。", "An audio task is already running.");
-    public string BluRayDiscSourceMissingError => Pick("请先选择蓝光目录。", "Select a Blu-ray folder first.");
+    public string BluRayDiscSourceMissingError => Pick("请先选择蓝光目录或 MKV 文件。", "Select a Blu-ray folder or MKV file first.");
+    public string BluRayMkvSourceMissingError => Pick("未找到指定的 MKV 文件。", "The selected MKV file was not found.");
+    public string BluRayMkvRequiresEac3ToError => Pick("MKV 解复用仅支持 eac3to，请将后端切换为 eac3to。", "MKV demuxing requires eac3to. Switch the backend to eac3to first.");
     public string BluRayDiscStructureInvalidError => Pick("输入目录中未找到有效的 BDMV/PLAYLIST 结构。", "The selected folder does not contain a valid BDMV/PLAYLIST structure.");
     public string BluRayOutputDirectoryMissingError => Pick("请先指定解复用输出目录。", "Select a demux output directory first.");
     public string BluRayOutputDirectoryInvalidError => Pick("解复用输出目录不能指向现有文件。请改为选择目录。", "The demux output directory cannot point to an existing file. Choose a folder instead.");

@@ -45,7 +45,7 @@ if (tool == "python" && args.Contains("-c"))
     return 0;
 }
 if (args.Contains("--hold-child")) { await Task.Delay(TimeSpan.FromMinutes(1)); return 0; }
-const string deewVersion = "5.4.0";
+const string deewVersion = "5.5.3";
 if (args.Contains("--version") || args.Contains("-version") || args.Contains("--help"))
 {
     var deeVersion = businessScenario == "legacy-dee" ? "6.6.0" : "6.7.0+test";
@@ -89,6 +89,36 @@ if (businessScenario is not null && tool == "av1an")
     if (businessScenario == "complete-then-failure") Emit("run_failed");
     return 0;
 }
+if (businessScenario == "mkv-demux" && tool == "eac3to")
+{
+    if (args.Length == 1 && args[0].EndsWith(".mkv", StringComparison.OrdinalIgnoreCase))
+    {
+        Console.WriteLine("Fast mode enabled");
+        Console.WriteLine("Keeping dialnorm");
+        Console.WriteLine("analyze: 100%");
+        Console.WriteLine("MKV, 1 video track, 1 audio track, 2 subtitle tracks, 0:00:02, 24p");
+        Console.WriteLine("1: Chapters, 12 chapters");
+        Console.WriteLine("2: h265/HEVC, 1920x1080p24");
+        Console.WriteLine("3: FLAC, [jpn], 2.0 channels, 0:00:02, 24 bits, 48kHz");
+        Console.WriteLine("   \"Japanese FLAC\"");
+        Console.WriteLine("4: Subtitle (SRT), [chi]");
+        Console.WriteLine("5: Subtitle (ASS), [eng]");
+        return 0;
+    }
+
+    foreach (var stagedOutput in args.Where(a => a.Contains(".flowencode-temp", StringComparison.OrdinalIgnoreCase)))
+    {
+        var materialized = stagedOutput.EndsWith(".*", StringComparison.Ordinal)
+            ? stagedOutput.Replace(".*", stagedOutput.Contains("_video", StringComparison.OrdinalIgnoreCase) ? ".h265" : ".flac")
+            : stagedOutput;
+        Directory.CreateDirectory(Path.GetDirectoryName(materialized)!);
+        await File.WriteAllTextAsync(materialized, "extracted mkv track");
+    }
+
+    Console.WriteLine("process: 100%");
+    Console.WriteLine("Done.");
+    return 0;
+}
 if (businessScenario is not null && tool is "dgdemux" or "eac3to")
 {
     var outputFile = tool == "dgdemux" ? Option("-o") + ".264"
@@ -103,10 +133,11 @@ if (businessScenario is not null && tool is "dgdemux" or "eac3to")
 }
 if (args.Contains("-gc"))
 {
-    var keys = "dd_1_0 dd_2_0 dd_5_1 ddp_1_0 ddp_2_0 ddp_5_1 ddp_7_1_standard ddp_7_1_bluray ddp_atmos_streaming ddp_atmos_standard ddp_atmos_bluray ac4_2_0 ac4_5_1 ac4_atmos aac_2_0".Split(' ');
+    var keys = "dd_1_0 dd_2_0 dd_5_1 ddp_1_0 ddp_2_0 ddp_5_1 ddp_7_1_standard ddp_7_1_bluray ddp_atmos_streaming ddp_atmos_standard ddp_atmos_bluray ac4_2_0 ac4_5_1 ac4_atmos ac4_ims aac_2_0".Split(' ');
     await File.WriteAllTextAsync(Path.Combine(AppContext.BaseDirectory, "config.toml"),
-        "pipe = 'auto'\ntemp_path = ''\nlogo = 1\nmax_instances = '50%'\n[output]\nto_input = true\n[default_bitrates]\n" +
-        string.Join("\n", keys.Select(k => k + " = 256")) + "\n[summary_sections]\ndeew_info = true\nbinaries = true\ninput_info = true\noutput_info = true\nother = true\n");
+        "surround_phase_shift = true\nlow_pass_filter = true\nsurround_3db_attenuation = false\ntruehdd_warp_mode = ''\ntruehdd_bed_conform = false\npipe = 'auto'\ntemp_path = ''\nlogo = 1\nmax_instances = '50%'\n[output]\nto_input = true\ntemplate = '{stem}'\n[default_bitrates]\n" +
+        string.Join("\n", keys.Select(k => k + " = 256")) +
+        "\n[default_modes]\nddp = 'standard'\nddp_atmos = 'streaming'\nac4_ims = 'general'\n[summary_sections]\ndeew_info = true\nbinaries = true\ninput_info = true\noutput_info = true\nother = true\n[gui]\nprogress = 'cli'\nscaling = '100%'\nuse_system_font = false\ntheme = 'system'\n");
     return 0;
 }
 var sourcePath = tool == "ffprobe" ? args[^1] : Option("-i")!;
@@ -122,7 +153,10 @@ if (tool == "ffprobe")
     var codec = data.TryGetProperty("codec", out var codecValue) ? codecValue.GetString() : "pcm_s24le";
     var profile = data.TryGetProperty("profile", out var profileValue) ? profileValue.GetString() : "";
     var rate = data.TryGetProperty("sampleRate", out var rateValue) ? rateValue.GetString() : "48000";
-    Console.WriteLine(JsonSerializer.Serialize(new { streams = new[] { new { codec_name = codec, profile, channels, channel_layout = layout, sample_rate = rate, bits_per_sample = "24", duration = "60" } } }));
+    var tags = new Dictionary<string, string>();
+    if (data.TryGetProperty("language", out var langValue) && langValue.GetString() is string lang) tags["language"] = lang;
+    if (data.TryGetProperty("title", out var titleValue) && titleValue.GetString() is string title) tags["title"] = title;
+    Console.WriteLine(JsonSerializer.Serialize(new { streams = new[] { new { codec_name = codec, profile, channels, channel_layout = layout, sample_rate = rate, bits_per_sample = "24", duration = "60", tags = tags.Count > 0 ? tags : null } } }));
     return 0;
 }
 if (args.Contains("-nps") || args.Contains("--no-phase-shift"))
@@ -176,6 +210,18 @@ if (scenario == "cancel")
     Console.WriteLine("waiting for cancellation"); Console.Out.Flush();
     await Task.Delay(TimeSpan.FromMinutes(1));
 }
+if (scenario == "piped-progress")
+{
+    await Event(new { type = "progress", job = 0, stage = "measure", percent = (double?)null, db = (double?)null });
+    await Event(new { type = "progress", job = 0, stage = "measure", percent = 50.0, db = (double?)null });
+    await Event(new { type = "progress", job = 0, stage = "measure", percent = 100.0, db = -24.0 });
+    await Task.Delay(250);
+    // Stage transition pulse (percent: null) after numeric progress must not reset host or TaskCoordinator progress.
+    await Event(new { type = "progress", job = 0, stage = "encode", percent = (double?)null, db = -24.0 });
+    await Task.Delay(250);
+    await Event(new { type = "progress", job = 0, stage = "encode", percent = 40.0, db = -24.0 });
+    await Event(new { type = "progress", job = 0, stage = "encode", percent = 99.0, db = -24.0 });
+}
 var measured = args.Contains("-mo");
 if (scenario is "rich-measure" or "quiet-measure")
     await Event(new { type = "progress", job = 0, stage = "measure", percent = 90, db = scenario == "quiet-measure" ? -45 : -27,
@@ -185,9 +231,35 @@ await Event(new { type = "progress", job = 0, stage = measured ? "measure" : "en
 if (!measured && scenario != "empty" && scenario != "error-tail")
 {
     var format = Option("-f");
-    var ext = format switch { "dd" => ".ac3", "thd" or "thd-atmos" => ".thd", "ac4" or "ac4-atmos" => ".ac4", "aac" => ".aac", _ => ".ec3" };
+    var ext = format switch { "dd" => ".ac3", "thd" or "thd-atmos" => ".thd", "ac4" or "ac4-atmos" or "ac4-ims" => ".ac4", "aac" => ".aac", _ => ".ec3" };
     if (format == "ddp" && (channels is 7 or 8 || args.Contains("-ti")) && Option("--ddp-mode") == "bluray") ext = ".eb3";
-    await File.WriteAllTextAsync(Path.Combine(output, Path.GetFileNameWithoutExtension(sourcePath) + ext), "encoded media");
+    var outputNameArg = Option("-on") ?? Option("--output-name") ?? args.FirstOrDefault(a => a.StartsWith("--output-name=", StringComparison.Ordinal))?["--output-name=".Length..];
+    var outputTemplateArg = Option("-ot") ?? Option("--output-template") ?? args.FirstOrDefault(a => a.StartsWith("--output-template=", StringComparison.Ordinal))?["--output-template=".Length..];
+    if (outputTemplateArg is null)
+    {
+        var templateMatch = Regex.Match(config, @"(?m)^\s*template\s*=\s*['""]([^'""]+)['""]");
+        if (templateMatch.Success) outputTemplateArg = templateMatch.Groups[1].Value;
+    }
+    var stem = Regex.Replace(Path.GetFileNameWithoutExtension(sourcePath), @" ?DELAY [-|+]?[0-9]+m?s", "");
+    string fileName;
+    if (!string.IsNullOrEmpty(outputNameArg))
+        fileName = outputNameArg.EndsWith(ext, StringComparison.OrdinalIgnoreCase) ? outputNameArg : outputNameArg + ext;
+    else if (!string.IsNullOrEmpty(outputTemplateArg) && outputTemplateArg != "{stem}")
+    {
+        var lang = data.TryGetProperty("language", out var lv) ? lv.GetString() ?? "" : "";
+        var title = data.TryGetProperty("title", out var tv) ? tv.GetString() ?? "" : "";
+        var rendered = outputTemplateArg
+            .Replace("{stem}", stem)
+            .Replace("{name}", Path.GetFileNameWithoutExtension(sourcePath))
+            .Replace("{format}", format ?? "ddp")
+            .Replace("{lang}", lang)
+            .Replace("{title}", title)
+            .Replace("{track}", Option("-ti") ?? "0")
+            .Trim('.', '_', '-', ' ');
+        fileName = rendered.EndsWith(ext, StringComparison.OrdinalIgnoreCase) ? rendered : rendered + ext;
+    }
+    else fileName = stem + ext;
+    await File.WriteAllTextAsync(Path.Combine(output, fileName), "encoded media");
     if (scenario == "collision")
         await File.WriteAllTextAsync(Path.Combine(output, "z-conflict" + ext), "second encoded media");
 }

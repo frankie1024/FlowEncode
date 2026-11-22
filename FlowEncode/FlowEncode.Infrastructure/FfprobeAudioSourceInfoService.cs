@@ -59,7 +59,7 @@ public sealed class FfprobeAudioSourceInfoService : IAudioSourceInfoService
                 "-select_streams",
                 $"a:{trackIndex}",
                 "-show_entries",
-                "format=duration,format_name:stream=codec_name,profile,channels,channel_layout,sample_rate,bits_per_sample,bits_per_raw_sample,sample_fmt,duration",
+                "format=duration,format_name:stream=codec_name,profile,channels,channel_layout,sample_rate,bits_per_sample,bits_per_raw_sample,sample_fmt,duration:stream_tags",
                 "-of",
                 "json",
                 sourcePath
@@ -106,7 +106,9 @@ public sealed class FfprobeAudioSourceInfoService : IAudioSourceInfoService
                 GetJsonString(stream, "channel_layout"),
                 ParseNullableInt(GetJsonString(stream, "sample_rate")),
                 ResolveBitDepth(stream),
-                durationSeconds);
+                durationSeconds,
+                ReadStreamTag(stream, "language"),
+                ReadStreamTag(stream, "title"));
         }
 
         return null;
@@ -145,6 +147,21 @@ public sealed class FfprobeAudioSourceInfoService : IAudioSourceInfoService
         }
 
         return result.StandardOutput;
+    }
+
+    private static string? ReadStreamTag(JsonElement stream, string key)
+    {
+        if (!stream.TryGetProperty("tags", out var tags) || tags.ValueKind != JsonValueKind.Object)
+            return null;
+        foreach (var property in tags.EnumerateObject())
+        {
+            if (property.Name.Equals(key, StringComparison.OrdinalIgnoreCase) && property.Value.ValueKind == JsonValueKind.String)
+            {
+                var value = property.Value.GetString()?.Trim();
+                return string.IsNullOrEmpty(value) ? null : value;
+            }
+        }
+        return null;
     }
 
     private static string GetJsonString(JsonElement element, string propertyName)

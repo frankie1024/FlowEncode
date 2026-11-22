@@ -456,6 +456,14 @@ public sealed partial class MainWindow : Window, ISettingsViewHost, IShellNaviga
             if (firstFile is not null)
             {
                 e.AcceptedOperation = DataPackageOperation.Copy;
+                if (string.Equals(_activeShellSectionTag, MainShellSections.BluRayDemux, StringComparison.Ordinal)
+                    && ViewModel.SelectedBluRayDemuxBackend?.Value == BluRayDemuxBackend.Eac3To
+                    && BluRayDemuxSourceSupport.IsMkvSourcePath(firstFile.Path))
+                {
+                    NavigateToBluRayDemuxPage(firstFile.Path);
+                    return;
+                }
+
                 var payloadType = AppLaunchActivation.ClassifyFilePath(firstFile.Path);
                 switch (payloadType)
                 {
@@ -1244,7 +1252,11 @@ public sealed partial class MainWindow : Window, ISettingsViewHost, IShellNaviga
                 .FirstOrDefault();
             if (firstFile is not null)
             {
-                var fileType = AppLaunchActivation.ClassifyFilePath(firstFile.Path);
+                var fileType = string.Equals(_activeShellSectionTag, MainShellSections.BluRayDemux, StringComparison.Ordinal)
+                    && ViewModel.SelectedBluRayDemuxBackend?.Value == BluRayDemuxBackend.Eac3To
+                    && BluRayDemuxSourceSupport.IsMkvSourcePath(firstFile.Path)
+                    ? DragDropPayloadType.DemuxMkv
+                    : AppLaunchActivation.ClassifyFilePath(firstFile.Path);
                 _activeDragDataView = dataView;
                 _activeDragPayloadType = fileType;
                 return fileType;
@@ -1347,6 +1359,7 @@ public sealed partial class MainWindow : Window, ISettingsViewHost, IShellNaviga
             DragDropPayloadType.Video => (texts.DragDropVideoOverlayTitle, texts.DragDropVideoOverlayHint),
             DragDropPayloadType.Audio => (texts.DragDropAudioOverlayTitle, texts.DragDropAudioOverlayHint),
             DragDropPayloadType.BluRayFolder => (texts.DragDropBluRayOverlayTitle, texts.DragDropBluRayOverlayHint),
+            DragDropPayloadType.DemuxMkv => (texts.DragDropDemuxMkvOverlayTitle, texts.DragDropDemuxMkvOverlayHint),
             _ => (texts.DragDropScriptOverlayTitle, texts.DragDropScriptOverlayHint)
         };
         SetDragDropOverlayVisible(true);

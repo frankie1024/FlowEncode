@@ -10,7 +10,9 @@ public sealed record AudioSourceInfo(
     string ChannelLayout,
     int? SampleRate,
     int? BitDepth,
-    double? DurationSeconds)
+    double? DurationSeconds,
+    string? Language = null,
+    string? Title = null)
 {
     private static readonly HashSet<string> LosslessCodecNames = new(StringComparer.OrdinalIgnoreCase)
     {

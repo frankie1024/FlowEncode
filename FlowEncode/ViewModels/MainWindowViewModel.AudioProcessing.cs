@@ -53,6 +53,7 @@ public partial class MainWindowViewModel
     private AudioSourceInfo? _audioSourceInfo;
     private string? _deewPreflightError;
     private bool _deewTrueHdSurroundAttenuation;
+    private string? _deewExpectedOutputFileName;
     private AudioProcessingResult? _lastAudioResult;
 
     internal DeewOptions? LoadDeewOptions() => _settingsService.Load().DeewOptions;
@@ -767,14 +768,16 @@ public partial class MainWindowViewModel
                 break;
 
             case AudioProcessingMode.Ddp:
-                AudioSourceSupport.ValidateDeewInput(normalizedSource, AudioProcessingModule.Form.Deew.Build());
+                var deewOptions = AudioProcessingModule.Form.Deew.Build();
+                AudioSourceSupport.ValidateDeewInput(normalizedSource, deewOptions);
                 if (_isAudioSourceInfoLoading)
                 {
                     throw new InvalidOperationException(Texts.AudioSourceInspectingStatus);
                 }
 
                 if (_audioSourceInfo is { Channels: > 0 }
-                    && !AudioProcessingModule.Form.Deew.Build().Format.EndsWith("-atmos", StringComparison.Ordinal)
+                    && !deewOptions.Format.EndsWith("-atmos", StringComparison.Ordinal)
+                    && !(deewOptions.Format == "ac4-ims" && _audioSourceInfo.IsTrueHdAtmos)
                     && !AudioSourceInfo.IsDeewChannelCountSupported(_audioSourceInfo.Channels)
                     && !_audioSourceInfo.RequiresDdpDtsCompatibilityInput())
                 {
@@ -1082,6 +1085,15 @@ public partial class MainWindowViewModel
             var outputDirectory = !string.IsNullOrWhiteSpace(AudioProcessingOutputPath)
                 ? Path.GetFullPath(AudioProcessingOutputPath.Trim())
                 : Path.GetDirectoryName(normalizedSource) ?? Environment.CurrentDirectory;
+            if (SelectedAudioWorkflow.Value == AudioProcessingMode.Ddp)
+            {
+                var expectedName = _deewExpectedOutputFileName
+                    ?? AudioProcessingModule.Form.Deew.TryResolveExpectedOutputFileName(normalizedSource);
+                if (!string.IsNullOrWhiteSpace(expectedName))
+                {
+                    return Path.Combine(outputDirectory, expectedName);
+                }
+            }
             return ResolveAudioProcessingPreviewPath(
                 normalizedSource,
                 outputDirectory,
@@ -1129,6 +1141,14 @@ public partial class MainWindowViewModel
         if (request.Mode != AudioProcessingMode.Ddp)
         {
             return File.Exists(request.OutputPath) ? request.OutputPath : null;
+        }
+
+        var expectedName = _deewExpectedOutputFileName
+            ?? AudioProcessingModule.Form.Deew.TryResolveExpectedOutputFileName(request.SourcePath);
+        if (!string.IsNullOrWhiteSpace(expectedName))
+        {
+            var expectedPath = Path.Combine(request.OutputPath, expectedName);
+            return File.Exists(expectedPath) ? expectedPath : null;
         }
 
         var preferredExtension = GetAudioProcessingSuggestedExtension();
@@ -1293,6 +1313,7 @@ public partial class MainWindowViewModel
     {
         DisposeAudioSourceProbeCancellation();
         _deewTrueHdSurroundAttenuation = false;
+        _deewExpectedOutputFileName = null;
         _audioSourceInfo = null;
         _audioSourceInfoError = null;
         _isAudioSourceInfoLoading = false;
@@ -1340,8 +1361,9 @@ public partial class MainWindowViewModel
                     var snapshot = await new DeewPlanningService(_toolProbeService).InspectAsync(sourcePath, AudioProcessingModule.Form.Deew.Build(), cancellationToken);
                     if (version != _audioSourceProbeVersion) return;
                     _deewTrueHdSurroundAttenuation = snapshot.TrueHdSurroundAttenuation;
+                    _deewExpectedOutputFileName = snapshot.ExpectedOutputFileName;
                     AudioProcessingModule.Form.Deew.SetSource(snapshot.Source);
-                    AudioProcessingModule.Form.Deew.SetDefaults(snapshot.DefaultDdpMode, snapshot.DefaultAtmosMode, snapshot.DefaultBitrates);
+                    AudioProcessingModule.Form.Deew.SetDefaults(snapshot.DefaultDdpMode, snapshot.DefaultAtmosMode, snapshot.DefaultBitrates, snapshot.DefaultAc4ImsMode, snapshot.OutputTemplate);
                     _deewPreflightError = null;
                     info = snapshot.Source;
                 }

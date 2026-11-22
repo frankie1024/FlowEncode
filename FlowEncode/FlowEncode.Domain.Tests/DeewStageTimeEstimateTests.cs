@@ -83,7 +83,7 @@ public sealed class DeewStageTimeEstimateTests
         reader.Accept("""{"type":"progress","job":0,"stage":"measure","percent":0}""");
         clock.Advance(8);
         reader.Accept("""{"type":"progress","job":0,"stage":"measure","percent":4,"db":-27}""");
-        Assert.AreEqual(.354, reader.Fraction, .000001);
+        Assert.AreEqual(.16, reader.Fraction, .000001);
         Assert.AreEqual(TimeSpan.FromSeconds(192), reader.Remaining);
         reader.Accept("""{"type":"progress","job":1,"stage":"encode","percent":90}""");
         Assert.AreEqual(TimeSpan.FromSeconds(192), reader.Remaining);

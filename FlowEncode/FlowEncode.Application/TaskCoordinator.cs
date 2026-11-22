@@ -190,7 +190,10 @@ public sealed class TaskCoordinator
         lock (_gate)
         {
             if (entry.Snapshot.State != EncodingJobState.Running) return;
-            entry.Snapshot = entry.Snapshot with { ProgressFraction = update.ProgressFraction, Summary = update.Summary,
+            var progressFraction = update.ProgressFraction.HasValue
+                ? Math.Max(entry.Snapshot.ProgressFraction ?? 0, update.ProgressFraction.Value)
+                : entry.Snapshot.ProgressFraction;
+            entry.Snapshot = entry.Snapshot with { ProgressFraction = progressFraction, Summary = update.Summary,
                 Stage = update.Stage, Log = string.IsNullOrWhiteSpace(update.Detail) ? entry.Snapshot.Log : Tail(entry.Snapshot.Log + update.Detail + Environment.NewLine),
                 AudioTelemetry = update.AudioTelemetry };
         }

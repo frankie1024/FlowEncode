@@ -97,16 +97,19 @@ public sealed partial class CliAudioProcessingRunner
             lease = await DeewConfigLease.AcquireAsync(deew, options.TempMode == DeewTempMode.DeewSettings ? null : temp,
                 async ct => { await DeewToolchain.ProbeAsync(DeewToolchain.StartInfo(deew, ffmpeg, ffprobe), "-gc", ct); }, token);
             var effectiveChannels = source.RequiresDdpDtsCompatibilityInput() ? 8 : source.Channels;
-            var profile = DeewBitrates.Apply(DeewArguments.Resolve(options, source, lease.Snapshot.DdpMode, lease.Snapshot.AtmosMode, warnings), lease.Snapshot.Bitrates);
+            var profile = DeewBitrates.Apply(DeewArguments.Resolve(options, source, lease.Snapshot.DdpMode, lease.Snapshot.AtmosMode, warnings, lease.Snapshot.Ac4ImsMode), lease.Snapshot.Bitrates);
             if (!options.MeasureOnly && options.Format.EndsWith("-atmos", StringComparison.Ordinal) && !source.IsTrueHdAtmos)
                 throw new InvalidOperationException("Atmos output requires a selected TrueHD Atmos input track.");
+            _ = DeewOutputNaming.ResolveFileName(request.SourcePath, source, profile, lease.Snapshot.OutputTemplate);
             if (options.TempMode == DeewTempMode.DeewSettings)
             {
                 externalTemp = string.IsNullOrWhiteSpace(lease.Snapshot.TempPath) ? Path.Combine(Path.GetDirectoryName(deew)!, "temp") : Path.GetFullPath(lease.Snapshot.TempPath, Path.GetDirectoryName(deew)!);
                 Log("deew manages its own temp directory: " + externalTemp + ". Host cancellation may leave intermediates; this directory is never recursively cleaned by FlowEncode.");
             }
-            var needsPcmTemp = !lease.Snapshot.Pipe || (options.MeasureOnly ? source.IsTrueHdAtmos
-                : options.Format.StartsWith("thd", StringComparison.Ordinal) || options.Format.EndsWith("-atmos", StringComparison.Ordinal));
+            var usePipe = options.PipeMode is not null ? options.PipeMode != "never" : lease.Snapshot.Pipe;
+            var hasDecode = profile.RequiredTools.Contains("truehdd");
+            var isPiped = usePipe && !hasDecode && (options.MeasureOnly || options.Format is "dd" or "ddp" or "ac4" or "aac");
+            var needsPcmTemp = !isPiped;
             if (needsPcmTemp
                 && source.DurationSeconds is > 0 && source.SampleRate is > 0)
             {
@@ -150,14 +153,14 @@ public sealed partial class CliAudioProcessingRunner
             {
                 lock (gate)
                 {
-                    currentFraction = fraction;
+                    if (fraction.HasValue) currentFraction = fraction;
                     currentStage = stage;
                     hasStageEvent = true;
                     currentDb = db;
                     currentDbSource = origin;
                     progressPending = true;
                 }
-            });
+            }, piped: isPiped);
             var info = DeewToolchain.StartInfo(deew, ffmpeg, ffprobe);
             foreach (var arg in DeewArguments.Build(input, staging, options)) info.ArgumentList.Add(arg);
             info.Environment["DEEW_EVENTS_FILE"] = eventsPath;

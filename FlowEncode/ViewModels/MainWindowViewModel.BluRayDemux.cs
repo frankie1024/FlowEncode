@@ -271,6 +271,8 @@ public partial class MainWindowViewModel
 
         var backend = SelectedBluRayDemuxBackend?.Value ?? BluRayDemuxBackend.DgDemux;
         var backendLabel = Texts.BluRayBackendLabel(backend);
+        var isMkvSource = BluRayDemuxSourceSupport.IsMkvSourcePath(BluRayDemuxSourcePath);
+        var autoLoadMkvTracks = false;
         var cancellationTokenSource = RenewBluRayProbeCancellation();
         SetBluRayDiscScanningState(true);
         _bluRayPlaylistTrackCache.Clear();
@@ -280,14 +282,26 @@ public partial class MainWindowViewModel
         _bluRayDiscSummaryText = string.Empty;
         _bluRayPlaylistSummaryText = string.Empty;
         BluRayDemuxCommandLine = string.Empty;
-        BluRayDemuxStatusText = Texts.BluRayDiscScanStatus(backendLabel);
+        BluRayDemuxStatusText = isMkvSource
+            ? Texts.BluRayMkvScanStatus(backendLabel)
+            : Texts.BluRayDiscScanStatus(backendLabel);
         StatusText = BluRayDemuxStatusText;
 
         try
         {
             var playlists = await _bluRayDiscProbeService.ScanDiscAsync(backend, NormalizeBluRayDiscRoot(BluRayDemuxSourcePath, requireExists: true), cancellationTokenSource.Token);
             ReplaceItems(BluRayPlaylists, playlists);
-            _bluRayDiscSummaryText = Texts.BluRayDiscScanCompletedStatus(backendLabel, playlists.Count);
+            if (isMkvSource && playlists.Count == 1)
+            {
+                _bluRayDiscSummaryText = playlists[0].Summary;
+                SelectedBluRayPlaylist = playlists[0];
+                autoLoadMkvTracks = true;
+            }
+            else
+            {
+                _bluRayDiscSummaryText = Texts.BluRayDiscScanCompletedStatus(backendLabel, playlists.Count);
+            }
+
             BluRayDemuxStatusText = _bluRayDiscSummaryText;
             StatusText = BluRayDemuxStatusText;
             OnPropertyChanged(nameof(BluRayDiscSummaryText));
@@ -306,6 +320,11 @@ public partial class MainWindowViewModel
         {
             SetBluRayDiscScanningState(false);
             RaiseBluRayDemuxInputPropertyChanges();
+        }
+
+        if (autoLoadMkvTracks && !cancellationTokenSource.IsCancellationRequested && SelectedBluRayPlaylist is not null)
+        {
+            await LoadSelectedBluRayPlaylistAsync();
         }
     }
 
@@ -350,7 +369,9 @@ public partial class MainWindowViewModel
             StoreBluRayPlaylistCache(selectedPlaylist, result.Summary, trackItems);
             ReplaceBluRayTrackItems(trackItems);
             _bluRayPlaylistSummaryText = result.Summary;
-            BluRayDemuxStatusText = Texts.BluRayPlaylistLoadedStatus(selectedPlaylist.DisplayName, result.Tracks.Count);
+            BluRayDemuxStatusText = BluRayDemuxSourceSupport.IsMkvSourcePath(selectedPlaylist.SourcePath)
+                ? Texts.BluRayMkvLoadedStatus(selectedPlaylist.DisplayName, result.Tracks.Count)
+                : Texts.BluRayPlaylistLoadedStatus(selectedPlaylist.DisplayName, result.Tracks.Count);
             StatusText = BluRayDemuxStatusText;
             RefreshBluRayTrackOutputPreviews();
             RaiseBluRayDemuxInputPropertyChanges();
@@ -780,7 +801,9 @@ public partial class MainWindowViewModel
 
         if (updateStatus)
         {
-            BluRayDemuxStatusText = Texts.BluRayPlaylistLoadedStatus(playlist.DisplayName, entry.TrackItems.Count);
+            BluRayDemuxStatusText = BluRayDemuxSourceSupport.IsMkvSourcePath(playlist.SourcePath)
+                ? Texts.BluRayMkvLoadedStatus(playlist.DisplayName, entry.TrackItems.Count)
+                : Texts.BluRayPlaylistLoadedStatus(playlist.DisplayName, entry.TrackItems.Count);
             StatusText = BluRayDemuxStatusText;
         }
 
@@ -889,6 +912,30 @@ public partial class MainWindowViewModel
     private string NormalizeBluRayDiscRoot(string rawPath, bool requireExists)
     {
         var normalized = Path.GetFullPath(rawPath.Trim());
+        if (BluRayDemuxSourceSupport.TryResolveBluRayDiscRootFromEntryFile(normalized) is { } resolvedFromEntry)
+        {
+            normalized = resolvedFromEntry;
+        }
+
+        if (BluRayDemuxSourceSupport.IsMkvSourcePath(normalized))
+        {
+            if (requireExists)
+            {
+                var backend = SelectedBluRayDemuxBackend?.Value ?? BluRayDemuxBackend.DgDemux;
+                if (backend != BluRayDemuxBackend.Eac3To)
+                {
+                    throw new InvalidOperationException(Texts.BluRayMkvRequiresEac3ToError);
+                }
+
+                if (!File.Exists(normalized))
+                {
+                    throw new FileNotFoundException(Texts.BluRayMkvSourceMissingError, normalized);
+                }
+            }
+
+            return normalized;
+        }
+
         if (!requireExists)
         {
             return NormalizeBluRayDiscRootByPathShape(normalized);
@@ -950,8 +997,13 @@ public partial class MainWindowViewModel
         try
         {
             var discRoot = NormalizeBluRayDiscRoot(BluRayDemuxSourcePath, requireExists: false);
-            var discDirectory = Directory.GetParent(discRoot)?.FullName ?? discRoot;
-            var suggestedPath = Path.Combine(discDirectory, $"{Path.GetFileName(discRoot)}_demux");
+            var suggestedPath = BluRayDemuxSourceSupport.IsMkvSourcePath(discRoot)
+                ? Path.Combine(
+                    Path.GetDirectoryName(discRoot) ?? Environment.CurrentDirectory,
+                    $"{BluRayDemuxSourceSupport.SanitizeOutputStem(Path.GetFileNameWithoutExtension(discRoot))}_demux")
+                : Path.Combine(
+                    Directory.GetParent(discRoot)?.FullName ?? discRoot,
+                    $"{Path.GetFileName(discRoot)}_demux");
             if (!string.IsNullOrWhiteSpace(BluRayDemuxOutputPath) && !string.Equals(BluRayDemuxOutputPath, _lastBluRayOutputPath, StringComparison.OrdinalIgnoreCase))
             {
                 return;
@@ -1004,42 +1056,7 @@ public partial class MainWindowViewModel
 
     private static string ResolveBluRayTrackOutputPath(BluRayDemuxBackend backend, string outputDirectory, BluRayPlaylistItem playlist, BluRayTrackItem track)
     {
-        if (backend == BluRayDemuxBackend.DgDemux)
-        {
-            return Path.Combine(outputDirectory, $"{playlist.Id}.*");
-        }
-
-        var baseName = $"{playlist.Id}_T{track.Order:00}_{GetTrackKindToken(track.Kind)}";
-        if (!string.IsNullOrWhiteSpace(track.Language))
-        {
-            baseName = $"{baseName}_{SanitizeFileToken(track.Language)}";
-        }
-
-        return track.Kind == BluRayTrackKind.Chapters ? Path.Combine(outputDirectory, $"{baseName}.txt") : Path.Combine(outputDirectory, $"{baseName}.*");
-    }
-
-    private static string GetTrackKindToken(BluRayTrackKind kind) => kind switch
-    {
-        BluRayTrackKind.Chapters => "chapters",
-        BluRayTrackKind.Video => "video",
-        BluRayTrackKind.Audio => "audio",
-        BluRayTrackKind.Subtitle => "subtitle",
-        _ => "track"
-    };
-
-    private static string SanitizeFileToken(string value)
-    {
-        var invalidCharacters = Path.GetInvalidFileNameChars();
-        var builder = new StringBuilder(value.Length);
-        foreach (var character in value.Trim())
-        {
-            if (!invalidCharacters.Contains(character))
-            {
-                builder.Append(char.IsWhiteSpace(character) ? '_' : char.ToLowerInvariant(character));
-            }
-        }
-
-        return builder.Length == 0 ? "track" : builder.ToString();
+        return BluRayDemuxSourceSupport.ResolveTrackOutputPath(backend, outputDirectory, playlist, track);
     }
 
     private ToolProbeResult? GetSelectedBluRayToolProbeResult()

@@ -84,10 +84,23 @@ public abstract class CliBluRayDemuxBackendAdapterBase : IBluRayDemuxBackendAdap
 
     protected static void ValidateInput(BluRayDemuxRequest request)
     {
-        if (!Directory.Exists(request.DiscPath))
+        var isSupportedFileSource = BluRayDemuxSourceSupport.SupportsFileSource(request.Backend, request.DiscPath);
+        if (isSupportedFileSource)
+        {
+            if (!File.Exists(request.DiscPath))
+                throw new FileNotFoundException($"MKV source file not found / 未找到 MKV 源文件：{request.DiscPath}", request.DiscPath);
+        }
+        else if (!Directory.Exists(request.DiscPath))
+        {
             throw new DirectoryNotFoundException($"Blu-ray source directory not found / 未找到蓝光源目录：{request.DiscPath}");
+        }
+
         if (!File.Exists(request.Playlist.SourcePath))
-            throw new FileNotFoundException("Blu-ray playlist not found / 未找到蓝光播放列表。", request.Playlist.SourcePath);
+            throw new FileNotFoundException(
+                isSupportedFileSource
+                    ? "MKV source file not found / 未找到 MKV 源文件。"
+                    : "Blu-ray playlist not found / 未找到蓝光播放列表。",
+                request.Playlist.SourcePath);
         if (request.Selections.Count == 0 || request.Selections.Any(s => string.IsNullOrWhiteSpace(s.Track.DemuxToken)))
             throw new ArgumentException("Select valid tracks to demux / 请选择有效的解复用轨道。");
     }

@@ -50,7 +50,7 @@ public static class TaskTools
             new VideoPlanParameters(sourcePath, outputPath, profile, templateId, encoder, pipeline, architecture, av1anParallel, workers, overwriteOutput), cancellationToken);
 
     [McpServerTool(Name = "create_audio_plan", ReadOnly = true)]
-    [Description("Creates an audio plan for deew/DDP, Opus or eac3to. Ddp requires deew >=" + DeewArguments.MinimumVersion + ". outputPath is a directory and the deew object selects format/profile/bitrate/trackIndex. Optional fields follow config defaults; format defaults to ddp. noPhaseShift disables surround phase shift for DD, DDP or DDP Atmos. measureOnly measures the original source, ignores encoding settings and returns loudness without media, including TrueHD Atmos sources. MKV/MKA/M2TS inputs are supported for Atmos output or measureOnly; otherwise extract a standalone audio track. Other modes use a full output filename.")]
+    [Description("Creates an audio plan for deew/DDP, Opus or eac3to. Ddp requires deew >=" + DeewArguments.MinimumVersion + ". outputPath is a directory and the deew object selects format/profile/bitrate/trackIndex/outputName/outputTemplate/pipeMode/warpMode/bedConform and filter switches. Optional fields follow config defaults; format defaults to ddp. noPhaseShift or surroundPhaseShift controls surround phase shift for DD, DDP or DDP Atmos. measureOnly measures the original source, ignores encoding settings (while keeping warpMode/bedConform/pipeMode) and returns loudness without media, including TrueHD Atmos sources. MKV/MKA/M2TS inputs are supported for Atmos, AC4 IMS or measureOnly; otherwise extract a standalone audio track. Other modes use a full output filename.")]
     public static Task<TaskExecutionPlan> AudioPlan(DesktopBridge desktop, string sourcePath, string outputPath,
         AudioProcessingMode mode = AudioProcessingMode.Ddp, DeewOptions? deew = null, AudioEac3ToOutputFormat? eac3ToFormat = null,
         int? opusBitrateKbps = 192, bool useOpusMappingFamily1 = false, bool overwriteOutput = false, CancellationToken cancellationToken = default) =>
@@ -88,12 +88,12 @@ public static class TaskTools
         desktop.SendAsync<TaskSubmission>(DesktopTaskMethods.Retry, new RetryTaskParameters(taskId, idempotencyKey), cancellationToken);
 
     [McpServerTool(Name = "scan_bluray_disc", ReadOnly = true, Idempotent = true)]
-    [Description("Scans a local Blu-ray source with the chosen installed backend and returns actual playlists.")]
+    [Description("Scans a local Blu-ray folder (DGDemux or eac3to) or MKV file (eac3to only) with the chosen installed backend and returns actual playlists or container entries.")]
     public static Task<IReadOnlyList<BluRayPlaylistItem>> ScanDisc(DesktopBridge desktop, BluRayDemuxBackend backend, string discPath, CancellationToken cancellationToken = default) =>
         desktop.SendAsync<IReadOnlyList<BluRayPlaylistItem>>(DesktopTaskMethods.ScanDisc, new ScanDiscParameters(backend, discPath), cancellationToken);
 
     [McpServerTool(Name = "scan_bluray_playlist", ReadOnly = true, Idempotent = true)]
-    [Description("Returns actual tracks for a previously scanned Blu-ray playlist. Use those records to build a BluRay typed execution plan.")]
+    [Description("Returns actual tracks for a previously scanned Blu-ray playlist or MKV file (eac3to). Use those records to build a BluRay typed execution plan.")]
     public static Task<BluRayPlaylistScanResult> ScanPlaylist(DesktopBridge desktop, BluRayDemuxBackend backend, string discPath, BluRayPlaylistItem playlist, CancellationToken cancellationToken = default) =>
         desktop.SendAsync<BluRayPlaylistScanResult>(DesktopTaskMethods.ScanPlaylist, new ScanPlaylistParameters(backend, discPath, playlist), cancellationToken);
 }

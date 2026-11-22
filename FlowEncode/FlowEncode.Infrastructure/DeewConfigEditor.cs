@@ -17,9 +17,14 @@ internal sealed class DeewConfigEditor
     public TomlTable Model { get; }
     public string DdpMode => Mode("ddp", "standard");
     public string AtmosMode => Mode("ddp_atmos", "streaming");
+    public string Ac4ImsMode => Mode("ac4_ims", "general");
     public string TempPath => (string)Model["temp_path"];
     public bool Pipe { get; }
     public bool SurroundPhaseShift => !Model.TryGetValue("surround_phase_shift", out var value) || (bool)value;
+    public bool LowPassFilter => !Model.TryGetValue("low_pass_filter", out var value) || (bool)value;
+    public string? TrueHdWarpMode { get; }
+    public bool TrueHdBedConform => Model.TryGetValue("truehdd_bed_conform", out var value) && (bool)value;
+    public string OutputTemplate { get; }
     public IReadOnlyDictionary<string, int> Bitrates => ((TomlTable)Model["default_bitrates"])
         .ToDictionary(p => p.Key, p => checked((int)(long)p.Value));
 
@@ -37,31 +42,51 @@ internal sealed class DeewConfigEditor
             false or "never" => false,
             _ => throw new InvalidDataException("deew config: pipe must be a boolean or 'auto', 'always' or 'never'.")
         } : true;
-        foreach (var key in new[] { "surround_phase_shift", "surround_3db_attenuation" })
+        foreach (var key in new[] { "surround_phase_shift", "low_pass_filter", "surround_3db_attenuation", "truehdd_bed_conform" })
             if (Model.ContainsKey(key)) Require<bool>(Model, key);
+        if (Model.ContainsKey("truehdd_warp_mode"))
+        {
+            var warp = Require<string>(Model, "truehdd_warp_mode");
+            if (!string.IsNullOrEmpty(warp) && !DeewArguments.WarpModes.Contains(warp))
+                throw new InvalidDataException("deew config: truehdd_warp_mode must be '', 'normal', 'warping', 'prologiciix' or 'loro'.");
+            TrueHdWarpMode = string.IsNullOrEmpty(warp) ? null : warp;
+        }
         Require<long>(Model, "logo");
         if (!Model.TryGetValue("max_instances", out var instances) || instances is not (string or long))
             throw new InvalidDataException("deew config: max_instances must be an integer or string.");
         var bitrates = Require<TomlTable>(Model, "default_bitrates");
         foreach (var key in new[] { "dd_1_0", "dd_2_0", "dd_5_1", "ddp_1_0", "ddp_2_0", "ddp_5_1", "ac4_2_0", "ac4_5_1", "ac4_atmos", "aac_2_0" })
             Require<long>(bitrates, key);
-        foreach (var key in new[] { "ddp_7_1_standard", "ddp_7_1_bluray", "ddp_atmos_streaming", "ddp_atmos_standard", "ddp_atmos_bluray" })
+        foreach (var key in new[] { "ddp_7_1_standard", "ddp_7_1_bluray", "ddp_atmos_streaming", "ddp_atmos_standard", "ddp_atmos_bluray", "ac4_ims" })
             if (bitrates.ContainsKey(key)) Require<long>(bitrates, key);
         var summary = Require<TomlTable>(Model, "summary_sections");
         foreach (var key in new[] { "deew_info", "binaries", "input_info", "output_info", "other" }) Require<bool>(summary, key);
+        OutputTemplate = DeewOutputNaming.DefaultTemplate;
         if (Model.TryGetValue("output", out var output))
         {
             if (output is not TomlTable table) throw new InvalidDataException("deew config: output must be a table.");
             if (table.ContainsKey("to_input")) Require<bool>(table, "to_input");
             if (table.ContainsKey("path")) Require<string>(table, "path");
+            if (table.ContainsKey("template"))
+            {
+                var template = Require<string>(table, "template");
+                if (!string.IsNullOrEmpty(template))
+                {
+                    try { DeewOutputNaming.ValidateTemplate(template); }
+                    catch (InvalidOperationException ex) { throw new InvalidDataException("deew config: " + ex.Message, ex); }
+                    OutputTemplate = template;
+                }
+            }
         }
-        if (DdpMode is not ("standard" or "bluray") || AtmosMode is not ("streaming" or "standard" or "bluray"))
+        if (DdpMode is not ("standard" or "bluray") || AtmosMode is not ("streaming" or "standard" or "bluray")
+            || Ac4ImsMode is not ("general" or "music"))
             throw new InvalidDataException("deew config: unsupported default_modes value.");
     }
 
     internal bool AttenuatesTrueHdSurround(DeewEffectiveOutputProfile profile) =>
         profile.Options.Format == "thd" && profile.OutputSlots >= 6
-        && Model.TryGetValue("surround_3db_attenuation", out var enabled) && enabled is true;
+        && (profile.Options.Surround3dbAttenuation
+            ?? (Model.TryGetValue("surround_3db_attenuation", out var enabled) && enabled is true));
 
     private string Mode(string key, string fallback)
     {

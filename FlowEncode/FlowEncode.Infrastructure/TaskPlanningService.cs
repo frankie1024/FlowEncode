@@ -129,7 +129,8 @@ public sealed class TaskPlanningService(TaskCoordinator tasks, IAppSettingsServi
                     foreach (var name in new[] { "ffmpeg", "ffprobe" }.Concat(inspect.Profile.RequiredTools))
                         stamps.Add(Stamp(DeewToolchain.Resolve(tool.ExecutablePath, name, env.Environment["PATH"] ?? "")));
                     command = CommandLineDisplay.JoinArguments(new[] { tool.ExecutablePath }.Concat(DeewArguments.Build(audio.SourcePath, audio.OutputPath, inspect.Profile.Options)));
-                    outputs = inspect.Profile.Options.MeasureOnly ? [] : [new(Path.Combine(audio.OutputPath, Path.GetFileNameWithoutExtension(audio.SourcePath) + inspect.Profile.Extension), OutputArtifactKind.Media)];
+                    var outputName = inspect.ExpectedOutputFileName ?? (Path.GetFileNameWithoutExtension(audio.SourcePath) + inspect.Profile.Extension);
+                    outputs = inspect.Profile.Options.MeasureOnly ? [] : [new(Path.Combine(audio.OutputPath, outputName), OutputArtifactKind.Media)];
                     warnings.Add("The preview shows the final directory. Execution uses a fresh staging directory and validates new media before publishing it.");
                 }
                 else
@@ -157,6 +158,8 @@ public sealed class TaskPlanningService(TaskCoordinator tasks, IAppSettingsServi
                 break;
             case TaskKind.BluRay:
                 var bluray = request.BluRay!;
+                if (BluRayDemuxSourceSupport.IsMkvSourcePath(bluray.DiscPath) && bluray.Backend != BluRayDemuxBackend.Eac3To)
+                    throw new InvalidOperationException("MKV demuxing requires the eac3to backend.");
                 await Tool(bluray.Backend == BluRayDemuxBackend.DgDemux ? RegisteredToolKind.DgDemux : RegisteredToolKind.Eac3To);
                 stamps.Add(Stamp(bluray.Playlist.SourcePath));
                 command = bluRayRunner.BuildDisplayCommand(bluray);

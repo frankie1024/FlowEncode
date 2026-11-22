@@ -32,7 +32,7 @@ public sealed partial class AudioProcessingView : UserControl
         AudioFormPanel.SizeChanged += (_, _) => ScheduleDiagnosticsLayout();
         AudioTaskStatusPanel.SizeChanged += (_, _) => ScheduleDiagnosticsLayout();
         AudioResultsPanel.SizeChanged += (_, _) => ScheduleDiagnosticsLayout();
-        foreach (var grid in new[] { AudioProcessingOptionsGrid, AudioAdvancedOptionsGrid, DeewEncodingGrid, DeewSignalGrid, DeewFlagsGrid, DeewTempGrid })
+        foreach (var grid in new[] { AudioProcessingOptionsGrid, AudioAdvancedOptionsGrid, DeewEncodingGrid, DeewSignalGrid, DeewTrueHddGrid, DeewNamingGrid, DeewFlagsGrid, DeewTempGrid })
             foreach (var child in grid.Children.OfType<FrameworkElement>())
                 child.RegisterPropertyChangedCallback(VisibilityProperty, (_, _) => ApplyResponsiveLayout());
         AudioResultPathsTextBox.RegisterPropertyChangedCallback(TextBox.TextProperty, (_, _) =>
@@ -63,7 +63,9 @@ public sealed partial class AudioProcessingView : UserControl
         ConfigureVisibleFields(AudioProcessingOptionsGrid, width, 3, 190);
         ConfigureVisibleFields(AudioAdvancedOptionsGrid, width, 3, 190);
         ConfigureVisibleFields(DeewEncodingGrid, width, 3, 190);
-        ConfigureVisibleFields(DeewSignalGrid, width, 3, 190);
+        ConfigureVisibleFields(DeewSignalGrid, width, 4, 180);
+        ConfigureVisibleFields(DeewTrueHddGrid, width, 2, 220);
+        ConfigureVisibleFields(DeewNamingGrid, width, 2, 220);
         ConfigureVisibleFields(DeewFlagsGrid, width, 4, 200);
         ConfigureVisibleFields(DeewTempGrid, width, 2, 260);
         AudioProcessingActionBar.IsStacked = width < 480;

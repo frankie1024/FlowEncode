@@ -92,6 +92,7 @@
                                         <NumberBox Header="{Binding Texts.DeewTrackHeader}" Minimum="0" SmallChange="1" Value="{Binding Deew.TrackIndex, Mode=TwoWay}" Visibility="{Binding AudioDeewOptionsVisibility}" />
                                         <ComboBox Header="{Binding Texts.DeewDdpModeHeader}" ItemsSource="{Binding Deew.DdpModes}" SelectedItem="{Binding Deew.DdpMode, Mode=TwoWay}" Visibility="{Binding DeewDdpModeVisibility}" HorizontalAlignment="Stretch" />
                                         <ComboBox Header="{Binding Texts.DeewAtmosModeHeader}" ItemsSource="{Binding Deew.AtmosModes}" SelectedItem="{Binding Deew.AtmosMode, Mode=TwoWay}" Visibility="{Binding DeewAtmosModeVisibility}" HorizontalAlignment="Stretch" />
+                                        <ComboBox Header="{Binding Texts.DeewAc4ImsModeHeader}" ItemsSource="{Binding Deew.Ac4ImsModes}" SelectedItem="{Binding Deew.Ac4ImsMode, Mode=TwoWay}" Visibility="{Binding DeewAc4ImsModeVisibility}" HorizontalAlignment="Stretch" />
                                         <TextBox Header="{Binding Texts.AudioEac3ToAdditionalArgumentsHeader}" PlaceholderText="{Binding Texts.AudioEac3ToAdditionalArgumentsPlaceholder}" Text="{Binding AudioProcessingAdditionalArguments, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Visibility="{Binding AudioEac3ToOptionsVisibility}" />
                                     </Grid>
 
@@ -105,6 +106,15 @@
                                             <NumberBox Header="Dialnorm (-31..0)" Minimum="-31" Maximum="0" SmallChange="1" Value="{Binding Deew.Dialnorm, Mode=TwoWay}" Visibility="{Binding Deew.DialnormVisibility}" />
                                             <TextBox Header="{Binding Texts.DeewDelayHeader}" Text="{Binding Deew.Delay, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
                                             <TextBox Header="{Binding Texts.DeewInstancesHeader}" Text="{Binding Deew.Instances, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" PlaceholderText="50%" />
+                                            <ComboBox Header="{Binding Texts.DeewPipeModeHeader}" ItemsSource="{Binding Deew.PipeModes}" SelectedItem="{Binding Deew.PipeMode, Mode=TwoWay}" HorizontalAlignment="Stretch" />
+                                        </Grid>
+                                        <Grid x:Name="DeewTrueHddGrid" ColumnSpacing="12" RowSpacing="8" Visibility="{Binding Deew.TrueHddOptionsVisibility}">
+                                            <ComboBox Header="{Binding Texts.DeewWarpModeHeader}" ItemsSource="{Binding Deew.WarpModes}" SelectedItem="{Binding Deew.WarpMode, Mode=TwoWay}" Visibility="{Binding Deew.TrueHddOptionsVisibility}" HorizontalAlignment="Stretch" />
+                                            <ComboBox Header="{Binding Texts.DeewBedConformHeader}" ItemsSource="{Binding Deew.BedConformOptions}" SelectedItem="{Binding Deew.BedConform, Mode=TwoWay}" Visibility="{Binding Deew.TrueHddOptionsVisibility}" HorizontalAlignment="Stretch" />
+                                        </Grid>
+                                        <Grid x:Name="DeewNamingGrid" ColumnSpacing="12" RowSpacing="8" Visibility="{Binding Deew.OutputNamingVisibility}">
+                                            <TextBox Header="{Binding Texts.DeewOutputNameHeader}" PlaceholderText="{Binding Texts.DeewOutputNamePlaceholder}" Text="{Binding Deew.OutputName, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Visibility="{Binding Deew.OutputNamingVisibility}" />
+                                            <TextBox Header="{Binding Texts.DeewOutputTemplateHeader}" PlaceholderText="{Binding Texts.DeewOutputTemplatePlaceholder}" Text="{Binding Deew.OutputTemplate, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Visibility="{Binding Deew.OutputNamingVisibility}" />
                                         </Grid>
                                         <Grid x:Name="DeewFlagsGrid" ColumnSpacing="16" RowSpacing="0">
                                             <CheckBox Content="{Binding Texts.DeewLfeHeader}" IsChecked="{Binding Deew.DisableLfe, Mode=TwoWay}" Visibility="{Binding Deew.LfeVisibility}" FontSize="13" />

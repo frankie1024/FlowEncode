@@ -141,7 +141,7 @@ public sealed class Deew5ContractTests
         Assert.ThrowsExactly<InvalidOperationException>(() => DeewArguments.Resolve(new(Format: format, AdditionalArguments: arguments), 8));
 
     [TestMethod]
-    [DataRow("5.3.1", false)][DataRow("5.4.0", true)][DataRow("5.4.1", true)][DataRow("5.2.0", false)][DataRow("5.1.1", false)][DataRow("5.0.3", false)][DataRow("4.0.0", false)][DataRow("not found", false)]
+    [DataRow("5.5.2", false)][DataRow("5.5.3", true)][DataRow("5.6.0", true)][DataRow("5.4.0", false)][DataRow("5.3.1", false)][DataRow("5.2.0", false)][DataRow("5.1.1", false)][DataRow("5.0.3", false)][DataRow("4.0.0", false)][DataRow("not found", false)]
     public void VersionGate_RejectsLegacyAndUnreadableVersions(string version, bool expected) => Assert.AreEqual(expected, DeewToolchain.IsSupportedVersion(version));
 
     [TestMethod]
@@ -220,7 +220,7 @@ public sealed class Deew5ContractTests
             var file = Path.Combine(root, "events.jsonl");
             var logs = new List<string>(); var updates = new List<double?>();
             var reader = new DeewEventsReader(DeewArguments.Resolve(new(Dialnorm: -27), 2), logs.Add, (p, s, db, source) => updates.Add(p));
-            var bytes = Encoding.UTF8.GetBytes("{\"type\":\"hello\",\"version\":\"5.4.0\"}\n{\"type\":\"warning\",\"text\":\"中文\"}\n{\"type\":\"progress\",\"job\":0,\"stage\":\"encode\",\"percent\":50,\"db\":-27}\n{\"type\":\"done\",\"job\":0}\n{\"type\":\"error\",\"text\":\"tail failure\"}\n");
+            var bytes = Encoding.UTF8.GetBytes("{\"type\":\"hello\",\"version\":\"5.5.3\"}\n{\"type\":\"warning\",\"text\":\"中文\"}\n{\"type\":\"progress\",\"job\":0,\"stage\":\"encode\",\"percent\":50,\"db\":-27}\n{\"type\":\"done\",\"job\":0}\n{\"type\":\"error\",\"text\":\"tail failure\"}\n");
             await using (var stream = new FileStream(file, FileMode.Create, FileAccess.Write, FileShare.ReadWrite))
                 foreach (var b in bytes)
                 {
@@ -229,7 +229,7 @@ public sealed class Deew5ContractTests
                 }
             await reader.ReadAvailableAsync(file, true, default);
             Assert.IsTrue(reader.HasHello); Assert.AreEqual("tail failure", reader.Error);
-            Assert.AreEqual(1, updates.Count); Assert.AreEqual(.725, updates[0]!.Value, 0.000001);
+            Assert.AreEqual(1, updates.Count); Assert.AreEqual(.6, updates[0]!.Value, 0.000001);
             Assert.AreEqual(1, logs.Count(x => x == "warning: 中文"));
         }
         finally { Directory.Delete(root, true); }
@@ -239,7 +239,7 @@ public sealed class Deew5ContractTests
     public void Events_NullProgressAndSkippedStagesAreSupportedWithoutPrematureCompletion()
     {
         var updates = new List<(double? Fraction, double? Db, DeewDbSource Source)>();
-        var reader = new DeewEventsReader(DeewArguments.Resolve(new(MeasureOnly: true), 8), _ => { }, (p, s, d, source) => updates.Add((p, d, source)));
+        var reader = new DeewEventsReader(DeewArguments.Resolve(new(MeasureOnly: true), 8), _ => { }, (p, s, d, source) => updates.Add((p, d, source)), piped: true);
         reader.Accept("""{"type":"progress","stage":"starting","percent":null,"db":null}""");
         reader.Accept("""{"type":"progress","stage":"measure","percent":80,"db":-27}""");
         reader.Accept("""{"type":"progress","stage":"measure","percent":5,"db":null}""");

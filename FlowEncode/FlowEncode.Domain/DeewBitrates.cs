@@ -1,6 +1,6 @@
 namespace FlowEncode.Domain;
 
-// Fixed deew 5.1.0 bitrate contract (src/data.rs at 67f14b4), GPL-3.0.
+// Fixed deew 5.5.3 bitrate contract (src/data.rs), GPL-3.0.
 public static class DeewBitrates
 {
     private static readonly int[] Dd = [96, 112, 128, 160, 192, 224, 256, 320, 384, 448, 512, 576, 640];
@@ -11,7 +11,7 @@ public static class DeewBitrates
         ["ddp_1_0"] = 128, ["ddp_2_0"] = 256, ["ddp_5_1"] = 1024,
         ["ddp_7_1_standard"] = 1536, ["ddp_7_1_bluray"] = 1536,
         ["ddp_atmos_streaming"] = 1024, ["ddp_atmos_standard"] = 1536, ["ddp_atmos_bluray"] = 1536,
-        ["ac4_2_0"] = 256, ["ac4_5_1"] = 448, ["ac4_atmos"] = 448, ["aac_2_0"] = 256
+        ["ac4_2_0"] = 256, ["ac4_5_1"] = 448, ["ac4_atmos"] = 448, ["ac4_ims"] = 256, ["aac_2_0"] = 256
     };
 
     public static string? ConfigKey(DeewEffectiveOutputProfile p) => p.Options.MeasureOnly ? null : p.Options.Format switch
@@ -20,7 +20,7 @@ public static class DeewBitrates
         "ddp" when p.OutputSlots == 8 => "ddp_7_1_" + p.Mode,
         "ddp" => "ddp_" + Layout(p.OutputSlots),
         "ddp-atmos" => "ddp_atmos_" + p.Mode,
-        "ac4" => "ac4_" + Layout(p.OutputSlots), "ac4-atmos" => "ac4_atmos", "aac" => "aac_2_0", _ => null
+        "ac4" => "ac4_" + Layout(p.OutputSlots), "ac4-atmos" => "ac4_atmos", "ac4-ims" => "ac4_ims", "aac" => "aac_2_0", _ => null
     };
 
     public static IReadOnlyList<int> Allowed(DeewEffectiveOutputProfile p)
@@ -38,6 +38,7 @@ public static class DeewBitrates
             "ac4" when p.OutputSlots == 2 => [48, 64, 96, 128, 144, 192, 256, 288, 320, 384, 448, 512, 768],
             "ac4" => [96, 128, 144, 192, 256, 288, 320, 384, 448, 512, 768],
             "ac4-atmos" => [256, 320, 448, 768],
+            "ac4-ims" => [64, 96, 128, 144, 256, 320],
             "aac" => [56, 64, 80, 96, 112, 128, 144, 160, 192, 224, 256, 288, 320, 384, 448, 512, 576],
             _ => []
         };

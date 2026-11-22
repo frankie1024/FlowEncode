@@ -31,9 +31,11 @@ public sealed class DeewPlanningService(IToolProbeService probes) : IDeewPlannin
         var snapshot = File.Exists(config) ? new DeewConfigEditor(await File.ReadAllBytesAsync(config, cancellationToken)) : null;
         if (o.Format.EndsWith("-atmos", StringComparison.Ordinal) && !o.MeasureOnly) logs.Add("Experimental Atmos output: genuine Atmos media acceptance is pending for 3.0.0.");
         var profile = DeewBitrates.Apply(DeewArguments.Resolve(o, source,
-            snapshot?.DdpMode ?? "standard", snapshot?.AtmosMode ?? "streaming", logs), snapshot?.Bitrates);
+            snapshot?.DdpMode ?? "standard", snapshot?.AtmosMode ?? "streaming", logs, snapshot?.Ac4ImsMode ?? "general"), snapshot?.Bitrates);
         if (!o.MeasureOnly && o.Format.EndsWith("-atmos", StringComparison.Ordinal) && !source.IsTrueHdAtmos)
             throw new InvalidOperationException("Atmos output requires a selected TrueHD Atmos input track.");
+        var outputTemplate = snapshot?.OutputTemplate ?? DeewOutputNaming.DefaultTemplate;
+        var expectedOutputFileName = DeewOutputNaming.ResolveFileName(sourcePath, source, profile, outputTemplate);
         if (snapshot is null) logs.Add("Missing config.toml will be initialized once at execution; existing configs are never reset automatically.");
         // A disposable adjacent file verifies the portable directory without touching config contents.
         var writableProbe = config + "." + Guid.NewGuid().ToString("N") + ".probe";
@@ -46,10 +48,12 @@ public sealed class DeewPlanningService(IToolProbeService probes) : IDeewPlannin
         }
         catch (UnauthorizedAccessException ex) { throw new InvalidOperationException("Move deew and its complete toolchain to a writable portable directory. " + ex.Message, ex); }
         finally { File.Delete(writableProbe); File.Delete(writableProbe + ".replace"); }
-        var surroundAttenuation = snapshot?.AttenuatesTrueHdSurround(profile) == true;
+        var surroundAttenuation = snapshot?.AttenuatesTrueHdSurround(profile)
+            ?? (profile.Options.Format == "thd" && profile.OutputSlots >= 6 && profile.Options.Surround3dbAttenuation == true);
         if (surroundAttenuation) logs.Add(DeewConfigEditor.TrueHdSurroundAttenuationWarning);
         await DeewToolchain.ValidateAsync(deew, ffmpeg, ffprobe, profile, logs.Add, cancellationToken);
         return new(source, profile, snapshot?.DdpMode ?? "standard", snapshot?.AtmosMode ?? "streaming",
-            snapshot?.Bitrates ?? DeewBitrates.Defaults, logs, surroundAttenuation);
+            snapshot?.Bitrates ?? DeewBitrates.Defaults, logs, surroundAttenuation,
+            snapshot?.Ac4ImsMode ?? "general", outputTemplate, expectedOutputFileName);
     }
 }

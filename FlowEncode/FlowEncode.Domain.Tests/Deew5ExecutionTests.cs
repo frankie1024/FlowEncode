@@ -46,7 +46,7 @@ public sealed class Deew5ExecutionTests
             && p.LogSnapshot?.Contains("实际 stdout 输出") == true
             && p.LogSnapshot.Contains("实际 stderr 输出"));
         Assert.IsNotNull(live, result.Log + "\n" + JsonSerializer.Serialize(updates));
-        Assert.AreEqual(.725, live.ProgressFraction!.Value, .000001);
+        Assert.AreEqual(.7, live.ProgressFraction!.Value, .000001);
         Assert.AreEqual("encode", live.PhaseLabel);
         Assert.IsNull(live.Telemetry, "Unavailable deew metrics must not produce empty telemetry placeholders.");
         StringAssert.Contains(live.LogSnapshot!, "输入摘要 0");
