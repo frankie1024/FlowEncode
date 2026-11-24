@@ -16,6 +16,7 @@ FlowEncode's own source code is distributed under `GPL-3.0-only`. That license a
 | Microsoft.Windows.SDK.BuildTools | Windows SDK build tooling | Microsoft license terms |
 | WebView2 Runtime / SDK surface | Runtime used by the editor host through Windows App SDK / WebView2 APIs | Microsoft license terms |
 | MSTest packages | Test-only packages | MIT |
+| yacomp | Solar curve adapted for VapourSynth preview filters | [MIT notice](../FlowEncode/Assets/ThirdPartyNotices/yacomp.txt) |
 
 ## Public External Toolchain
 

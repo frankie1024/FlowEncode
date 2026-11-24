@@ -36,6 +36,8 @@ namespace FlowEncode;
 
 public sealed partial class VapourSynthPreviewWindow : Window
 {
+    private static readonly PreviewDisplayFilter[] PreviewFilterCycle = Enum.GetValues<PreviewDisplayFilter>();
+
     private readonly LocalAppPaths _appPaths;
     private readonly Dictionary<int, PreviewOutputState> _outputStates = [];
     private readonly LatestRequestScheduler<PreviewFrameRequest> _frameRequestScheduler;
@@ -53,6 +55,7 @@ public sealed partial class VapourSynthPreviewWindow : Window
     private SpriteVisual? _previewImageVisual;
     private int _previewDrawingSurfaceHeight;
     private int _previewDrawingSurfaceWidth;
+    private PreviewDisplayFilter _previewFilter;
     private bool _isClosed;
     private bool _isFullScreenActive;
     private bool _isInternalControlUpdate;
@@ -110,6 +113,7 @@ public sealed partial class VapourSynthPreviewWindow : Window
             root.DataContext = ViewModel;
         }
 
+        BuildPreviewFilterMenu();
         _playbackTimer.Tick += PlaybackTimer_Tick;
         _statusCommitTimer.Tick += StatusCommitTimer_Tick;
         Closed += VapourSynthPreviewWindow_Closed;
@@ -207,6 +211,7 @@ public sealed partial class VapourSynthPreviewWindow : Window
         AppThemePreference themePreference)
     {
         ViewModel.ApplyLanguage(language);
+        BuildPreviewFilterMenu();
         ApplyTheme(themePreference);
         RefreshDisplayScale();
         SyncControls();
@@ -484,7 +489,8 @@ public sealed partial class VapourSynthPreviewWindow : Window
         var surfaceUpdateElapsed = UpdatePreviewDrawingSurface(
             displayPayload.Pixels,
             displayPayload.Width,
-            displayPayload.Height);
+            displayPayload.Height,
+            _previewFilter);
         SaveCurrentOutputState();
         return surfaceUpdateElapsed;
     }
@@ -3147,8 +3153,13 @@ public sealed partial class VapourSynthPreviewWindow : Window
 
     private static bool IsControlKeyPressed()
     {
+        return IsKeyPressed(VirtualKey.Control);
+    }
+
+    private static bool IsKeyPressed(VirtualKey key)
+    {
         return Microsoft.UI.Input.InputKeyboardSource
-            .GetKeyStateForCurrentThread(VirtualKey.Control)
+            .GetKeyStateForCurrentThread(key)
             .HasFlag(CoreVirtualKeyStates.Down);
     }
 
@@ -3271,7 +3282,7 @@ public sealed partial class VapourSynthPreviewWindow : Window
         _previewCanvasDevice = null;
     }
 
-    private TimeSpan UpdatePreviewDrawingSurface(byte[] pixels, int width, int height)
+    private TimeSpan UpdatePreviewDrawingSurface(byte[] pixels, int width, int height, PreviewDisplayFilter filter)
     {
         EnsurePreviewImageVisual();
         if (_previewCanvasDevice is null || _previewGraphicsDevice is null || _previewImageBrush is null)
@@ -3302,11 +3313,76 @@ public sealed partial class VapourSynthPreviewWindow : Window
                    CanvasAlphaMode.Ignore))
         using (var drawingSession = CanvasComposition.CreateDrawingSession(_previewDrawingSurface))
         {
-            drawingSession.DrawImage(bitmap);
+            PreviewDisplayFilters.Draw(drawingSession, bitmap, filter, _lastFrameData?.Properties);
         }
 
         surfaceStopwatch.Stop();
         return surfaceStopwatch.Elapsed;
+    }
+
+    private void BuildPreviewFilterMenu()
+    {
+        PreviewFilterMenu.Items.Clear();
+        foreach (var filter in PreviewFilterCycle)
+        {
+            var item = new RadioMenuFlyoutItem
+            {
+                Text = ViewModel.Texts.VapourSynthPreviewFilterLabel(filter),
+                Tag = filter,
+                GroupName = nameof(PreviewFilterMenu)
+            };
+            item.Click += PreviewFilterMenuItem_Click;
+            PreviewFilterMenu.Items.Add(item);
+        }
+
+        UpdatePreviewFilterSelection();
+    }
+
+    private void UpdatePreviewFilterSelection()
+    {
+        var filterLabel = ViewModel.Texts.VapourSynthPreviewFilterLabel(_previewFilter);
+        PreviewFilterButton.Content = _previewFilter == PreviewDisplayFilter.Original
+            ? ViewModel.Texts.VapourSynthPreviewFilterHeader
+            : filterLabel;
+        Microsoft.UI.Xaml.Automation.AutomationProperties.SetItemStatus(PreviewFilterButton, filterLabel);
+        foreach (RadioMenuFlyoutItem item in PreviewFilterMenu.Items)
+        {
+            item.IsChecked = Equals(item.Tag, _previewFilter);
+        }
+    }
+
+    private async void PreviewFilterMenuItem_Click(object sender, RoutedEventArgs e)
+    {
+        await RunWindowEventHandlerAsync(
+            nameof(PreviewFilterMenuItem_Click),
+            () =>
+            {
+                SetPreviewFilter((PreviewDisplayFilter)((RadioMenuFlyoutItem)sender).Tag);
+                RequestPreviewFocus();
+                return Task.CompletedTask;
+            });
+    }
+
+    private void SetPreviewFilter(PreviewDisplayFilter filter)
+    {
+        if (_previewFilter == filter)
+        {
+            return;
+        }
+
+        try
+        {
+            if (_displayedFramePixels is not null)
+            {
+                UpdatePreviewDrawingSurface(_displayedFramePixels, _displayedFrameWidth, _displayedFrameHeight, filter);
+            }
+
+            _previewFilter = filter;
+        }
+        finally
+        {
+            UpdatePreviewFilterSelection();
+        }
     }
 
     private void EnsurePreviewDrawingSurface(int width, int height)
@@ -3387,6 +3463,20 @@ public sealed partial class VapourSynthPreviewWindow : Window
 
                 if (IsEditingShortcutSuppressed())
                 {
+                    return;
+                }
+
+                if (e.Key == VirtualKey.F && !IsControlKeyPressed() && !IsKeyPressed(VirtualKey.Menu))
+                {
+                    e.Handled = true;
+                    if (!e.KeyStatus.WasKeyDown)
+                    {
+                        var direction = IsKeyPressed(VirtualKey.Shift) ? -1 : 1;
+                        var index = Array.IndexOf(PreviewFilterCycle, _previewFilter);
+                        var nextIndex = (index + direction + PreviewFilterCycle.Length) % PreviewFilterCycle.Length;
+                        SetPreviewFilter(PreviewFilterCycle[nextIndex]);
+                    }
+
                     return;
                 }
 

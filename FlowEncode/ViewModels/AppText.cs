@@ -329,6 +329,20 @@ public sealed class AppText
     public string VapourSynthPreviewSaveFrameButton => Pick("保存帧", "Save Frame");
     public string VapourSynthPreviewSaveAllFramesButton => Pick("保存所有输出的当前帧", "Save All Outputs");
     public string VapourSynthPreviewCopyFrameButton => Pick("复制帧", "Copy Frame");
+    public string VapourSynthPreviewFilterHeader => Pick("预览滤镜", "Preview Filter");
+    public string VapourSynthPreviewFilterHint => Pick(
+        "按 F 切换滤镜，按 Shift+F 反向切换。亮度和色度取自当前预览画面。",
+        "Press F to cycle filters or Shift+F to cycle backward. Luma and chroma are derived from the preview image.");
+
+    internal string VapourSynthPreviewFilterLabel(PreviewDisplayFilter filter) => filter switch
+    {
+        PreviewDisplayFilter.Luma => Pick("亮度", "Luma"),
+        PreviewDisplayFilter.Chroma => Pick("色度", "Chroma"),
+        PreviewDisplayFilter.Solar1 => "Solar ×1",
+        PreviewDisplayFilter.Solar2 => "Solar ×2",
+        PreviewDisplayFilter.Residual => Pick("残差", "Residual"),
+        _ => Pick("原图", "Original")
+    };
     public string VapourSynthPreviewInsertFrameButton => Pick("插入帧号", "Insert Frame");
     public string VapourSynthPreviewAdvancedSettingsButton => Pick("高级设置", "Advanced");
     public string VapourSynthPreviewTimelineButton => Pick("时间线", "Timeline");

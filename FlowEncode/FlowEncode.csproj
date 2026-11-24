@@ -47,7 +47,7 @@
       <CopyToOutputDirectory>Never</CopyToOutputDirectory>
       <CopyToPublishDirectory>Never</CopyToPublishDirectory>
     </Content>
-    <None Update="Assets\VapourSynthScript.vpy">
+    <None Update="Assets\VapourSynthScript.vpy;Assets\ThirdPartyNotices\yacomp.txt">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
       <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
     </None>
