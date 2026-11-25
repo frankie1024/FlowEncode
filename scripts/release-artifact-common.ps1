@@ -58,12 +58,14 @@ function Get-ReleaseOptionalRuntimeFilePatterns {
 
 function Get-ReleaseAssetAllowList {
     return @(
-        "FlowEncodeHammer.png"
+        "FlowEncodeHammer.png",
+        "VapourSynthScript.vpy"
     )
 }
 
 function Get-ReleaseAssetDirectoryAllowList {
     return @(
+        "ThirdPartyNotices",
         "VapourSynthEditor"
     )
 }
