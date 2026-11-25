@@ -343,6 +343,52 @@ public sealed class AppText
         PreviewDisplayFilter.Residual => Pick("残差", "Residual"),
         _ => Pick("原图", "Original")
     };
+    public string VapourSynthPreviewCompareHeader => Pick("对比", "Compare");
+    public string VapourSynthPreviewCompareHint => Pick(
+        "按 C 切换对比模式，按 X 交换输出 A/B，按 Shift+0-9 切换输出 B。",
+        "Press C to cycle compare modes, X to swap A/B, or Shift+0-9 to select Output B.");
+    public string VapourSynthPreviewCompareNeedsTwoOutputsHint => Pick(
+        "脚本需要至少 2 个 set_output 输出才能对比。",
+        "Expose at least 2 set_output clips to compare outputs.");
+    public string VapourSynthPreviewCompareModeLabel(PreviewCompareMode mode) => mode switch
+    {
+        PreviewCompareMode.Wipe => Pick("卷帘对比", "Wipe Split"),
+        PreviewCompareMode.SideBySide => Pick("左右并排", "Side by Side"),
+        PreviewCompareMode.Difference => Pick("差异图", "Difference"),
+        _ => Pick("单图", "Single")
+    };
+    public string VapourSynthPreviewCompareOutputAHeader => Pick("输出 A", "Output A");
+    public string VapourSynthPreviewCompareOutputBHeader => Pick("输出 B", "Output B");
+    public string VapourSynthPreviewCompareSwapButton => Pick("交换 A/B", "Swap A/B");
+    public string VapourSynthPreviewCompareCenterSplitButton => Pick("分割线居中", "Center Split");
+    public string VapourSynthPreviewCompareDiffGainHeader => Pick("差异增益", "Diff Gain");
+    public string VapourSynthPreviewCompareDiffGainLabel(PreviewDifferenceGain gain) => gain switch
+    {
+        PreviewDifferenceGain.X4 => "×4",
+        PreviewDifferenceGain.X16 => "×16",
+        PreviewDifferenceGain.Boost => Pick("增强", "Boost"),
+        _ => "×1"
+    };
+    public string VapourSynthPreviewCompareSizeAlignmentHeader => Pick("对齐", "Align");
+    public string VapourSynthPreviewCompareSizeAlignmentLabel(PreviewCompareSizeAlignment alignment) => alignment switch
+    {
+        PreviewCompareSizeAlignment.UniformFit => Pick("等比缩放", "Uniform Scale"),
+        _ => Pick("居中 1:1", "Center 1:1")
+    };
+    public string VapourSynthPreviewCompareReadyStatus(int outputA, int frameA, int outputB, int frameB) =>
+        IsChinese
+            ? $"对比已就绪：输出 {outputA} 第 {frameA} 帧 / 输出 {outputB} 第 {frameB} 帧。"
+            : $"Compare ready: Output {outputA} frame {frameA} / Output {outputB} frame {frameB}.";
+    public string VapourSynthPreviewCompareSecondaryFrameHint(int outputIndex, int frameNumber) =>
+        IsChinese ? $"B：输出 {outputIndex} · 第 {frameNumber} 帧" : $"B: Output {outputIndex} · Frame {frameNumber}";
+    public string VapourSynthPreviewCompareDimensionMismatchHint(int widthA, int heightA, int widthB, int heightB) =>
+        IsChinese
+            ? $"尺寸：A {widthA}×{heightA} / B {widthB}×{heightB}"
+            : $"Size: A {widthA}×{heightA} / B {widthB}×{heightB}";
+    public string VapourSynthPreviewComparePropsSectionHeader(string slot, int outputIndex, int frameNumber) =>
+        IsChinese
+            ? $"── {slot}：输出 {outputIndex} · 第 {frameNumber} 帧 ──"
+            : $"── {slot}: Output {outputIndex} · Frame {frameNumber} ──";
     public string VapourSynthPreviewInsertFrameButton => Pick("插入帧号", "Insert Frame");
     public string VapourSynthPreviewAdvancedSettingsButton => Pick("高级设置", "Advanced");
     public string VapourSynthPreviewTimelineButton => Pick("时间线", "Timeline");

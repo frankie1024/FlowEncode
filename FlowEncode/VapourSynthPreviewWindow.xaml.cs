@@ -37,6 +37,7 @@ namespace FlowEncode;
 public sealed partial class VapourSynthPreviewWindow : Window
 {
     private static readonly PreviewDisplayFilter[] PreviewFilterCycle = Enum.GetValues<PreviewDisplayFilter>();
+    private static readonly PreviewCompareMode[] PreviewCompareModeCycle = Enum.GetValues<PreviewCompareMode>();
 
     private readonly LocalAppPaths _appPaths;
     private readonly Dictionary<int, PreviewOutputState> _outputStates = [];
@@ -50,27 +51,55 @@ public sealed partial class VapourSynthPreviewWindow : Window
     private readonly PointerEventHandler _frameSliderPointerCaptureLostHandler;
     private CanvasDevice? _previewCanvasDevice;
     private CompositionDrawingSurface? _previewDrawingSurface;
+    private CompositionDrawingSurface? _previewDrawingSurfaceB;
+    private CompositionDrawingSurface? _previewDrawingSurfaceDiff;
     private CompositionGraphicsDevice? _previewGraphicsDevice;
     private CompositionSurfaceBrush? _previewImageBrush;
+    private CompositionSurfaceBrush? _previewImageBrushB;
+    private CompositionSurfaceBrush? _previewImageBrushDiff;
+    private ContainerVisual? _singlePreviewContainerVisual;
+    private ContainerVisual? _wipeLayerAContainerVisual;
+    private ContainerVisual? _wipeLayerBContainerVisual;
     private SpriteVisual? _previewImageVisual;
+    private SpriteVisual? _previewImageVisualB;
+    private SpriteVisual? _previewImageVisualDiff;
+    private SpriteVisual? _sideBySideVisualA;
+    private SpriteVisual? _sideBySideVisualB;
+    private InsetClip? _wipeVisualAClip;
+    private InsetClip? _wipeVisualBClip;
+    private CanvasBitmap? _cachedBitmapA;
+    private CanvasBitmap? _cachedBitmapB;
+    private bool _hasManualSizeAlignmentOverride;
     private int _previewDrawingSurfaceHeight;
     private int _previewDrawingSurfaceWidth;
+    private int _previewDrawingSurfaceHeightB;
+    private int _previewDrawingSurfaceWidthB;
+    private int _previewDrawingSurfaceHeightDiff;
+    private int _previewDrawingSurfaceWidthDiff;
     private PreviewDisplayFilter _previewFilter;
     private bool _isClosed;
     private bool _isFullScreenActive;
     private bool _isInternalControlUpdate;
     private bool _isFrameSliderInteracting;
     private bool _isPreviewPanActive;
+    private bool _isSyncingCompareScroll;
+    private bool _isWipeDividerDragging;
     private bool _isPlaying;
     private bool _hasEverActivated;
     private Task? _closePreviewSessionTask;
+    private ScrollViewer? _activePanScrollViewer;
     private uint _previewPanPointerId;
+    private uint _wipeDividerPointerId;
     private long _previewSessionRevision;
     private string? _pendingStatusText;
     private byte[]? _displayedFramePixels;
     private byte[]? _reusableDisplayedFramePixels;
     private int _displayedFrameHeight;
     private int _displayedFrameWidth;
+    private byte[]? _secondaryDisplayedFramePixels;
+    private byte[]? _reusableSecondaryDisplayedFramePixels;
+    private int _secondaryDisplayedFrameHeight;
+    private int _secondaryDisplayedFrameWidth;
     private readonly List<TextBox> _attachedPreviewNumberBoxEditors = [];
     private readonly KeyEventHandler _numberBoxEditorKeyDownHandler;
     private XamlRoot? _observedXamlRoot;
@@ -78,13 +107,19 @@ public sealed partial class VapourSynthPreviewWindow : Window
     private double _previewPanStartHorizontalOffset;
     private double _previewPanStartVerticalOffset;
     private VapourSynthPreviewFrameData? _lastFrameData;
+    private VapourSynthPreviewFrameData? _secondaryLastFrameData;
     private byte[]? _sourceFramePixels;
     private byte[]? _reusableSourceFramePixels;
     private int _sourceFrameHeight;
     private int _sourceFrameWidth;
+    private byte[]? _secondarySourceFramePixels;
+    private byte[]? _reusableSecondarySourceFramePixels;
+    private int _secondarySourceFrameHeight;
+    private int _secondarySourceFrameWidth;
     private VapourSynthPreviewOpenRequest? _currentRequest;
     private VapourSynthPreviewSessionInfo? _currentSession;
     private VapourSynthPreviewOutputInfo? _selectedOutputInfo;
+    private VapourSynthPreviewOutputInfo? _secondaryOutputInfo;
     private int _activeChapterIndex = -1;
     private int? _pendingNavigationFrame;
 
@@ -114,6 +149,7 @@ public sealed partial class VapourSynthPreviewWindow : Window
         }
 
         BuildPreviewFilterMenu();
+        BuildCompareModeMenu();
         _playbackTimer.Tick += PlaybackTimer_Tick;
         _statusCommitTimer.Tick += StatusCommitTimer_Tick;
         Closed += VapourSynthPreviewWindow_Closed;
@@ -123,6 +159,8 @@ public sealed partial class VapourSynthPreviewWindow : Window
         RootLayout.Unloaded += RootLayout_Unloaded;
         RootLayout.ActualThemeChanged += RootLayout_ActualThemeChanged;
         PreviewImageHost.SizeChanged += PreviewImageHost_SizeChanged;
+        LeftCompareImageHost.SizeChanged += PreviewImageHost_SizeChanged;
+        RightCompareImageHost.SizeChanged += PreviewImageHost_SizeChanged;
         RootLayout.AddHandler(UIElement.KeyDownEvent, new KeyEventHandler(RootLayout_KeyDown), true);
         RootLayout.AddHandler(UIElement.KeyUpEvent, new KeyEventHandler(RootLayout_KeyUp), true);
         Title = ViewModel.WindowTitle;
@@ -212,6 +250,7 @@ public sealed partial class VapourSynthPreviewWindow : Window
     {
         ViewModel.ApplyLanguage(language);
         BuildPreviewFilterMenu();
+        BuildCompareModeMenu();
         ApplyTheme(themePreference);
         RefreshDisplayScale();
         SyncControls();
@@ -251,12 +290,15 @@ public sealed partial class VapourSynthPreviewWindow : Window
 
             var output = _currentSession.Outputs.FirstOrDefault(item => item.Index == previousOutputIndex)
                 ?? _currentSession.Outputs[0];
+            EnsureSecondaryOutputSelection(output);
+            UpdateCompareModeSelection();
             await SelectOutputAsync(output, previousFrame, useExplicitFrame: true);
             return true;
         }
         catch (Exception ex)
         {
             _selectedOutputInfo = null;
+            _secondaryOutputInfo = null;
             _currentSession = null;
             SetStatusText(ViewModel.Texts.VapourSynthPreviewRenderFailedStatus(ex.Message));
             SyncControls();
@@ -276,13 +318,18 @@ public sealed partial class VapourSynthPreviewWindow : Window
             : CaptureZoomState(GetOrCreateOutputState(previousOutputInfo));
 
         var outputState = GetOrCreateOutputState(outputInfo);
-        if (previousOutputInfo is not null && previousOutputInfo.Index != outputInfo.Index && previousZoomState is not null)
+        if (previousOutputInfo is not null && previousOutputInfo.Index != outputInfo.Index)
         {
-            ApplyZoomState(outputState, previousZoomState);
+            _hasManualSizeAlignmentOverride = false;
+            if (previousZoomState is not null)
+            {
+                ApplyZoomState(outputState, previousZoomState);
+            }
         }
 
         _selectedOutputInfo = outputInfo;
         ViewModel.SelectedOutput = ViewModel.Outputs.FirstOrDefault(item => item.Info.Index == outputInfo.Index);
+        EnsureSecondaryOutputSelection(outputInfo);
         ViewModel.UpdateForOutput(outputInfo);
         RestoreOutputPresentationState(outputState, outputInfo);
         SyncControls();
@@ -294,6 +341,28 @@ public sealed partial class VapourSynthPreviewWindow : Window
             explicitFrameNumber,
             useExplicitFrame);
         await RequestFrameAsync(outputInfo, targetFrame);
+    }
+
+    private void EnsureSecondaryOutputSelection(VapourSynthPreviewOutputInfo primaryOutput)
+    {
+        if (_currentSession is null || !ViewModel.CanCompareOutputs)
+        {
+            _secondaryOutputInfo = null;
+            ViewModel.SelectedSecondaryOutput = null;
+            return;
+        }
+
+        var preferredSecondaryIndex = _secondaryOutputInfo?.Index ?? ViewModel.SelectedSecondaryOutput?.Info.Index;
+        var resolvedIndex = PreviewCompareCoordinator.ResolveSecondaryOutputIndex(
+            _currentSession.Outputs,
+            primaryOutput.Index,
+            preferredSecondaryIndex);
+        _secondaryOutputInfo = resolvedIndex is int index
+            ? _currentSession.Outputs.FirstOrDefault(output => output.Index == index)
+            : null;
+        ViewModel.SelectedSecondaryOutput = _secondaryOutputInfo is not null
+            ? ViewModel.Outputs.FirstOrDefault(option => option.Info.Index == _secondaryOutputInfo.Index)
+            : null;
     }
 
     private Task RequestFrameAsync(int frameNumber)
@@ -322,7 +391,35 @@ public sealed partial class VapourSynthPreviewWindow : Window
             _pendingNavigationFrame = null;
         }
 
-        var request = new PreviewFrameRequest(_previewSessionRevision, outputInfo, frameNumber);
+        var compareMode = ViewModel.IsCompareModeActive ? ViewModel.CompareMode : PreviewCompareMode.Single;
+        VapourSynthPreviewOutputInfo? secondaryOutput = null;
+        int? secondaryFrameNumber = null;
+        if (compareMode != PreviewCompareMode.Single)
+        {
+            EnsureSecondaryOutputSelection(outputInfo);
+            if (_secondaryOutputInfo is { } resolvedSecondary)
+            {
+                secondaryOutput = resolvedSecondary;
+                secondaryFrameNumber = PreviewCompareCoordinator.ResolveSecondaryFrameNumber(
+                    outputInfo,
+                    resolvedSecondary,
+                    frameNumber,
+                    ViewModel.SelectedOutputSyncMode?.Value,
+                    ViewModel.IsTimelineTimeMode);
+            }
+            else
+            {
+                compareMode = PreviewCompareMode.Single;
+            }
+        }
+
+        var request = new PreviewFrameRequest(
+            _previewSessionRevision,
+            outputInfo,
+            frameNumber,
+            compareMode,
+            secondaryOutput,
+            secondaryFrameNumber);
         return _frameRequestScheduler.ScheduleAsync(request);
     }
 
@@ -335,17 +432,76 @@ public sealed partial class VapourSynthPreviewWindow : Window
         var composeElapsed = TimeSpan.Zero;
         var surfaceUpdateElapsed = TimeSpan.Zero;
         byte[]? loadedSourcePixels = null;
+        byte[]? loadedSecondarySourcePixels = null;
+        var ownsLoadedSourcePixels = false;
+        var ownsLoadedSecondarySourcePixels = false;
         DisplayFramePayload? displayPayload = null;
+        DisplayFramePayload? secondaryDisplayPayload = null;
 
         try
         {
-            var frameData = await _previewService.RenderFrameAsync(
-                request.OutputInfo.Index,
-                request.FrameNumber,
-                ConsumeReusableSourcePixels());
-            helperRenderElapsed = frameData.HelperRenderElapsed;
-            transportReadElapsed = frameData.TransportReadElapsed;
-            loadedSourcePixels = frameData.Pixels;
+            VapourSynthPreviewFrameData frameData;
+            if (_lastFrameData is { } cachedFrameA
+                && _sourceFramePixels is { } cachedPixelsA
+                && cachedFrameA.OutputIndex == request.OutputInfo.Index
+                && cachedFrameA.FrameNumber == request.FrameNumber)
+            {
+                frameData = cachedFrameA;
+                loadedSourcePixels = cachedPixelsA;
+            }
+            else
+            {
+                frameData = await _previewService.RenderFrameAsync(
+                    request.OutputInfo.Index,
+                    request.FrameNumber,
+                    ConsumeReusableSourcePixels());
+                helperRenderElapsed += frameData.HelperRenderElapsed;
+                transportReadElapsed += frameData.TransportReadElapsed;
+                loadedSourcePixels = frameData.Pixels;
+                ownsLoadedSourcePixels = true;
+            }
+
+            if (!IsActiveFrameRequest(request, scheduledRequest))
+            {
+                if (ownsLoadedSourcePixels && loadedSourcePixels is not null)
+                {
+                    CaptureReusableFrameBuffers(loadedSourcePixels);
+                }
+
+                return;
+            }
+
+            VapourSynthPreviewFrameData? secondaryFrameData = null;
+            if (request.CompareMode != PreviewCompareMode.Single
+                && request.SecondaryOutputInfo is { } secondaryOutput
+                && request.SecondaryFrameNumber is int secondaryFrameNumber)
+            {
+                if (_secondaryLastFrameData is { } cachedFrameB
+                    && _secondarySourceFramePixels is { } cachedPixelsB
+                    && cachedFrameB.OutputIndex == secondaryOutput.Index
+                    && cachedFrameB.FrameNumber == secondaryFrameNumber)
+                {
+                    secondaryFrameData = cachedFrameB;
+                    loadedSecondarySourcePixels = cachedPixelsB;
+                }
+                else if (secondaryOutput.Index == request.OutputInfo.Index
+                         && secondaryFrameNumber == request.FrameNumber)
+                {
+                    secondaryFrameData = frameData;
+                    loadedSecondarySourcePixels = loadedSourcePixels;
+                }
+                else
+                {
+                    secondaryFrameData = await _previewService.RenderFrameAsync(
+                        secondaryOutput.Index,
+                        secondaryFrameNumber,
+                        ConsumeReusableSecondarySourcePixels());
+                    helperRenderElapsed += secondaryFrameData.HelperRenderElapsed;
+                    transportReadElapsed += secondaryFrameData.TransportReadElapsed;
+                    loadedSecondarySourcePixels = secondaryFrameData.Pixels;
+                    ownsLoadedSecondarySourcePixels = true;
+                }
+            }
 
             displayPayload = CreateDisplayFramePayload(
                 request.OutputInfo,
@@ -353,11 +509,34 @@ public sealed partial class VapourSynthPreviewWindow : Window
                 loadedSourcePixels,
                 frameData.Width,
                 frameData.Height);
-            composeElapsed = displayPayload.ComposeElapsed;
+            composeElapsed += displayPayload.ComposeElapsed;
+
+            if (secondaryFrameData is not null
+                && request.SecondaryOutputInfo is { } activeSecondaryOutput
+                && loadedSecondarySourcePixels is not null)
+            {
+                secondaryDisplayPayload = CreateSecondaryDisplayFramePayload(
+                    request.OutputInfo,
+                    activeSecondaryOutput,
+                    secondaryFrameData,
+                    loadedSecondarySourcePixels,
+                    secondaryFrameData.Width,
+                    secondaryFrameData.Height);
+                composeElapsed += secondaryDisplayPayload.ComposeElapsed;
+            }
 
             if (!IsActiveFrameRequest(request, scheduledRequest))
             {
-                CaptureReusableFrameBuffers(loadedSourcePixels, displayPayload.Pixels);
+                if (ownsLoadedSourcePixels && loadedSourcePixels is not null)
+                {
+                    CaptureReusableFrameBuffers(loadedSourcePixels, displayPayload.Pixels);
+                }
+
+                if (ownsLoadedSecondarySourcePixels && loadedSecondarySourcePixels is not null)
+                {
+                    CaptureReusableSecondaryFrameBuffers(loadedSecondarySourcePixels, secondaryDisplayPayload?.Pixels);
+                }
+
                 return;
             }
 
@@ -365,7 +544,11 @@ public sealed partial class VapourSynthPreviewWindow : Window
                 request.OutputInfo,
                 frameData,
                 loadedSourcePixels,
-                displayPayload);
+                displayPayload,
+                request.SecondaryOutputInfo,
+                secondaryFrameData,
+                loadedSecondarySourcePixels,
+                secondaryDisplayPayload);
             if (_pendingNavigationFrame == request.FrameNumber)
             {
                 _pendingNavigationFrame = null;
@@ -386,7 +569,16 @@ public sealed partial class VapourSynthPreviewWindow : Window
                 transportReadElapsed,
                 composeElapsed,
                 surfaceUpdateElapsed);
-            QueueFrameStatusText(ViewModel.Texts.VapourSynthPreviewReadyStatus(request.OutputInfo.Index, request.FrameNumber));
+            QueueFrameStatusText(
+                request.CompareMode != PreviewCompareMode.Single
+                && request.SecondaryOutputInfo is { } readySecondary
+                && secondaryFrameData is not null
+                    ? ViewModel.Texts.VapourSynthPreviewCompareReadyStatus(
+                        request.OutputInfo.Index,
+                        request.FrameNumber,
+                        readySecondary.Index,
+                        secondaryFrameData.FrameNumber)
+                    : ViewModel.Texts.VapourSynthPreviewReadyStatus(request.OutputInfo.Index, request.FrameNumber));
             SyncControls();
         }
         catch (Exception ex)
@@ -402,9 +594,14 @@ public sealed partial class VapourSynthPreviewWindow : Window
                 surfaceUpdateElapsed,
                 ex);
 
-            if (loadedSourcePixels is not null)
+            if (ownsLoadedSourcePixels && loadedSourcePixels is not null)
             {
                 CaptureReusableFrameBuffers(loadedSourcePixels, displayPayload?.Pixels);
+            }
+
+            if (ownsLoadedSecondarySourcePixels && loadedSecondarySourcePixels is not null)
+            {
+                CaptureReusableSecondaryFrameBuffers(loadedSecondarySourcePixels, secondaryDisplayPayload?.Pixels);
             }
 
             if (IsActiveFrameRequest(request, scheduledRequest))
@@ -440,7 +637,31 @@ public sealed partial class VapourSynthPreviewWindow : Window
             sourcePixels,
             frameData.Width,
             frameData.Height);
-        ApplyDisplayedFrame(outputInfo, frameData, sourcePixels, displayPayload);
+
+        DisplayFramePayload? secondaryDisplayPayload = null;
+        if (ViewModel.IsCompareModeActive
+            && _secondaryOutputInfo is { } secondaryOutput
+            && _secondaryLastFrameData is { } secondaryFrameData
+            && _secondarySourceFramePixels is { } secondarySourcePixels)
+        {
+            secondaryDisplayPayload = CreateSecondaryDisplayFramePayload(
+                outputInfo,
+                secondaryOutput,
+                secondaryFrameData,
+                secondarySourcePixels,
+                secondaryFrameData.Width,
+                secondaryFrameData.Height);
+        }
+
+        ApplyDisplayedFrame(
+            outputInfo,
+            frameData,
+            sourcePixels,
+            displayPayload,
+            _secondaryOutputInfo,
+            _secondaryLastFrameData,
+            _secondarySourceFramePixels,
+            secondaryDisplayPayload);
     }
 
     private DisplayFramePayload CreateDisplayFramePayload(
@@ -467,11 +688,47 @@ public sealed partial class VapourSynthPreviewWindow : Window
             composeStopwatch.Elapsed);
     }
 
+    private DisplayFramePayload CreateSecondaryDisplayFramePayload(
+        VapourSynthPreviewOutputInfo primaryOutputInfo,
+        VapourSynthPreviewOutputInfo secondaryOutputInfo,
+        VapourSynthPreviewFrameData secondaryFrameData,
+        byte[] secondarySourcePixels,
+        int sourceWidth,
+        int sourceHeight)
+    {
+        var applyCropToSecondary = ViewModel.IsCropPanelVisible
+            && PreviewCompareCoordinator.AreDimensionsEqual(primaryOutputInfo, secondaryOutputInfo);
+        var cropSettings = applyCropToSecondary
+            ? CreateCropSettings(GetOrCreateOutputState(primaryOutputInfo), cropEnabled: true)
+            : new PreviewFrameCropSettings(
+                IsEnabled: false,
+                PreviewCropMode.Relative,
+                new PreviewAbsoluteCrop(0, 0, Math.Max(1, sourceWidth), Math.Max(1, sourceHeight)),
+                new PreviewRelativeCrop(0, 0, 0, 0));
+
+        var composeStopwatch = Stopwatch.StartNew();
+        var compositionResult = _frameComposer.Compose(
+            new PreviewFrameCompositionRequest(secondarySourcePixels, sourceWidth, sourceHeight, cropSettings),
+            ConsumeReusableSecondaryDisplayedPixels());
+        composeStopwatch.Stop();
+
+        return new DisplayFramePayload(
+            compositionResult.Pixels,
+            compositionResult.Width,
+            compositionResult.Height,
+            $"{secondaryFrameData.Width} x {secondaryFrameData.Height}",
+            composeStopwatch.Elapsed);
+    }
+
     private TimeSpan ApplyDisplayedFrame(
         VapourSynthPreviewOutputInfo outputInfo,
         VapourSynthPreviewFrameData frameData,
         byte[] sourcePixels,
-        DisplayFramePayload displayPayload)
+        DisplayFramePayload displayPayload,
+        VapourSynthPreviewOutputInfo? secondaryOutputInfo = null,
+        VapourSynthPreviewFrameData? secondaryFrameData = null,
+        byte[]? secondarySourcePixels = null,
+        DisplayFramePayload? secondaryDisplayPayload = null)
     {
         _lastFrameData = frameData;
         CommitActiveFrameBuffers(
@@ -480,17 +737,66 @@ public sealed partial class VapourSynthPreviewWindow : Window
             displayPayload.Width,
             displayPayload.Height,
             displayPayload.Pixels);
+
+        if (ViewModel.IsCompareModeActive
+            && secondaryOutputInfo is not null
+            && secondaryFrameData is not null
+            && secondarySourcePixels is not null
+            && secondaryDisplayPayload is not null)
+        {
+            _secondaryLastFrameData = secondaryFrameData;
+            CommitActiveSecondaryFrameBuffers(
+                secondaryFrameData,
+                secondarySourcePixels,
+                secondaryDisplayPayload.Width,
+                secondaryDisplayPayload.Height,
+                secondaryDisplayPayload.Pixels);
+
+            if (!_hasManualSizeAlignmentOverride)
+            {
+                ViewModel.SizeAlignment = PreviewCompareCoordinator.RecommendSizeAlignment(
+                    displayPayload.Width,
+                    displayPayload.Height,
+                    secondaryDisplayPayload.Width,
+                    secondaryDisplayPayload.Height);
+            }
+        }
+
         ViewModel.UpdateFrame(
             outputInfo,
             frameData,
             displayPayload.Width,
             displayPayload.Height,
-            displayPayload.ResolutionText);
+            displayPayload.ResolutionText,
+            secondaryOutputInfo,
+            secondaryFrameData,
+            secondaryDisplayPayload?.Width ?? 0,
+            secondaryDisplayPayload?.Height ?? 0);
+
         var surfaceUpdateElapsed = UpdatePreviewDrawingSurface(
             displayPayload.Pixels,
             displayPayload.Width,
             displayPayload.Height,
             _previewFilter);
+
+        if (ViewModel.IsCompareModeActive
+            && secondaryDisplayPayload is not null)
+        {
+            surfaceUpdateElapsed += UpdateSecondaryPreviewDrawingSurface(
+                secondaryDisplayPayload.Pixels,
+                secondaryDisplayPayload.Width,
+                secondaryDisplayPayload.Height,
+                _previewFilter);
+
+            if (ViewModel.IsDifferenceMode)
+            {
+                surfaceUpdateElapsed += RedrawDifferenceSurface();
+            }
+        }
+
+        UpdateCompareVisualPresentation();
+        UpdatePreviewImageVisualSize();
+        UpdateWipeClipAndOverlay();
         SaveCurrentOutputState();
         return surfaceUpdateElapsed;
     }
@@ -517,7 +823,12 @@ public sealed partial class VapourSynthPreviewWindow : Window
             && scheduledRequest.MatchesLatestRequest
             && _selectedOutputInfo is { } selectedOutput
             && selectedOutput.Index == request.OutputInfo.Index
-            && request.SessionRevision == _previewSessionRevision;
+            && request.SessionRevision == _previewSessionRevision
+            && (request.CompareMode == PreviewCompareMode.Single
+                || (ViewModel.IsCompareModeActive
+                    && request.SecondaryOutputInfo is { } secondaryOutput
+                    && _secondaryOutputInfo is { } activeSecondary
+                    && activeSecondary.Index == secondaryOutput.Index));
     }
 
     private void SyncControls()
@@ -532,6 +843,12 @@ public sealed partial class VapourSynthPreviewWindow : Window
                 : ViewModel.CurrentFrame;
 
             OutputSelectorComboBox.SelectedItem = ViewModel.SelectedOutput;
+            CompareOutputAComboBox.SelectedItem = ViewModel.SelectedOutput;
+            CompareOutputBComboBox.SelectedItem = ViewModel.SelectedSecondaryOutput;
+            CompareModeComboBox.SelectedItem = ViewModel.SelectedCompareModeOption;
+            DifferenceGainComboBox.SelectedItem = ViewModel.SelectedDifferenceGainOption;
+            CompareSizeAlignmentComboBox.SelectedItem = ViewModel.SelectedSizeAlignmentOption;
+            UpdateCompareModeSelection();
             FrameNumberBox.Maximum = Math.Max(0, ViewModel.TotalFrames - 1);
             FrameNumberBox.Value = activeFrame;
             FrameSlider.Maximum = ViewModel.FrameSliderMaximum;
@@ -615,18 +932,19 @@ public sealed partial class VapourSynthPreviewWindow : Window
 
     private async Task SaveCurrentSnapshotAsync()
     {
-        if (_displayedFramePixels is null || _displayedFrameWidth <= 0 || _displayedFrameHeight <= 0)
+        if (!TryGetActiveSnapshotPixels(out var pixels, out var width, out var height))
         {
             return;
         }
 
+        var snapshotAlphaMode = ViewModel.IsWipeMode ? BitmapAlphaMode.Premultiplied : BitmapAlphaMode.Ignore;
         if (ViewModel.SilentSnapshotEnabled)
         {
             try
             {
                 var snapshotPath = ResolveSilentSnapshotPath();
                 Directory.CreateDirectory(Path.GetDirectoryName(snapshotPath)!);
-                await SavePixelsAsPngAsync(snapshotPath, _displayedFramePixels, _displayedFrameWidth, _displayedFrameHeight);
+                await SavePixelsAsPngAsync(snapshotPath, pixels, width, height, snapshotAlphaMode);
                 SetStatusText(ViewModel.Texts.VapourSynthPreviewSnapshotSavedStatus(snapshotPath));
                 return;
             }
@@ -659,7 +977,7 @@ public sealed partial class VapourSynthPreviewWindow : Window
 
         var saved = await TryRunWindowActionAsync(
             "SaveSnapshotFile",
-            () => SavePixelsAsPngAsync(snapshotSavePath, _displayedFramePixels, _displayedFrameWidth, _displayedFrameHeight),
+            () => SavePixelsAsPngAsync(snapshotSavePath, pixels, width, height, snapshotAlphaMode),
             ViewModel.Texts.VapourSynthPreviewSnapshotSaveFailedStatus);
         if (!saved)
         {
@@ -671,11 +989,12 @@ public sealed partial class VapourSynthPreviewWindow : Window
 
     private async Task QuickSaveSnapshotAsync()
     {
-        if (_displayedFramePixels is null || _displayedFrameWidth <= 0 || _displayedFrameHeight <= 0)
+        if (!TryGetActiveSnapshotPixels(out var pixels, out var width, out var height))
         {
             return;
         }
 
+        var snapshotAlphaMode = ViewModel.IsWipeMode ? BitmapAlphaMode.Premultiplied : BitmapAlphaMode.Ignore;
         var (pickSucceeded, folderPath) = await TryRunWindowOperationAsync(
             "PickQuickSnapshotFolder",
             () => Task.FromResult(
@@ -695,7 +1014,7 @@ public sealed partial class VapourSynthPreviewWindow : Window
             async () =>
             {
                 snapshotPath = Path.Combine(folderPath, BuildShortcutSnapshotFileName(withExtension: true));
-                await SavePixelsAsPngAsync(snapshotPath, _displayedFramePixels, _displayedFrameWidth, _displayedFrameHeight);
+                await SavePixelsAsPngAsync(snapshotPath, pixels, width, height, snapshotAlphaMode);
             },
             ViewModel.Texts.VapourSynthPreviewSnapshotSaveFailedStatus);
         if (!saved || string.IsNullOrWhiteSpace(snapshotPath))
@@ -708,7 +1027,7 @@ public sealed partial class VapourSynthPreviewWindow : Window
 
     private async void CopyFrameButton_Click(object sender, RoutedEventArgs e)
     {
-        if (_displayedFramePixels is null || _displayedFrameWidth <= 0 || _displayedFrameHeight <= 0)
+        if (!TryGetActiveSnapshotPixels(out var pixels, out var width, out var height))
         {
             return;
         }
@@ -719,12 +1038,12 @@ public sealed partial class VapourSynthPreviewWindow : Window
             var encoder = await BitmapEncoder.CreateAsync(BitmapEncoder.PngEncoderId, stream);
             encoder.SetPixelData(
                 BitmapPixelFormat.Bgra8,
-                BitmapAlphaMode.Ignore,
-                (uint)_displayedFrameWidth,
-                (uint)_displayedFrameHeight,
+                ViewModel.IsWipeMode ? BitmapAlphaMode.Premultiplied : BitmapAlphaMode.Ignore,
+                (uint)width,
+                (uint)height,
                 96,
                 96,
-                _displayedFramePixels);
+                pixels);
             await encoder.FlushAsync();
             stream.Seek(0);
 
@@ -743,6 +1062,45 @@ public sealed partial class VapourSynthPreviewWindow : Window
             LogWindowOperationFailure("PrepareFrameImage", ex);
             SetStatusText(ViewModel.Texts.VapourSynthPreviewFrameCopyFailedStatus(GetWindowOperationErrorDetail(ex)));
         }
+    }
+
+    private bool TryGetActiveSnapshotPixels(out byte[] pixels, out int width, out int height)
+    {
+        if (ViewModel.IsCompareModeActive
+            && _previewCanvasDevice is not null
+            && _cachedBitmapA is not null
+            && _cachedBitmapB is not null)
+        {
+            var composite = PreviewDisplayFilters.RenderCompositeSnapshotBytes(
+                _previewCanvasDevice,
+                ViewModel.CompareMode,
+                _cachedBitmapA,
+                _cachedBitmapB,
+                _previewFilter,
+                ViewModel.DifferenceGain,
+                ViewModel.SizeAlignment,
+                ViewModel.SplitRatio,
+                GetCanvasImageInterpolation(),
+                _lastFrameData?.Properties,
+                _secondaryLastFrameData?.Properties);
+            pixels = composite.Pixels;
+            width = composite.Width;
+            height = composite.Height;
+            return width > 0 && height > 0 && pixels.Length > 0;
+        }
+
+        if (_displayedFramePixels is not null && _displayedFrameWidth > 0 && _displayedFrameHeight > 0)
+        {
+            pixels = _displayedFramePixels;
+            width = _displayedFrameWidth;
+            height = _displayedFrameHeight;
+            return true;
+        }
+
+        pixels = [];
+        width = 0;
+        height = 0;
+        return false;
     }
 
     private void ReturnToEditorButton_Click(object sender, RoutedEventArgs e)
@@ -992,36 +1350,211 @@ public sealed partial class VapourSynthPreviewWindow : Window
         ViewModel.UpdateViewport(
             Math.Max(0, e.NewSize.Width - 16),
             Math.Max(0, e.NewSize.Height - 16));
+        UpdateWipeClipAndOverlay();
     }
 
-    private void PreviewScrollViewer_PointerWheelChanged(object sender, PointerRoutedEventArgs e)
+    private void PreviewScrollViewer_ViewChanged(object sender, ScrollViewerViewChangedEventArgs e)
     {
-        if (e.Handled || !IsControlKeyPressed() || _displayedFrameWidth <= 0 || _displayedFrameHeight <= 0)
+        UpdateWipeClipAndOverlay();
+    }
+
+    private void CompareScrollViewer_ViewChanged(object sender, ScrollViewerViewChangedEventArgs e)
+    {
+        if (_isSyncingCompareScroll || !ViewModel.IsSideBySideMode)
         {
             return;
         }
 
-        var currentPoint = e.GetCurrentPoint(PreviewScrollViewer);
+        if (sender is not ScrollViewer source)
+        {
+            return;
+        }
+
+        var target = ReferenceEquals(source, LeftCompareScrollViewer)
+            ? RightCompareScrollViewer
+            : LeftCompareScrollViewer;
+        SyncCompareScrollViewer(source, target);
+    }
+
+    private void SyncCompareScrollViewer(ScrollViewer source, ScrollViewer target)
+    {
+        _isSyncingCompareScroll = true;
+        try
+        {
+            var ratioX = source.ScrollableWidth > 0 ? source.HorizontalOffset / source.ScrollableWidth : 0.0;
+            var ratioY = source.ScrollableHeight > 0 ? source.VerticalOffset / source.ScrollableHeight : 0.0;
+            var targetX = Math.Clamp(ratioX * target.ScrollableWidth, 0, target.ScrollableWidth);
+            var targetY = Math.Clamp(ratioY * target.ScrollableHeight, 0, target.ScrollableHeight);
+            target.ChangeView(targetX, targetY, null, true);
+        }
+        finally
+        {
+            _isSyncingCompareScroll = false;
+        }
+    }
+
+    private void WipeDividerHandle_PointerPressed(object sender, PointerRoutedEventArgs e)
+    {
+        if (!ViewModel.IsWipeMode)
+        {
+            return;
+        }
+
+        var point = e.GetCurrentPoint(PreviewViewportHost);
+        if (!point.Properties.IsLeftButtonPressed)
+        {
+            return;
+        }
+
+        _isWipeDividerDragging = true;
+        _wipeDividerPointerId = point.PointerId;
+        WipeDividerHandle.CapturePointer(e.Pointer);
+        UpdateWipeSplitFromPointer(point.Position.X);
+        QueueFocusPreviewSurface();
+        e.Handled = true;
+    }
+
+    private void WipeDividerHandle_PointerMoved(object sender, PointerRoutedEventArgs e)
+    {
+        if (!_isWipeDividerDragging || e.Pointer.PointerId != _wipeDividerPointerId)
+        {
+            return;
+        }
+
+        var point = e.GetCurrentPoint(PreviewViewportHost);
+        if (!point.Properties.IsLeftButtonPressed)
+        {
+            ReleaseWipeDividerCapture();
+            return;
+        }
+
+        UpdateWipeSplitFromPointer(point.Position.X);
+        e.Handled = true;
+    }
+
+    private void WipeDividerHandle_PointerReleased(object sender, PointerRoutedEventArgs e)
+    {
+        if (_isWipeDividerDragging && e.Pointer.PointerId == _wipeDividerPointerId)
+        {
+            ReleaseWipeDividerCapture();
+            e.Handled = true;
+        }
+    }
+
+    private void WipeDividerHandle_PointerCanceled(object sender, PointerRoutedEventArgs e)
+    {
+        if (_isWipeDividerDragging && e.Pointer.PointerId == _wipeDividerPointerId)
+        {
+            ReleaseWipeDividerCapture();
+            e.Handled = true;
+        }
+    }
+
+    private void WipeDividerHandle_PointerCaptureLost(object sender, PointerRoutedEventArgs e)
+    {
+        if (_isWipeDividerDragging && e.Pointer.PointerId == _wipeDividerPointerId)
+        {
+            ReleaseWipeDividerCapture();
+        }
+    }
+
+    private void WipeDividerHandle_DoubleTapped(object sender, DoubleTappedRoutedEventArgs e)
+    {
+        if (!ViewModel.IsWipeMode)
+        {
+            return;
+        }
+
+        CenterWipeSplitInViewport();
+        e.Handled = true;
+    }
+
+    private void ReleaseWipeDividerCapture()
+    {
+        _isWipeDividerDragging = false;
+        _wipeDividerPointerId = 0;
+        WipeDividerHandle.ReleasePointerCaptures();
+    }
+
+    private void UpdateWipeSplitFromPointer(double pointerViewportX)
+    {
+        var imageWidth = ViewModel.PreviewImageWidth;
+        if (imageWidth <= 0)
+        {
+            return;
+        }
+
+        var imageLeftInViewport = GetSinglePreviewImageLeftInViewport();
+        ViewModel.SplitRatio = PreviewCompareCoordinator.ComputeSplitRatioFromViewportX(
+            pointerViewportX,
+            imageLeftInViewport,
+            PreviewScrollViewer.HorizontalOffset,
+            imageWidth);
+        UpdateWipeClipAndOverlay();
+    }
+
+    private void CenterWipeSplitInViewport()
+    {
+        var imageWidth = ViewModel.PreviewImageWidth;
+        if (imageWidth <= 0)
+        {
+            ViewModel.SplitRatio = 0.5;
+            UpdateWipeClipAndOverlay();
+            return;
+        }
+
+        var viewportWidth = PreviewScrollViewer.ViewportWidth > 0
+            ? PreviewScrollViewer.ViewportWidth
+            : PreviewViewportHost.ActualWidth;
+        ViewModel.SplitRatio = PreviewCompareCoordinator.ComputeCenteredViewportSplitRatio(
+            viewportWidth,
+            GetSinglePreviewImageLeftInViewport(),
+            PreviewScrollViewer.HorizontalOffset,
+            imageWidth);
+        UpdateWipeClipAndOverlay();
+    }
+
+    private double GetSinglePreviewImageLeftInViewport()
+    {
+        var viewportWidth = PreviewScrollViewer.ViewportWidth > 0
+            ? PreviewScrollViewer.ViewportWidth
+            : PreviewViewportHost.ActualWidth;
+        return Math.Max(0.0, (viewportWidth - ViewModel.PreviewImageWidth) / 2.0);
+    }
+
+    private void PreviewScrollViewer_PointerWheelChanged(object sender, PointerRoutedEventArgs e)
+    {
+        if (e.Handled
+            || !IsControlKeyPressed()
+            || _displayedFrameWidth <= 0
+            || _displayedFrameHeight <= 0
+            || sender is not ScrollViewer scrollViewer)
+        {
+            return;
+        }
+
+        var currentPoint = e.GetCurrentPoint(scrollViewer);
         var wheelDelta = currentPoint.Properties.MouseWheelDelta;
         if (wheelDelta == 0)
         {
             return;
         }
 
-        var previousWidth = ViewModel.PreviewImageWidth;
-        var previousHeight = ViewModel.PreviewImageHeight;
+        var isSecondaryPane = ReferenceEquals(scrollViewer, RightCompareScrollViewer);
+        var previousWidth = isSecondaryPane ? ViewModel.SecondaryPreviewImageWidth : ViewModel.PreviewImageWidth;
+        var previousHeight = isSecondaryPane ? ViewModel.SecondaryPreviewImageHeight : ViewModel.PreviewImageHeight;
         var pointerPosition = currentPoint.Position;
         var anchorXRatio = previousWidth > 0
-            ? Math.Clamp((PreviewScrollViewer.HorizontalOffset + pointerPosition.X) / previousWidth, 0.0, 1.0)
+            ? Math.Clamp((scrollViewer.HorizontalOffset + pointerPosition.X) / previousWidth, 0.0, 1.0)
             : 0.5;
         var anchorYRatio = previousHeight > 0
-            ? Math.Clamp((PreviewScrollViewer.VerticalOffset + pointerPosition.Y) / previousHeight, 0.0, 1.0)
+            ? Math.Clamp((scrollViewer.VerticalOffset + pointerPosition.Y) / previousHeight, 0.0, 1.0)
             : 0.5;
 
         var factor = Math.Pow(1.1, wheelDelta / 120.0);
         var targetZoomRatio = Math.Clamp(GetCurrentEffectiveZoomRatio() * factor, 0.05, 16.0);
         ApplyCustomZoom(targetZoomRatio);
-        RestorePreviewScrollAnchor(anchorXRatio, anchorYRatio, pointerPosition.X, pointerPosition.Y);
+        RestorePreviewScrollAnchor(scrollViewer, anchorXRatio, anchorYRatio, pointerPosition.X, pointerPosition.Y);
         QueueFocusPreviewSurface();
         e.Handled = true;
     }
@@ -1033,34 +1566,38 @@ public sealed partial class VapourSynthPreviewWindow : Window
             QueueFocusPreviewSurface();
         }
 
-        if (e.Handled || !CanPanPreview())
+        if (e.Handled || sender is not ScrollViewer scrollViewer || !CanPanPreview(scrollViewer))
         {
             return;
         }
 
-        var currentPoint = e.GetCurrentPoint(PreviewScrollViewer);
+        var currentPoint = e.GetCurrentPoint(scrollViewer);
         if (!currentPoint.Properties.IsLeftButtonPressed)
         {
             return;
         }
 
         _isPreviewPanActive = true;
+        _activePanScrollViewer = scrollViewer;
         _previewPanPointerId = currentPoint.PointerId;
         _previewPanOrigin = currentPoint.Position;
-        _previewPanStartHorizontalOffset = PreviewScrollViewer.HorizontalOffset;
-        _previewPanStartVerticalOffset = PreviewScrollViewer.VerticalOffset;
-        PreviewScrollViewer.CapturePointer(e.Pointer);
+        _previewPanStartHorizontalOffset = scrollViewer.HorizontalOffset;
+        _previewPanStartVerticalOffset = scrollViewer.VerticalOffset;
+        scrollViewer.CapturePointer(e.Pointer);
         e.Handled = true;
     }
 
     private void PreviewScrollViewer_PointerMoved(object sender, PointerRoutedEventArgs e)
     {
-        if (!_isPreviewPanActive || e.Pointer.PointerId != _previewPanPointerId)
+        if (!_isPreviewPanActive
+            || e.Pointer.PointerId != _previewPanPointerId
+            || _activePanScrollViewer is null)
         {
             return;
         }
 
-        var currentPoint = e.GetCurrentPoint(PreviewScrollViewer);
+        var scrollViewer = _activePanScrollViewer;
+        var currentPoint = e.GetCurrentPoint(scrollViewer);
         if (!currentPoint.Properties.IsLeftButtonPressed)
         {
             ReleasePreviewPanCapture();
@@ -1072,13 +1609,13 @@ public sealed partial class VapourSynthPreviewWindow : Window
         var targetHorizontalOffset = Math.Clamp(
             _previewPanStartHorizontalOffset - deltaX,
             0,
-            PreviewScrollViewer.ScrollableWidth);
+            scrollViewer.ScrollableWidth);
         var targetVerticalOffset = Math.Clamp(
             _previewPanStartVerticalOffset - deltaY,
             0,
-            PreviewScrollViewer.ScrollableHeight);
+            scrollViewer.ScrollableHeight);
 
-        SetPreviewScrollOffset(targetHorizontalOffset, targetVerticalOffset);
+        SetPreviewScrollOffset(scrollViewer, targetHorizontalOffset, targetVerticalOffset);
         e.Handled = true;
     }
 
@@ -1554,6 +2091,8 @@ public sealed partial class VapourSynthPreviewWindow : Window
                 RootLayout.Unloaded -= RootLayout_Unloaded;
                 RootLayout.ActualThemeChanged -= RootLayout_ActualThemeChanged;
                 PreviewImageHost.SizeChanged -= PreviewImageHost_SizeChanged;
+                LeftCompareImageHost.SizeChanged -= PreviewImageHost_SizeChanged;
+                RightCompareImageHost.SizeChanged -= PreviewImageHost_SizeChanged;
                 ViewModel.PropertyChanged -= ViewModel_PropertyChanged;
                 DetachPreviewImageVisual();
                 try
@@ -1582,7 +2121,10 @@ public sealed partial class VapourSynthPreviewWindow : Window
                 break;
             case nameof(ViewModel.PreviewImageWidth):
             case nameof(ViewModel.PreviewImageHeight):
+            case nameof(ViewModel.SecondaryPreviewImageWidth):
+            case nameof(ViewModel.SecondaryPreviewImageHeight):
                 UpdatePreviewImageVisualSize();
+                UpdateWipeClipAndOverlay();
                 break;
         }
     }
@@ -1700,15 +2242,27 @@ public sealed partial class VapourSynthPreviewWindow : Window
     {
         _pendingNavigationFrame = null;
         _selectedOutputInfo = null;
+        _secondaryOutputInfo = null;
         _lastFrameData = null;
+        _secondaryLastFrameData = null;
         _sourceFramePixels = null;
         _reusableSourceFramePixels = null;
         _sourceFrameWidth = 0;
         _sourceFrameHeight = 0;
+        _secondarySourceFramePixels = null;
+        _reusableSecondarySourceFramePixels = null;
+        _secondarySourceFrameWidth = 0;
+        _secondarySourceFrameHeight = 0;
         _displayedFramePixels = null;
         _reusableDisplayedFramePixels = null;
         _displayedFrameWidth = 0;
         _displayedFrameHeight = 0;
+        _secondaryDisplayedFramePixels = null;
+        _reusableSecondaryDisplayedFramePixels = null;
+        _secondaryDisplayedFrameWidth = 0;
+        _secondaryDisplayedFrameHeight = 0;
+        _hasManualSizeAlignmentOverride = false;
+        DisposeCachedBitmaps();
         ClearPreviewDrawingSurface();
     }
 
@@ -2084,7 +2638,16 @@ public sealed partial class VapourSynthPreviewWindow : Window
         }
 
         scriptFileName = SanitizePathToken(scriptFileName);
-        var fileName = $"{scriptFileName}-{ViewModel.CurrentFrame}-{_selectedOutputInfo.Index}";
+        var compareSuffix = ViewModel.IsCompareModeActive && _secondaryOutputInfo is not null
+            ? ViewModel.CompareMode switch
+            {
+                PreviewCompareMode.Wipe => $"-wipe-{_selectedOutputInfo.Index}vs{_secondaryOutputInfo.Index}",
+                PreviewCompareMode.SideBySide => $"-sbs-{_selectedOutputInfo.Index}vs{_secondaryOutputInfo.Index}",
+                PreviewCompareMode.Difference => $"-diff-{_selectedOutputInfo.Index}vs{_secondaryOutputInfo.Index}",
+                _ => $"-{_selectedOutputInfo.Index}"
+            }
+            : $"-{_selectedOutputInfo.Index}";
+        var fileName = $"{scriptFileName}-{ViewModel.CurrentFrame}{compareSuffix}";
         return withExtension ? $"{fileName}.png" : fileName;
     }
 
@@ -2583,13 +3146,18 @@ public sealed partial class VapourSynthPreviewWindow : Window
         return value;
     }
 
-    private static async Task SavePixelsAsPngAsync(string filePath, byte[] pixels, int width, int height)
+    private static async Task SavePixelsAsPngAsync(
+        string filePath,
+        byte[] pixels,
+        int width,
+        int height,
+        BitmapAlphaMode alphaMode = BitmapAlphaMode.Ignore)
     {
         using var outputStream = File.Open(filePath, FileMode.Create, FileAccess.ReadWrite, FileShare.None).AsRandomAccessStream();
         var encoder = await BitmapEncoder.CreateAsync(BitmapEncoder.PngEncoderId, outputStream);
         encoder.SetPixelData(
             BitmapPixelFormat.Bgra8,
-            BitmapAlphaMode.Ignore,
+            alphaMode,
             (uint)width,
             (uint)height,
             96,
@@ -2699,18 +3267,37 @@ public sealed partial class VapourSynthPreviewWindow : Window
         ViewModel.SnapshotTemplate = snapshotTemplateTextBox.Text?.Trim() ?? string.Empty;
         ViewModel.SaveScalingAlgorithmPreference();
         ApplyPreviewScalingAlgorithm();
+        if (ViewModel.IsCompareModeActive && _selectedOutputInfo is not null)
+        {
+            await RequestFrameAsync(_selectedOutputInfo, ViewModel.CurrentFrame);
+        }
+
         SetStatusText(ViewModel.Texts.VapourSynthPreviewAdvancedSettingsSavedStatus);
     }
 
     private void ApplyPreviewScalingAlgorithm()
     {
         EnsurePreviewImageVisual();
-        if (_previewImageBrush is null)
+        var interpolationMode = GetPreviewBitmapInterpolationMode();
+        if (_previewImageBrush is not null)
         {
-            return;
+            _previewImageBrush.BitmapInterpolationMode = interpolationMode;
         }
 
-        _previewImageBrush.BitmapInterpolationMode = GetPreviewBitmapInterpolationMode();
+        if (_previewImageBrushB is not null)
+        {
+            _previewImageBrushB.BitmapInterpolationMode = interpolationMode;
+        }
+
+        if (_previewImageBrushDiff is not null)
+        {
+            _previewImageBrushDiff.BitmapInterpolationMode = interpolationMode;
+        }
+
+        if (ViewModel.IsDifferenceMode && _cachedBitmapA is not null && _cachedBitmapB is not null)
+        {
+            RedrawDifferenceSurface();
+        }
     }
 
     private void StopPlayback(bool updateStatus = false)
@@ -2870,6 +3457,11 @@ public sealed partial class VapourSynthPreviewWindow : Window
     private void DetachControlEvents()
     {
         OutputSelectorComboBox.SelectionChanged -= OutputSelectorComboBox_SelectionChanged;
+        CompareModeComboBox.SelectionChanged -= CompareModeComboBox_SelectionChanged;
+        CompareOutputAComboBox.SelectionChanged -= CompareOutputAComboBox_SelectionChanged;
+        CompareOutputBComboBox.SelectionChanged -= CompareOutputBComboBox_SelectionChanged;
+        DifferenceGainComboBox.SelectionChanged -= DifferenceGainComboBox_SelectionChanged;
+        CompareSizeAlignmentComboBox.SelectionChanged -= CompareSizeAlignmentComboBox_SelectionChanged;
         FrameNumberBox.ValueChanged -= FrameNumberBox_ValueChanged;
         ZoomModeComboBox.SelectionChanged -= ZoomModeComboBox_SelectionChanged;
         ZoomRatioBox.ValueChanged -= ZoomRatioBox_ValueChanged;
@@ -2891,6 +3483,11 @@ public sealed partial class VapourSynthPreviewWindow : Window
     private void AttachControlEvents()
     {
         OutputSelectorComboBox.SelectionChanged -= OutputSelectorComboBox_SelectionChanged;
+        CompareModeComboBox.SelectionChanged -= CompareModeComboBox_SelectionChanged;
+        CompareOutputAComboBox.SelectionChanged -= CompareOutputAComboBox_SelectionChanged;
+        CompareOutputBComboBox.SelectionChanged -= CompareOutputBComboBox_SelectionChanged;
+        DifferenceGainComboBox.SelectionChanged -= DifferenceGainComboBox_SelectionChanged;
+        CompareSizeAlignmentComboBox.SelectionChanged -= CompareSizeAlignmentComboBox_SelectionChanged;
         FrameNumberBox.ValueChanged -= FrameNumberBox_ValueChanged;
         ZoomModeComboBox.SelectionChanged -= ZoomModeComboBox_SelectionChanged;
         ZoomRatioBox.ValueChanged -= ZoomRatioBox_ValueChanged;
@@ -2908,6 +3505,11 @@ public sealed partial class VapourSynthPreviewWindow : Window
         FrameSlider.ValueChanged -= FrameSlider_ValueChanged;
 
         OutputSelectorComboBox.SelectionChanged += OutputSelectorComboBox_SelectionChanged;
+        CompareModeComboBox.SelectionChanged += CompareModeComboBox_SelectionChanged;
+        CompareOutputAComboBox.SelectionChanged += CompareOutputAComboBox_SelectionChanged;
+        CompareOutputBComboBox.SelectionChanged += CompareOutputBComboBox_SelectionChanged;
+        DifferenceGainComboBox.SelectionChanged += DifferenceGainComboBox_SelectionChanged;
+        CompareSizeAlignmentComboBox.SelectionChanged += CompareSizeAlignmentComboBox_SelectionChanged;
         FrameNumberBox.ValueChanged += FrameNumberBox_ValueChanged;
         ZoomModeComboBox.SelectionChanged += ZoomModeComboBox_SelectionChanged;
         ZoomRatioBox.ValueChanged += ZoomRatioBox_ValueChanged;
@@ -3021,6 +3623,20 @@ public sealed partial class VapourSynthPreviewWindow : Window
         return reusableBuffer;
     }
 
+    private byte[]? ConsumeReusableSecondarySourcePixels()
+    {
+        var reusableBuffer = _reusableSecondarySourceFramePixels;
+        _reusableSecondarySourceFramePixels = null;
+        return reusableBuffer;
+    }
+
+    private byte[]? ConsumeReusableSecondaryDisplayedPixels()
+    {
+        var reusableBuffer = _reusableSecondaryDisplayedFramePixels;
+        _reusableSecondaryDisplayedFramePixels = null;
+        return reusableBuffer;
+    }
+
     private void CommitActiveFrameBuffers(
         VapourSynthPreviewFrameData frameData,
         byte[] sourcePixels,
@@ -3038,25 +3654,64 @@ public sealed partial class VapourSynthPreviewWindow : Window
         _displayedFrameWidth = displayWidth;
         _displayedFrameHeight = displayHeight;
 
-        _reusableSourceFramePixels = CanReuseBuffer(previousSourcePixels, _sourceFramePixels, _displayedFramePixels)
+        _reusableSourceFramePixels = CanReuseBuffer(previousSourcePixels, _sourceFramePixels, _displayedFramePixels, _secondarySourceFramePixels, _secondaryDisplayedFramePixels)
             ? previousSourcePixels
             : null;
-        _reusableDisplayedFramePixels = CanReuseBuffer(previousDisplayedPixels, _sourceFramePixels, _displayedFramePixels, _reusableSourceFramePixels)
+        _reusableDisplayedFramePixels = CanReuseBuffer(previousDisplayedPixels, _sourceFramePixels, _displayedFramePixels, _reusableSourceFramePixels, _secondarySourceFramePixels, _secondaryDisplayedFramePixels)
+            ? previousDisplayedPixels
+            : null;
+    }
+
+    private void CommitActiveSecondaryFrameBuffers(
+        VapourSynthPreviewFrameData frameData,
+        byte[] sourcePixels,
+        int displayWidth,
+        int displayHeight,
+        byte[] displayPixels)
+    {
+        var previousSourcePixels = _secondarySourceFramePixels;
+        var previousDisplayedPixels = _secondaryDisplayedFramePixels;
+
+        _secondarySourceFramePixels = sourcePixels;
+        _secondarySourceFrameWidth = frameData.Width;
+        _secondarySourceFrameHeight = frameData.Height;
+        _secondaryDisplayedFramePixels = displayPixels;
+        _secondaryDisplayedFrameWidth = displayWidth;
+        _secondaryDisplayedFrameHeight = displayHeight;
+
+        _reusableSecondarySourceFramePixels = CanReuseBuffer(previousSourcePixels, _secondarySourceFramePixels, _secondaryDisplayedFramePixels, _sourceFramePixels, _displayedFramePixels)
+            ? previousSourcePixels
+            : null;
+        _reusableSecondaryDisplayedFramePixels = CanReuseBuffer(previousDisplayedPixels, _secondarySourceFramePixels, _secondaryDisplayedFramePixels, _reusableSecondarySourceFramePixels, _sourceFramePixels, _displayedFramePixels)
             ? previousDisplayedPixels
             : null;
     }
 
     private void CaptureReusableFrameBuffers(byte[] sourcePixels, byte[]? displayPixels = null)
     {
-        if (CanReuseBuffer(sourcePixels, _sourceFramePixels, _displayedFramePixels, _reusableDisplayedFramePixels))
+        if (CanReuseBuffer(sourcePixels, _sourceFramePixels, _displayedFramePixels, _reusableDisplayedFramePixels, _secondarySourceFramePixels, _secondaryDisplayedFramePixels))
         {
             _reusableSourceFramePixels = sourcePixels;
         }
 
         if (displayPixels is not null
-            && CanReuseBuffer(displayPixels, sourcePixels, _sourceFramePixels, _displayedFramePixels, _reusableSourceFramePixels))
+            && CanReuseBuffer(displayPixels, sourcePixels, _sourceFramePixels, _displayedFramePixels, _reusableSourceFramePixels, _secondarySourceFramePixels, _secondaryDisplayedFramePixels))
         {
             _reusableDisplayedFramePixels = displayPixels;
+        }
+    }
+
+    private void CaptureReusableSecondaryFrameBuffers(byte[] sourcePixels, byte[]? displayPixels = null)
+    {
+        if (CanReuseBuffer(sourcePixels, _secondarySourceFramePixels, _secondaryDisplayedFramePixels, _reusableSecondaryDisplayedFramePixels, _sourceFramePixels, _displayedFramePixels))
+        {
+            _reusableSecondarySourceFramePixels = sourcePixels;
+        }
+
+        if (displayPixels is not null
+            && CanReuseBuffer(displayPixels, sourcePixels, _secondarySourceFramePixels, _secondaryDisplayedFramePixels, _reusableSecondarySourceFramePixels, _sourceFramePixels, _displayedFramePixels))
+        {
+            _reusableSecondaryDisplayedFramePixels = displayPixels;
         }
     }
 
@@ -3083,21 +3738,24 @@ public sealed partial class VapourSynthPreviewWindow : Window
         return double.IsNaN(numberBox.Value) ? 0 : (int)Math.Round(numberBox.Value);
     }
 
-    private bool CanPanPreview()
+    private bool CanPanPreview(ScrollViewer scrollViewer)
     {
-        return ViewModel.PreviewImageWidth > PreviewViewportHost.ActualWidth + 1
-            || ViewModel.PreviewImageHeight > PreviewViewportHost.ActualHeight + 1;
+        return scrollViewer.ScrollableWidth > 1
+            || scrollViewer.ScrollableHeight > 1;
     }
 
     private double GetCurrentEffectiveZoomRatio()
     {
-        if (_displayedFrameWidth <= 0 || ViewModel.PreviewImageWidth <= 0)
+        var referenceWidth = (ViewModel.IsWipeMode || ViewModel.IsDifferenceMode) && _secondaryDisplayedFrameWidth > 0
+            ? Math.Max(_displayedFrameWidth, _secondaryDisplayedFrameWidth)
+            : _displayedFrameWidth;
+        if (referenceWidth <= 0 || ViewModel.PreviewImageWidth <= 0)
         {
             return Math.Clamp(ViewModel.ZoomRatio, 0.05, 16.0);
         }
 
         var displayScale = RootLayout.XamlRoot?.RasterizationScale ?? 1.0;
-        var visibleRatio = ViewModel.PreviewImageWidth / _displayedFrameWidth;
+        var visibleRatio = ViewModel.PreviewImageWidth / referenceWidth;
         var cropMultiplier = ViewModel.IsCropPanelVisible
             ? Math.Max(0.1, ViewModel.CropZoomPercentage / 100.0)
             : 1.0;
@@ -3125,30 +3783,35 @@ public sealed partial class VapourSynthPreviewWindow : Window
     }
 
     private void RestorePreviewScrollAnchor(
+        ScrollViewer scrollViewer,
         double anchorXRatio,
         double anchorYRatio,
         double pointerViewportX,
         double pointerViewportY)
     {
-        PreviewScrollViewer.UpdateLayout();
+        scrollViewer.UpdateLayout();
+        var isSecondaryPane = ReferenceEquals(scrollViewer, RightCompareScrollViewer);
+        var imageWidth = isSecondaryPane ? ViewModel.SecondaryPreviewImageWidth : ViewModel.PreviewImageWidth;
+        var imageHeight = isSecondaryPane ? ViewModel.SecondaryPreviewImageHeight : ViewModel.PreviewImageHeight;
 
         var targetHorizontalOffset = Math.Clamp(
-            ViewModel.PreviewImageWidth * anchorXRatio - pointerViewportX,
+            imageWidth * anchorXRatio - pointerViewportX,
             0,
-            PreviewScrollViewer.ScrollableWidth);
+            scrollViewer.ScrollableWidth);
         var targetVerticalOffset = Math.Clamp(
-            ViewModel.PreviewImageHeight * anchorYRatio - pointerViewportY,
+            imageHeight * anchorYRatio - pointerViewportY,
             0,
-            PreviewScrollViewer.ScrollableHeight);
+            scrollViewer.ScrollableHeight);
 
-        SetPreviewScrollOffset(targetHorizontalOffset, targetVerticalOffset);
+        SetPreviewScrollOffset(scrollViewer, targetHorizontalOffset, targetVerticalOffset);
     }
 
     private void ReleasePreviewPanCapture()
     {
         _isPreviewPanActive = false;
         _previewPanPointerId = 0;
-        PreviewScrollViewer.ReleasePointerCaptures();
+        _activePanScrollViewer?.ReleasePointerCaptures();
+        _activePanScrollViewer = null;
     }
 
     private static bool IsControlKeyPressed()
@@ -3223,6 +3886,7 @@ public sealed partial class VapourSynthPreviewWindow : Window
     private void PreviewImageHost_SizeChanged(object sender, SizeChangedEventArgs e)
     {
         UpdatePreviewImageVisualSize();
+        UpdateWipeClipAndOverlay();
     }
 
     private void EnsurePreviewImageVisual()
@@ -3232,8 +3896,17 @@ public sealed partial class VapourSynthPreviewWindow : Window
             return;
         }
 
-        if (_previewImageVisual is not null
+        if (_singlePreviewContainerVisual is not null
+            && _wipeLayerAContainerVisual is not null
+            && _wipeLayerBContainerVisual is not null
+            && _previewImageVisual is not null
+            && _previewImageVisualB is not null
+            && _previewImageVisualDiff is not null
+            && _sideBySideVisualA is not null
+            && _sideBySideVisualB is not null
             && _previewImageBrush is not null
+            && _previewImageBrushB is not null
+            && _previewImageBrushDiff is not null
             && _previewGraphicsDevice is not null)
         {
             return;
@@ -3243,15 +3916,59 @@ public sealed partial class VapourSynthPreviewWindow : Window
         var compositor = ElementCompositionPreview.GetElementVisual(PreviewImageHost).Compositor;
         _previewCanvasDevice ??= CanvasDevice.GetSharedDevice();
         _previewGraphicsDevice = CanvasComposition.CreateCompositionGraphicsDevice(compositor, _previewCanvasDevice);
-        _previewImageBrush = compositor.CreateSurfaceBrush();
-        _previewImageBrush.BitmapInterpolationMode = GetPreviewBitmapInterpolationMode();
-        _previewImageBrush.Stretch = CompositionStretch.Fill;
-        _previewImageBrush.SnapToPixels = true;
+
+        var interpolationMode = GetPreviewBitmapInterpolationMode();
+        _previewImageBrush = CreatePreviewSurfaceBrush(compositor, interpolationMode);
+        _previewImageBrushB = CreatePreviewSurfaceBrush(compositor, interpolationMode);
+        _previewImageBrushDiff = CreatePreviewSurfaceBrush(compositor, interpolationMode);
+
+        _singlePreviewContainerVisual = compositor.CreateContainerVisual();
+
+        _wipeVisualAClip = compositor.CreateInsetClip();
+        _wipeLayerAContainerVisual = compositor.CreateContainerVisual();
         _previewImageVisual = compositor.CreateSpriteVisual();
         _previewImageVisual.Brush = _previewImageBrush;
-        ElementCompositionPreview.SetElementChildVisual(PreviewImageHost, _previewImageVisual);
+        _wipeLayerAContainerVisual.Children.InsertAtTop(_previewImageVisual);
 
+        _wipeVisualBClip = compositor.CreateInsetClip();
+        _wipeLayerBContainerVisual = compositor.CreateContainerVisual();
+        _wipeLayerBContainerVisual.Clip = _wipeVisualBClip;
+        _wipeLayerBContainerVisual.IsVisible = false;
+        _previewImageVisualB = compositor.CreateSpriteVisual();
+        _previewImageVisualB.Brush = _previewImageBrushB;
+        _wipeLayerBContainerVisual.Children.InsertAtTop(_previewImageVisualB);
+
+        _previewImageVisualDiff = compositor.CreateSpriteVisual();
+        _previewImageVisualDiff.Brush = _previewImageBrushDiff;
+        _previewImageVisualDiff.IsVisible = false;
+
+        _singlePreviewContainerVisual.Children.InsertAtTop(_wipeLayerAContainerVisual);
+        _singlePreviewContainerVisual.Children.InsertAtTop(_wipeLayerBContainerVisual);
+        _singlePreviewContainerVisual.Children.InsertAtTop(_previewImageVisualDiff);
+        ElementCompositionPreview.SetElementChildVisual(PreviewImageHost, _singlePreviewContainerVisual);
+
+        _sideBySideVisualA = compositor.CreateSpriteVisual();
+        _sideBySideVisualA.Brush = _previewImageBrush;
+        ElementCompositionPreview.SetElementChildVisual(LeftCompareImageHost, _sideBySideVisualA);
+
+        _sideBySideVisualB = compositor.CreateSpriteVisual();
+        _sideBySideVisualB.Brush = _previewImageBrushB;
+        ElementCompositionPreview.SetElementChildVisual(RightCompareImageHost, _sideBySideVisualB);
+
+        UpdateCompareVisualPresentation();
         UpdatePreviewImageVisualSize();
+        UpdateWipeClipAndOverlay();
+    }
+
+    private static CompositionSurfaceBrush CreatePreviewSurfaceBrush(
+        Compositor compositor,
+        CompositionBitmapInterpolationMode interpolationMode)
+    {
+        var brush = compositor.CreateSurfaceBrush();
+        brush.BitmapInterpolationMode = interpolationMode;
+        brush.Stretch = CompositionStretch.Fill;
+        brush.SnapToPixels = true;
+        return brush;
     }
 
     private CompositionBitmapInterpolationMode GetPreviewBitmapInterpolationMode()
@@ -3261,25 +3978,78 @@ public sealed partial class VapourSynthPreviewWindow : Window
             : CompositionBitmapInterpolationMode.Linear;
     }
 
+    private CanvasImageInterpolation GetCanvasImageInterpolation()
+    {
+        return string.Equals(ViewModel.ScalingAlgorithm, "nearest", StringComparison.OrdinalIgnoreCase)
+            ? CanvasImageInterpolation.NearestNeighbor
+            : CanvasImageInterpolation.Linear;
+    }
+
     private void DetachPreviewImageVisual()
     {
-        if (_previewImageVisual is null
+        if (_singlePreviewContainerVisual is null
+            && _wipeLayerAContainerVisual is null
+            && _wipeLayerBContainerVisual is null
+            && _previewImageVisual is null
+            && _previewImageVisualB is null
+            && _previewImageVisualDiff is null
+            && _sideBySideVisualA is null
+            && _sideBySideVisualB is null
             && _previewImageBrush is null
+            && _previewImageBrushB is null
+            && _previewImageBrushDiff is null
             && _previewGraphicsDevice is null
-            && _previewDrawingSurface is null)
+            && _previewDrawingSurface is null
+            && _previewDrawingSurfaceB is null
+            && _previewDrawingSurfaceDiff is null
+            && _cachedBitmapA is null
+            && _cachedBitmapB is null)
         {
             return;
         }
 
         ElementCompositionPreview.SetElementChildVisual(PreviewImageHost, null);
+        ElementCompositionPreview.SetElementChildVisual(LeftCompareImageHost, null);
+        ElementCompositionPreview.SetElementChildVisual(RightCompareImageHost, null);
+        DisposeCachedBitmaps();
         ClearPreviewDrawingSurface();
+        _wipeVisualAClip?.Dispose();
+        _wipeVisualBClip?.Dispose();
+        _wipeLayerAContainerVisual?.Dispose();
+        _wipeLayerBContainerVisual?.Dispose();
+        _singlePreviewContainerVisual?.Dispose();
         _previewImageVisual?.Dispose();
+        _previewImageVisualB?.Dispose();
+        _previewImageVisualDiff?.Dispose();
+        _sideBySideVisualA?.Dispose();
+        _sideBySideVisualB?.Dispose();
         _previewImageBrush?.Dispose();
+        _previewImageBrushB?.Dispose();
+        _previewImageBrushDiff?.Dispose();
         _previewGraphicsDevice?.Dispose();
+        _wipeVisualAClip = null;
+        _wipeVisualBClip = null;
+        _wipeLayerAContainerVisual = null;
+        _wipeLayerBContainerVisual = null;
+        _singlePreviewContainerVisual = null;
         _previewImageVisual = null;
+        _previewImageVisualB = null;
+        _previewImageVisualDiff = null;
+        _sideBySideVisualA = null;
+        _sideBySideVisualB = null;
         _previewImageBrush = null;
+        _previewImageBrushB = null;
+        _previewImageBrushDiff = null;
         _previewGraphicsDevice = null;
         _previewCanvasDevice = null;
+    }
+
+    private void DisposeCachedBitmaps()
+    {
+        _cachedBitmapA?.Dispose();
+        _cachedBitmapA = null;
+        _cachedBitmapB?.Dispose();
+        _cachedBitmapB = null;
     }
 
     private TimeSpan UpdatePreviewDrawingSurface(byte[] pixels, int width, int height, PreviewDisplayFilter filter)
@@ -3292,32 +4062,556 @@ public sealed partial class VapourSynthPreviewWindow : Window
 
         if (width <= 0 || height <= 0 || pixels.Length == 0)
         {
-            ClearPreviewDrawingSurface();
-            return TimeSpan.Zero;
-        }
-
-        EnsurePreviewDrawingSurface(width, height);
-        if (_previewDrawingSurface is null)
-        {
+            _cachedBitmapA?.Dispose();
+            _cachedBitmapA = null;
+            ClearPrimaryPreviewDrawingSurface();
             return TimeSpan.Zero;
         }
 
         var surfaceStopwatch = Stopwatch.StartNew();
-        using (var bitmap = CanvasBitmap.CreateFromBytes(
-                   _previewCanvasDevice,
-                   pixels,
-                   width,
-                   height,
-                   Windows.Graphics.DirectX.DirectXPixelFormat.B8G8R8A8UIntNormalized,
-                   96,
-                   CanvasAlphaMode.Ignore))
-        using (var drawingSession = CanvasComposition.CreateDrawingSession(_previewDrawingSurface))
-        {
-            PreviewDisplayFilters.Draw(drawingSession, bitmap, filter, _lastFrameData?.Properties);
-        }
+        var nextBitmap = CanvasBitmap.CreateFromBytes(
+            _previewCanvasDevice,
+            pixels,
+            width,
+            height,
+            Windows.Graphics.DirectX.DirectXPixelFormat.B8G8R8A8UIntNormalized,
+            96,
+            CanvasAlphaMode.Ignore);
+        _cachedBitmapA?.Dispose();
+        _cachedBitmapA = nextBitmap;
 
+        RedrawPrimarySurfaceFromCachedBitmap(filter);
         surfaceStopwatch.Stop();
         return surfaceStopwatch.Elapsed;
+    }
+
+    private TimeSpan UpdateSecondaryPreviewDrawingSurface(byte[] pixels, int width, int height, PreviewDisplayFilter filter)
+    {
+        EnsurePreviewImageVisual();
+        if (_previewCanvasDevice is null || _previewGraphicsDevice is null || _previewImageBrushB is null)
+        {
+            return TimeSpan.Zero;
+        }
+
+        if (width <= 0 || height <= 0 || pixels.Length == 0)
+        {
+            _cachedBitmapB?.Dispose();
+            _cachedBitmapB = null;
+            ClearSecondaryPreviewDrawingSurface();
+            return TimeSpan.Zero;
+        }
+
+        var surfaceStopwatch = Stopwatch.StartNew();
+        var nextBitmap = CanvasBitmap.CreateFromBytes(
+            _previewCanvasDevice,
+            pixels,
+            width,
+            height,
+            Windows.Graphics.DirectX.DirectXPixelFormat.B8G8R8A8UIntNormalized,
+            96,
+            CanvasAlphaMode.Ignore);
+        _cachedBitmapB?.Dispose();
+        _cachedBitmapB = nextBitmap;
+
+        RedrawSecondarySurfaceFromCachedBitmap(filter);
+        surfaceStopwatch.Stop();
+        return surfaceStopwatch.Elapsed;
+    }
+
+    private void RedrawPrimarySurfaceFromCachedBitmap(PreviewDisplayFilter filter)
+    {
+        if (_cachedBitmapA is null || _previewGraphicsDevice is null || _previewImageBrush is null)
+        {
+            return;
+        }
+
+        var width = (int)_cachedBitmapA.SizeInPixels.Width;
+        var height = (int)_cachedBitmapA.SizeInPixels.Height;
+        EnsurePreviewDrawingSurface(width, height);
+        if (_previewDrawingSurface is null)
+        {
+            return;
+        }
+
+        using var drawingSession = CanvasComposition.CreateDrawingSession(_previewDrawingSurface);
+        PreviewDisplayFilters.Draw(drawingSession, _cachedBitmapA, filter, _lastFrameData?.Properties);
+    }
+
+    private void RedrawSecondarySurfaceFromCachedBitmap(PreviewDisplayFilter filter)
+    {
+        if (_cachedBitmapB is null || _previewGraphicsDevice is null || _previewImageBrushB is null)
+        {
+            return;
+        }
+
+        var width = (int)_cachedBitmapB.SizeInPixels.Width;
+        var height = (int)_cachedBitmapB.SizeInPixels.Height;
+        EnsureSecondaryPreviewDrawingSurface(width, height);
+        if (_previewDrawingSurfaceB is null)
+        {
+            return;
+        }
+
+        using var drawingSession = CanvasComposition.CreateDrawingSession(_previewDrawingSurfaceB);
+        PreviewDisplayFilters.Draw(drawingSession, _cachedBitmapB, filter, _secondaryLastFrameData?.Properties);
+    }
+
+    private TimeSpan RedrawDifferenceSurface()
+    {
+        EnsurePreviewImageVisual();
+        if (_cachedBitmapA is null
+            || _cachedBitmapB is null
+            || _previewGraphicsDevice is null
+            || _previewImageBrushDiff is null)
+        {
+            return TimeSpan.Zero;
+        }
+
+        var layout = PreviewCompareCoordinator.ComputeAlignedCanvasLayout(
+            (int)_cachedBitmapA.SizeInPixels.Width,
+            (int)_cachedBitmapA.SizeInPixels.Height,
+            (int)_cachedBitmapB.SizeInPixels.Width,
+            (int)_cachedBitmapB.SizeInPixels.Height,
+            ViewModel.SizeAlignment);
+        EnsureDifferencePreviewDrawingSurface(layout.CanvasWidth, layout.CanvasHeight);
+        if (_previewDrawingSurfaceDiff is null)
+        {
+            return TimeSpan.Zero;
+        }
+
+        var stopwatch = Stopwatch.StartNew();
+        using (var drawingSession = CanvasComposition.CreateDrawingSession(_previewDrawingSurfaceDiff))
+        {
+            PreviewDisplayFilters.DrawDifference(
+                drawingSession,
+                _cachedBitmapA,
+                _cachedBitmapB,
+                _previewFilter,
+                ViewModel.DifferenceGain,
+                ViewModel.SizeAlignment,
+                GetCanvasImageInterpolation(),
+                _lastFrameData?.Properties,
+                _secondaryLastFrameData?.Properties);
+        }
+
+        stopwatch.Stop();
+        return stopwatch.Elapsed;
+    }
+
+    private void UpdateCompareVisualPresentation()
+    {
+        if (_wipeLayerAContainerVisual is not null)
+        {
+            _wipeLayerAContainerVisual.IsVisible = !ViewModel.IsDifferenceMode;
+            _wipeLayerAContainerVisual.Clip = ViewModel.IsWipeMode ? _wipeVisualAClip : null;
+        }
+
+        if (_previewImageVisual is not null)
+        {
+            _previewImageVisual.IsVisible = !ViewModel.IsDifferenceMode;
+        }
+
+        if (_wipeLayerBContainerVisual is not null)
+        {
+            _wipeLayerBContainerVisual.IsVisible = ViewModel.IsWipeMode;
+        }
+
+        if (_previewImageVisualB is not null)
+        {
+            _previewImageVisualB.IsVisible = ViewModel.IsWipeMode;
+        }
+
+        if (_previewImageVisualDiff is not null)
+        {
+            _previewImageVisualDiff.IsVisible = ViewModel.IsDifferenceMode;
+        }
+    }
+
+    private void UpdateWipeClipAndOverlay()
+    {
+        var imageWidth = Math.Max(0, ViewModel.PreviewImageWidth);
+        var splitRatio = PreviewCompareCoordinator.ClampSplitRatio(ViewModel.SplitRatio);
+        var splitX = (float)Math.Clamp(splitRatio * imageWidth, 0.0, imageWidth);
+        if (_wipeVisualAClip is not null)
+        {
+            _wipeVisualAClip.RightInset = (float)Math.Clamp(imageWidth - splitX, 0.0, imageWidth);
+        }
+
+        if (_wipeVisualBClip is not null)
+        {
+            _wipeVisualBClip.LeftInset = splitX;
+        }
+
+        if (!ViewModel.IsWipeMode || imageWidth <= 0)
+        {
+            return;
+        }
+
+        var viewportWidth = PreviewScrollViewer.ViewportWidth > 0
+            ? PreviewScrollViewer.ViewportWidth
+            : PreviewViewportHost.ActualWidth;
+        var dividerX = PreviewCompareCoordinator.ComputeViewportDividerX(
+            splitRatio,
+            GetSinglePreviewImageLeftInViewport(),
+            PreviewScrollViewer.HorizontalOffset,
+            imageWidth);
+        var halfHandle = WipeDividerHandle.Width / 2.0;
+        var clampedX = viewportWidth > 0
+            ? Math.Clamp(dividerX, halfHandle, Math.Max(halfHandle, viewportWidth - halfHandle))
+            : dividerX;
+        var isOffscreen = viewportWidth > 0 && (dividerX < halfHandle || dividerX > viewportWidth - halfHandle);
+        WipeDividerTransform.X = clampedX - halfHandle;
+        WipeDividerHandle.Opacity = isOffscreen ? 0.55 : 1.0;
+    }
+
+    private void BuildCompareModeMenu()
+    {
+        CompareModeMenu.Items.Clear();
+        foreach (var mode in PreviewCompareModeCycle)
+        {
+            var item = new RadioMenuFlyoutItem
+            {
+                Text = ViewModel.Texts.VapourSynthPreviewCompareModeLabel(mode),
+                Tag = mode,
+                GroupName = nameof(CompareModeMenu)
+            };
+            item.Click += CompareModeMenuItem_Click;
+            CompareModeMenu.Items.Add(item);
+        }
+
+        UpdateCompareModeSelection();
+    }
+
+    private void UpdateCompareModeSelection()
+    {
+        var modeLabel = ViewModel.Texts.VapourSynthPreviewCompareModeLabel(ViewModel.CompareMode);
+        CompareModeButton.Content = ViewModel.CompareMode == PreviewCompareMode.Single
+            ? ViewModel.Texts.VapourSynthPreviewCompareHeader
+            : modeLabel;
+        Microsoft.UI.Xaml.Automation.AutomationProperties.SetItemStatus(CompareModeButton, modeLabel);
+        foreach (RadioMenuFlyoutItem item in CompareModeMenu.Items)
+        {
+            item.IsChecked = Equals(item.Tag, ViewModel.CompareMode);
+        }
+    }
+
+    private async void CompareModeMenuItem_Click(object sender, RoutedEventArgs e)
+    {
+        await RunWindowEventHandlerAsync(
+            nameof(CompareModeMenuItem_Click),
+            async () =>
+            {
+                await SetCompareModeAsync((PreviewCompareMode)((RadioMenuFlyoutItem)sender).Tag);
+                RequestPreviewFocus();
+            });
+    }
+
+    private async void CompareModeComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        await RunWindowEventHandlerAsync(
+            nameof(CompareModeComboBox_SelectionChanged),
+            async () =>
+            {
+                if (_isInternalControlUpdate
+                    || CompareModeComboBox.SelectedItem is not PreviewCompareModeOption option)
+                {
+                    return;
+                }
+
+                await SetCompareModeAsync(option.Mode);
+                RequestPreviewFocus();
+            });
+    }
+
+    private async void CompareOutputAComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        await RunWindowEventHandlerAsync(
+            nameof(CompareOutputAComboBox_SelectionChanged),
+            async () =>
+            {
+                if (_isInternalControlUpdate
+                    || CompareOutputAComboBox.SelectedItem is not VapourSynthPreviewOutputOption option)
+                {
+                    return;
+                }
+
+                await SelectOutputAsync(option.Info);
+            });
+    }
+
+    private async void CompareOutputBComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        await RunWindowEventHandlerAsync(
+            nameof(CompareOutputBComboBox_SelectionChanged),
+            async () =>
+            {
+                if (_isInternalControlUpdate
+                    || CompareOutputBComboBox.SelectedItem is not VapourSynthPreviewOutputOption option)
+                {
+                    return;
+                }
+
+                await SelectSecondaryOutputAsync(option.Info);
+            });
+    }
+
+    private async void SwapCompareOutputsButton_Click(object sender, RoutedEventArgs e)
+    {
+        await RunWindowEventHandlerAsync(
+            nameof(SwapCompareOutputsButton_Click),
+            async () =>
+            {
+                await SwapCompareOutputsAsync();
+                RequestPreviewFocus();
+            });
+    }
+
+    private void CenterWipeSplitButton_Click(object sender, RoutedEventArgs e)
+    {
+        CenterWipeSplitInViewport();
+        RequestPreviewFocus();
+    }
+
+    private void DifferenceGainComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (_isInternalControlUpdate
+            || DifferenceGainComboBox.SelectedItem is not PreviewDifferenceGainOption option)
+        {
+            return;
+        }
+
+        ViewModel.DifferenceGain = option.Gain;
+        if (ViewModel.IsDifferenceMode && _cachedBitmapA is not null && _cachedBitmapB is not null)
+        {
+            RedrawDifferenceSurface();
+        }
+    }
+
+    private void CompareSizeAlignmentComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (_isInternalControlUpdate
+            || CompareSizeAlignmentComboBox.SelectedItem is not PreviewCompareSizeAlignmentOption option)
+        {
+            return;
+        }
+
+        _hasManualSizeAlignmentOverride = true;
+        ViewModel.SizeAlignment = option.Alignment;
+        if (ViewModel.IsDifferenceMode && _cachedBitmapA is not null && _cachedBitmapB is not null)
+        {
+            RedrawDifferenceSurface();
+        }
+
+        UpdatePreviewImageVisualSize();
+        UpdateWipeClipAndOverlay();
+    }
+
+    private async Task SetCompareModeAsync(PreviewCompareMode targetMode)
+    {
+        var normalized = PreviewCompareCoordinator.NormalizeMode(targetMode, ViewModel.Outputs.Count);
+        if (ViewModel.CompareMode == normalized)
+        {
+            UpdateCompareModeSelection();
+            return;
+        }
+
+        ViewModel.CompareMode = normalized;
+        if (_selectedOutputInfo is not null && normalized != PreviewCompareMode.Single)
+        {
+            EnsureSecondaryOutputSelection(_selectedOutputInfo);
+        }
+
+        UpdateCompareModeSelection();
+        UpdateCompareVisualPresentation();
+        UpdatePreviewImageVisualSize();
+        UpdateWipeClipAndOverlay();
+        SyncControls();
+
+        if (_selectedOutputInfo is null)
+        {
+            return;
+        }
+
+        if (normalized == PreviewCompareMode.Single)
+        {
+            if (_lastFrameData is not null)
+            {
+                RefreshDisplayedFrame();
+                SyncControls();
+            }
+
+            return;
+        }
+
+        if (_secondaryOutputInfo is null)
+        {
+            return;
+        }
+
+        var expectedSecondaryFrame = PreviewCompareCoordinator.ResolveSecondaryFrameNumber(
+            _selectedOutputInfo,
+            _secondaryOutputInfo,
+            ViewModel.CurrentFrame,
+            ViewModel.SelectedOutputSyncMode?.Value,
+            ViewModel.IsTimelineTimeMode);
+
+        var hasMatchingCachedPair = _cachedBitmapA is not null
+            && _cachedBitmapB is not null
+            && _lastFrameData is not null
+            && _secondaryLastFrameData is not null
+            && _sourceFramePixels is not null
+            && _secondarySourceFramePixels is not null
+            && _lastFrameData.OutputIndex == _selectedOutputInfo.Index
+            && _lastFrameData.FrameNumber == ViewModel.CurrentFrame
+            && _secondaryLastFrameData.OutputIndex == _secondaryOutputInfo.Index
+            && _secondaryLastFrameData.FrameNumber == expectedSecondaryFrame;
+
+        if (hasMatchingCachedPair)
+        {
+            if (ViewModel.IsCropPanelVisible)
+            {
+                RefreshDisplayedFrame();
+                SyncControls();
+                return;
+            }
+
+            if (!_hasManualSizeAlignmentOverride)
+            {
+                ViewModel.SizeAlignment = PreviewCompareCoordinator.RecommendSizeAlignment(
+                    _displayedFrameWidth,
+                    _displayedFrameHeight,
+                    _secondaryDisplayedFrameWidth,
+                    _secondaryDisplayedFrameHeight);
+            }
+
+            ViewModel.UpdateFrame(
+                _selectedOutputInfo,
+                _lastFrameData!,
+                _displayedFrameWidth,
+                _displayedFrameHeight,
+                $"{_lastFrameData!.Width} x {_lastFrameData.Height}",
+                _secondaryOutputInfo,
+                _secondaryLastFrameData,
+                _secondaryDisplayedFrameWidth,
+                _secondaryDisplayedFrameHeight);
+            if (normalized == PreviewCompareMode.Difference)
+            {
+                RedrawDifferenceSurface();
+            }
+
+            UpdateCompareVisualPresentation();
+            UpdatePreviewImageVisualSize();
+            UpdateWipeClipAndOverlay();
+            SyncControls();
+            return;
+        }
+
+        await RequestFrameAsync(_selectedOutputInfo, ViewModel.CurrentFrame);
+    }
+
+    private async Task SelectSecondaryOutputAsync(VapourSynthPreviewOutputInfo secondaryOutput)
+    {
+        if (!ViewModel.CanCompareOutputs || _selectedOutputInfo is null)
+        {
+            return;
+        }
+
+        if (_secondaryOutputInfo?.Index != secondaryOutput.Index)
+        {
+            _hasManualSizeAlignmentOverride = false;
+        }
+
+        _secondaryOutputInfo = secondaryOutput;
+        ViewModel.SelectedSecondaryOutput = ViewModel.Outputs.FirstOrDefault(option => option.Info.Index == secondaryOutput.Index);
+        SyncControls();
+
+        if (ViewModel.IsCompareModeActive)
+        {
+            await RequestFrameAsync(_selectedOutputInfo, ViewModel.CurrentFrame);
+        }
+    }
+
+    private async Task SwapCompareOutputsAsync()
+    {
+        if (!ViewModel.IsCompareModeActive
+            || _selectedOutputInfo is null
+            || _secondaryOutputInfo is null
+            || _selectedOutputInfo.Index == _secondaryOutputInfo.Index)
+        {
+            return;
+        }
+
+        var previousA = _selectedOutputInfo;
+        var previousB = _secondaryOutputInfo;
+        _selectedOutputInfo = previousB;
+        _secondaryOutputInfo = previousA;
+
+        ViewModel.SelectedOutput = ViewModel.Outputs.FirstOrDefault(option => option.Info.Index == _selectedOutputInfo.Index);
+        ViewModel.SelectedSecondaryOutput = ViewModel.Outputs.FirstOrDefault(option => option.Info.Index == _secondaryOutputInfo.Index);
+        ViewModel.UpdateForOutput(_selectedOutputInfo);
+
+        if (_cachedBitmapA is not null
+            && _cachedBitmapB is not null
+            && _lastFrameData is not null
+            && _secondaryLastFrameData is not null
+            && _sourceFramePixels is not null
+            && _secondarySourceFramePixels is not null
+            && _displayedFramePixels is not null
+            && _secondaryDisplayedFramePixels is not null)
+        {
+            (_lastFrameData, _secondaryLastFrameData) = (_secondaryLastFrameData, _lastFrameData);
+            (_sourceFramePixels, _secondarySourceFramePixels) = (_secondarySourceFramePixels, _sourceFramePixels);
+            (_sourceFrameWidth, _secondarySourceFrameWidth) = (_secondarySourceFrameWidth, _sourceFrameWidth);
+            (_sourceFrameHeight, _secondarySourceFrameHeight) = (_secondarySourceFrameHeight, _sourceFrameHeight);
+
+            if (ViewModel.IsCropPanelVisible)
+            {
+                RefreshDisplayedFrame();
+                SyncControls();
+                QueueFrameStatusText(ViewModel.Texts.VapourSynthPreviewCompareReadyStatus(
+                    _selectedOutputInfo.Index,
+                    _lastFrameData.FrameNumber,
+                    _secondaryOutputInfo.Index,
+                    _secondaryLastFrameData.FrameNumber));
+                return;
+            }
+
+            (_displayedFramePixels, _secondaryDisplayedFramePixels) = (_secondaryDisplayedFramePixels, _displayedFramePixels);
+            (_displayedFrameWidth, _secondaryDisplayedFrameWidth) = (_secondaryDisplayedFrameWidth, _displayedFrameWidth);
+            (_displayedFrameHeight, _secondaryDisplayedFrameHeight) = (_secondaryDisplayedFrameHeight, _displayedFrameHeight);
+            (_cachedBitmapA, _cachedBitmapB) = (_cachedBitmapB, _cachedBitmapA);
+
+            ViewModel.UpdateFrame(
+                _selectedOutputInfo,
+                _lastFrameData,
+                _displayedFrameWidth,
+                _displayedFrameHeight,
+                $"{_lastFrameData.Width} x {_lastFrameData.Height}",
+                _secondaryOutputInfo,
+                _secondaryLastFrameData,
+                _secondaryDisplayedFrameWidth,
+                _secondaryDisplayedFrameHeight);
+
+            RedrawPrimarySurfaceFromCachedBitmap(_previewFilter);
+            RedrawSecondarySurfaceFromCachedBitmap(_previewFilter);
+            if (ViewModel.IsDifferenceMode)
+            {
+                RedrawDifferenceSurface();
+            }
+
+            UpdateCompareVisualPresentation();
+            UpdatePreviewImageVisualSize();
+            UpdateWipeClipAndOverlay();
+            SyncControls();
+            QueueFrameStatusText(ViewModel.Texts.VapourSynthPreviewCompareReadyStatus(
+                _selectedOutputInfo.Index,
+                _lastFrameData.FrameNumber,
+                _secondaryOutputInfo.Index,
+                _secondaryLastFrameData.FrameNumber));
+            return;
+        }
+
+        await RequestFrameAsync(_selectedOutputInfo, ViewModel.CurrentFrame);
     }
 
     private void BuildPreviewFilterMenu()
@@ -3372,12 +4666,36 @@ public sealed partial class VapourSynthPreviewWindow : Window
 
         try
         {
-            if (_displayedFramePixels is not null)
+            _previewFilter = filter;
+            if (_cachedBitmapA is not null)
+            {
+                RedrawPrimarySurfaceFromCachedBitmap(filter);
+            }
+            else if (_displayedFramePixels is not null)
             {
                 UpdatePreviewDrawingSurface(_displayedFramePixels, _displayedFrameWidth, _displayedFrameHeight, filter);
             }
 
-            _previewFilter = filter;
+            if (ViewModel.IsCompareModeActive)
+            {
+                if (_cachedBitmapB is not null)
+                {
+                    RedrawSecondarySurfaceFromCachedBitmap(filter);
+                }
+                else if (_secondaryDisplayedFramePixels is not null)
+                {
+                    UpdateSecondaryPreviewDrawingSurface(
+                        _secondaryDisplayedFramePixels,
+                        _secondaryDisplayedFrameWidth,
+                        _secondaryDisplayedFrameHeight,
+                        filter);
+                }
+
+                if (ViewModel.IsDifferenceMode && _cachedBitmapA is not null && _cachedBitmapB is not null)
+                {
+                    RedrawDifferenceSurface();
+                }
+            }
         }
         finally
         {
@@ -3399,7 +4717,7 @@ public sealed partial class VapourSynthPreviewWindow : Window
             return;
         }
 
-        ClearPreviewDrawingSurface();
+        ClearPrimaryPreviewDrawingSurface();
         _previewDrawingSurface = _previewGraphicsDevice.CreateDrawingSurface(
             new Size(Math.Max(1, width), Math.Max(1, height)),
             Microsoft.Graphics.DirectX.DirectXPixelFormat.B8G8R8A8UIntNormalized,
@@ -3409,7 +4727,62 @@ public sealed partial class VapourSynthPreviewWindow : Window
         _previewImageBrush.Surface = _previewDrawingSurface;
     }
 
+    private void EnsureSecondaryPreviewDrawingSurface(int width, int height)
+    {
+        if (_previewGraphicsDevice is null || _previewImageBrushB is null)
+        {
+            return;
+        }
+
+        if (_previewDrawingSurfaceB is not null
+            && _previewDrawingSurfaceWidthB == width
+            && _previewDrawingSurfaceHeightB == height)
+        {
+            return;
+        }
+
+        ClearSecondaryPreviewDrawingSurface();
+        _previewDrawingSurfaceB = _previewGraphicsDevice.CreateDrawingSurface(
+            new Size(Math.Max(1, width), Math.Max(1, height)),
+            Microsoft.Graphics.DirectX.DirectXPixelFormat.B8G8R8A8UIntNormalized,
+            Microsoft.Graphics.DirectX.DirectXAlphaMode.Ignore);
+        _previewDrawingSurfaceWidthB = width;
+        _previewDrawingSurfaceHeightB = height;
+        _previewImageBrushB.Surface = _previewDrawingSurfaceB;
+    }
+
+    private void EnsureDifferencePreviewDrawingSurface(int width, int height)
+    {
+        if (_previewGraphicsDevice is null || _previewImageBrushDiff is null)
+        {
+            return;
+        }
+
+        if (_previewDrawingSurfaceDiff is not null
+            && _previewDrawingSurfaceWidthDiff == width
+            && _previewDrawingSurfaceHeightDiff == height)
+        {
+            return;
+        }
+
+        ClearDifferencePreviewDrawingSurface();
+        _previewDrawingSurfaceDiff = _previewGraphicsDevice.CreateDrawingSurface(
+            new Size(Math.Max(1, width), Math.Max(1, height)),
+            Microsoft.Graphics.DirectX.DirectXPixelFormat.B8G8R8A8UIntNormalized,
+            Microsoft.Graphics.DirectX.DirectXAlphaMode.Ignore);
+        _previewDrawingSurfaceWidthDiff = width;
+        _previewDrawingSurfaceHeightDiff = height;
+        _previewImageBrushDiff.Surface = _previewDrawingSurfaceDiff;
+    }
+
     private void ClearPreviewDrawingSurface()
+    {
+        ClearPrimaryPreviewDrawingSurface();
+        ClearSecondaryPreviewDrawingSurface();
+        ClearDifferencePreviewDrawingSurface();
+    }
+
+    private void ClearPrimaryPreviewDrawingSurface()
     {
         var previousSurface = _previewDrawingSurface;
         if (_previewImageBrush is not null)
@@ -3423,16 +4796,131 @@ public sealed partial class VapourSynthPreviewWindow : Window
         previousSurface?.Dispose();
     }
 
-    private void UpdatePreviewImageVisualSize()
+    private void ClearSecondaryPreviewDrawingSurface()
     {
-        if (_previewImageVisual is null)
+        var previousSurface = _previewDrawingSurfaceB;
+        if (_previewImageBrushB is not null)
         {
-            return;
+            _previewImageBrushB.Surface = null;
         }
 
-        _previewImageVisual.Size = new Vector2(
-            (float)Math.Max(0, ViewModel.PreviewImageWidth),
-            (float)Math.Max(0, ViewModel.PreviewImageHeight));
+        _previewDrawingSurfaceB = null;
+        _previewDrawingSurfaceWidthB = 0;
+        _previewDrawingSurfaceHeightB = 0;
+        previousSurface?.Dispose();
+    }
+
+    private void ClearDifferencePreviewDrawingSurface()
+    {
+        var previousSurface = _previewDrawingSurfaceDiff;
+        if (_previewImageBrushDiff is not null)
+        {
+            _previewImageBrushDiff.Surface = null;
+        }
+
+        _previewDrawingSurfaceDiff = null;
+        _previewDrawingSurfaceWidthDiff = 0;
+        _previewDrawingSurfaceHeightDiff = 0;
+        previousSurface?.Dispose();
+    }
+
+    private void UpdatePreviewImageVisualSize()
+    {
+        var canvasDisplayWidth = Math.Max(0, ViewModel.PreviewImageWidth);
+        var canvasDisplayHeight = Math.Max(0, ViewModel.PreviewImageHeight);
+        var primarySize = new Vector2((float)canvasDisplayWidth, (float)canvasDisplayHeight);
+        var secondarySize = new Vector2(
+            (float)Math.Max(0, ViewModel.SecondaryPreviewImageWidth),
+            (float)Math.Max(0, ViewModel.SecondaryPreviewImageHeight));
+
+        if (_singlePreviewContainerVisual is not null)
+        {
+            _singlePreviewContainerVisual.Size = primarySize;
+        }
+
+        if (_wipeLayerAContainerVisual is not null)
+        {
+            _wipeLayerAContainerVisual.Size = primarySize;
+            _wipeLayerAContainerVisual.Offset = Vector3.Zero;
+        }
+
+        if (_wipeLayerBContainerVisual is not null)
+        {
+            _wipeLayerBContainerVisual.Size = primarySize;
+            _wipeLayerBContainerVisual.Offset = Vector3.Zero;
+        }
+
+        if (ViewModel.IsWipeMode
+            && _displayedFrameWidth > 0
+            && _displayedFrameHeight > 0
+            && _secondaryDisplayedFrameWidth > 0
+            && _secondaryDisplayedFrameHeight > 0
+            && canvasDisplayWidth > 0
+            && canvasDisplayHeight > 0)
+        {
+            var layout = PreviewCompareCoordinator.ComputeAlignedCanvasLayout(
+                _displayedFrameWidth,
+                _displayedFrameHeight,
+                _secondaryDisplayedFrameWidth,
+                _secondaryDisplayedFrameHeight,
+                ViewModel.SizeAlignment);
+            var scaleX = canvasDisplayWidth / Math.Max(1, layout.CanvasWidth);
+            var scaleY = canvasDisplayHeight / Math.Max(1, layout.CanvasHeight);
+
+            if (_previewImageVisual is not null)
+            {
+                _previewImageVisual.Size = new Vector2(
+                    (float)(layout.RectA.Width * scaleX),
+                    (float)(layout.RectA.Height * scaleY));
+                _previewImageVisual.Offset = new Vector3(
+                    (float)(layout.RectA.X * scaleX),
+                    (float)(layout.RectA.Y * scaleY),
+                    0f);
+            }
+
+            if (_previewImageVisualB is not null)
+            {
+                _previewImageVisualB.Size = new Vector2(
+                    (float)(layout.RectB.Width * scaleX),
+                    (float)(layout.RectB.Height * scaleY));
+                _previewImageVisualB.Offset = new Vector3(
+                    (float)(layout.RectB.X * scaleX),
+                    (float)(layout.RectB.Y * scaleY),
+                    0f);
+            }
+        }
+        else
+        {
+            if (_previewImageVisual is not null)
+            {
+                _previewImageVisual.Size = primarySize;
+                _previewImageVisual.Offset = Vector3.Zero;
+            }
+
+            if (_previewImageVisualB is not null)
+            {
+                _previewImageVisualB.Size = primarySize;
+                _previewImageVisualB.Offset = Vector3.Zero;
+            }
+        }
+
+        if (_previewImageVisualDiff is not null)
+        {
+            _previewImageVisualDiff.Size = primarySize;
+            _previewImageVisualDiff.Offset = Vector3.Zero;
+        }
+
+        if (_sideBySideVisualA is not null)
+        {
+            _sideBySideVisualA.Size = primarySize;
+            _sideBySideVisualA.Offset = Vector3.Zero;
+        }
+
+        if (_sideBySideVisualB is not null)
+        {
+            _sideBySideVisualB.Size = secondarySize;
+            _sideBySideVisualB.Offset = Vector3.Zero;
+        }
     }
 
     private async void RootLayout_KeyDown(object sender, KeyRoutedEventArgs e)
@@ -3480,13 +4968,52 @@ public sealed partial class VapourSynthPreviewWindow : Window
                     return;
                 }
 
+                if (e.Key == VirtualKey.C && !IsControlKeyPressed() && !IsKeyPressed(VirtualKey.Menu))
+                {
+                    if (ViewModel.CanCompareOutputs)
+                    {
+                        e.Handled = true;
+                        if (!e.KeyStatus.WasKeyDown)
+                        {
+                            var nextMode = PreviewCompareCoordinator.CycleMode(
+                                ViewModel.CompareMode,
+                                ViewModel.Outputs.Count,
+                                reverse: IsKeyPressed(VirtualKey.Shift));
+                            await SetCompareModeAsync(nextMode);
+                        }
+                    }
+
+                    return;
+                }
+
+                if (e.Key == VirtualKey.X && !IsControlKeyPressed() && !IsKeyPressed(VirtualKey.Menu))
+                {
+                    if (ViewModel.IsCompareModeActive)
+                    {
+                        e.Handled = true;
+                        if (!e.KeyStatus.WasKeyDown)
+                        {
+                            await SwapCompareOutputsAsync();
+                        }
+                    }
+
+                    return;
+                }
+
                 if (TryGetOutputIndexFromKey(e.Key, out var outputIndex))
                 {
                     var target = ViewModel.Outputs.FirstOrDefault(option => option.Info.Index == outputIndex);
                     if (target is not null)
                     {
                         e.Handled = true;
-                        await SelectOutputAsync(target.Info);
+                        if (ViewModel.IsCompareModeActive && IsKeyPressed(VirtualKey.Shift))
+                        {
+                            await SelectSecondaryOutputAsync(target.Info);
+                        }
+                        else
+                        {
+                            await SelectOutputAsync(target.Info);
+                        }
                     }
 
                     return;
@@ -3576,7 +5103,8 @@ public sealed partial class VapourSynthPreviewWindow : Window
             return false;
         }
 
-        if (PreviewImageHost.Focus(FocusState.Programmatic))
+        var host = ViewModel.IsSideBySideMode ? LeftCompareImageHost : PreviewImageHost;
+        if (host.Focus(FocusState.Programmatic))
         {
             return true;
         }
@@ -3617,7 +5145,29 @@ public sealed partial class VapourSynthPreviewWindow : Window
 
     private void SetPreviewScrollOffset(double? horizontalOffset, double? verticalOffset)
     {
-        PreviewScrollViewer.ChangeView(horizontalOffset, verticalOffset, null, true);
+        SetPreviewScrollOffset(
+            ViewModel.IsSideBySideMode ? LeftCompareScrollViewer : PreviewScrollViewer,
+            horizontalOffset,
+            verticalOffset);
+    }
+
+    private void SetPreviewScrollOffset(
+        ScrollViewer scrollViewer,
+        double? horizontalOffset,
+        double? verticalOffset)
+    {
+        scrollViewer.ChangeView(horizontalOffset, verticalOffset, null, true);
+        if (ViewModel.IsSideBySideMode)
+        {
+            var other = ReferenceEquals(scrollViewer, LeftCompareScrollViewer)
+                ? RightCompareScrollViewer
+                : LeftCompareScrollViewer;
+            SyncCompareScrollViewer(scrollViewer, other);
+        }
+        else if (ReferenceEquals(scrollViewer, PreviewScrollViewer))
+        {
+            UpdateWipeClipAndOverlay();
+        }
     }
 
     private static TControl? TryFindAncestor<TControl>(DependencyObject? source)
@@ -3884,7 +5434,10 @@ public sealed partial class VapourSynthPreviewWindow : Window
     private sealed record PreviewFrameRequest(
         long SessionRevision,
         VapourSynthPreviewOutputInfo OutputInfo,
-        int FrameNumber);
+        int FrameNumber,
+        PreviewCompareMode CompareMode,
+        VapourSynthPreviewOutputInfo? SecondaryOutputInfo,
+        int? SecondaryFrameNumber);
 
     private sealed record ChapterEntry(
         TimeSpan Timecode,

@@ -25,6 +25,8 @@ public sealed class VapourSynthPreviewWindowViewModel : ObservableObject
     private string _framePropsText;
     private double _previewImageWidth;
     private double _previewImageHeight;
+    private double _secondaryPreviewImageWidth;
+    private double _secondaryPreviewImageHeight;
     private int _currentFrame;
     private int _totalFrames;
     private int _stepSize;
@@ -40,9 +42,23 @@ public sealed class VapourSynthPreviewWindowViewModel : ObservableObject
     private double _timeStepSeconds;
     private int _sourceFrameWidth;
     private int _sourceFrameHeight;
+    private int _secondaryFrameWidth;
+    private int _secondaryFrameHeight;
     private string _snapshotTemplate;
     private string _scalingAlgorithm;
+    private PreviewCompareMode _compareMode = PreviewCompareMode.Single;
+    private PreviewDifferenceGain _differenceGain = PreviewDifferenceGain.Boost;
+    private PreviewCompareSizeAlignment _sizeAlignment = PreviewCompareSizeAlignment.Center1To1;
+    private double _splitRatio = 0.5;
+    private string _compareInfoText = string.Empty;
+    private string _compareOutputABadgeText = string.Empty;
+    private string _compareOutputBBadgeText = string.Empty;
+    private bool _hasCompareDimensionMismatch;
     private VapourSynthPreviewOutputOption? _selectedOutput;
+    private VapourSynthPreviewOutputOption? _selectedSecondaryOutput;
+    private PreviewCompareModeOption? _selectedCompareModeOption;
+    private PreviewDifferenceGainOption? _selectedDifferenceGainOption;
+    private PreviewCompareSizeAlignmentOption? _selectedSizeAlignmentOption;
     private StringChoiceOption? _selectedZoomMode;
     private StringChoiceOption? _selectedTimelineMode;
     private StringChoiceOption? _selectedCropMode;
@@ -85,6 +101,12 @@ public sealed class VapourSynthPreviewWindowViewModel : ObservableObject
     }
 
     public ObservableCollection<VapourSynthPreviewOutputOption> Outputs { get; }
+
+    public ObservableCollection<PreviewCompareModeOption> CompareModes { get; } = [];
+
+    public ObservableCollection<PreviewDifferenceGainOption> DifferenceGains { get; } = [];
+
+    public ObservableCollection<PreviewCompareSizeAlignmentOption> SizeAlignments { get; } = [];
 
     public ObservableCollection<StringChoiceOption> ZoomModes { get; }
 
@@ -180,6 +202,18 @@ public sealed class VapourSynthPreviewWindowViewModel : ObservableObject
     {
         get => _previewImageHeight;
         private set => SetProperty(ref _previewImageHeight, value);
+    }
+
+    public double SecondaryPreviewImageWidth
+    {
+        get => _secondaryPreviewImageWidth;
+        private set => SetProperty(ref _secondaryPreviewImageWidth, value);
+    }
+
+    public double SecondaryPreviewImageHeight
+    {
+        get => _secondaryPreviewImageHeight;
+        private set => SetProperty(ref _secondaryPreviewImageHeight, value);
     }
 
     public int CurrentFrame
@@ -294,8 +328,187 @@ public sealed class VapourSynthPreviewWindowViewModel : ObservableObject
     public VapourSynthPreviewOutputOption? SelectedOutput
     {
         get => _selectedOutput;
-        set => SetProperty(ref _selectedOutput, value);
+        set
+        {
+            if (SetProperty(ref _selectedOutput, value))
+            {
+                UpdateCompareBadges();
+            }
+        }
     }
+
+    public VapourSynthPreviewOutputOption? SelectedSecondaryOutput
+    {
+        get => _selectedSecondaryOutput;
+        set
+        {
+            if (SetProperty(ref _selectedSecondaryOutput, value))
+            {
+                UpdateCompareBadges();
+            }
+        }
+    }
+
+    public PreviewCompareMode CompareMode
+    {
+        get => _compareMode;
+        set
+        {
+            var normalized = PreviewCompareCoordinator.NormalizeMode(value, Outputs.Count);
+            if (SetProperty(ref _compareMode, normalized))
+            {
+                _selectedCompareModeOption = CompareModes.FirstOrDefault(option => option.Mode == normalized)
+                    ?? CompareModes.FirstOrDefault();
+                OnPropertyChanged(nameof(SelectedCompareModeOption));
+                RaiseCompareStatePropertyChanges();
+                RecomputeImageLayout();
+            }
+        }
+    }
+
+    public PreviewCompareModeOption? SelectedCompareModeOption
+    {
+        get => _selectedCompareModeOption;
+        set
+        {
+            if (value is null)
+            {
+                return;
+            }
+
+            CompareMode = value.Mode;
+        }
+    }
+
+    public PreviewDifferenceGain DifferenceGain
+    {
+        get => _differenceGain;
+        set
+        {
+            if (SetProperty(ref _differenceGain, value))
+            {
+                _selectedDifferenceGainOption = DifferenceGains.FirstOrDefault(option => option.Gain == value)
+                    ?? DifferenceGains.FirstOrDefault();
+                OnPropertyChanged(nameof(SelectedDifferenceGainOption));
+            }
+        }
+    }
+
+    public PreviewDifferenceGainOption? SelectedDifferenceGainOption
+    {
+        get => _selectedDifferenceGainOption;
+        set
+        {
+            if (value is null)
+            {
+                return;
+            }
+
+            DifferenceGain = value.Gain;
+        }
+    }
+
+    public PreviewCompareSizeAlignment SizeAlignment
+    {
+        get => _sizeAlignment;
+        set
+        {
+            if (SetProperty(ref _sizeAlignment, value))
+            {
+                _selectedSizeAlignmentOption = SizeAlignments.FirstOrDefault(option => option.Alignment == value)
+                    ?? SizeAlignments.FirstOrDefault();
+                OnPropertyChanged(nameof(SelectedSizeAlignmentOption));
+                RecomputeImageLayout();
+            }
+        }
+    }
+
+    public PreviewCompareSizeAlignmentOption? SelectedSizeAlignmentOption
+    {
+        get => _selectedSizeAlignmentOption;
+        set
+        {
+            if (value is null)
+            {
+                return;
+            }
+
+            SizeAlignment = value.Alignment;
+        }
+    }
+
+    public bool HasCompareDimensionMismatch
+    {
+        get => _hasCompareDimensionMismatch;
+        private set
+        {
+            if (SetProperty(ref _hasCompareDimensionMismatch, value))
+            {
+                OnPropertyChanged(nameof(SizeAlignmentVisibility));
+            }
+        }
+    }
+
+    public double SplitRatio
+    {
+        get => _splitRatio;
+        set
+        {
+            var clamped = PreviewCompareCoordinator.ClampSplitRatio(value);
+            if (SetProperty(ref _splitRatio, clamped))
+            {
+                OnPropertyChanged(nameof(SplitPercentageText));
+            }
+        }
+    }
+
+    public string SplitPercentageText => $"{Math.Round(_splitRatio * 100)}%";
+
+    public string CompareInfoText
+    {
+        get => _compareInfoText;
+        private set => SetProperty(ref _compareInfoText, value);
+    }
+
+    public string CompareOutputABadgeText
+    {
+        get => _compareOutputABadgeText;
+        private set => SetProperty(ref _compareOutputABadgeText, value);
+    }
+
+    public string CompareOutputBBadgeText
+    {
+        get => _compareOutputBBadgeText;
+        private set => SetProperty(ref _compareOutputBBadgeText, value);
+    }
+
+    public bool CanCompareOutputs => PreviewCompareCoordinator.CanCompare(Outputs.Count);
+
+    public bool IsCompareModeActive => CanCompareOutputs && _compareMode != PreviewCompareMode.Single;
+
+    public bool IsWipeMode => CanCompareOutputs && _compareMode == PreviewCompareMode.Wipe;
+
+    public bool IsSideBySideMode => CanCompareOutputs && _compareMode == PreviewCompareMode.SideBySide;
+
+    public bool IsDifferenceMode => CanCompareOutputs && _compareMode == PreviewCompareMode.Difference;
+
+    public Visibility CompareBarVisibility => IsCompareModeActive ? Visibility.Visible : Visibility.Collapsed;
+
+    public Visibility SingleViewportVisibility => IsSideBySideMode ? Visibility.Collapsed : Visibility.Visible;
+
+    public Visibility SideBySideViewportVisibility => IsSideBySideMode ? Visibility.Visible : Visibility.Collapsed;
+
+    public Visibility WipeOverlayVisibility => IsWipeMode ? Visibility.Visible : Visibility.Collapsed;
+
+    public Visibility DifferenceGainVisibility => IsDifferenceMode ? Visibility.Visible : Visibility.Collapsed;
+
+    public Visibility SizeAlignmentVisibility => (IsWipeMode || IsDifferenceMode) && HasCompareDimensionMismatch
+        ? Visibility.Visible
+        : Visibility.Collapsed;
+
+    public string CompareButtonTooltip => CanCompareOutputs
+        ? Texts.VapourSynthPreviewCompareHint
+        : Texts.VapourSynthPreviewCompareNeedsTwoOutputsHint;
 
     public StringChoiceOption? SelectedZoomMode
     {
@@ -401,6 +614,8 @@ public sealed class VapourSynthPreviewWindowViewModel : ObservableObject
         OnPropertyChanged(nameof(IsCustomZoomVisible));
         OnPropertyChanged(nameof(CustomZoomVisibility));
         OnPropertyChanged(nameof(IsAbsoluteCropMode));
+        RaiseCompareStatePropertyChanges();
+        UpdateCompareBadges();
         RebuildChapterLabels();
     }
 
@@ -408,6 +623,8 @@ public sealed class VapourSynthPreviewWindowViewModel : ObservableObject
 
     public void ResetForSession(string documentName, string statusText, IReadOnlyList<VapourSynthPreviewOutputInfo> outputs)
     {
+        var previousSecondaryIndex = SelectedSecondaryOutput?.Info.Index;
+
         WindowTitleDocumentName = string.IsNullOrWhiteSpace(documentName)
             ? Texts.VapourSynthWorkspaceTitle
             : documentName;
@@ -423,6 +640,23 @@ public sealed class VapourSynthPreviewWindowViewModel : ObservableObject
         }
 
         SelectedOutput = Outputs.FirstOrDefault();
+        var resolvedSecondaryIndex = SelectedOutput is null
+            ? null
+            : PreviewCompareCoordinator.ResolveSecondaryOutputIndex(
+                Outputs.Select(static item => item.Info).ToArray(),
+                SelectedOutput.Info.Index,
+                previousSecondaryIndex);
+        SelectedSecondaryOutput = resolvedSecondaryIndex is int secondaryIndex
+            ? Outputs.FirstOrDefault(option => option.Info.Index == secondaryIndex)
+            : null;
+        if (!CanCompareOutputs && _compareMode != PreviewCompareMode.Single)
+        {
+            _compareMode = PreviewCompareMode.Single;
+            _selectedCompareModeOption = CompareModes.FirstOrDefault(option => option.Mode == PreviewCompareMode.Single);
+            OnPropertyChanged(nameof(CompareMode));
+            OnPropertyChanged(nameof(SelectedCompareModeOption));
+        }
+
         CurrentFrame = 0;
         TotalFrames = SelectedOutput?.Info.TotalFrames ?? 0;
         FrameSliderMaximum = Math.Max(0, TotalFrames - 1);
@@ -434,8 +668,13 @@ public sealed class VapourSynthPreviewWindowViewModel : ObservableObject
         BitDepthText = "-";
         FpsText = "-";
         FrameTypeText = "-";
+        CompareInfoText = string.Empty;
         _sourceFrameWidth = 0;
         _sourceFrameHeight = 0;
+        _secondaryFrameWidth = 0;
+        _secondaryFrameHeight = 0;
+        RaiseCompareStatePropertyChanges();
+        UpdateCompareBadges();
         RecomputeImageLayout();
         RaiseTimelinePropertyChanges();
     }
@@ -469,20 +708,61 @@ public sealed class VapourSynthPreviewWindowViewModel : ObservableObject
         VapourSynthPreviewFrameData frameData,
         int displayWidth,
         int displayHeight,
-        string resolutionText)
+        string resolutionText,
+        VapourSynthPreviewOutputInfo? secondaryOutputInfo = null,
+        VapourSynthPreviewFrameData? secondaryFrameData = null,
+        int secondaryDisplayWidth = 0,
+        int secondaryDisplayHeight = 0)
     {
         CurrentFrame = frameData.FrameNumber;
         ApplyOutputMetadata(outputInfo, resolutionText);
         CurrentTimeText = FormatTimestamp(frameData.FrameNumber, outputInfo.FpsNumerator, outputInfo.FpsDenominator);
         FrameTypeText = string.IsNullOrWhiteSpace(frameData.FrameType) ? "-" : frameData.FrameType;
-        FramePropsText = frameData.Properties.Count == 0
-            ? Texts.VapourSynthPreviewFramePropsEmpty
-            : string.Join(Environment.NewLine, frameData.Properties.Select(static property => $"{property.Key} = {property.Value}"));
+
+        if (IsCompareModeActive && secondaryOutputInfo is not null && secondaryFrameData is not null)
+        {
+            var propsA = FormatFrameProperties(frameData.Properties);
+            var propsB = FormatFrameProperties(secondaryFrameData.Properties);
+            FramePropsText = string.Join(
+                Environment.NewLine,
+                Texts.VapourSynthPreviewComparePropsSectionHeader("A", outputInfo.Index, frameData.FrameNumber),
+                propsA,
+                string.Empty,
+                Texts.VapourSynthPreviewComparePropsSectionHeader("B", secondaryOutputInfo.Index, secondaryFrameData.FrameNumber),
+                propsB);
+
+            var frameHint = Texts.VapourSynthPreviewCompareSecondaryFrameHint(secondaryOutputInfo.Index, secondaryFrameData.FrameNumber);
+            var secondaryDisplayW = secondaryDisplayWidth > 0 ? secondaryDisplayWidth : secondaryFrameData.Width;
+            var secondaryDisplayH = secondaryDisplayHeight > 0 ? secondaryDisplayHeight : secondaryFrameData.Height;
+            HasCompareDimensionMismatch = displayWidth != secondaryDisplayW || displayHeight != secondaryDisplayH;
+            CompareInfoText = !HasCompareDimensionMismatch
+                ? frameHint
+                : $"{frameHint} · {Texts.VapourSynthPreviewCompareDimensionMismatchHint(displayWidth, displayHeight, secondaryDisplayW, secondaryDisplayH)}";
+
+            _secondaryFrameWidth = secondaryDisplayW;
+            _secondaryFrameHeight = secondaryDisplayH;
+        }
+        else
+        {
+            FramePropsText = FormatFrameProperties(frameData.Properties);
+            HasCompareDimensionMismatch = false;
+            CompareInfoText = string.Empty;
+            _secondaryFrameWidth = 0;
+            _secondaryFrameHeight = 0;
+        }
 
         _sourceFrameWidth = displayWidth;
         _sourceFrameHeight = displayHeight;
+        UpdateCompareBadges(frameData.FrameNumber, secondaryFrameData?.FrameNumber);
         RecomputeImageLayout();
         RaiseTimelinePropertyChanges();
+    }
+
+    private string FormatFrameProperties(IReadOnlyList<VapourSynthPreviewFrameProperty> properties)
+    {
+        return properties.Count == 0
+            ? Texts.VapourSynthPreviewFramePropsEmpty
+            : string.Join(Environment.NewLine, properties.Select(static property => $"{property.Key} = {property.Value}"));
     }
 
     private void ApplyOutputMetadata(VapourSynthPreviewOutputInfo outputInfo, string resolutionText)
@@ -567,6 +847,85 @@ public sealed class VapourSynthPreviewWindowViewModel : ObservableObject
         ScalingAlgorithmModes.Add(new StringChoiceOption("nearest", Texts.VapourSynthPreviewScalingAlgorithmNearest));
         ScalingAlgorithmModes.Add(new StringChoiceOption("bilinear", Texts.VapourSynthPreviewScalingAlgorithmBilinear));
         SelectedScalingAlgorithmMode = ScalingAlgorithmModes.FirstOrDefault(option => option.Value == previousScalingAlgoValue) ?? ScalingAlgorithmModes[0];
+
+        CompareModes.Clear();
+        CompareModes.Add(new PreviewCompareModeOption(PreviewCompareMode.Single, Texts.VapourSynthPreviewCompareModeLabel(PreviewCompareMode.Single)));
+        CompareModes.Add(new PreviewCompareModeOption(PreviewCompareMode.Wipe, Texts.VapourSynthPreviewCompareModeLabel(PreviewCompareMode.Wipe)));
+        CompareModes.Add(new PreviewCompareModeOption(PreviewCompareMode.SideBySide, Texts.VapourSynthPreviewCompareModeLabel(PreviewCompareMode.SideBySide)));
+        CompareModes.Add(new PreviewCompareModeOption(PreviewCompareMode.Difference, Texts.VapourSynthPreviewCompareModeLabel(PreviewCompareMode.Difference)));
+        _selectedCompareModeOption = CompareModes.FirstOrDefault(option => option.Mode == _compareMode) ?? CompareModes[0];
+        OnPropertyChanged(nameof(SelectedCompareModeOption));
+
+        DifferenceGains.Clear();
+        DifferenceGains.Add(new PreviewDifferenceGainOption(PreviewDifferenceGain.X1, Texts.VapourSynthPreviewCompareDiffGainLabel(PreviewDifferenceGain.X1)));
+        DifferenceGains.Add(new PreviewDifferenceGainOption(PreviewDifferenceGain.X4, Texts.VapourSynthPreviewCompareDiffGainLabel(PreviewDifferenceGain.X4)));
+        DifferenceGains.Add(new PreviewDifferenceGainOption(PreviewDifferenceGain.X16, Texts.VapourSynthPreviewCompareDiffGainLabel(PreviewDifferenceGain.X16)));
+        DifferenceGains.Add(new PreviewDifferenceGainOption(PreviewDifferenceGain.Boost, Texts.VapourSynthPreviewCompareDiffGainLabel(PreviewDifferenceGain.Boost)));
+        _selectedDifferenceGainOption = DifferenceGains.FirstOrDefault(option => option.Gain == _differenceGain) ?? DifferenceGains[0];
+        OnPropertyChanged(nameof(SelectedDifferenceGainOption));
+
+        SizeAlignments.Clear();
+        SizeAlignments.Add(new PreviewCompareSizeAlignmentOption(PreviewCompareSizeAlignment.Center1To1, Texts.VapourSynthPreviewCompareSizeAlignmentLabel(PreviewCompareSizeAlignment.Center1To1)));
+        SizeAlignments.Add(new PreviewCompareSizeAlignmentOption(PreviewCompareSizeAlignment.UniformFit, Texts.VapourSynthPreviewCompareSizeAlignmentLabel(PreviewCompareSizeAlignment.UniformFit)));
+        _selectedSizeAlignmentOption = SizeAlignments.FirstOrDefault(option => option.Alignment == _sizeAlignment) ?? SizeAlignments[0];
+        OnPropertyChanged(nameof(SelectedSizeAlignmentOption));
+
+        for (var i = 0; i < Outputs.Count; i++)
+        {
+            var info = Outputs[i].Info;
+            Outputs[i] = new VapourSynthPreviewOutputOption(info, Texts.VapourSynthPreviewOutputLabel(info.Index, info.Name));
+        }
+
+        if (_selectedOutput is not null)
+        {
+            _selectedOutput = Outputs.FirstOrDefault(option => option.Info.Index == _selectedOutput.Info.Index);
+            OnPropertyChanged(nameof(SelectedOutput));
+        }
+
+        if (_selectedSecondaryOutput is not null)
+        {
+            _selectedSecondaryOutput = Outputs.FirstOrDefault(option => option.Info.Index == _selectedSecondaryOutput.Info.Index);
+            OnPropertyChanged(nameof(SelectedSecondaryOutput));
+        }
+    }
+
+    private void RaiseCompareStatePropertyChanges()
+    {
+        OnPropertyChanged(nameof(CanCompareOutputs));
+        OnPropertyChanged(nameof(IsCompareModeActive));
+        OnPropertyChanged(nameof(IsWipeMode));
+        OnPropertyChanged(nameof(IsSideBySideMode));
+        OnPropertyChanged(nameof(IsDifferenceMode));
+        OnPropertyChanged(nameof(CompareBarVisibility));
+        OnPropertyChanged(nameof(SingleViewportVisibility));
+        OnPropertyChanged(nameof(SideBySideViewportVisibility));
+        OnPropertyChanged(nameof(WipeOverlayVisibility));
+        OnPropertyChanged(nameof(DifferenceGainVisibility));
+        OnPropertyChanged(nameof(SizeAlignmentVisibility));
+        OnPropertyChanged(nameof(CompareButtonTooltip));
+    }
+
+    private void UpdateCompareBadges(int? primaryFrame = null, int? secondaryFrame = null)
+    {
+        if (_selectedOutput is not null)
+        {
+            var frameSuffix = primaryFrame.HasValue ? $" · #{primaryFrame.Value}" : string.Empty;
+            CompareOutputABadgeText = $"A · {_selectedOutput.Label}{frameSuffix}";
+        }
+        else
+        {
+            CompareOutputABadgeText = "A";
+        }
+
+        if (_selectedSecondaryOutput is not null)
+        {
+            var frameSuffix = secondaryFrame.HasValue ? $" · #{secondaryFrame.Value}" : string.Empty;
+            CompareOutputBBadgeText = $"B · {_selectedSecondaryOutput.Label}{frameSuffix}";
+        }
+        else
+        {
+            CompareOutputBBadgeText = "B";
+        }
     }
 
     private string FormatTimestamp(int frameNumber, int fpsNumerator, int fpsDenominator)
@@ -610,11 +969,26 @@ public sealed class VapourSynthPreviewWindowViewModel : ObservableObject
         {
             PreviewImageWidth = 0;
             PreviewImageHeight = 0;
+            SecondaryPreviewImageWidth = 0;
+            SecondaryPreviewImageHeight = 0;
             return;
         }
 
+        var useAlignedCanvas = (IsWipeMode || IsDifferenceMode)
+            && _secondaryFrameWidth > 0
+            && _secondaryFrameHeight > 0;
+        var primaryCanvasWidth = useAlignedCanvas
+            ? Math.Max(_sourceFrameWidth, _secondaryFrameWidth)
+            : _sourceFrameWidth;
+        var primaryCanvasHeight = useAlignedCanvas
+            ? Math.Max(_sourceFrameHeight, _secondaryFrameHeight)
+            : _sourceFrameHeight;
+
         var mode = _selectedZoomMode?.Value ?? "actual";
         var displayScale = _displayScale > 0 ? _displayScale : 1.0;
+        var effectiveViewportWidth = PreviewCompareCoordinator.ComputeEffectiveViewportWidth(
+            _viewportWidth,
+            IsSideBySideMode ? PreviewCompareMode.SideBySide : PreviewCompareMode.Single);
         double ratio;
         if (string.Equals(mode, "actual", StringComparison.OrdinalIgnoreCase))
         {
@@ -626,14 +1000,14 @@ public sealed class VapourSynthPreviewWindowViewModel : ObservableObject
         }
         else
         {
-            if (_viewportWidth <= 1 || _viewportHeight <= 1)
+            if (effectiveViewportWidth <= 1 || _viewportHeight <= 1)
             {
                 ratio = 1.0 / displayScale;
             }
             else
             {
-                var scaleX = _viewportWidth / _sourceFrameWidth;
-                var scaleY = _viewportHeight / _sourceFrameHeight;
+                var scaleX = effectiveViewportWidth / primaryCanvasWidth;
+                var scaleY = _viewportHeight / primaryCanvasHeight;
                 ratio = Math.Min(scaleX, scaleY);
             }
         }
@@ -648,8 +1022,37 @@ public sealed class VapourSynthPreviewWindowViewModel : ObservableObject
             ratio = 1.0 / displayScale;
         }
 
-        PreviewImageWidth = Math.Max(1, Math.Round(_sourceFrameWidth * ratio));
-        PreviewImageHeight = Math.Max(1, Math.Round(_sourceFrameHeight * ratio));
+        PreviewImageWidth = Math.Max(1, Math.Round(primaryCanvasWidth * ratio));
+        PreviewImageHeight = Math.Max(1, Math.Round(primaryCanvasHeight * ratio));
+
+        if (IsSideBySideMode && _secondaryFrameWidth > 0 && _secondaryFrameHeight > 0)
+        {
+            double secondaryRatio;
+            if (string.Equals(mode, "fit", StringComparison.OrdinalIgnoreCase)
+                && effectiveViewportWidth > 1
+                && _viewportHeight > 1)
+            {
+                var scaleX = effectiveViewportWidth / _secondaryFrameWidth;
+                var scaleY = _viewportHeight / _secondaryFrameHeight;
+                secondaryRatio = Math.Min(scaleX, scaleY);
+                if (_isCropPanelVisible)
+                {
+                    secondaryRatio *= _cropZoomPercentage / 100.0;
+                }
+            }
+            else
+            {
+                secondaryRatio = ratio;
+            }
+
+            SecondaryPreviewImageWidth = Math.Max(1, Math.Round(_secondaryFrameWidth * secondaryRatio));
+            SecondaryPreviewImageHeight = Math.Max(1, Math.Round(_secondaryFrameHeight * secondaryRatio));
+        }
+        else
+        {
+            SecondaryPreviewImageWidth = PreviewImageWidth;
+            SecondaryPreviewImageHeight = PreviewImageHeight;
+        }
     }
 
     private void RebuildChapterLabels()
@@ -676,6 +1079,18 @@ public sealed class VapourSynthPreviewWindowViewModel : ObservableObject
 
 public sealed record VapourSynthPreviewOutputOption(
     VapourSynthPreviewOutputInfo Info,
+    string Label);
+
+public sealed record PreviewCompareModeOption(
+    PreviewCompareMode Mode,
+    string Label);
+
+public sealed record PreviewDifferenceGainOption(
+    PreviewDifferenceGain Gain,
+    string Label);
+
+public sealed record PreviewCompareSizeAlignmentOption(
+    PreviewCompareSizeAlignment Alignment,
     string Label);
 
 public sealed record VapourSynthPreviewChapterOption(
