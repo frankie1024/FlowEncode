@@ -930,8 +930,15 @@ public sealed partial class VapourSynthWorkspaceView : UserControl, IDisposable
         }
 
         var previewWindow = _previewWindow;
-        DetachPreviewWindow(previewWindow);
-        await previewWindow.CloseForOwnerShutdownAsync();
+        previewWindow.PreviewWindowClosed -= PreviewWindow_PreviewWindowClosed;
+        try
+        {
+            await previewWindow.CloseForOwnerShutdownAsync();
+        }
+        finally
+        {
+            DetachPreviewWindow(previewWindow);
+        }
     }
 
     private VapourSynthPreviewWindow GetOrCreatePreviewWindow()

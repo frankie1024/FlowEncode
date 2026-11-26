@@ -12,6 +12,7 @@ public sealed class TaskCoordinator
     private readonly IAppSettingsService _settings;
     private readonly ITaskHistoryStore? _history;
     private int _running;
+    private bool _idleActionRunning;
     public event EventHandler? Changed;
 
     public TaskCoordinator(IAppSettingsService settings, ITaskHistoryStore? history = null)
@@ -35,6 +36,26 @@ public sealed class TaskCoordinator
     public TaskSnapshot Get(Guid id) { lock (_gate) return Find(id).Snapshot; }
     public TaskWorkload GetRequest(Guid id) { lock (_gate) return Clone(Find(id).Workload); }
 
+    public async Task<bool> TryRunWhenIdleAsync(Func<Task> action)
+    {
+        lock (_gate)
+        {
+            if (_idleActionRunning || _entries.Values.Any(entry => IsActive(entry.Snapshot.State)))
+                return false;
+            _idleActionRunning = true;
+        }
+
+        try
+        {
+            await action().ConfigureAwait(false);
+            return true;
+        }
+        finally
+        {
+            lock (_gate) _idleActionRunning = false;
+        }
+    }
+
     public TaskSubmission? FindSubmission(string key, Guid? expectedPlanId = null)
     {
         lock (_gate)
@@ -47,7 +68,8 @@ public sealed class TaskCoordinator
         }
     }
 
-    public TaskSubmission Reserve(TaskWorkload workload, TaskOrigin origin = TaskOrigin.Manual, Guid? planId = null, string? key = null, Guid? retryOfTaskId = null)
+    public TaskSubmission Reserve(TaskWorkload workload, TaskOrigin origin = TaskOrigin.Manual, Guid? planId = null, string? key = null,
+        Guid? retryOfTaskId = null, Func<CancellationToken, Task>? preflight = null)
     {
         workload.Validate();
         TaskSubmission receipt;
@@ -60,10 +82,12 @@ public sealed class TaskCoordinator
                 if (Serialize(prior.Workload) != Serialize(workload)) throw new InvalidOperationException("The task ID is already bound to another request.");
                 return new(workload.TaskId, prior.Snapshot.PlanId, true);
             }
+            if (_idleActionRunning)
+                throw new InvalidOperationException("The queue completion action is in progress. Try again after it finishes.");
             EnsureOutputAvailable(workload);
             var snapshot = new TaskSnapshot(workload.TaskId, workload.Kind, origin, planId, EncodingJobState.Queued,
                 DateTimeOffset.UtcNow, null, null, workload.SourcePath, workload.OutputPath, null, "Queued", "queued", "", [], RetryOfTaskId: retryOfTaskId);
-            created = new(Clone(workload), snapshot, key);
+            created = new(Clone(workload), snapshot, key) { Preflight = preflight };
             // Save the acceptance receipt before exposing it to a caller.
             _history?.Save(new(snapshot, created.Workload, key));
             _entries.Add(workload.TaskId, created);
@@ -108,6 +132,8 @@ public sealed class TaskCoordinator
             if (entry.Snapshot.State == EncodingJobState.Queued)
             {
                 entry.Snapshot = entry.Snapshot with { State = EncodingJobState.Cancelled, FinishedAt = DateTimeOffset.UtcNow, Summary = "Cancelled before execution", Stage = "cancelled" };
+                entry.Preflight = null;
+                entry.Work = null;
                 entry.Completion.TrySetCanceled();
             }
             else entry.Snapshot = entry.Snapshot with { Summary = "Cancelling; waiting for the process tree to exit" };
@@ -120,16 +146,6 @@ public sealed class TaskCoordinator
     }
 
     public void RefreshConcurrency() => Pump();
-    public void SetPreflight(Guid id, Func<CancellationToken, Task> preflight)
-    {
-        lock (_gate)
-        {
-            var entry = Find(id);
-            if (entry.Work is not null || entry.Snapshot.State != EncodingJobState.Queued) throw new InvalidOperationException("This task has already started.");
-            entry.Preflight = preflight;
-        }
-    }
-
     private void Pump()
     {
         List<Entry> start = [];
@@ -175,6 +191,8 @@ public sealed class TaskCoordinator
                 Summary = outcome.Summary, Stage = outcome.State.ToString(), ProgressFraction = outcome.State == EncodingJobState.Completed ? 1 : entry.Snapshot.ProgressFraction,
                 Log = Tail(outcome.Log), Artifacts = outcome.Artifacts.ToArray(), Error = outcome.State == EncodingJobState.Failed ? outcome.Summary : null,
                 AudioTelemetry = outcome.AudioTelemetry };
+            entry.Preflight = null;
+            entry.Work = null;
             _running--;
             Persist(entry);
         }
@@ -210,7 +228,9 @@ public sealed class TaskCoordinator
                 || request.OutputIsDirectory && IsChild(other, output) || entry.Workload.OutputIsDirectory && IsChild(output, other))
                 throw new InvalidOperationException("Another task already owns this output: " + entry.Snapshot.TaskId);
         }
-        if (request.ProducesMedia && !request.OverwriteOutput && (File.Exists(output) || request.OutputIsDirectory && Directory.Exists(output) && Directory.EnumerateFileSystemEntries(output).Any()))
+        if (request.OutputIsDirectory ? File.Exists(output) : Directory.Exists(output))
+            throw new IOException("The output path is occupied. Choose another output path.");
+        if (request.ProducesMedia && !request.OverwriteOutput && !request.OutputIsDirectory && File.Exists(output))
             throw new IOException("The output already exists. Choose another output or explicitly enable overwrite.");
     }
 
@@ -218,10 +238,7 @@ public sealed class TaskCoordinator
     {
         if (request.Kind == TaskKind.BluRay)
         {
-            if (!Directory.Exists(request.SourcePath))
-                throw new DirectoryNotFoundException($"Source directory not found / 未找到输入目录：{request.SourcePath}");
-            if (!File.Exists(request.BluRay!.Playlist.SourcePath))
-                throw new FileNotFoundException("Blu-ray playlist not found / 未找到蓝光播放列表。", request.BluRay.Playlist.SourcePath);
+            BluRayDemuxSourceSupport.ValidateExecutionSource(request.BluRay!);
         }
         else if (!File.Exists(request.SourcePath))
             throw new FileNotFoundException($"Source file not found / 未找到输入文件：{request.SourcePath}", request.SourcePath);

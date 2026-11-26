@@ -7,6 +7,7 @@ using System.IO;
 using System.Linq;
 using System.Numerics;
 using System.Text.RegularExpressions;
+using System.Threading;
 using System.Threading.Tasks;
 using System.Xml.Linq;
 using FlowEncode.Application;
@@ -45,6 +46,8 @@ public sealed partial class VapourSynthPreviewWindow : Window
     private readonly PreviewFrameComposer _frameComposer = new();
     private readonly PreviewRenderDiagnostics _renderDiagnostics;
     private readonly IVapourSynthPreviewService _previewService;
+    private readonly CancellationTokenSource _previewLifetime = new();
+    private readonly CancellationToken _previewLifetimeToken;
     private readonly PointerEventHandler _frameSliderPointerPressedHandler;
     private readonly PointerEventHandler _frameSliderPointerReleasedHandler;
     private readonly PointerEventHandler _frameSliderPointerCanceledHandler;
@@ -134,6 +137,7 @@ public sealed partial class VapourSynthPreviewWindow : Window
         ViewModel = viewModel;
         _appPaths = App.GetService<LocalAppPaths>();
         _previewService = previewService;
+        _previewLifetimeToken = _previewLifetime.Token;
         _frameRequestScheduler = new LatestRequestScheduler<PreviewFrameRequest>(ExecuteScheduledFrameRequestAsync);
         _renderDiagnostics = new PreviewRenderDiagnostics(_appPaths);
         InitializeComponent();
@@ -177,6 +181,11 @@ public sealed partial class VapourSynthPreviewWindow : Window
         AppLanguage language,
         AppThemePreference themePreference)
     {
+        if (_previewLifetimeToken.IsCancellationRequested)
+        {
+            return false;
+        }
+
         var shouldResetChapters = _currentRequest is not null
             && !IsSamePreviewTarget(_currentRequest, request);
         _currentRequest = request;
@@ -188,6 +197,11 @@ public sealed partial class VapourSynthPreviewWindow : Window
 
         ApplyPresentation(language, themePreference);
         var loaded = await LoadSessionAsync(preserveCurrentFrame: true);
+        if (_previewLifetimeToken.IsCancellationRequested)
+        {
+            return false;
+        }
+
         if (!loaded)
         {
             if (_hasEverActivated && !_isClosed)
@@ -235,13 +249,17 @@ public sealed partial class VapourSynthPreviewWindow : Window
 
     public async Task CloseForOwnerShutdownAsync()
     {
-        if (_isClosed)
+        if (!_isClosed)
         {
-            return;
+            StopPlayback();
+            _frameRequestScheduler.ClearPending();
         }
 
         await ClosePreviewSessionIfNeededAsync();
-        Close();
+        if (!_isClosed)
+        {
+            Close();
+        }
     }
 
     public void ApplyPresentation(
@@ -259,7 +277,7 @@ public sealed partial class VapourSynthPreviewWindow : Window
 
     private async Task<bool> LoadSessionAsync(bool preserveCurrentFrame)
     {
-        if (_currentRequest is null)
+        if (_currentRequest is null || _previewLifetimeToken.IsCancellationRequested)
         {
             return false;
         }
@@ -281,7 +299,8 @@ public sealed partial class VapourSynthPreviewWindow : Window
 
         try
         {
-            _currentSession = await _previewService.OpenSessionAsync(_currentRequest);
+            _currentSession = await _previewService.OpenSessionAsync(_currentRequest, _previewLifetimeToken);
+            _previewLifetimeToken.ThrowIfCancellationRequested();
             ViewModel.ResetForSession(
                 _currentRequest.DisplayName,
                 ViewModel.Texts.VapourSynthPreviewSessionReadyStatus,
@@ -294,6 +313,10 @@ public sealed partial class VapourSynthPreviewWindow : Window
             UpdateCompareModeSelection();
             await SelectOutputAsync(output, previousFrame, useExplicitFrame: true);
             return true;
+        }
+        catch (OperationCanceledException) when (_previewLifetimeToken.IsCancellationRequested)
+        {
+            return false;
         }
         catch (Exception ex)
         {
@@ -380,7 +403,7 @@ public sealed partial class VapourSynthPreviewWindow : Window
         int frameNumber,
         bool preservePendingNavigationFrame = false)
     {
-        if (_isClosed)
+        if (_previewLifetimeToken.IsCancellationRequested)
         {
             return Task.CompletedTask;
         }
@@ -454,7 +477,8 @@ public sealed partial class VapourSynthPreviewWindow : Window
                 frameData = await _previewService.RenderFrameAsync(
                     request.OutputInfo.Index,
                     request.FrameNumber,
-                    ConsumeReusableSourcePixels());
+                    ConsumeReusableSourcePixels(),
+                    _previewLifetimeToken);
                 helperRenderElapsed += frameData.HelperRenderElapsed;
                 transportReadElapsed += frameData.TransportReadElapsed;
                 loadedSourcePixels = frameData.Pixels;
@@ -495,7 +519,8 @@ public sealed partial class VapourSynthPreviewWindow : Window
                     secondaryFrameData = await _previewService.RenderFrameAsync(
                         secondaryOutput.Index,
                         secondaryFrameNumber,
-                        ConsumeReusableSecondarySourcePixels());
+                        ConsumeReusableSecondarySourcePixels(),
+                        _previewLifetimeToken);
                     helperRenderElapsed += secondaryFrameData.HelperRenderElapsed;
                     transportReadElapsed += secondaryFrameData.TransportReadElapsed;
                     loadedSecondarySourcePixels = secondaryFrameData.Pixels;
@@ -580,6 +605,9 @@ public sealed partial class VapourSynthPreviewWindow : Window
                         secondaryFrameData.FrameNumber)
                     : ViewModel.Texts.VapourSynthPreviewReadyStatus(request.OutputInfo.Index, request.FrameNumber));
             SyncControls();
+        }
+        catch (OperationCanceledException) when (_previewLifetimeToken.IsCancellationRequested)
+        {
         }
         catch (Exception ex)
         {
@@ -819,7 +847,7 @@ public sealed partial class VapourSynthPreviewWindow : Window
         PreviewFrameRequest request,
         LatestRequestScheduler<PreviewFrameRequest>.ScheduledRequest scheduledRequest)
     {
-        return !_isClosed
+        return !_previewLifetimeToken.IsCancellationRequested
             && scheduledRequest.MatchesLatestRequest
             && _selectedOutputInfo is { } selectedOutput
             && selectedOutput.Index == request.OutputInfo.Index
@@ -2106,10 +2134,20 @@ public sealed partial class VapourSynthPreviewWindow : Window
             });
     }
 
-    private Task ClosePreviewSessionIfNeededAsync()
+    private Task ClosePreviewSessionIfNeededAsync() =>
+        _closePreviewSessionTask ??= ClosePreviewSessionAsync();
+
+    private async Task ClosePreviewSessionAsync()
     {
-        _closePreviewSessionTask ??= _previewService.CloseSessionAsync();
-        return _closePreviewSessionTask;
+        try
+        {
+            _previewLifetime.Cancel();
+            await _previewService.CloseSessionAsync();
+        }
+        finally
+        {
+            _previewLifetime.Dispose();
+        }
     }
 
     private void ViewModel_PropertyChanged(object? sender, PropertyChangedEventArgs e)
@@ -2787,7 +2825,8 @@ public sealed partial class VapourSynthPreviewWindow : Window
         VapourSynthPreviewOutputInfo outputInfo,
         int frameNumber)
     {
-        var frameData = await _previewService.RenderFrameAsync(outputInfo.Index, frameNumber);
+        var frameData = await _previewService.RenderFrameAsync(outputInfo.Index, frameNumber, cancellationToken: _previewLifetimeToken);
+        _previewLifetimeToken.ThrowIfCancellationRequested();
         var sourcePixels = frameData.Pixels;
         return _frameComposer.Compose(
             CreateFrameCompositionRequest(outputInfo, sourcePixels, frameData.Width, frameData.Height));

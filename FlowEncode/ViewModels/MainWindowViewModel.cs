@@ -1989,6 +1989,7 @@ public partial class MainWindowViewModel : CommunityToolkit.Mvvm.ComponentModel.
     internal bool HasActiveAppWork()
     {
         return HasPendingQueueWork()
+            || _tasks.HasActiveTasks
             || IsAutoCompressionRunning
             || IsAudioProcessingRunning
             || IsBluRayDemuxRunning;
@@ -2072,7 +2073,7 @@ public partial class MainWindowViewModel : CommunityToolkit.Mvvm.ComponentModel.
         {
             while (!cancellationToken.IsCancellationRequested)
             {
-                if (_isShuttingDown || _isExecutingQueueCompletionAction || HasActiveAppWork())
+                if (_isShuttingDown || _isExecutingQueueCompletionAction)
                 {
                     return;
                 }
@@ -2083,9 +2084,10 @@ public partial class MainWindowViewModel : CommunityToolkit.Mvvm.ComponentModel.
                     return;
                 }
 
-                if (_systemIdleService.GetIdleDuration() >= QueueCompletionActionIdleRequirement)
+                if (!HasActiveAppWork()
+                    && _systemIdleService.GetIdleDuration() >= QueueCompletionActionIdleRequirement
+                    && await _tasks.TryRunWhenIdleAsync(() => ExecuteQueueCompletionActionAsync(action)))
                 {
-                    await ExecuteQueueCompletionActionAsync(action);
                     return;
                 }
 

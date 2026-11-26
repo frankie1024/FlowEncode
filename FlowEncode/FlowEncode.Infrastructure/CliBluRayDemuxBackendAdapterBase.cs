@@ -101,25 +101,7 @@ public abstract class CliBluRayDemuxBackendAdapterBase : IBluRayDemuxBackendAdap
 
     protected static void ValidateInput(BluRayDemuxRequest request)
     {
-        var isMkvTarget = BluRayDemuxSourceSupport.IsMkvDemuxTarget(request);
-        if (isMkvTarget)
-        {
-            if (request.Backend != BluRayDemuxBackend.Eac3To)
-                throw new InvalidOperationException("MKV demuxing requires eac3to / MKV 解复用仅支持 eac3to 后端。");
-            if (!File.Exists(request.DiscPath) && !Directory.Exists(request.DiscPath))
-                throw new FileNotFoundException($"MKV source not found / 未找到 MKV 输入源：{request.DiscPath}", request.DiscPath);
-        }
-        else if (!Directory.Exists(request.DiscPath))
-        {
-            throw new DirectoryNotFoundException($"Blu-ray source directory not found / 未找到蓝光源目录：{request.DiscPath}");
-        }
-
-        if (!File.Exists(request.Playlist.SourcePath))
-            throw new FileNotFoundException(
-                isMkvTarget
-                    ? "MKV source file not found / 未找到 MKV 源文件。"
-                    : "Blu-ray playlist not found / 未找到蓝光播放列表。",
-                request.Playlist.SourcePath);
+        BluRayDemuxSourceSupport.ValidateExecutionSource(request);
         if (request.Selections.Count == 0 || request.Selections.Any(s => string.IsNullOrWhiteSpace(s.Track.DemuxToken)))
             throw new ArgumentException("Select valid tracks to demux / 请选择有效的解复用轨道。");
     }

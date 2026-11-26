@@ -184,18 +184,8 @@ public sealed partial class CliAudioProcessingRunner
                     mediaMigrationFailed = true;
                     var manifest = media.Select(file => (Source: file,
                         Target: Path.Combine(outputRoot, Path.GetRelativePath(staging, file)))).ToArray();
-                    foreach (var file in manifest)
-                    {
-                        if (Directory.Exists(file.Target) || !request.OverwriteOutput && File.Exists(file.Target))
-                            throw new IOException("An output path already exists: " + file.Target);
-                        for (var parent = Path.GetDirectoryName(file.Target); parent is not null; parent = Path.GetDirectoryName(parent))
-                            if (File.Exists(parent)) throw new IOException("An output directory is occupied by a file: " + parent);
-                    }
-                    foreach (var file in manifest)
-                    {
-                        ExecutionOutputStaging.FinalizeFile(file.Source, file.Target, request.JobId, request.OverwriteOutput);
-                        outputs.Add(file.Target);
-                    }
+                    ExecutionOutputStaging.FinalizeFiles(manifest, request.OverwriteOutput);
+                    outputs.AddRange(manifest.Select(file => file.Target));
                     mediaMigrationFailed = false;
                     state = EncodingJobState.Completed;
                     summary = "deew completed";

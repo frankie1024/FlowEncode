@@ -137,6 +137,9 @@ internal sealed class ParallelVideoEncodingAv1anRunner
         var currentSummary = T(language, "Av1an parallel encoding started", "Av1an 并行压制已启动");
         var outputFinalized = false;
         var preserveStagedOutput = false;
+        var reportedFailure = false;
+        var reportedCancellation = false;
+        string? backendFailureMessage = null;
         var finalExitCode = -1;
         var startedAt = Stopwatch.GetTimestamp();
 
@@ -208,7 +211,16 @@ internal sealed class ParallelVideoEncodingAv1anRunner
 
                     var detailLine = JsonlEventParser.BuildDetailLine(parsedEvent);
                     AppendLine(detailLine);
-                    currentState = MapStructuredState(JsonlEventParser.MapStage(parsedEvent.Type));
+                    switch (JsonlEventParser.MapStage(parsedEvent.Type))
+                    {
+                        case AutoCompressionExecutionStage.Failed:
+                            reportedFailure = true;
+                            backendFailureMessage = JsonlEventParser.TryGetFailureMessage(parsedEvent) ?? backendFailureMessage ?? detailLine;
+                            break;
+                        case AutoCompressionExecutionStage.Cancelled:
+                            reportedCancellation = true;
+                            break;
+                    }
                     currentSummary = BuildRunningSummary(language, currentProgress);
                     update = new EncodingJobProgress(
                         request.JobId,
@@ -275,7 +287,7 @@ internal sealed class ParallelVideoEncodingAv1anRunner
 
             await rawLogWriter.FlushAsync();
             var visibleLog = visibleLogBuilder.ToString();
-            if (finalExitCode == 0)
+            if (finalExitCode == 0 && !reportedFailure && !reportedCancellation)
             {
                 try
                 {
@@ -348,8 +360,10 @@ internal sealed class ParallelVideoEncodingAv1anRunner
                     sidecarLogPath);
             }
 
-            currentState = EncodingJobState.Failed;
-            var failureSummary = BuildFailureSummary(language, finalExitCode, visibleLog);
+            currentState = reportedCancellation && !reportedFailure ? EncodingJobState.Cancelled : EncodingJobState.Failed;
+            var failureSummary = currentState == EncodingJobState.Cancelled
+                ? T(language, "Av1an parallel encoding cancelled", "Av1an 并行压制已取消")
+                : BuildFailureSummary(language, finalExitCode, visibleLog, backendFailureMessage);
             await CloseRawLogWriterAsync();
             var failedLogPath = await _logWriter.WriteSidecarLogAsync(request, displayCommand, currentState, finalExitCode, rawLogPath);
             progress?.Report(new EncodingJobProgress(
@@ -435,17 +449,6 @@ internal sealed class ParallelVideoEncodingAv1anRunner
             ?? throw new FileNotFoundException($"{kind} was not found. / 未找到编码器 {kind}。");
     }
 
-    private static EncodingJobState MapStructuredState(AutoCompressionExecutionStage stage)
-    {
-        return stage switch
-        {
-            AutoCompressionExecutionStage.Completed => EncodingJobState.Completed,
-            AutoCompressionExecutionStage.Failed => EncodingJobState.Failed,
-            AutoCompressionExecutionStage.Cancelled => EncodingJobState.Cancelled,
-            _ => EncodingJobState.Running
-        };
-    }
-
     private static string BuildRunningSummary(AppLanguage language, double? progressFraction)
     {
         return progressFraction is { } value
@@ -453,9 +456,11 @@ internal sealed class ParallelVideoEncodingAv1anRunner
             : T(language, "Av1an parallel encoding", "Av1an 并行压制中");
     }
 
-    private static string BuildFailureSummary(AppLanguage language, int exitCode, string visibleLog)
+    private static string BuildFailureSummary(AppLanguage language, int exitCode, string visibleLog, string? backendFailureMessage)
     {
-        var lastLine = EncodingJobLogWriter.LastMeaningfulLine(visibleLog);
+        var lastLine = string.IsNullOrWhiteSpace(backendFailureMessage)
+            ? EncodingJobLogWriter.LastMeaningfulLine(visibleLog)
+            : backendFailureMessage;
         if (!string.IsNullOrWhiteSpace(lastLine))
         {
             return T(

@@ -67,11 +67,24 @@ if (tool == "vspipe" && args.Contains("--info"))
     return 0;
 }
 if (tool == "x264") return 0;
+if (businessScenario is not null && tool == "ffmpeg" && args.Contains("-muxers"))
+{
+    Console.WriteLine("yuv4mpegpipe");
+    return 0;
+}
+if (businessScenario is not null && tool == "ffmpeg" && (args.Contains("-encoders") || args.Contains("-filters")))
+    return 0;
 if (businessScenario is not null && tool == "ffprobe")
 {
     if (args.Contains("-show_chapters"))
     {
         Console.WriteLine("{\"chapters\":[{\"id\":1,\"start_time\":\"0.000000\",\"tags\":{\"title\":\"序幕\"}},{\"id\":2,\"start_time\":\"312.345000\",\"tags\":{\"title\":\"第一章\"}}]}");
+        return 0;
+    }
+
+    if (Option("-show_entries") == "stream=codec_name,pix_fmt,nb_read_frames")
+    {
+        Console.WriteLine("{\"streams\":[{\"codec_name\":\"av1\",\"pix_fmt\":\"yuv420p\",\"nb_read_frames\":\"1\"}]}");
         return 0;
     }
 

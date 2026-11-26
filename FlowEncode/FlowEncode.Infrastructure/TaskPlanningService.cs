@@ -1,4 +1,4 @@
-using System.Collections.Concurrent;
+using System.IO.Enumeration;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
@@ -10,23 +10,33 @@ namespace FlowEncode.Infrastructure;
 public sealed class TaskPlanningService(TaskCoordinator tasks, IAppSettingsService settings,
     IToolProbeService probes, IEncoderDiscoveryService encoders, IDeewPlanningService deew,
     IEncodingJobRunner videoRunner, IAudioProcessingRunner audioRunner, IBluRayDemuxRunner bluRayRunner,
-    IAutoCompressionRunner autoRunner) : ITaskPlanningService
+    IAutoCompressionRunner autoRunner, TimeProvider? clock = null) : ITaskPlanningService
 {
-    private readonly ConcurrentDictionary<Guid, string> _plans = new();
+    private readonly object _plansGate = new();
+    private readonly Dictionary<Guid, string> _plans = new();
     private readonly SemaphoreSlim _retryGate = new(1, 1);
+    private readonly TimeProvider _clock = clock ?? TimeProvider.System;
 
-    public async Task<TaskExecutionPlan> CreateAsync(TaskWorkload request, CancellationToken cancellationToken = default)
+    public Task<TaskExecutionPlan> CreateAsync(TaskWorkload request, CancellationToken cancellationToken = default) =>
+        CreatePlanAsync(request, null, cancellationToken);
+
+    private async Task<TaskExecutionPlan> CreatePlanAsync(TaskWorkload request, Guid? retryOfTaskId, CancellationToken cancellationToken)
     {
         request = JsonSerializer.Deserialize<TaskWorkload>(JsonSerializer.Serialize(request))!.WithTaskId(Guid.NewGuid());
         request.Validate();
         var evidence = await InspectAsync(request, cancellationToken).ConfigureAwait(false);
-        var now = DateTimeOffset.UtcNow;
-        var plan = new TaskExecutionPlan(Guid.NewGuid(), now, now.AddMinutes(15), request, evidence.Command, evidence.Outputs, evidence.Warnings, evidence.Fingerprint);
-        if (_plans.Count >= 500)
-            foreach (var pair in _plans)
-                if (JsonSerializer.Deserialize<TaskExecutionPlan>(pair.Value)!.ExpiresAt < now) _plans.TryRemove(pair.Key, out _);
-        if (_plans.Count >= 500) throw new InvalidOperationException("Too many pending plans. Submit a plan or wait for old plans to expire.");
-        _plans[plan.PlanId] = JsonSerializer.Serialize(plan);
+        var now = _clock.GetUtcNow();
+        var plan = new TaskExecutionPlan(Guid.NewGuid(), now, now.AddMinutes(15), request, evidence.Command, evidence.Outputs,
+            evidence.Warnings, evidence.Fingerprint, retryOfTaskId);
+        var serialized = JsonSerializer.Serialize(plan);
+        lock (_plansGate)
+        {
+            if (_plans.Count >= 500)
+                foreach (var pair in _plans)
+                    if (JsonSerializer.Deserialize<TaskExecutionPlan>(pair.Value)!.ExpiresAt <= now) _plans.Remove(pair.Key);
+            if (_plans.Count >= 500) throw new InvalidOperationException("Too many pending plans. Submit a plan or wait for old plans to expire.");
+            _plans.Add(plan.PlanId, serialized);
+        }
         return plan;
     }
 
@@ -34,18 +44,28 @@ public sealed class TaskPlanningService(TaskCoordinator tasks, IAppSettingsServi
     {
         ValidateKey(idempotencyKey);
         if (tasks.FindSubmission(idempotencyKey, planId) is { } existing) return existing;
-        if (!_plans.TryGetValue(planId, out var serialized)) throw new KeyNotFoundException("Plan not found. Create a new plan after restarting the desktop.");
+        string? serialized;
+        lock (_plansGate) _plans.TryGetValue(planId, out serialized);
+        if (serialized is null)
+            return tasks.FindSubmission(idempotencyKey, planId)
+                ?? throw new KeyNotFoundException("Plan not found. Create a new plan after restarting the desktop.");
         var plan = JsonSerializer.Deserialize<TaskExecutionPlan>(serialized)!;
-        try { await EnsureCurrentAsync(plan, cancellationToken).ConfigureAwait(false); }
+        try
+        {
+            ThrowIfExpired(plan);
+            await EnsureCurrentAsync(plan, cancellationToken).ConfigureAwait(false);
+            ThrowIfExpired(plan);
+        }
         catch
         {
             if (tasks.FindSubmission(idempotencyKey, planId) is { } acceptedDuringValidation) return acceptedDuringValidation;
             throw;
         }
-        var receipt = tasks.Reserve(plan.Request, TaskOrigin.Mcp, plan.PlanId, idempotencyKey, plan.RetryOfTaskId);
+        var receipt = tasks.Reserve(plan.Request, TaskOrigin.Mcp, plan.PlanId, idempotencyKey, plan.RetryOfTaskId,
+            token => EnsureCurrentAsync(plan, token));
         if (!receipt.AlreadyAccepted)
         {
-            tasks.SetPreflight(receipt.TaskId, token => EnsureCurrentAsync(plan, token));
+            lock (_plansGate) _plans.Remove(planId);
             // Accepted tasks outlive the client connection and its request cancellation token.
             _ = ExecuteAcceptedAsync(plan.Request);
         }
@@ -58,25 +78,35 @@ public sealed class TaskPlanningService(TaskCoordinator tasks, IAppSettingsServi
         await _retryGate.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
         {
-        if (tasks.FindSubmission(idempotencyKey) is { } existing)
-        {
-            if (tasks.Get(existing.TaskId).RetryOfTaskId != taskId)
-                throw new InvalidOperationException("This idempotency key belongs to another task.");
-            return existing;
-        }
-        var snapshot = tasks.Get(taskId);
-        if (snapshot.State is not (EncodingJobState.Failed or EncodingJobState.Cancelled))
-            throw new InvalidOperationException("Only failed or cancelled tasks can be retried.");
-        var plan = (await CreateAsync(tasks.GetRequest(taskId), cancellationToken).ConfigureAwait(false)) with { RetryOfTaskId = taskId };
-        _plans[plan.PlanId] = JsonSerializer.Serialize(plan);
-        return await SubmitAsync(plan.PlanId, idempotencyKey, cancellationToken).ConfigureAwait(false);
+            if (tasks.FindSubmission(idempotencyKey) is { } existing)
+            {
+                if (tasks.Get(existing.TaskId).RetryOfTaskId != taskId)
+                    throw new InvalidOperationException("This idempotency key belongs to another task.");
+                return existing;
+            }
+            var snapshot = tasks.Get(taskId);
+            if (snapshot.State is not (EncodingJobState.Failed or EncodingJobState.Cancelled))
+                throw new InvalidOperationException("Only failed or cancelled tasks can be retried.");
+            var plan = await CreatePlanAsync(tasks.GetRequest(taskId), taskId, cancellationToken).ConfigureAwait(false);
+            try
+            {
+                return await SubmitAsync(plan.PlanId, idempotencyKey, cancellationToken).ConfigureAwait(false);
+            }
+            finally
+            {
+                lock (_plansGate) _plans.Remove(plan.PlanId);
+            }
         }
         finally { _retryGate.Release(); }
     }
 
+    private void ThrowIfExpired(TaskExecutionPlan plan)
+    {
+        if (_clock.GetUtcNow() >= plan.ExpiresAt) throw new InvalidOperationException("The execution plan expired. Create and inspect a new plan.");
+    }
+
     private async Task EnsureCurrentAsync(TaskExecutionPlan plan, CancellationToken token)
     {
-        if (DateTimeOffset.UtcNow > plan.ExpiresAt) throw new InvalidOperationException("The execution plan expired. Create and inspect a new plan.");
         var current = await InspectAsync(plan.Request, token).ConfigureAwait(false);
         if (current.Fingerprint != plan.Fingerprint) throw new InvalidOperationException("The input, settings, configuration or tools changed after preview. Create a new plan.");
     }
@@ -158,14 +188,19 @@ public sealed class TaskPlanningService(TaskCoordinator tasks, IAppSettingsServi
                 break;
             case TaskKind.BluRay:
                 var bluray = request.BluRay!;
-                if (BluRayDemuxSourceSupport.IsMkvDemuxTarget(bluray) && bluray.Backend != BluRayDemuxBackend.Eac3To)
-                    throw new InvalidOperationException("MKV demuxing requires the eac3to backend.");
+                BluRayDemuxSourceSupport.ValidateExecutionSource(bluray);
                 await Tool(bluray.Backend == BluRayDemuxBackend.DgDemux ? RegisteredToolKind.DgDemux : RegisteredToolKind.Eac3To);
                 if (bluray.Selections.Any(static s => BluRayDemuxSourceSupport.IsMkvChaptersTrack(s.Track)))
                     await Tool(RegisteredToolKind.Ffprobe);
                 stamps.Add(Stamp(bluray.Playlist.SourcePath));
                 command = bluRayRunner.BuildDisplayCommand(bluray);
-                outputs = bluray.Selections.Select(s => new OutputArtifact(s.OutputPath, OutputArtifactKind.Media)).ToArray();
+                outputs = bluray.Selections.Select(s => new OutputArtifact(
+                    bluray.Backend == BluRayDemuxBackend.Eac3To
+                        ? Path.Combine(bluray.OutputDirectory, Path.GetFileName(s.OutputPath))
+                        : s.OutputPath,
+                    OutputArtifactKind.Media)).ToArray();
+                if (!request.OverwriteOutput && bluray.Backend == BluRayDemuxBackend.Eac3To)
+                    EnsureNoEac3ToTrackConflicts(bluray.OutputDirectory, outputs);
                 break;
             default:
                 await Tool(RegisteredToolKind.Av1an); await Tool(RegisteredToolKind.Ffprobe);
@@ -177,11 +212,32 @@ public sealed class TaskPlanningService(TaskCoordinator tasks, IAppSettingsServi
                     : autoRunner.BuildDisplayCommand(auto);
                 break;
         }
-        if (!request.OverwriteOutput && outputs.Any(a => File.Exists(a.Path)))
+        if (!request.OverwriteOutput && outputs.Any(a => File.Exists(a.Path)
+            || a.Kind == OutputArtifactKind.Media && Directory.Exists(a.Path)))
             throw new IOException("An expected output already exists. Choose another output or explicitly enable overwrite.");
         stamps.Add(command);
         stamps.Sort(StringComparer.Ordinal);
         return new(command, outputs, warnings, Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(string.Join("\n", stamps)))));
+    }
+
+    private static void EnsureNoEac3ToTrackConflicts(string outputDirectory, IReadOnlyList<OutputArtifact> outputs)
+    {
+        if (!Directory.Exists(outputDirectory))
+            return;
+
+        var patterns = outputs.Select(output => Path.GetFileName(output.Path))
+            .Where(pattern => pattern.Contains('*') || pattern.Contains('?'))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+        if (patterns.Length == 0)
+            return;
+
+        foreach (var entry in Directory.EnumerateFileSystemEntries(outputDirectory))
+        {
+            var name = Path.GetFileName(entry);
+            if (patterns.Any(pattern => FileSystemName.MatchesSimpleExpression(pattern, name, ignoreCase: true)))
+                throw new IOException($"An expected track output already exists: '{entry}'. Choose another output or explicitly enable overwrite.");
+        }
     }
 
     private static string Stamp(string path)

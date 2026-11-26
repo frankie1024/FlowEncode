@@ -1,4 +1,5 @@
 using FlowEncode.Domain;
+using FlowEncode.Application;
 using FlowEncode.Infrastructure;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 
@@ -129,6 +130,9 @@ public sealed class Eac3ToMkvDemuxTests
         var mkvPath = Path.Combine(fixture.Root, "sample_movie.mkv");
         await File.WriteAllTextAsync(mkvPath, "fake mkv content");
         var outputDirectory = Path.Combine(fixture.Root, "sample_movie_demux");
+        Directory.CreateDirectory(outputDirectory);
+        var unrelatedFile = Path.Combine(outputDirectory, "keep.txt");
+        await File.WriteAllTextAsync(unrelatedFile, "existing file");
         var adapter = new Eac3ToBackendAdapter(fixture.Probes, fixture.Paths);
 
         var playlists = await adapter.ScanDiscAsync(mkvPath);
@@ -161,14 +165,19 @@ public sealed class Eac3ToMkvDemuxTests
             outputDirectory,
             Path.Combine(outputDirectory, item.Id),
             item,
-            selections);
+            selections,
+            OverwriteOutput: false);
 
         var displayCommand = adapter.BuildDisplayCommand(request);
         StringAssert.StartsWith(displayCommand, $"eac3to.exe \"{mkvPath}\" 1: ");
         Assert.IsFalse(displayCommand.Contains("1) ", StringComparison.Ordinal), "MKV command must not contain a Blu-ray playlist selection token.");
 
-        var result = await adapter.RunAsync(request);
+        var tasks = new TaskCoordinator(fixture.Settings);
+        var runner = new CoordinatedBluRayRunner(new CliBluRayDemuxRunner([adapter]), tasks);
+        var result = await runner.RunAsync(request);
         Assert.AreEqual(EncodingJobState.Completed, result.State, result.Log);
+        Assert.AreEqual(EncodingJobState.Completed, tasks.Get(request.JobId).State);
+        Assert.AreEqual("existing file", await File.ReadAllTextAsync(unrelatedFile));
         Assert.AreEqual(5, result.OutputPaths.Count);
         Assert.IsTrue(result.OutputPaths.All(File.Exists));
         Assert.IsTrue(File.Exists(Path.Combine(outputDirectory, "sample_movie_T01_chapters.txt")));

@@ -51,6 +51,29 @@ public static class BluRayDemuxSourceSupport
             : request.DiscPath;
     }
 
+    public static void ValidateExecutionSource(BluRayDemuxRequest request)
+    {
+        var isMkvTarget = IsMkvDemuxTarget(request);
+        if (isMkvTarget)
+        {
+            if (request.Backend != BluRayDemuxBackend.Eac3To)
+                throw new InvalidOperationException("MKV demuxing requires eac3to / MKV 解复用仅支持 eac3to 后端。");
+            if (!File.Exists(request.DiscPath) && !Directory.Exists(request.DiscPath))
+                throw new FileNotFoundException($"MKV source not found / 未找到 MKV 输入源：{request.DiscPath}", request.DiscPath);
+        }
+        else if (!Directory.Exists(request.DiscPath))
+        {
+            throw new DirectoryNotFoundException($"Blu-ray source directory not found / 未找到蓝光源目录：{request.DiscPath}");
+        }
+
+        if (!File.Exists(request.Playlist.SourcePath))
+            throw new FileNotFoundException(
+                isMkvTarget
+                    ? "MKV source file not found / 未找到 MKV 源文件。"
+                    : "Blu-ray playlist not found / 未找到蓝光播放列表。",
+                request.Playlist.SourcePath);
+    }
+
     public static bool IsBluRayDiscDirectory(string? directoryPath)
     {
         if (string.IsNullOrWhiteSpace(directoryPath))

@@ -66,6 +66,68 @@ public sealed class ExecutionOutputStagingTests
     }
 
     [TestMethod]
+    public void FinalizeFiles_WhenALaterReplacementFails_RestoresPreviousFilesAndStaging()
+    {
+        if (!OperatingSystem.IsWindows())
+            Assert.Inconclusive("This test requires Windows file sharing.");
+
+        var stage = Directory.CreateDirectory(Path.Combine(_testRoot, "stage")).FullName;
+        var output = Directory.CreateDirectory(Path.Combine(_testRoot, "output")).FullName;
+        var newFile = (Source: Path.Combine(stage, "new.ac3"), Target: Path.Combine(output, "new.ac3"));
+        var replaced = (Source: Path.Combine(stage, "existing.ac3"), Target: Path.Combine(output, "existing.ac3"));
+        var locked = (Source: Path.Combine(stage, "locked.sup"), Target: Path.Combine(output, "locked.sup"));
+        File.WriteAllText(newFile.Source, "new track");
+        File.WriteAllText(replaced.Source, "new audio");
+        File.WriteAllText(replaced.Target, "old audio");
+        File.WriteAllText(locked.Source, "new subtitle");
+        File.WriteAllText(locked.Target, "old subtitle");
+        using var handle = File.Open(locked.Target, FileMode.Open, FileAccess.Read, FileShare.Read);
+
+        Assert.ThrowsExactly<IOException>(() => ExecutionOutputStaging.FinalizeFiles([newFile, replaced, locked], overwrite: true));
+
+        Assert.IsFalse(File.Exists(newFile.Target));
+        Assert.AreEqual("new track", File.ReadAllText(newFile.Source));
+        Assert.AreEqual("new audio", File.ReadAllText(replaced.Source));
+        Assert.AreEqual("old audio", File.ReadAllText(replaced.Target));
+        Assert.AreEqual("old subtitle", File.ReadAllText(locked.Target));
+        Assert.AreEqual("new subtitle", File.ReadAllText(locked.Source));
+        Assert.IsFalse(Directory.EnumerateFiles(output, "*.backup.tmp*").Any());
+    }
+
+    [TestMethod]
+    [DataRow(false)]
+    [DataRow(true)]
+    public void MoveBack_WhenPublishedTargetIsEditedOrReplaced_LeavesItInPlace(bool replace)
+    {
+        if (!OperatingSystem.IsWindows())
+            Assert.Inconclusive("This test requires Windows file identity.");
+
+        var staged = Path.Combine(_testRoot, "stage.ac3");
+        var target = Path.Combine(_testRoot, "target.ac3");
+        File.WriteAllText(staged, "original");
+        File.SetLastWriteTimeUtc(staged, new DateTime(2025, 1, 1, 0, 0, 0, DateTimeKind.Utc));
+        var published = PublishedOutputFile.Capture(staged);
+        File.Move(staged, target);
+        if (replace)
+        {
+            var otherFile = Path.Combine(_testRoot, "other.ac3");
+            File.WriteAllText(otherFile, "external");
+            File.SetLastWriteTimeUtc(otherFile, published.LastWriteTimeUtc);
+            File.Move(otherFile, target, overwrite: true);
+        }
+        else
+        {
+            File.WriteAllText(target, "external");
+        }
+
+        var error = Assert.ThrowsExactly<IOException>(() => published.MoveBack(target, staged));
+
+        StringAssert.Contains(error.Message, "changed after publication");
+        Assert.AreEqual("external", File.ReadAllText(target));
+        Assert.IsFalse(File.Exists(staged));
+    }
+
+    [TestMethod]
     public void CleanupStagedDirectory_WhenParentsBecomeEmpty_PrunesTheTempTree()
     {
         var stagedDirectory = Path.Combine(_testRoot, ".flowencode-temp", "audio", "job");

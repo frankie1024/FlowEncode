@@ -208,6 +208,86 @@ public sealed class VapourSynthPreviewServiceTests
         Assert.AreEqual(1, context.Session.WrittenLines.Count(static line => line.Contains("\"command\":\"close\"", StringComparison.Ordinal)));
     }
 
+    [TestMethod]
+    public async Task CancelledRender_ReleasesSessionForCloseBeforeFrameResponseTimeout()
+    {
+        using var context = CreateContext(TimeSpan.FromMinutes(2));
+        using var previewLifetime = new CancellationTokenSource();
+        context.Session.EnqueueResponse(CreateReadyResponseJson((0, "Preview", 2, 1, 10)));
+        context.Session.WaitWhenNoResponse = true;
+        context.Session.EnqueueCancellationWaitBehavior(static token => Task.Delay(Timeout.InfiniteTimeSpan, token));
+        await context.Service.OpenSessionAsync(CreateOpenRequest(), previewLifetime.Token);
+        var rendering = context.Service.RenderFrameAsync(0, 0, cancellationToken: previewLifetime.Token);
+        Assert.IsFalse(rendering.IsCompleted);
+
+        previewLifetime.Cancel();
+        await context.Service.CloseSessionAsync().WaitAsync(TimeSpan.FromSeconds(5));
+
+        await Assert.ThrowsAsync<OperationCanceledException>(() => rendering);
+        Assert.IsFalse(context.Service.HasActiveSession);
+        Assert.IsTrue(context.Session.HasExited);
+        Assert.IsTrue(context.Session.KillCalled);
+    }
+
+    [TestMethod]
+    public async Task Dispose_OnDispatcherWithCloseInFlight_DoesNotNeedDispatcherToResume()
+    {
+        using var context = CreateContext();
+        var allowExit = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var startedClosing = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        context.Session.EnqueueResponse(CreateReadyResponseJson((0, "Preview", 2, 1, 10)));
+        context.Session.EnqueueWaitBehavior(async session =>
+        {
+            await allowExit.Task.ConfigureAwait(false);
+            session.HasExited = true;
+        });
+        await context.Service.OpenSessionAsync(CreateOpenRequest());
+
+        var dispatcher = new PausedDispatcher();
+        var disposeTask = Task.Run(() =>
+        {
+            var previous = SynchronizationContext.Current;
+            SynchronizationContext.SetSynchronizationContext(dispatcher);
+            try
+            {
+                var closing = context.Service.CloseSessionAsync();
+                startedClosing.SetResult();
+                context.Service.Dispose();
+                closing.GetAwaiter().GetResult();
+            }
+            finally
+            {
+                SynchronizationContext.SetSynchronizationContext(previous);
+            }
+        });
+
+        await startedClosing.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        allowExit.SetResult();
+        var first = await Task.WhenAny(disposeTask, dispatcher.Posted.Task).WaitAsync(TimeSpan.FromSeconds(5));
+        if (first == dispatcher.Posted.Task)
+            dispatcher.Resume();
+        await disposeTask.WaitAsync(TimeSpan.FromSeconds(5));
+        Assert.AreSame(disposeTask, first);
+    }
+
+    private sealed class PausedDispatcher : SynchronizationContext
+    {
+        public TaskCompletionSource Posted { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        private readonly TaskCompletionSource _resumed = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        public override void Post(SendOrPostCallback callback, object? state)
+        {
+            _ = Task.Run(async () =>
+            {
+                await _resumed.Task;
+                callback(state);
+            });
+            Posted.TrySetResult();
+        }
+
+        public void Resume() => _resumed.TrySetResult();
+    }
+
     private static TestContext CreateContext(TimeSpan? responseTimeout = null)
     {
         var tempRootPath = Path.Combine(Path.GetTempPath(), "FlowEncodePreviewTests", Guid.NewGuid().ToString("N"));

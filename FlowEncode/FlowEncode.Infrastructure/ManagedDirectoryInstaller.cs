@@ -85,9 +85,9 @@ internal static class ManagedDirectoryInstaller
             Directory.Move(stagingDirectory, normalizedTarget);
             DeleteDirectoryQuietly(backupDirectory);
         }
-        catch
+        catch (Exception installError)
         {
-            if (hasBackup && !Directory.Exists(normalizedTarget) && Directory.Exists(backupDirectory))
+            if (hasBackup)
             {
                 try
                 {
@@ -95,15 +95,13 @@ internal static class ManagedDirectoryInstaller
                 }
                 catch (Exception ex)
                 {
-                    Debug.WriteLine($"Failed to restore backup directory '{backupDirectory}' to '{normalizedTarget}'. {ex}");
+                    throw new IOException(
+                        $"Installation failed at '{normalizedTarget}'. The previous version is retained at '{backupDirectory}'. {installError.Message} {ex.Message}",
+                        new AggregateException(installError, ex));
                 }
             }
 
             throw;
-        }
-        finally
-        {
-            DeleteDirectoryQuietly(backupDirectory);
         }
     }
 

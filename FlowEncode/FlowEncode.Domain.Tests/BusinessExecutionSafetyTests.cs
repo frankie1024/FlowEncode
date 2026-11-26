@@ -56,6 +56,48 @@ public sealed class BusinessExecutionSafetyTests
     }
 
     [TestMethod]
+    [DataRow("success", EncodingJobState.Completed)]
+    [DataRow("failure-then-complete", EncodingJobState.Failed)]
+    [DataRow("complete-then-failure", EncodingJobState.Failed)]
+    [DataRow("cancel-then-complete", EncodingJobState.Cancelled)]
+    public async Task ParallelVideo_PublishesOnlyAfterSuccessfulBackendResult(string scenario, EncodingJobState expectedState)
+    {
+        using var fixture = new Fixture(scenario);
+        var executable = Path.Combine(fixture.Root, "FlowEncode.ToolStub.exe");
+        var ffmpeg = Path.Combine(fixture.Root, "ffmpeg.exe");
+        var encoder = Path.Combine(fixture.Root, "SvtAv1EncApp.exe");
+        File.Copy(executable, ffmpeg);
+        File.Copy(executable, encoder);
+        var settings = fixture.Settings.Load();
+        var tools = new Dictionary<string, string>(settings.EffectiveManualToolPaths)
+        {
+            [ManualToolPathKeys.ForRegisteredTool(RegisteredToolKind.Ffmpeg)] = ffmpeg,
+            [ManualToolPathKeys.ForEncoder(EncoderKind.SvtAv1)] = encoder
+        };
+        fixture.Settings.Save(settings with { ManualToolPaths = tools });
+        var request = new EncodingJobRequest(Guid.NewGuid(), DefaultEncodingProfiles.GetDefault(EncoderKind.SvtAv1),
+            fixture.AutoRequest().SourcePath, Path.Combine(fixture.Root, "video.ivf"),
+            InputPipelineKind.Y4mFile, EncoderArchitecture.X64, UseAv1anParallelVideoEncoding: true);
+        File.WriteAllText(request.OutputPath, "existing video");
+        var completedEvents = new List<bool>();
+        var runner = new LocalEncodingJobRunner(fixture.Paths, new LocalEncoderDiscoveryService(fixture.Paths, fixture.Settings), fixture.Settings);
+
+        var result = await runner.RunAsync(request, new Inline<EncodingJobProgress>(progress =>
+        {
+            if (progress.State == EncodingJobState.Completed)
+                completedEvents.Add(File.ReadAllText(request.OutputPath) == "encoded video");
+        }));
+
+        Assert.AreEqual(expectedState, result.State, result.Summary + "\n" + result.Log);
+        Assert.AreEqual(0, result.ExitCode);
+        if (expectedState == EncodingJobState.Completed)
+            CollectionAssert.AreEqual(new[] { true }, completedEvents);
+        else
+            Assert.IsEmpty(completedEvents);
+        Assert.AreEqual(expectedState == EncodingJobState.Completed ? "encoded video" : "existing video", File.ReadAllText(request.OutputPath));
+    }
+
+    [TestMethod]
     [DataRow(false, "empty-output")]
     [DataRow(true, "empty-output")]
     [DataRow(false, "broken-output")]

@@ -38,6 +38,21 @@ public sealed class ManagedDirectoryInstallerTests
     }
 
     [TestMethod]
+    public void ReplaceDirectory_WhenStagingCannotBeMoved_RestoresPreviousDirectory()
+    {
+        using var root = new SharedTaskCoordinatorTests.TestRoot();
+        var target = Directory.CreateDirectory(Path.Combine(root.Path, "tool")).FullName;
+        var oldExecutable = Path.Combine(target, "tool.exe");
+        File.WriteAllText(oldExecutable, "old executable");
+
+        Assert.Throws<IOException>(() =>
+            ManagedDirectoryInstaller.ReplaceDirectory(target, staging => Directory.Delete(staging)));
+
+        Assert.AreEqual("old executable", File.ReadAllText(oldExecutable));
+        Assert.IsFalse(Directory.EnumerateDirectories(root.Path, ".tool.backup-*").Any());
+    }
+
+    [TestMethod]
     public void ReplaceDirectoryContents_WhenStagedValidationFails_PreservesExistingDirectory()
     {
         var root = Path.Combine(Path.GetTempPath(), $"FlowEncodeInstallRollbackTest-{Guid.NewGuid():N}");

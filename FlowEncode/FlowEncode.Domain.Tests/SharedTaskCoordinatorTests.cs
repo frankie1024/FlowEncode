@@ -1,4 +1,5 @@
 using System.Collections.Concurrent;
+using System.Diagnostics;
 using System.Text.Json;
 using FlowEncode.Application;
 using FlowEncode.Domain;
@@ -34,6 +35,96 @@ public sealed class SharedTaskCoordinatorTests
         var following = root.Video();
         Assert.AreEqual(3, await tasks.RunAsync(following, (_, _) => Task.FromResult(3), Done).WaitAsync(TimeSpan.FromSeconds(5)));
         Assert.IsFalse(tasks.HasActiveTasks);
+    }
+
+    [TestMethod]
+    public async Task IdleActionAndNewTaskAdmission_CannotOverlap()
+    {
+        using var root = new TestRoot();
+        var tasks = new TaskCoordinator(new Settings());
+        var active = root.Video();
+        var receipt = tasks.Reserve(active, TaskOrigin.Mcp, key: "already-accepted");
+        Assert.IsFalse(await tasks.TryRunWhenIdleAsync(() => throw new AssertFailedException("The queue has an active task.")));
+        tasks.Cancel(active.TaskId);
+
+        var release = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var idleAction = tasks.TryRunWhenIdleAsync(() => release.Task);
+        var incoming = root.Video();
+        try
+        {
+            Assert.ThrowsExactly<InvalidOperationException>(() => tasks.Reserve(incoming, TaskOrigin.Mcp));
+            Assert.AreEqual(receipt.TaskId, tasks.FindSubmission("already-accepted")?.TaskId);
+        }
+        finally
+        {
+            release.SetResult();
+        }
+
+        Assert.IsTrue(await idleAction);
+        Assert.AreEqual(incoming.TaskId, tasks.Reserve(incoming, TaskOrigin.Mcp).TaskId);
+    }
+
+    [TestMethod]
+    public async Task ShutdownCommand_KeepsQueueClosedThroughHandoffAndReopensAfterCancellation()
+    {
+        if (!OperatingSystem.IsWindows())
+            Assert.Inconclusive("This test requires Windows.");
+
+        using var root = new TestRoot();
+        var tasks = new TaskCoordinator(new Settings());
+        var incoming = root.Video();
+        using var shuttingDown = new ManualResetEventSlim();
+        var polled = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var sawShutdown = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        string? error = null;
+        var action = tasks.TryRunWhenIdleAsync(async () =>
+        {
+            error = await WindowsQueueCompletionActionService.ExecuteShutdownAsync(
+                new ProcessStartInfo(Path.Combine(Environment.SystemDirectory, "cmd.exe"), "/d /c exit /b 0")
+                {
+                    UseShellExecute = false,
+                    CreateNoWindow = true
+                }, () =>
+                {
+                    polled.TrySetResult();
+                    if (!shuttingDown.IsSet) return false;
+                    sawShutdown.TrySetResult();
+                    return true;
+                }, TimeSpan.FromSeconds(5));
+        });
+
+        await polled.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        Assert.ThrowsExactly<InvalidOperationException>(() => tasks.Reserve(incoming, TaskOrigin.Mcp));
+        shuttingDown.Set();
+        try
+        {
+            await sawShutdown.Task.WaitAsync(TimeSpan.FromSeconds(5));
+            Assert.ThrowsExactly<InvalidOperationException>(() => tasks.Reserve(incoming, TaskOrigin.Mcp));
+        }
+        finally
+        {
+            shuttingDown.Reset();
+        }
+
+        Assert.IsTrue(await action.WaitAsync(TimeSpan.FromSeconds(5)));
+        Assert.AreEqual("Windows cancelled shutdown.", error);
+        Assert.AreEqual(incoming.TaskId, tasks.Reserve(incoming, TaskOrigin.Mcp).TaskId);
+    }
+
+    [TestMethod]
+    public async Task ShutdownCommand_WithNonzeroExitCodeReportsFailure()
+    {
+        if (!OperatingSystem.IsWindows())
+            Assert.Inconclusive("This test requires Windows.");
+
+        var error = await WindowsQueueCompletionActionService.ExecuteShutdownAsync(
+            new ProcessStartInfo(Path.Combine(Environment.SystemDirectory, "cmd.exe"), "/d /c exit /b 17")
+            {
+                UseShellExecute = false,
+                CreateNoWindow = true
+            }, () => false, TimeSpan.FromSeconds(5));
+
+        StringAssert.Contains(error, "exit code 17");
     }
 
     [TestMethod]

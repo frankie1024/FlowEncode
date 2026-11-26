@@ -82,7 +82,7 @@ public sealed class VapourSynthPreviewService : IVapourSynthPreviewService
 
         try
         {
-            return await OpenSessionCoreAsync(request, cancellationToken);
+            return await OpenSessionCoreAsync(request, cancellationToken).ConfigureAwait(false);
         }
         finally
         {
@@ -94,7 +94,8 @@ public sealed class VapourSynthPreviewService : IVapourSynthPreviewService
         VapourSynthPreviewOpenRequest request,
         CancellationToken cancellationToken)
     {
-        await _stateLock.WaitAsync(cancellationToken);
+        // The host factory may run tool probes while this lock is held.
+        await _stateLock.WaitAsync(cancellationToken).ConfigureAwait(ConfigureAwaitOptions.ForceYielding);
 
         try
         {
@@ -102,7 +103,7 @@ public sealed class VapourSynthPreviewService : IVapourSynthPreviewService
             var normalizedSourceFilePath = NormalizeAbsolutePath(request.SourceFilePath);
             var normalizedWorkingDirectory = NormalizeWorkingDirectory(request.WorkingDirectory, normalizedSourceFilePath);
 
-            await CloseHostCoreAsync();
+            await CloseHostCoreAsync().ConfigureAwait(false);
 
             var sessionPath = CreateSessionDirectory();
             _activeSessionPath = sessionPath;
@@ -114,15 +115,15 @@ public sealed class VapourSynthPreviewService : IVapourSynthPreviewService
                 request.Content ?? string.Empty,
                 normalizedWorkingDirectory);
             var startupJson = JsonSerializer.Serialize(startupPayload, JsonOptions);
-            await File.WriteAllTextAsync(startupPath, startupJson, new UTF8Encoding(false), cancellationToken);
+            await File.WriteAllTextAsync(startupPath, startupJson, new UTF8Encoding(false), cancellationToken).ConfigureAwait(false);
 
             _hostSession = await _hostFactory.StartAsync(
                 normalizedWorkingDirectory,
                 startupPath,
                 HostSession_StderrLineReceived,
-                cancellationToken);
+                cancellationToken).ConfigureAwait(false);
 
-            var response = await ReadResponseAsync(cancellationToken);
+            var response = await ReadResponseAsync(cancellationToken).ConfigureAwait(false);
             if (!string.Equals(response.Type, "ready", StringComparison.Ordinal))
             {
                 throw new InvalidOperationException(GetResponseErrorMessage(response)
@@ -155,7 +156,7 @@ public sealed class VapourSynthPreviewService : IVapourSynthPreviewService
         }
         catch (Exception)
         {
-            await CloseHostCoreAsync();
+            await CloseHostCoreAsync().ConfigureAwait(false);
             throw;
         }
         finally
@@ -170,7 +171,7 @@ public sealed class VapourSynthPreviewService : IVapourSynthPreviewService
         byte[]? reusablePixelBuffer = null,
         CancellationToken cancellationToken = default)
     {
-        await _stateLock.WaitAsync(cancellationToken);
+        await _stateLock.WaitAsync(cancellationToken).ConfigureAwait(false);
 
         try
         {
@@ -203,9 +204,9 @@ public sealed class VapourSynthPreviewService : IVapourSynthPreviewService
                 transportDescriptor.SharedMemoryName,
                 transportDescriptor.CapacityBytes);
             var commandJson = JsonSerializer.Serialize(command, JsonOptions);
-            await _hostSession.WriteLineAsync(commandJson, cancellationToken);
+            await _hostSession.WriteLineAsync(commandJson, cancellationToken).ConfigureAwait(false);
 
-            var response = await ReadResponseAsync(cancellationToken);
+            var response = await ReadResponseAsync(cancellationToken).ConfigureAwait(false);
             helperRenderStopwatch.Stop();
             if (!string.Equals(response.Type, "frame", StringComparison.Ordinal))
             {
@@ -228,7 +229,7 @@ public sealed class VapourSynthPreviewService : IVapourSynthPreviewService
             var pixels = await _frameTransportSession.ReadFrameAsync(
                 response.PixelBytes,
                 reusablePixelBuffer,
-                cancellationToken);
+                cancellationToken).ConfigureAwait(false);
             transportReadStopwatch.Stop();
 
             var properties = response.Properties?
@@ -251,7 +252,7 @@ public sealed class VapourSynthPreviewService : IVapourSynthPreviewService
         }
         catch
         {
-            await CloseHostCoreAsync();
+            await CloseHostCoreAsync().ConfigureAwait(false);
             throw;
         }
         finally
@@ -262,11 +263,11 @@ public sealed class VapourSynthPreviewService : IVapourSynthPreviewService
 
     public async Task CloseSessionAsync(CancellationToken cancellationToken = default)
     {
-        await _stateLock.WaitAsync(cancellationToken);
+        await _stateLock.WaitAsync(cancellationToken).ConfigureAwait(false);
 
         try
         {
-            await CloseHostCoreAsync();
+            await CloseHostCoreAsync().ConfigureAwait(false);
         }
         finally
         {
@@ -323,7 +324,7 @@ public sealed class VapourSynthPreviewService : IVapourSynthPreviewService
         responseCancellation.CancelAfter(_responseTimeout);
         try
         {
-            return await ReadResponseCoreAsync(responseCancellation.Token);
+            return await ReadResponseCoreAsync(responseCancellation.Token).ConfigureAwait(false);
         }
         catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
         {
@@ -340,7 +341,7 @@ public sealed class VapourSynthPreviewService : IVapourSynthPreviewService
 
         while (true)
         {
-            var line = await _hostSession.ReadLineAsync(cancellationToken);
+            var line = await _hostSession.ReadLineAsync(cancellationToken).ConfigureAwait(false);
             if (string.IsNullOrWhiteSpace(line))
             {
                 throw new InvalidOperationException(BuildHostFailureMessage(
@@ -376,10 +377,9 @@ public sealed class VapourSynthPreviewService : IVapourSynthPreviewService
                 if (!session.HasExited)
                 {
                     var closeJson = JsonSerializer.Serialize(new CloseCommandDto("close"), JsonOptions);
-                    await session.WriteLineAsync(closeJson);
-
                     using var timeoutCancellationTokenSource = new CancellationTokenSource(_closeTimeout);
-                    await session.WaitForExitAsync(timeoutCancellationTokenSource.Token);
+                    await session.WriteLineAsync(closeJson, timeoutCancellationTokenSource.Token).ConfigureAwait(false);
+                    await session.WaitForExitAsync(timeoutCancellationTokenSource.Token).ConfigureAwait(false);
                 }
             }
             catch (Exception ex)
@@ -392,7 +392,7 @@ public sealed class VapourSynthPreviewService : IVapourSynthPreviewService
                     {
                         session.Kill(entireProcessTree: true);
                         using var killTimeoutCancellationTokenSource = new CancellationTokenSource(_killWaitTimeout);
-                        await session.WaitForExitAsync(killTimeoutCancellationTokenSource.Token);
+                        await session.WaitForExitAsync(killTimeoutCancellationTokenSource.Token).ConfigureAwait(false);
                     }
                 }
                 catch (Exception killEx)

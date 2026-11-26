@@ -151,12 +151,10 @@ internal static class ExecutionOutputStaging
 
         try
         {
+            var files = Directory.GetFiles(stagedDirectory, "*", SearchOption.AllDirectories)
+                .Select(file => (Source: file, Target: Path.Combine(finalDirectory, Path.GetRelativePath(stagedDirectory, file))))
+                .ToArray();
             Directory.CreateDirectory(finalDirectory);
-
-            if (!overwrite)
-                foreach (var file in Directory.EnumerateFiles(stagedDirectory, "*", SearchOption.AllDirectories))
-                    if (File.Exists(Path.Combine(finalDirectory, Path.GetRelativePath(stagedDirectory, file))))
-                        throw new IOException("An output file already exists: " + Path.Combine(finalDirectory, Path.GetRelativePath(stagedDirectory, file)));
 
             foreach (var sourceDirectory in Directory.EnumerateDirectories(stagedDirectory, "*", SearchOption.AllDirectories))
             {
@@ -164,35 +162,79 @@ internal static class ExecutionOutputStaging
                 Directory.CreateDirectory(Path.Combine(finalDirectory, relativePath));
             }
 
-            foreach (var sourceFile in Directory.EnumerateFiles(stagedDirectory, "*", SearchOption.AllDirectories))
-            {
-                var relativePath = Path.GetRelativePath(stagedDirectory, sourceFile);
-                var destinationPath = Path.Combine(finalDirectory, relativePath);
-                var destinationDirectory = Path.GetDirectoryName(destinationPath);
-                if (!string.IsNullOrWhiteSpace(destinationDirectory))
-                {
-                    Directory.CreateDirectory(destinationDirectory);
-                }
-
-                if (overwrite && File.Exists(destinationPath))
-                {
-                    var backupPath = CreateUniqueBackupPath(destinationPath);
-                    BestEffortCleanup.DeleteFile(backupPath, $"staged output backup '{backupPath}'");
-                    File.Replace(sourceFile, destinationPath, backupPath, ignoreMetadataErrors: true);
-                    BestEffortCleanup.DeleteFile(backupPath, $"staged output backup '{backupPath}'");
-                }
-                else
-                {
-                    File.Move(sourceFile, destinationPath);
-                }
-            }
-
-            Directory.Delete(stagedDirectory, recursive: true);
+            FinalizeFiles(files, overwrite);
         }
         catch (Exception ex)
         {
-            throw new IOException($"Failed to finalize output directory: {finalDirectory}", ex);
+            throw new IOException($"Failed to finalize output directory '{finalDirectory}'. Staged output: '{stagedDirectory}'. {ex.Message}", ex);
         }
+
+        CleanupStagedDirectory(stagedDirectory);
+    }
+
+    internal static void FinalizeFiles(IReadOnlyList<(string Source, string Target)> files, bool overwrite)
+    {
+        foreach (var file in files)
+        {
+            if (!File.Exists(file.Source))
+                throw new FileNotFoundException("Temporary output was not produced.", file.Source);
+            if (Directory.Exists(file.Target) || !overwrite && File.Exists(file.Target))
+                throw new IOException($"An output path already exists: {file.Target}");
+            Directory.CreateDirectory(Path.GetDirectoryName(Path.GetFullPath(file.Target))!);
+        }
+
+        var published = new Stack<(string Source, string Target, string? Backup, PublishedOutputFile? File)>();
+        try
+        {
+            foreach (var (source, target) in files)
+            {
+                var file = PublishedOutputFile.Capture(source);
+                if (overwrite && File.Exists(target))
+                {
+                    var backup = CreateUniqueBackupPath(target);
+                    try
+                    {
+                        File.Replace(source, target, backup, ignoreMetadataErrors: true);
+                    }
+                    catch
+                    {
+                        // Windows can create the backup before reporting a replacement error.
+                        if (File.Exists(backup)) published.Push((source, target, backup, null));
+                        throw;
+                    }
+                    published.Push((source, target, backup, file));
+                }
+                else
+                {
+                    File.Move(source, target);
+                    published.Push((source, target, null, file));
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            var rollbackErrors = new List<string>();
+            foreach (var (source, target, backup, file) in published)
+            {
+                try
+                {
+                    file?.MoveBack(target, source);
+                    if (backup is not null)
+                        File.Move(backup, target);
+                }
+                catch (Exception rollbackError)
+                {
+                    rollbackErrors.Add($"Could not roll back '{target}' (staging: '{source}', backup: '{backup}'). {rollbackError.Message}");
+                }
+            }
+
+            if (rollbackErrors.Count > 0)
+                throw new IOException($"{ex.Message} {string.Join(" ", rollbackErrors)}", ex);
+            throw;
+        }
+
+        foreach (var (_, _, backup, _) in published)
+            BestEffortCleanup.DeleteFile(backup, $"staged output backup '{backup}'");
     }
 
     public static void CleanupStagedFile(
