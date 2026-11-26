@@ -152,10 +152,7 @@
 
                     <shared:TaskStatusPanel x:Name="AutoTaskStatusPanel" Grid.Row="1" DataContext="{Binding Status}"
                             PresentationState="{Binding AutoCompressionPresentationState}"
-                            ProgressBorderBrush="{Binding AutoCompressionProgressBorderBrush}"
-                            ProgressFillBrush="{Binding AutoCompressionProgressFillBrush}"
                             ProgressText="{Binding AutoCompressionProgressPercentText}"
-                            ProgressTrackBrush="{Binding AutoCompressionProgressTrackBrush}"
                             ProgressValue="{Binding AutoCompressionProgressValue}"
                             SecondaryText="{Binding AutoCompressionProgressHint}"
                             SecondaryVisibility="{Binding AutoCompressionProgressHintVisibility}"

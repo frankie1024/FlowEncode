@@ -38,12 +38,6 @@ public sealed class BluRayDemuxTaskViewModel : ModuleViewModelBase
 
     public string BluRayDemuxStatusText => Owner.BluRayDemuxStatusText;
 
-    public Brush BluRayDemuxProgressTrackBrush => Owner.BluRayDemuxProgressTrackBrush;
-
-    public Brush BluRayDemuxProgressBorderBrush => Owner.BluRayDemuxProgressBorderBrush;
-
-    public Brush BluRayDemuxProgressFillBrush => Owner.BluRayDemuxProgressFillBrush;
-
     public double BluRayDemuxProgressValue => Owner.BluRayDemuxProgressValue;
 
     public string BluRayDemuxProgressPercentText => Owner.BluRayDemuxProgressPercentText;

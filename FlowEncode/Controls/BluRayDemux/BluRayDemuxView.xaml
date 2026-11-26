@@ -209,10 +209,7 @@
 
                         <shared:TaskStatusPanel
                             PresentationState="{Binding BluRayDemuxPresentationState}"
-                            ProgressBorderBrush="{Binding BluRayDemuxProgressBorderBrush}"
-                            ProgressFillBrush="{Binding BluRayDemuxProgressFillBrush}"
                             ProgressText="{Binding BluRayDemuxProgressPercentText}"
-                            ProgressTrackBrush="{Binding BluRayDemuxProgressTrackBrush}"
                             ProgressValue="{Binding BluRayDemuxProgressValue}"
                             SecondaryText="{Binding BluRayDemuxProgressSecondaryText}"
                             SecondaryVisibility="{Binding BluRayDemuxProgressSecondaryVisibility}"

@@ -377,7 +377,7 @@
                                                         <RowDefinition Height="3" />
                                                         <RowDefinition Height="Auto" />
                                                     </Grid.RowDefinitions>
-                                                    <Border Background="{ThemeResource QueueAccentBrush}" Visibility="{Binding ActiveJobAccentVisibility}" />
+                                                    <Border Background="{ThemeResource QueueProgressFillBrush}" Visibility="{Binding ActiveJobAccentVisibility}" />
                                                     <Grid Grid.Row="1" Padding="12,12">
                                                     <Grid.ColumnDefinitions>
                                                         <ColumnDefinition Width="2*" />
@@ -393,7 +393,7 @@
                                                     <TextBlock Grid.Column="2" HorizontalAlignment="Center" VerticalAlignment="Center" Text="{Binding StateLabel}" />
                                                     <StackPanel Grid.Column="3" HorizontalAlignment="Center" VerticalAlignment="Center" Spacing="{StaticResource AppSpacingXS}">
                                                         <TextBlock HorizontalAlignment="Center" Text="{Binding ProgressPercentLabel}" />
-                                                        <ProgressBar HorizontalAlignment="Stretch" Height="6" Maximum="1" Foreground="{ThemeResource QueueAccentBrush}" IsIndeterminate="{Binding IsProgressIndeterminate}" Value="{Binding ProgressValue}" />
+                                                        <ProgressBar HorizontalAlignment="Stretch" Height="6" Maximum="1" Foreground="{ThemeResource QueueProgressFillBrush}" IsIndeterminate="{Binding IsProgressIndeterminate}" Value="{Binding ProgressValue}" />
                                                     </StackPanel>
                                                     </Grid>
                                                 </Grid>
@@ -429,6 +429,7 @@
                                             </Rectangle.RenderTransform>
                                         </Rectangle>
                                         <Border Margin="1" Background="{ThemeResource AppProgressOverlayBrush}" CornerRadius="{StaticResource AppCardCornerRadius}" />
+                                        <Grid IsHitTestVisible="False" shared:ProgressEffects.IsEnabled="True" shared:ProgressEffects.ParticleProgress="{Binding SelectedJobParticleProgress}" />
                                         <StackPanel Margin="16,8" HorizontalAlignment="Stretch" VerticalAlignment="Center" Spacing="{StaticResource AppSpacingS}">
                                             <Grid ColumnSpacing="{StaticResource AppSpacingM}">
                                                 <Grid.ColumnDefinitions>

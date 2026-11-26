@@ -9,14 +9,6 @@
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
     mc:Ignorable="d">
     <UserControl.Resources>
-        <SolidColorBrush x:Key="ButtonBackgroundPointerOver" Color="{ThemeResource ThemeColorCardAlt}" />
-        <SolidColorBrush x:Key="ButtonBackgroundPressed" Color="{ThemeResource ThemeColorHeroSecondary}" />
-        <SolidColorBrush x:Key="ButtonBorderBrushPointerOver" Color="{ThemeResource ThemeColorBorderElevated}" />
-        <SolidColorBrush x:Key="ButtonBorderBrushPressed" Color="{ThemeResource ThemeColorBorderElevated}" />
-        <SolidColorBrush x:Key="ButtonForeground" Color="{ThemeResource ThemeColorTextPrimary}" />
-        <SolidColorBrush x:Key="ButtonForegroundPointerOver" Color="{ThemeResource ThemeColorTextPrimary}" />
-        <SolidColorBrush x:Key="ButtonForegroundPressed" Color="{ThemeResource ThemeColorTextPrimary}" />
-
         <Style x:Key="DashboardActivityIndicatorStyle" TargetType="Border">
             <Setter Property="Width" Value="10" />
             <Setter Property="Height" Value="10" />
@@ -32,6 +24,7 @@
             <Setter Property="VerticalAlignment" Value="Center" />
             <Setter Property="Foreground" Value="{ThemeResource QueueProgressFillBrush}" />
             <Setter Property="Background" Value="{ThemeResource QueueProgressSoftBrush}" />
+            <Setter Property="shared:ProgressEffects.IsEnabled" Value="True" />
             <Setter Property="IsHitTestVisible" Value="False" />
         </Style>
 
@@ -67,7 +60,7 @@
                                     </VisualState>
                                     <VisualState x:Name="PointerOver">
                                         <VisualState.Setters>
-                                            <Setter Target="CardRoot.Background" Value="{ThemeResource ButtonBackgroundPointerOver}" />
+                                            <Setter Target="InteractionOverlay.Background" Value="{ThemeResource SubtleFillColorSecondaryBrush}" />
                                             <Setter Target="CardRoot.BorderBrush" Value="{ThemeResource ButtonBorderBrushPointerOver}" />
                                             <Setter Target="CardContent.Foreground" Value="{ThemeResource ButtonForegroundPointerOver}" />
                                         </VisualState.Setters>
@@ -77,7 +70,7 @@
                                     </VisualState>
                                     <VisualState x:Name="Pressed">
                                         <VisualState.Setters>
-                                            <Setter Target="CardRoot.Background" Value="{ThemeResource ButtonBackgroundPressed}" />
+                                            <Setter Target="InteractionOverlay.Background" Value="{ThemeResource SubtleFillColorTertiaryBrush}" />
                                             <Setter Target="CardRoot.BorderBrush" Value="{ThemeResource ButtonBorderBrushPressed}" />
                                             <Setter Target="CardContent.Foreground" Value="{ThemeResource ButtonForegroundPressed}" />
                                         </VisualState.Setters>
@@ -94,15 +87,18 @@
                                     </VisualState>
                                 </VisualStateGroup>
                             </VisualStateManager.VisualStateGroups>
-                            <ContentPresenter
-                                x:Name="CardContent"
-                                Padding="{TemplateBinding Padding}"
-                                HorizontalContentAlignment="{TemplateBinding HorizontalContentAlignment}"
-                                VerticalContentAlignment="{TemplateBinding VerticalContentAlignment}"
-                                Content="{TemplateBinding Content}"
-                                ContentTemplate="{TemplateBinding ContentTemplate}"
-                                ContentTransitions="{TemplateBinding ContentTransitions}"
-                                Foreground="{TemplateBinding Foreground}" />
+                            <Grid>
+                                <Border x:Name="InteractionOverlay" IsHitTestVisible="False" CornerRadius="{StaticResource AppCardCornerRadius}" />
+                                <ContentPresenter
+                                    x:Name="CardContent"
+                                    Padding="{TemplateBinding Padding}"
+                                    HorizontalContentAlignment="{TemplateBinding HorizontalContentAlignment}"
+                                    VerticalContentAlignment="{TemplateBinding VerticalContentAlignment}"
+                                    Content="{TemplateBinding Content}"
+                                    ContentTemplate="{TemplateBinding ContentTemplate}"
+                                    ContentTransitions="{TemplateBinding ContentTransitions}"
+                                    Foreground="{TemplateBinding Foreground}" />
+                            </Grid>
                         </Border>
                     </ControlTemplate>
                 </Setter.Value>
@@ -172,7 +168,7 @@
                             </Grid.ColumnDefinitions>
 
                             <Viewbox Width="28" Height="28" HorizontalAlignment="Left">
-                                <SymbolIcon Symbol="Library" />
+                                <SymbolIcon Symbol="Library" Foreground="{ThemeResource ThemeModuleDemuxBrush}" />
                             </Viewbox>
 
                             <Border Grid.Column="1" Background="{Binding DashboardBluRayDemuxStatusBrush}" Style="{StaticResource DashboardActivityIndicatorStyle}" Visibility="{Binding DashboardBluRayDemuxStatusVisibility}" />
@@ -210,7 +206,7 @@
                         </Grid.RowDefinitions>
 
                         <Viewbox Width="28" Height="28" HorizontalAlignment="Left">
-                            <SymbolIcon Symbol="Edit" />
+                            <SymbolIcon Symbol="Edit" Foreground="{ThemeResource ThemeModuleScriptBrush}" />
                         </Viewbox>
 
                         <StackPanel Grid.Row="1" Spacing="{StaticResource AppSpacingS}">
@@ -243,7 +239,7 @@
                             </Grid.ColumnDefinitions>
 
                             <Viewbox Width="28" Height="28" HorizontalAlignment="Left">
-                                <SymbolIcon Symbol="Video" />
+                                <SymbolIcon Symbol="Video" Foreground="{ThemeResource ThemeModuleVideoBrush}" />
                             </Viewbox>
 
                             <Border Grid.Column="1" Background="{Binding DashboardOverviewStatusBrush}" Style="{StaticResource DashboardActivityIndicatorStyle}" Visibility="{Binding DashboardOverviewStatusVisibility}" />
@@ -287,7 +283,7 @@
                             </Grid.ColumnDefinitions>
 
                             <Viewbox Width="28" Height="28" HorizontalAlignment="Left">
-                                <SymbolIcon Symbol="Audio" />
+                                <SymbolIcon Symbol="Audio" Foreground="{ThemeResource ThemeModuleAudioBrush}" />
                             </Viewbox>
 
                             <Border Grid.Column="1" Background="{Binding DashboardAudioProcessingStatusBrush}" Style="{StaticResource DashboardActivityIndicatorStyle}" Visibility="{Binding DashboardAudioProcessingStatusVisibility}" />
@@ -331,7 +327,7 @@
                             </Grid.ColumnDefinitions>
 
                             <Viewbox Width="28" Height="28" HorizontalAlignment="Left">
-                                <SymbolIcon Symbol="Play" />
+                                <SymbolIcon Symbol="Play" Foreground="{ThemeResource ThemeModuleAutoBrush}" />
                             </Viewbox>
 
                             <Border Grid.Column="1" Background="{Binding DashboardAutoCompressionStatusBrush}" Style="{StaticResource DashboardActivityIndicatorStyle}" Visibility="{Binding DashboardAutoCompressionStatusVisibility}" />
@@ -369,7 +365,7 @@
                         </Grid.RowDefinitions>
 
                         <Viewbox Width="28" Height="28" HorizontalAlignment="Left">
-                            <SymbolIcon Symbol="Setting" />
+                            <SymbolIcon Symbol="Setting" Foreground="{ThemeResource ThemeModuleToolsBrush}" />
                         </Viewbox>
 
                         <StackPanel Grid.Row="1" Spacing="{StaticResource AppSpacingS}">

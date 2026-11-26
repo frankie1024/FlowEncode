@@ -365,12 +365,6 @@ public partial class MainWindowViewModel
 
     internal Brush AudioProcessingStatusPanelBorderBrush => ResolveTaskStatusPanelBorderBrush(_audioProcessingDisplayState);
 
-    internal Brush AudioProcessingProgressTrackBrush => ResolveAudioProcessingProgressTrackBrush(_audioProcessingDisplayState);
-
-    internal Brush AudioProcessingProgressBorderBrush => ResolveAudioProcessingProgressBorderBrush(_audioProcessingDisplayState);
-
-    internal Brush AudioProcessingProgressFillBrush => ResolveAudioProcessingProgressFillBrush(_audioProcessingDisplayState);
-
     internal TaskPresentationState AudioProcessingPresentationState => _audioProcessingPresentationState;
 
     internal string AudioProcessingSuggestedOutputExtension => GetAudioProcessingSuggestedExtension();
@@ -1701,9 +1695,6 @@ public partial class MainWindowViewModel
             _ => TaskPresentationState.Idle
         });
         OnPropertyChanged(nameof(AudioProcessingStatusPanelBorderBrush));
-        OnPropertyChanged(nameof(AudioProcessingProgressTrackBrush));
-        OnPropertyChanged(nameof(AudioProcessingProgressBorderBrush));
-        OnPropertyChanged(nameof(AudioProcessingProgressFillBrush));
         RaiseDashboardCardActivityPropertyChanges();
     }
 
@@ -1713,36 +1704,6 @@ public partial class MainWindowViewModel
         AudioProcessingProgressPercent = state == EncodingJobState.Completed
             ? 100
             : Math.Min(AudioProcessingProgressPercent, 99.9);
-    }
-
-    private static Brush ResolveAudioProcessingProgressTrackBrush(EncodingJobState? state)
-    {
-        return state switch
-        {
-            EncodingJobState.Failed => ResolveBrush("AppErrorSoftBrush"),
-            EncodingJobState.Cancelled => ResolveBrush("AppNeutralSoftBrush"),
-            _ => ResolveBrush("QueueProgressSoftBrush")
-        };
-    }
-
-    private static Brush ResolveAudioProcessingProgressBorderBrush(EncodingJobState? state)
-    {
-        return state switch
-        {
-            EncodingJobState.Failed => ResolveBrush("AppErrorBrush"),
-            EncodingJobState.Cancelled => ResolveBrush("AppNeutralBrush"),
-            _ => ResolveBrush("QueueProgressFillBrush")
-        };
-    }
-
-    private static Brush ResolveAudioProcessingProgressFillBrush(EncodingJobState? state)
-    {
-        return state switch
-        {
-            EncodingJobState.Failed => ResolveBrush("AppErrorBrush"),
-            EncodingJobState.Cancelled => ResolveBrush("AppNeutralBrush"),
-            _ => ResolveBrush("QueueProgressAreaBrush")
-        };
     }
 
     private void SetAudioProcessingRunningState(bool isRunning, Guid? activeJobId)

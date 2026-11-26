@@ -991,7 +991,34 @@
                         <Canvas
                             x:Name="ChapterMarkerCanvas"
                             IsHitTestVisible="False"
-                            SizeChanged="ChapterMarkerCanvas_SizeChanged" />
+                            SizeChanged="ChapterMarkerCanvas_SizeChanged">
+                            <Canvas.Resources>
+                                <ResourceDictionary>
+                                    <ResourceDictionary.ThemeDictionaries>
+                                        <ResourceDictionary x:Key="Light">
+                                            <SolidColorBrush x:Key="ChapterMarkerBrush" Color="#FF8D711F" />
+                                            <SolidColorBrush x:Key="ActiveChapterMarkerBrush" Color="#FFA04E19" />
+                                        </ResourceDictionary>
+                                        <ResourceDictionary x:Key="Dark">
+                                            <SolidColorBrush x:Key="ChapterMarkerBrush" Color="#FFB49A59" />
+                                            <SolidColorBrush x:Key="ActiveChapterMarkerBrush" Color="#FFE6B578" />
+                                        </ResourceDictionary>
+                                        <ResourceDictionary x:Key="HighContrast">
+                                            <SolidColorBrush x:Key="ChapterMarkerBrush" Color="{ThemeResource SystemColorWindowTextColor}" />
+                                            <SolidColorBrush x:Key="ActiveChapterMarkerBrush" Color="{ThemeResource SystemColorHighlightColor}" />
+                                        </ResourceDictionary>
+                                    </ResourceDictionary.ThemeDictionaries>
+                                    <Style x:Key="ChapterMarkerStyle" TargetType="Line">
+                                        <Setter Property="Stroke" Value="{ThemeResource ChapterMarkerBrush}" />
+                                        <Setter Property="StrokeThickness" Value="2" />
+                                    </Style>
+                                    <Style x:Key="ActiveChapterMarkerStyle" TargetType="Line">
+                                        <Setter Property="Stroke" Value="{ThemeResource ActiveChapterMarkerBrush}" />
+                                        <Setter Property="StrokeThickness" Value="3" />
+                                    </Style>
+                                </ResourceDictionary>
+                            </Canvas.Resources>
+                        </Canvas>
                     </Grid>
                     <DropDownButton
                         x:Name="CompareModeButton"

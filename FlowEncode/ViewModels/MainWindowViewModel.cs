@@ -1036,6 +1036,11 @@ public partial class MainWindowViewModel : CommunityToolkit.Mvvm.ComponentModel.
 
     internal double SelectedJobProgressValue => IsQueueBatchSelectionActive ? 0.0 : SelectedJob?.ProgressValue ?? 0.0;
 
+    internal double SelectedJobParticleProgress => !IsQueueBatchSelectionActive
+        && SelectedJob is { State: EncodingJobState.Running, IsProgressIndeterminate: false } job
+            ? job.ProgressValue
+            : 0.0;
+
     internal string SelectedJobProgressPrimaryText => IsQueueBatchSelectionActive
         ? Texts.QueueBatchSelectionSummary(
             SelectedQueueJobCount,
@@ -3652,6 +3657,7 @@ public partial class MainWindowViewModel : CommunityToolkit.Mvvm.ComponentModel.
     private void RaiseSelectedJobProgressMetricPropertyChanges()
     {
         OnPropertyChanged(nameof(SelectedJobProgressValue));
+        OnPropertyChanged(nameof(SelectedJobParticleProgress));
         OnPropertyChanged(nameof(SelectedJobProgressPrimaryText));
         OnPropertyChanged(nameof(SelectedJobProgressSecondaryText));
         OnPropertyChanged(nameof(SelectedJobProgressPercentText));
@@ -3688,6 +3694,11 @@ public partial class MainWindowViewModel : CommunityToolkit.Mvvm.ComponentModel.
             case nameof(EncodingJobItemViewModel.IsDisplayCommandResolved):
                 OnPropertyChanged(nameof(SelectedJobCommandText));
                 OnPropertyChanged(nameof(CanCopySelectedJobCommand));
+                break;
+
+            case nameof(EncodingJobItemViewModel.State):
+            case nameof(EncodingJobItemViewModel.IsProgressIndeterminate):
+                OnPropertyChanged(nameof(SelectedJobParticleProgress));
                 break;
 
             case nameof(EncodingJobItemViewModel.ProgressValue):

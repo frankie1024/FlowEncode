@@ -61,6 +61,8 @@ public sealed class OverviewQueueViewModel : ModuleViewModelBase
 
     public double SelectedJobProgressValue => Owner.SelectedJobProgressValue;
 
+    public double SelectedJobParticleProgress => Owner.SelectedJobParticleProgress;
+
     public string SelectedJobProgressPercentText => Owner.SelectedJobProgressPercentText;
 
     public string SelectedJobFramesText => Owner.SelectedJobFramesText;

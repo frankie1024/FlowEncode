@@ -221,9 +221,6 @@ public partial class MainWindowViewModel
     internal string BluRayDemuxProgressSecondaryText => !string.IsNullOrWhiteSpace(_bluRayDemuxLastLogLine) ? _bluRayDemuxLastLogLine : BluRayDemuxStatusText;
     internal Visibility BluRayDemuxProgressSecondaryVisibility => string.IsNullOrWhiteSpace(_bluRayDemuxLastLogLine) ? Visibility.Collapsed : Visibility.Visible;
     internal Brush BluRayDemuxStatusPanelBorderBrush => ResolveTaskStatusPanelBorderBrush(_bluRayDemuxDisplayState);
-    internal Brush BluRayDemuxProgressTrackBrush => ResolveBluRayDemuxProgressTrackBrush(_bluRayDemuxDisplayState);
-    internal Brush BluRayDemuxProgressBorderBrush => ResolveBluRayDemuxProgressBorderBrush(_bluRayDemuxDisplayState);
-    internal Brush BluRayDemuxProgressFillBrush => ResolveBluRayDemuxProgressFillBrush(_bluRayDemuxDisplayState);
     internal string BluRayDemuxOutputPreviewText => _isBluRayDemuxInputRefreshPending
         ? Texts.OutputPreviewUpdating
         : BuildOutputPreviewText(TryResolveBluRayOutputPreviewPath());
@@ -555,9 +552,6 @@ public partial class MainWindowViewModel
         OnPropertyChanged(nameof(BluRayDemuxProgressSecondaryText));
         OnPropertyChanged(nameof(BluRayDemuxProgressSecondaryVisibility));
         OnPropertyChanged(nameof(BluRayDemuxStatusPanelBorderBrush));
-        OnPropertyChanged(nameof(BluRayDemuxProgressTrackBrush));
-        OnPropertyChanged(nameof(BluRayDemuxProgressBorderBrush));
-        OnPropertyChanged(nameof(BluRayDemuxProgressFillBrush));
         RaiseDashboardCardActivityPropertyChanges();
 
         BluRayDemuxSourcePath = string.Empty;
@@ -1387,9 +1381,6 @@ public partial class MainWindowViewModel
             _ => TaskPresentationState.Idle
         });
         OnPropertyChanged(nameof(BluRayDemuxStatusPanelBorderBrush));
-        OnPropertyChanged(nameof(BluRayDemuxProgressTrackBrush));
-        OnPropertyChanged(nameof(BluRayDemuxProgressBorderBrush));
-        OnPropertyChanged(nameof(BluRayDemuxProgressFillBrush));
         RaiseDashboardCardActivityPropertyChanges();
     }
 
@@ -1467,27 +1458,6 @@ public partial class MainWindowViewModel
     {
         _isApplyingBluRayDemuxLanguageState = false;
     }
-
-    private static Brush ResolveBluRayDemuxProgressTrackBrush(EncodingJobState? state) => state switch
-    {
-        EncodingJobState.Failed => ResolveBrush("AppErrorSoftBrush"),
-        EncodingJobState.Cancelled => ResolveBrush("AppNeutralSoftBrush"),
-        _ => ResolveBrush("QueueProgressSoftBrush")
-    };
-
-    private static Brush ResolveBluRayDemuxProgressBorderBrush(EncodingJobState? state) => state switch
-    {
-        EncodingJobState.Failed => ResolveBrush("AppErrorBrush"),
-        EncodingJobState.Cancelled => ResolveBrush("AppNeutralBrush"),
-        _ => ResolveBrush("QueueProgressFillBrush")
-    };
-
-    private static Brush ResolveBluRayDemuxProgressFillBrush(EncodingJobState? state) => state switch
-    {
-        EncodingJobState.Failed => ResolveBrush("AppErrorBrush"),
-        EncodingJobState.Cancelled => ResolveBrush("AppNeutralBrush"),
-        _ => ResolveBrush("QueueProgressAreaBrush")
-    };
 
     private sealed record BluRayPlaylistCacheEntry(
         string Summary,

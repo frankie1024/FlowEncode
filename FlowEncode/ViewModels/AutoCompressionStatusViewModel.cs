@@ -15,12 +15,6 @@ public sealed class AutoCompressionStatusViewModel : ModuleViewModelBase
 
     public Brush AutoCompressionStatusPanelBorderBrush => Owner.AutoCompressionStatusPanelBorderBrush;
 
-    public Brush AutoCompressionProgressTrackBrush => Owner.AutoCompressionProgressTrackBrush;
-
-    public Brush AutoCompressionProgressBorderBrush => Owner.AutoCompressionProgressBorderBrush;
-
-    public Brush AutoCompressionProgressFillBrush => Owner.AutoCompressionProgressFillBrush;
-
     public string AutoCompressionStatusText => Owner.AutoCompressionStatusText;
 
     public TaskPresentationState AutoCompressionPresentationState => Owner.AutoCompressionPresentationState;

@@ -171,7 +171,7 @@
 
                                                                     <TextBlock Foreground="{ThemeResource SubtleTextBrush}" Text="{Binding InstallProgressText}" TextWrapping="WrapWholeWords" />
                                                                     <TextBlock Grid.Column="1" FontFamily="{StaticResource AppMonoFont}" Text="{Binding InstallProgressPercentText}" />
-                                                                    <ProgressBar Grid.Row="1" Grid.ColumnSpan="2" Height="6" Minimum="0" Maximum="100" Value="{Binding InstallProgressPercent}" IsIndeterminate="{Binding IsInstallIndeterminate}" />
+                                                                    <ProgressBar Grid.Row="1" Grid.ColumnSpan="2" Height="6" Foreground="{ThemeResource QueueProgressFillBrush}" Background="{ThemeResource QueueProgressSoftBrush}" Minimum="0" Maximum="100" Value="{Binding InstallProgressPercent}" IsIndeterminate="{Binding IsInstallIndeterminate}" />
                                                                 </Grid>
 
                                                                 <TextBlock Grid.Row="5" FontFamily="{StaticResource AppMonoFont}" FontSize="{StaticResource AppCaptionFontSize}" Foreground="{ThemeResource SubtleTextBrush}" Text="{Binding ExecutablePath}" TextWrapping="WrapWholeWords" Visibility="{Binding PathVisibility}" />

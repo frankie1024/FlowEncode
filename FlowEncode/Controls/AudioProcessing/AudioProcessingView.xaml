@@ -167,10 +167,7 @@
 
                     <shared:TaskStatusPanel x:Name="AudioTaskStatusPanel" Grid.Row="1" DataContext="{Binding Status}"
                             PresentationState="{Binding AudioProcessingPresentationState}"
-                            ProgressBorderBrush="{Binding AudioProcessingProgressBorderBrush}"
-                            ProgressFillBrush="{Binding AudioProcessingProgressFillBrush}"
                             ProgressText="{Binding AudioProcessingProgressPercentText}"
-                            ProgressTrackBrush="{Binding AudioProcessingProgressTrackBrush}"
                             ProgressValue="{Binding AudioProcessingProgressValue}"
                             SecondaryText="{Binding AudioProcessingProgressSecondaryText}"
                             SecondaryVisibility="{Binding AudioProcessingProgressSecondaryVisibility}"

@@ -3132,6 +3132,8 @@ public sealed partial class VapourSynthPreviewWindow : Window
         }
 
         var maxFrame = Math.Max(1, ViewModel.FrameSliderMaximum);
+        var markerStyle = (Style)ChapterMarkerCanvas.Resources["ChapterMarkerStyle"];
+        var activeMarkerStyle = (Style)ChapterMarkerCanvas.Resources["ActiveChapterMarkerStyle"];
         for (var index = 0; index < ViewModel.Chapters.Count; index++)
         {
             var frame = TimecodeToFrame(ViewModel.Chapters[index].Timecode, _selectedOutputInfo);
@@ -3142,10 +3144,7 @@ public sealed partial class VapourSynthPreviewWindow : Window
                 X2 = x,
                 Y1 = 3,
                 Y2 = Math.Max(4, height - 3),
-                StrokeThickness = index == _activeChapterIndex ? 3 : 2,
-                Stroke = new SolidColorBrush(index == _activeChapterIndex
-                    ? Microsoft.UI.Colors.Orange
-                    : Microsoft.UI.Colors.Gold)
+                Style = index == _activeChapterIndex ? activeMarkerStyle : markerStyle
             };
             ChapterMarkerCanvas.Children.Add(marker);
         }

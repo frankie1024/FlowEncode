@@ -1,5 +1,4 @@
 using Microsoft.UI.Xaml;
-using Microsoft.UI.Xaml.Media;
 using FlowEncode.Controls.Shared;
 
 namespace FlowEncode.ViewModels;
@@ -16,12 +15,6 @@ public sealed class AudioProcessingStatusViewModel : ModuleViewModelBase
     public string AudioProcessingStatusText => Owner.AudioProcessingStatusText;
 
     public TaskPresentationState AudioProcessingPresentationState => Owner.AudioProcessingPresentationState;
-
-    public Brush AudioProcessingProgressTrackBrush => Owner.AudioProcessingProgressTrackBrush;
-
-    public Brush AudioProcessingProgressBorderBrush => Owner.AudioProcessingProgressBorderBrush;
-
-    public Brush AudioProcessingProgressFillBrush => Owner.AudioProcessingProgressFillBrush;
 
     public double AudioProcessingProgressValue => Owner.AudioProcessingProgressValue;
 

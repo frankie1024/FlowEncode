@@ -6,6 +6,25 @@
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     xmlns:shared="using:FlowEncode.Controls.Shared">
     <Border Padding="{StaticResource AppInsetPanelPadding}" Background="{ThemeResource CardAltBrush}" CornerRadius="{StaticResource AppCardCornerRadius}">
+        <VisualStateManager.VisualStateGroups>
+            <VisualStateGroup x:Name="ProgressStates">
+                <VisualState x:Name="DefaultProgress" />
+                <VisualState x:Name="FailedProgress">
+                    <VisualState.Setters>
+                        <Setter Target="ProgressTrack.Background" Value="{ThemeResource SystemFillColorCriticalBackgroundBrush}" />
+                        <Setter Target="ProgressTrack.BorderBrush" Value="{ThemeResource SystemFillColorCriticalBrush}" />
+                        <Setter Target="ProgressFill.Fill" Value="{ThemeResource TaskProgressErrorBrush}" />
+                    </VisualState.Setters>
+                </VisualState>
+                <VisualState x:Name="CancelledProgress">
+                    <VisualState.Setters>
+                        <Setter Target="ProgressTrack.Background" Value="{ThemeResource SystemFillColorNeutralBackgroundBrush}" />
+                        <Setter Target="ProgressTrack.BorderBrush" Value="{ThemeResource SystemFillColorSolidNeutralBrush}" />
+                        <Setter Target="ProgressFill.Fill" Value="{ThemeResource TaskProgressCancelledBrush}" />
+                    </VisualState.Setters>
+                </VisualState>
+            </VisualStateGroup>
+        </VisualStateManager.VisualStateGroups>
         <StackPanel Spacing="{StaticResource AppSpacingS}">
             <Grid ColumnSpacing="{StaticResource AppSpacingS}">
                 <Grid.ColumnDefinitions>
@@ -18,14 +37,15 @@
                     <TextBlock MaxLines="1" MaxWidth="420" AutomationProperties.LiveSetting="Polite" FontFamily="{StaticResource AppMonoFont}" Foreground="{ThemeResource SubtleTextBrush}" Text="{Binding StatusText, ElementName=Root}" TextTrimming="CharacterEllipsis" TextWrapping="NoWrap" ToolTipService.ToolTip="{Binding StatusText, ElementName=Root}" />
                 </StackPanel>
             </Grid>
-            <Border Padding="0" Background="{Binding ProgressTrackBrush, ElementName=Root}" BorderBrush="{Binding ProgressBorderBrush, ElementName=Root}" BorderThickness="{StaticResource AppCardBorderThickness}" CornerRadius="{StaticResource AppCardCornerRadius}">
+            <Border x:Name="ProgressTrack" Padding="0" Background="{ThemeResource QueueProgressSoftBrush}" BorderBrush="{ThemeResource QueueProgressFillBrush}" BorderThickness="{StaticResource AppCardBorderThickness}" CornerRadius="{StaticResource AppCardCornerRadius}">
                 <Grid Height="{Binding ProgressHeight, ElementName=Root}">
-                    <Rectangle RadiusX="8" RadiusY="8" Fill="{Binding ProgressFillBrush, ElementName=Root}" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" RenderTransformOrigin="0,0.5">
+                    <Rectangle x:Name="ProgressFill" RadiusX="8" RadiusY="8" Fill="{ThemeResource QueueProgressAreaBrush}" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" RenderTransformOrigin="0,0.5">
                         <Rectangle.RenderTransform>
                             <ScaleTransform ScaleX="{Binding ProgressValue, ElementName=Root}" />
                         </Rectangle.RenderTransform>
                     </Rectangle>
                     <Border Margin="1" Background="{ThemeResource AppProgressOverlayBrush}" CornerRadius="{StaticResource AppCardCornerRadius}" />
+                    <Grid x:Name="ProgressParticles" IsHitTestVisible="False" Visibility="Collapsed" shared:ProgressEffects.IsEnabled="True" shared:ProgressEffects.ParticleProgress="{Binding ProgressValue, ElementName=Root}" />
                     <TextBlock FontFamily="{StaticResource AppMonoFont}" FontSize="{StaticResource AppSubsectionTitleFontSize}" FontWeight="SemiBold" HorizontalAlignment="Center" VerticalAlignment="Center" Foreground="{ThemeResource TextFillColorPrimaryBrush}" Text="{Binding ProgressText, ElementName=Root}" TextAlignment="Center" />
                 </Grid>
             </Border>

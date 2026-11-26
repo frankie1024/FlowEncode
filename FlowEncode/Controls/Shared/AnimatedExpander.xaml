@@ -10,7 +10,7 @@
                 <VisualState x:Name="Resting" />
                 <VisualState x:Name="Hovered">
                     <VisualState.Setters>
-                        <Setter Target="HeaderBorder.Background" Value="{ThemeResource AppAccentSoftBrush}" />
+                        <Setter Target="HeaderBorder.Background" Value="{ThemeResource SubtleFillColorSecondaryBrush}" />
                     </VisualState.Setters>
                 </VisualState>
             </VisualStateGroup>

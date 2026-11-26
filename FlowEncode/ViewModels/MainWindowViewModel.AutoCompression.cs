@@ -396,12 +396,6 @@ public partial class MainWindowViewModel
 
     internal Brush AutoCompressionStatusPanelBorderBrush => ResolveTaskStatusPanelBorderBrush(_autoCompressionDisplayState);
 
-    internal Brush AutoCompressionProgressTrackBrush => ResolveAutoCompressionProgressTrackBrush(_autoCompressionDisplayState);
-
-    internal Brush AutoCompressionProgressBorderBrush => ResolveAutoCompressionProgressBorderBrush(_autoCompressionDisplayState);
-
-    internal Brush AutoCompressionProgressFillBrush => ResolveAutoCompressionProgressFillBrush(_autoCompressionDisplayState);
-
     internal string AutoCompressionSuggestedOutputExtension => "mkv";
 
     internal string AutoCompressionSuggestedOutputFileName
@@ -991,9 +985,6 @@ public partial class MainWindowViewModel
             _ => TaskPresentationState.Idle
         });
         OnPropertyChanged(nameof(AutoCompressionStatusPanelBorderBrush));
-        OnPropertyChanged(nameof(AutoCompressionProgressTrackBrush));
-        OnPropertyChanged(nameof(AutoCompressionProgressBorderBrush));
-        OnPropertyChanged(nameof(AutoCompressionProgressFillBrush));
         RaiseDashboardCardActivityPropertyChanges();
     }
 
@@ -1027,36 +1018,6 @@ public partial class MainWindowViewModel
         OnPropertyChanged(nameof(CanStartAutoCompression));
         OnPropertyChanged(nameof(AutoCompressionSuggestedOutputFileName));
         OnPropertyChanged(nameof(AutoCompressionOutputPreviewText));
-    }
-
-    private static Brush ResolveAutoCompressionProgressTrackBrush(EncodingJobState? state)
-    {
-        return state switch
-        {
-            EncodingJobState.Failed => ResolveBrush("AppErrorSoftBrush"),
-            EncodingJobState.Cancelled => ResolveBrush("AppNeutralSoftBrush"),
-            _ => ResolveBrush("QueueProgressSoftBrush")
-        };
-    }
-
-    private static Brush ResolveAutoCompressionProgressBorderBrush(EncodingJobState? state)
-    {
-        return state switch
-        {
-            EncodingJobState.Failed => ResolveBrush("AppErrorBrush"),
-            EncodingJobState.Cancelled => ResolveBrush("AppNeutralBrush"),
-            _ => ResolveBrush("QueueProgressFillBrush")
-        };
-    }
-
-    private static Brush ResolveAutoCompressionProgressFillBrush(EncodingJobState? state)
-    {
-        return state switch
-        {
-            EncodingJobState.Failed => ResolveBrush("AppErrorBrush"),
-            EncodingJobState.Cancelled => ResolveBrush("AppNeutralBrush"),
-            _ => ResolveBrush("QueueProgressAreaBrush")
-        };
     }
 
     private static double NormalizeBoundedDouble(double value, double minimum, double maximum)
