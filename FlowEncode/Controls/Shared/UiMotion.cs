@@ -58,8 +58,8 @@ public static class UiMotion
         var transform = EnsureCompositeTransform(element);
         transform.TranslateX = offsetX;
         transform.TranslateY = offsetY;
-        AnimateDouble(transform, nameof(CompositeTransform.TranslateX), offsetX, 0, UiTokens.MotionEmphasisDuration, UiTokens.MotionEasingEnter, false);
-        AnimateDouble(transform, nameof(CompositeTransform.TranslateY), offsetY, 0, UiTokens.MotionEmphasisDuration, UiTokens.MotionEasingEnter, false);
+        AnimateDouble(transform, nameof(CompositeTransform.TranslateX), offsetX, 0, UiTokens.MotionFastDuration, UiTokens.MotionEasingEnter, false);
+        AnimateDouble(transform, nameof(CompositeTransform.TranslateY), offsetY, 0, UiTokens.MotionFastDuration, UiTokens.MotionEasingEnter, false);
     }
 
     public static void PlayEntrance(FrameworkElement element, double offsetY)

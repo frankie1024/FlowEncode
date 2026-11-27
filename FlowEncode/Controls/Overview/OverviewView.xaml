@@ -706,9 +706,9 @@
                                                         </StackPanel>
                                                         <TextBlock Grid.Column="1" FontSize="{StaticResource AppCaptionFontSize}" HorizontalAlignment="Center" VerticalAlignment="Center" Text="{Binding CodecAndCrfLabel}" TextAlignment="Center" TextWrapping="WrapWholeWords" />
                                                         <TextBlock Grid.Column="2" FontSize="{StaticResource AppCaptionFontSize}" HorizontalAlignment="Center" VerticalAlignment="Center" Text="{Binding StateLabel}" />
-                                                        <StackPanel Grid.Column="3" HorizontalAlignment="Center" VerticalAlignment="Center" Spacing="{StaticResource AppSpacingXS}">
-                                                            <TextBlock FontSize="{StaticResource AppCaptionFontSize}" HorizontalAlignment="Center" Text="{Binding ProgressPercentLabel}" />
-                                                            <ProgressBar HorizontalAlignment="Stretch" Height="5" Maximum="1" Foreground="{ThemeResource QueueProgressFillBrush}" IsIndeterminate="{Binding IsProgressIndeterminate}" Value="{Binding ProgressValue}" />
+                                                        <StackPanel Grid.Column="3" Margin="8,0" HorizontalAlignment="Stretch" VerticalAlignment="Center" Spacing="{StaticResource AppSpacingXS}">
+                                                            <TextBlock FontFamily="{StaticResource AppMonoFont}" FontSize="{StaticResource AppCaptionFontSize}" HorizontalAlignment="Center" Text="{Binding ProgressPercentLabel}" />
+                                                            <ProgressBar HorizontalAlignment="Stretch" Height="5" Maximum="1" Foreground="{ThemeResource QueueProgressFillBrush}" Background="{ThemeResource QueueProgressSoftBrush}" IsIndeterminate="{Binding IsProgressIndeterminate}" Value="{Binding ProgressValue}" />
                                                         </StackPanel>
                                                     </Grid>
                                                 </Grid>

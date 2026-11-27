@@ -74,16 +74,7 @@ public sealed partial class OverviewView : UserControl
             ? ScrollBarVisibility.Disabled
             : ScrollBarVisibility.Auto;
 
-        if (stackedWorkspace)
-        {
-            ClearOverviewWorkspaceHeight();
-        }
-        else
-        {
-            OverviewComposerPanel.Height = double.NaN;
-            OverviewQueuePanel.Height = double.NaN;
-            ScheduleOverviewWorkspaceHeightRefresh(stackedWorkspace);
-        }
+        UpdateOverviewWorkspaceHeight(stackedWorkspace);
 
         QueueActionBar.IsStacked = compactForms;
         ConfigureThreeItemGrid(DraftEncoderRatePresetGrid, DraftRateColumn, DraftPresetColumn, DraftRateControlComboBox, DraftPresetComboBox, compactForms);
@@ -1260,41 +1251,30 @@ public sealed partial class OverviewView : UserControl
 
     private void UpdateOverviewWorkspaceHeight(bool stackedWorkspace)
     {
-        if (stackedWorkspace || OverviewScrollViewer.Visibility != Visibility.Visible)
-        {
-            ClearOverviewWorkspaceHeight();
-            return;
-        }
-
-        if (OverviewScrollViewer.ActualHeight <= 0)
-        {
-            return;
-        }
-
-        var availableHeight = OverviewScrollViewer.ActualHeight
-            - OverviewContentStack.Padding.Top
-            - OverviewContentStack.Padding.Bottom;
-
-        if (availableHeight <= 0)
-        {
-            return;
-        }
-
-        // Bind both 52:48 columns to the viewport height so the left form scrolls independently
-        // while the right progress bar, queue hero list, and bottom diagnostics stay aligned.
-        OverviewWorkspaceGrid.Height = availableHeight >= 460
-            ? Math.Floor(availableHeight)
-            : double.NaN;
-    }
-
-    private void ClearOverviewWorkspaceHeight()
-    {
         OverviewComposerPanel.Height = double.NaN;
         OverviewQueuePanel.Height = double.NaN;
         OverviewComposerPanel.MinHeight = 0;
         OverviewQueuePanel.MinHeight = 0;
         OverviewContentStack.MinHeight = 0;
         OverviewWorkspaceGrid.Height = double.NaN;
+
+        var needsOuterScroll = stackedWorkspace
+            || (OverviewScrollViewer.ActualHeight > 0
+                && OverviewScrollViewer.ActualHeight
+                    - OverviewContentStack.Padding.Top
+                    - OverviewContentStack.Padding.Bottom < 460);
+
+        OverviewScrollViewer.VerticalScrollBarVisibility = needsOuterScroll
+            ? ScrollBarVisibility.Auto
+            : ScrollBarVisibility.Disabled;
+        OverviewScrollViewer.VerticalScrollMode = needsOuterScroll
+            ? ScrollMode.Auto
+            : ScrollMode.Disabled;
+    }
+
+    private void ClearOverviewWorkspaceHeight()
+    {
+        UpdateOverviewWorkspaceHeight(true);
     }
 
     private void TryWriteDiagnostic(string message)

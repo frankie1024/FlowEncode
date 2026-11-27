@@ -18,9 +18,9 @@ internal enum MainWindowShellSectionTransitionKind
 
 internal sealed class MainWindowShellSectionController
 {
-    private const double EntranceOffsetX = 24d;
-    private const double DashboardForwardOffsetY = 32d;
-    private const double DashboardBackwardOffsetY = -24d;
+    private const double EntranceOffsetY = 6d;
+    private const double DashboardForwardOffsetY = 8d;
+    private const double DashboardBackwardOffsetY = -6d;
 
     private readonly Panel _host;
     private readonly Func<string, UserControl> _controlFactory;
@@ -96,7 +96,9 @@ internal sealed class MainWindowShellSectionController
     {
         var normalizedTag = MainShellSections.Normalize(tag);
         var activeControl = EnsureControl(normalizedTag);
-        var previousControl = _host.Children.OfType<UserControl>().FirstOrDefault();
+        var previousControl = _host.Children
+            .OfType<UserControl>()
+            .FirstOrDefault(control => control.Visibility == Visibility.Visible);
         var previousTag = _controls
             .FirstOrDefault(entry => ReferenceEquals(entry.Value, previousControl))
             .Key;
@@ -113,16 +115,15 @@ internal sealed class MainWindowShellSectionController
             _host.Children.Add(activeControl);
         }
 
+        // Keep materialized sticky sections mounted in the visual tree and toggle
+        // Visibility only, avoiding unload/reload ActualHeight resets and 1-frame layout jumps.
+        activeControl.Visibility = Visibility.Visible;
         foreach (var sectionEntry in _controls)
         {
-            sectionEntry.Value.Visibility = string.Equals(sectionEntry.Key, normalizedTag, StringComparison.Ordinal)
-                ? Visibility.Visible
-                : Visibility.Collapsed;
-        }
-
-        if (previousControl is not null && _host.Children.Contains(previousControl))
-        {
-            _host.Children.Remove(previousControl);
+            if (!string.Equals(sectionEntry.Key, normalizedTag, StringComparison.Ordinal))
+            {
+                sectionEntry.Value.Visibility = Visibility.Collapsed;
+            }
         }
 
         PlayTransition(activeControl, previousTag, normalizedTag, transitionKind);
@@ -208,7 +209,7 @@ internal sealed class MainWindowShellSectionController
         switch (transitionKind)
         {
             case MainWindowShellSectionTransitionKind.Entrance:
-                UiMotion.PlayPageEntrance(control, EntranceOffsetX, 0);
+                UiMotion.PlayPageEntrance(control, 0, EntranceOffsetY);
                 break;
             case MainWindowShellSectionTransitionKind.DashboardForward:
                 UiMotion.PlayPageEntrance(control, 0, DashboardForwardOffsetY);

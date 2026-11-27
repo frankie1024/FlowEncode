@@ -35,6 +35,7 @@ public sealed class EncodingJobItemViewModel : ObservableObject
     private bool _isDisplayCommandResolved;
     private CancellationTokenSource? _cancellationTokenSource;
     private bool _isCancellationRequested;
+    private bool _lastIsProgressIndeterminate;
     private readonly StringBuilder _logBuilder = new();
     private string _lastMeaningfulLogLine;
 
@@ -108,7 +109,7 @@ public sealed class EncodingJobItemViewModel : ObservableObject
                 OnPropertyChanged(nameof(CanCancel));
                 OnPropertyChanged(nameof(CanRestart));
                 OnPropertyChanged(nameof(CanRemove));
-                OnPropertyChanged(nameof(IsProgressIndeterminate));
+                NotifyIsProgressIndeterminateIfChanged();
                 OnPropertyChanged(nameof(ProgressPercentLabel));
                 OnPropertyChanged(nameof(ProgressTelemetryPrimaryLine));
                 OnPropertyChanged(nameof(ProgressTelemetrySecondaryLine));
@@ -129,7 +130,7 @@ public sealed class EncodingJobItemViewModel : ObservableObject
                 OnPropertyChanged(nameof(ProgressTelemetryLabel));
                 OnPropertyChanged(nameof(ProgressTelemetryPrimaryLine));
                 OnPropertyChanged(nameof(ProgressTelemetrySecondaryLine));
-                OnPropertyChanged(nameof(IsProgressIndeterminate));
+                NotifyIsProgressIndeterminateIfChanged();
             }
         }
     }
@@ -253,7 +254,7 @@ public sealed class EncodingJobItemViewModel : ObservableObject
                 OnPropertyChanged(nameof(ProgressTelemetryLabel));
                 OnPropertyChanged(nameof(ProgressTelemetryPrimaryLine));
                 OnPropertyChanged(nameof(ProgressTelemetrySecondaryLine));
-                OnPropertyChanged(nameof(IsProgressIndeterminate));
+                NotifyIsProgressIndeterminateIfChanged();
                 OnPropertyChanged(nameof(HasSourcePreparationText));
             }
         }
@@ -590,11 +591,21 @@ public sealed class EncodingJobItemViewModel : ObservableObject
             OnPropertyChanged(nameof(ProgressTelemetryLabel));
             OnPropertyChanged(nameof(ProgressTelemetryPrimaryLine));
             OnPropertyChanged(nameof(ProgressTelemetrySecondaryLine));
-            OnPropertyChanged(nameof(IsProgressIndeterminate));
+            NotifyIsProgressIndeterminateIfChanged();
             return true;
         }
 
         return false;
+    }
+
+    private void NotifyIsProgressIndeterminateIfChanged()
+    {
+        var current = IsProgressIndeterminate;
+        if (_lastIsProgressIndeterminate != current)
+        {
+            _lastIsProgressIndeterminate = current;
+            OnPropertyChanged(nameof(IsProgressIndeterminate));
+        }
     }
 
     private static string FormatPercent(double value)

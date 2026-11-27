@@ -83,7 +83,7 @@ public sealed partial class AudioProcessingView : UserControl
         }
 
         ApplyResponsiveLayout();
-        ScheduleWorkspaceHeightRefresh();
+        UpdateWorkspaceHeight();
     }
 
     private void MarkAdvancedExpanderUserToggled()
@@ -122,19 +122,20 @@ public sealed partial class AudioProcessingView : UserControl
 
     private void UpdateWorkspaceHeight()
     {
-        if (_stackedWorkspace || RootScrollViewer.ActualHeight <= 0)
-        {
-            AudioWorkspaceGrid.Height = double.NaN;
-            return;
-        }
+        AudioWorkspaceGrid.Height = double.NaN;
 
-        var availableHeight = RootScrollViewer.ActualHeight
-            - ContentStack.Padding.Top
-            - ContentStack.Padding.Bottom;
+        var needsOuterScroll = _stackedWorkspace
+            || (RootScrollViewer.ActualHeight > 0
+                && RootScrollViewer.ActualHeight
+                    - ContentStack.Padding.Top
+                    - ContentStack.Padding.Bottom < 460);
 
-        AudioWorkspaceGrid.Height = availableHeight >= 460
-            ? Math.Floor(availableHeight)
-            : double.NaN;
+        RootScrollViewer.VerticalScrollBarVisibility = needsOuterScroll
+            ? ScrollBarVisibility.Auto
+            : ScrollBarVisibility.Disabled;
+        RootScrollViewer.VerticalScrollMode = needsOuterScroll
+            ? ScrollMode.Auto
+            : ScrollMode.Disabled;
     }
 
     private void AudioProcessingView_Loaded(object sender, RoutedEventArgs e)

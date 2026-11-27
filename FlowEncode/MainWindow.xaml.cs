@@ -261,7 +261,7 @@ public sealed partial class MainWindow : Window, ISettingsViewHost, IShellNaviga
                 () => CreateSectionView<DashboardView>(ViewModel.DashboardModule, view => view.Host = this),
                 static (control, width, contentPadding, _, _) => ((DashboardView)control).ApplyLayout(width, contentPadding)),
             [MainShellSections.BluRayDemux] = new(
-                ShellSectionLifetime.Recreatable,
+                ShellSectionLifetime.Sticky,
                 () => CreateSectionView<BluRayDemuxView>(ViewModel.BluRayDemuxModule),
                 static (control, _, contentPadding, stackedWorkspace, compactForms) => ((BluRayDemuxView)control).ApplyLayout(stackedWorkspace, compactForms, contentPadding)),
             [MainShellSections.VapourSynthWorkspace] = new(
@@ -879,20 +879,21 @@ public sealed partial class MainWindow : Window, ISettingsViewHost, IShellNaviga
             {
                 return;
             }
-        }
 
-        if (HasPendingShellNavigationOverride(normalizedTag))
-        {
-            return;
+            if (!HasPendingShellNavigationOverride(normalizedTag))
+            {
+                var contentWidth = ResolveShellContentWidth(RootLayout.ActualWidth);
+                if (contentWidth > 0)
+                {
+                    ApplyAdaptiveLayoutToSection(
+                        normalizedTag,
+                        contentWidth,
+                        CreateShellContentPadding(contentWidth),
+                        contentWidth < StackedWorkspaceWidth,
+                        contentWidth < CompactFormsWidth);
+                }
+            }
         }
-
-        if (!string.Equals(previousTag, normalizedTag, StringComparison.Ordinal)
-            && !string.Equals(_activeShellSectionTag, normalizedTag, StringComparison.Ordinal))
-        {
-            return;
-        }
-
-        UpdateAdaptiveLayout(RootLayout.ActualWidth);
     }
 
     private bool HasPendingShellNavigationOverride(string normalizedTag)

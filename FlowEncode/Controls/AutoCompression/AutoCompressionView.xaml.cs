@@ -84,7 +84,7 @@ public sealed partial class AutoCompressionView : UserControl
             }
         }
 
-        ScheduleWorkspaceHeightRefresh();
+        UpdateWorkspaceHeight();
     }
 
     private void MarkAdvancedExpanderUserToggled()
@@ -99,19 +99,20 @@ public sealed partial class AutoCompressionView : UserControl
 
     private void UpdateWorkspaceHeight()
     {
-        if (_stackedWorkspace || RootScrollViewer.ActualHeight <= 0)
-        {
-            AutoWorkspaceGrid.Height = double.NaN;
-            return;
-        }
+        AutoWorkspaceGrid.Height = double.NaN;
 
-        var availableHeight = RootScrollViewer.ActualHeight
-            - ContentStack.Padding.Top
-            - ContentStack.Padding.Bottom;
+        var needsOuterScroll = _stackedWorkspace
+            || (RootScrollViewer.ActualHeight > 0
+                && RootScrollViewer.ActualHeight
+                    - ContentStack.Padding.Top
+                    - ContentStack.Padding.Bottom < 460);
 
-        AutoWorkspaceGrid.Height = availableHeight >= 460
-            ? Math.Floor(availableHeight)
-            : double.NaN;
+        RootScrollViewer.VerticalScrollBarVisibility = needsOuterScroll
+            ? ScrollBarVisibility.Auto
+            : ScrollBarVisibility.Disabled;
+        RootScrollViewer.VerticalScrollMode = needsOuterScroll
+            ? ScrollMode.Auto
+            : ScrollMode.Disabled;
     }
 
     private void AutoCompressionView_Loaded(object sender, RoutedEventArgs e)
@@ -123,7 +124,7 @@ public sealed partial class AutoCompressionView : UserControl
             AutoOutputPathTextBox.AddHandler(UIElement.DoubleTappedEvent, new DoubleTappedEventHandler(AutoOutputPathTextBox_DoubleTapped), true);
         }
 
-        ScheduleWorkspaceHeightRefresh();
+        UpdateWorkspaceHeight();
     }
 
     private async void BrowseAutoSourceButton_Click(object sender, RoutedEventArgs e)

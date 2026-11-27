@@ -177,10 +177,18 @@ public sealed partial class DashboardView : UserControl
         DashboardAutoCompressionButton.MinHeight = cardHeight;
         DashboardSettingsButton.MinHeight = cardHeight;
 
-        // The Grid divides the current viewport between its star rows. Narrow
-        // layouts retain their natural content height and scroll instead.
-        DashboardContentStack.MinHeight = columnCount > 1 ? Math.Floor(DashboardScroller.ActualHeight) : 0;
-        ConfigureDashboardRows(rowCount, columnCount > 1);
+        // Constrain DashboardScroller synchronously in multi-column layouts so star rows
+        // fill the viewport on Frame 0 without waiting for an ActualHeight layout jump.
+        var stretchToViewport = columnCount > 1
+            && (DashboardScroller.ActualHeight <= 0 || DashboardScroller.ActualHeight >= 520);
+        DashboardScroller.VerticalScrollBarVisibility = stretchToViewport
+            ? ScrollBarVisibility.Disabled
+            : ScrollBarVisibility.Auto;
+        DashboardScroller.VerticalScrollMode = stretchToViewport
+            ? ScrollMode.Disabled
+            : ScrollMode.Auto;
+        DashboardContentStack.MinHeight = 0;
+        ConfigureDashboardRows(rowCount, stretchToViewport);
 
         ArrangeDashboardCard(DashboardDemuxButton, 0, columnCount);
         ArrangeDashboardCard(DashboardVapourSynthButton, 1, columnCount);
