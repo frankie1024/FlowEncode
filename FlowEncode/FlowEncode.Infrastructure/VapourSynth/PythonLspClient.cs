@@ -116,6 +116,21 @@ internal sealed class PythonLspClient : IDisposable
                                     snippetSupport = true,
                                     documentationFormat = new[] { "markdown", "plaintext" }
                                 }
+                            },
+                            hover = new
+                            {
+                                contentFormat = new[] { "markdown", "plaintext" }
+                            },
+                            signatureHelp = new
+                            {
+                                signatureInformation = new
+                                {
+                                    documentationFormat = new[] { "markdown", "plaintext" },
+                                    parameterInformation = new
+                                    {
+                                        labelOffsetSupport = false
+                                    }
+                                }
                             }
                         }
                     },
@@ -161,6 +176,47 @@ internal sealed class PythonLspClient : IDisposable
             cancellationToken);
 
         return MapCompletions(result);
+    }
+
+    public async Task<VapourSynthPythonHoverInfo?> GetHoverAsync(
+        VapourSynthTextDocumentContext document,
+        VapourSynthTextDocumentPosition position,
+        CancellationToken cancellationToken)
+    {
+        var documentUri = await EnsureDocumentSynchronizedAsync(document, cancellationToken);
+        var result = await SendRequestAsync(
+            "textDocument/hover",
+            new
+            {
+                textDocument = new { uri = documentUri },
+                position = CreatePosition(position)
+            },
+            cancellationToken);
+
+        return MapHover(result);
+    }
+
+    public async Task<VapourSynthPythonSignatureHelp?> GetSignatureHelpAsync(
+        VapourSynthTextDocumentContext document,
+        VapourSynthTextDocumentPosition position,
+        string? triggerCharacter,
+        CancellationToken cancellationToken)
+    {
+        var documentUri = await EnsureDocumentSynchronizedAsync(document, cancellationToken);
+        var context = string.IsNullOrWhiteSpace(triggerCharacter)
+            ? (object)new { triggerKind = 1, isRetrigger = false }
+            : new { triggerKind = 2, triggerCharacter, isRetrigger = false };
+        var result = await SendRequestAsync(
+            "textDocument/signatureHelp",
+            new
+            {
+                textDocument = new { uri = documentUri },
+                position = CreatePosition(position),
+                context
+            },
+            cancellationToken);
+
+        return MapSignatureHelp(result);
     }
 
     public void Dispose()
@@ -607,9 +663,16 @@ internal sealed class PythonLspClient : IDisposable
             .Split(Path.PathSeparator, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
             .ToList();
 
-        if (!segments.Any(path => string.Equals(path, additionalPythonPath, StringComparison.OrdinalIgnoreCase)))
+        var extraSegments = additionalPythonPath
+            .Split(Path.PathSeparator, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+
+        for (var i = extraSegments.Length - 1; i >= 0; i--)
         {
-            segments.Insert(0, additionalPythonPath);
+            var candidate = extraSegments[i];
+            if (!segments.Any(path => string.Equals(path, candidate, StringComparison.OrdinalIgnoreCase)))
+            {
+                segments.Insert(0, candidate);
+            }
         }
 
         startInfo.Environment["PYTHONPATH"] = string.Join(Path.PathSeparator, segments);
@@ -761,6 +824,98 @@ internal sealed class PythonLspClient : IDisposable
         }
 
         return items;
+    }
+
+    private static VapourSynthPythonHoverInfo? MapHover(JsonElement? result)
+    {
+        if (result is null || result.Value.ValueKind != JsonValueKind.Object)
+        {
+            return null;
+        }
+
+        if (!TryGetProperty(result.Value, "contents", out var contentsElement))
+        {
+            return null;
+        }
+
+        var markdown = ConvertMarkupToMarkdown(contentsElement).Trim();
+        return string.IsNullOrWhiteSpace(markdown)
+            ? null
+            : new VapourSynthPythonHoverInfo(markdown);
+    }
+
+    private static VapourSynthPythonSignatureHelp? MapSignatureHelp(JsonElement? result)
+    {
+        if (result is null || result.Value.ValueKind != JsonValueKind.Object)
+        {
+            return null;
+        }
+
+        if (!TryGetProperty(result.Value, "signatures", out var signaturesElement)
+            || signaturesElement.ValueKind != JsonValueKind.Array)
+        {
+            return null;
+        }
+
+        var signatures = new List<VapourSynthPythonSignatureItem>();
+        foreach (var sigElement in signaturesElement.EnumerateArray())
+        {
+            var label = TryGetString(sigElement, "label");
+            if (string.IsNullOrWhiteSpace(label))
+            {
+                continue;
+            }
+
+            var doc = TryGetProperty(sigElement, "documentation", out var docEl)
+                ? ConvertMarkupToMarkdown(docEl)
+                : string.Empty;
+
+            var parameters = new List<VapourSynthPythonSignatureParameter>();
+            if (TryGetProperty(sigElement, "parameters", out var paramsEl) && paramsEl.ValueKind == JsonValueKind.Array)
+            {
+                foreach (var paramEl in paramsEl.EnumerateArray())
+                {
+                    string? pLabel = null;
+                    if (TryGetProperty(paramEl, "label", out var labelEl))
+                    {
+                        if (labelEl.ValueKind == JsonValueKind.String)
+                        {
+                            pLabel = labelEl.GetString();
+                        }
+                        else if (labelEl.ValueKind == JsonValueKind.Array && labelEl.GetArrayLength() == 2)
+                        {
+                            var start = labelEl[0].GetInt32();
+                            var end = labelEl[1].GetInt32();
+                            if (start >= 0 && end > start && end <= label.Length)
+                            {
+                                pLabel = label[start..end];
+                            }
+                        }
+                    }
+
+                    if (string.IsNullOrWhiteSpace(pLabel))
+                    {
+                        continue;
+                    }
+
+                    var pDoc = TryGetProperty(paramEl, "documentation", out var pDocEl)
+                        ? ConvertMarkupToMarkdown(pDocEl)
+                        : string.Empty;
+                    parameters.Add(new VapourSynthPythonSignatureParameter(pLabel, pDoc));
+                }
+            }
+
+            signatures.Add(new VapourSynthPythonSignatureItem(label, doc, parameters));
+        }
+
+        if (signatures.Count == 0)
+        {
+            return null;
+        }
+
+        var activeSignature = Math.Clamp(ReadInt(result.Value, "activeSignature"), 0, signatures.Count - 1);
+        var activeParameter = Math.Max(0, ReadInt(result.Value, "activeParameter"));
+        return new VapourSynthPythonSignatureHelp(signatures, activeSignature, activeParameter);
     }
 
     private static bool TryGetCompletionItems(JsonElement? result, out JsonElement itemsElement)

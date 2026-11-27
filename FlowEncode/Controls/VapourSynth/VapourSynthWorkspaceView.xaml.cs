@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
@@ -33,6 +34,7 @@ public sealed partial class VapourSynthWorkspaceView : UserControl, IDisposable
     private readonly string _editorWebViewUserDataFolderPath;
     private VapourSynthPreviewWindow? _previewWindow;
     private VapourSynthWorkspaceTabViewModel? _previewLogTab;
+    private VapourSynthLanguageFeaturesSnapshot? _latestLanguageFeatures;
     private CancellationTokenSource? _diagnosticsCancellationTokenSource;
     private bool _isLoaded;
     private long _diagnosticsVersion;
@@ -695,93 +697,298 @@ public sealed partial class VapourSynthWorkspaceView : UserControl, IDisposable
         await RunUiActionAsync(() => ExecuteEditorCommandAsync("goto"));
     }
 
-    private async void SmartInsertBitdepth16_Click(object sender, RoutedEventArgs e)
+    private void SmartInsertMenuFlyout_Opening(object? sender, object e)
     {
-        await RunUiActionAsync(() => ApplySmartEditorRewriteAsync(script =>
-            VapourSynthSmartScriptEditor.ApplyFilterTemplate(
-                script,
-                outputIndex: 0,
-                expressionTemplateWithPlaceholder: "core.fmtc.bitdepth({var}, bits=16)",
-                derivedVariableName: "src16")));
+        RebuildSmartInsertMenu();
     }
 
-    private async void SmartInsertBitdepth10_Click(object sender, RoutedEventArgs e)
+    private void RebuildSmartInsertMenu()
     {
-        await RunUiActionAsync(() => ApplySmartEditorRewriteAsync(script =>
-            VapourSynthSmartScriptEditor.ApplyFilterTemplate(
-                script,
-                outputIndex: 0,
-                expressionTemplateWithPlaceholder: "core.fmtc.bitdepth({var}, bits=10, dmode=3)",
-                derivedVariableName: "out10")));
+        var texts = ViewModel.Texts;
+        var namespaces = new HashSet<string>(
+            _latestLanguageFeatures?.Namespaces.Select(static n => n.Name) ?? [],
+            StringComparer.OrdinalIgnoreCase);
+        var packages = new HashSet<string>(
+            _latestLanguageFeatures?.InstalledPackages ?? [],
+            StringComparer.OrdinalIgnoreCase);
+        var hasRuntime = _latestLanguageFeatures?.IsRuntimeReady == true;
+
+        string FormatLabel(string baseLabel, string? requiredNamespace = null, string? requiredPackage = null)
+        {
+            if (!hasRuntime)
+            {
+                return baseLabel;
+            }
+
+            if (!string.IsNullOrWhiteSpace(requiredNamespace) && !namespaces.Contains(requiredNamespace))
+            {
+                return baseLabel + texts.VapourSynthSmartMissingDepSuffix(requiredNamespace);
+            }
+
+            if (!string.IsNullOrWhiteSpace(requiredPackage) && !packages.Contains(requiredPackage))
+            {
+                return baseLabel + texts.VapourSynthSmartMissingDepSuffix(requiredPackage);
+            }
+
+            return baseLabel;
+        }
+
+        MenuFlyoutItem MakeFilterItem(
+            string label,
+            Func<string, SmartScriptEditResult> rewriter,
+            string? requiredNamespace = null,
+            string? requiredPackage = null)
+        {
+            var item = new MenuFlyoutItem { Text = FormatLabel(label, requiredNamespace, requiredPackage) };
+            item.Click += async (_, _) => await RunUiActionAsync(() => ApplySmartEditorRewriteAsync(rewriter));
+            return item;
+        }
+
+        SmartInsertMenuFlyout.Items.Clear();
+
+        var depthSub = new MenuFlyoutSubItem { Text = texts.VapourSynthSmartCategoryDepthColor };
+        depthSub.Items.Add(MakeFilterItem(
+            texts.VapourSynthSmartBitdepth16Item,
+            s => VapourSynthSmartScriptEditor.ApplyFilterTemplate(s, 0, "core.fmtc.bitdepth({var}, bits=16)", derivedVariableName: "src16"),
+            requiredNamespace: "fmtc"));
+        depthSub.Items.Add(MakeFilterItem(
+            texts.VapourSynthSmartBitdepth10Item,
+            s => VapourSynthSmartScriptEditor.ApplyFilterTemplate(s, 0, "core.fmtc.bitdepth({var}, bits=10, dmode=3)", derivedVariableName: "out10"),
+            requiredNamespace: "fmtc"));
+        depthSub.Items.Add(MakeFilterItem(
+            texts.VapourSynthSmartBitdepth8Item,
+            s => VapourSynthSmartScriptEditor.ApplyFilterTemplate(s, 0, "core.fmtc.bitdepth({var}, bits=8, dmode=3)", derivedVariableName: "out8"),
+            requiredNamespace: "fmtc"));
+        depthSub.Items.Add(new MenuFlyoutSeparator());
+        depthSub.Items.Add(MakeFilterItem(
+            texts.VapourSynthSmartSetProps709Item,
+            s => VapourSynthSmartScriptEditor.ApplyFilterTemplate(s, 0, "{var}.std.SetFrameProps(_Matrix=1, _Transfer=1, _Primaries=1, _ColorRange=1)"),
+            requiredNamespace: "std"));
+        depthSub.Items.Add(MakeFilterItem(
+            texts.VapourSynthSmartHdrTonemapItem,
+            s => VapourSynthSmartScriptEditor.ApplyFilterTemplate(s, 0, "core.placebo.Tonemap({var}.resize.Spline36(format=vs.YUV444P16), src_csp=2, dst_csp=0, target_peak=203.0, tone_mapping_function=3)"),
+            requiredNamespace: "placebo"));
+        SmartInsertMenuFlyout.Items.Add(depthSub);
+
+        var cropSub = new MenuFlyoutSubItem { Text = texts.VapourSynthSmartCategoryCropEdge };
+        cropSub.Items.Add(MakeFilterItem(
+            texts.VapourSynthSmartCropRelItem,
+            s => VapourSynthSmartScriptEditor.ApplyCrop(s, 0, isAbsolute: false, left: 0, top: 140, widthOrRight: 0, heightOrBottom: 140),
+            requiredNamespace: "std"));
+        cropSub.Items.Add(MakeFilterItem(
+            texts.VapourSynthSmartBbmodItem,
+            s => VapourSynthSmartScriptEditor.ApplyFilterTemplate(s, 0, "{alias}.bbmod({var}, top=2, bottom=2, left=2, right=2, thresh=32, blur=20)", importModule: "awsmfunc", importAlias: "awf"),
+            requiredPackage: "awsmfunc"));
+        cropSub.Items.Add(MakeFilterItem(
+            texts.VapourSynthSmartFillBordersItem,
+            s => VapourSynthSmartScriptEditor.ApplyFilterTemplate(s, 0, "{alias}.fb({var}, top=2, bottom=2, left=2, right=2)", importModule: "awsmfunc", importAlias: "awf"),
+            requiredPackage: "awsmfunc"));
+        SmartInsertMenuFlyout.Items.Add(cropSub);
+
+        var deintSub = new MenuFlyoutSubItem { Text = texts.VapourSynthSmartCategoryDeinterlace };
+        deintSub.Items.Add(MakeFilterItem(
+            texts.VapourSynthSmartQtgmcItem,
+            s => VapourSynthSmartScriptEditor.ApplyFilterTemplate(s, 0, "{alias}.QTGMC({var}, Preset=\"Slow\", TFF=True, FPSDivisor=2)", importModule: "havsfunc", importAlias: "haf"),
+            requiredPackage: "havsfunc"));
+        deintSub.Items.Add(MakeFilterItem(
+            texts.VapourSynthSmartIvtcItem,
+            s => VapourSynthSmartScriptEditor.ApplyMultiLineFilterTemplate(
+                s,
+                0,
+                ["{var} = core.vivtc.VFM({var}, order=1)", "{var} = core.vivtc.VDecimate({var})"]),
+            requiredNamespace: "vivtc"));
+        SmartInsertMenuFlyout.Items.Add(deintSub);
+
+        var debandSub = new MenuFlyoutSubItem { Text = texts.VapourSynthSmartCategoryDebandGrain };
+        debandSub.Items.Add(MakeFilterItem(
+            texts.VapourSynthSmartPlaceboDebandItem,
+            s => VapourSynthSmartScriptEditor.ApplyFilterTemplate(s, 0, "core.placebo.Deband({var}, iterations=1, threshold=4.0, radius=16.0, grain=6.0)"),
+            requiredNamespace: "placebo"));
+        debandSub.Items.Add(MakeFilterItem(
+            texts.VapourSynthSmartNeoF3kdbItem,
+            s => VapourSynthSmartScriptEditor.ApplyFilterTemplate(s, 0, "core.neo_f3kdb.Deband({var}, range=15, y=48, cb=36, cr=36, grainy=24, grainc=0)"),
+            requiredNamespace: "neo_f3kdb"));
+        debandSub.Items.Add(MakeFilterItem(
+            texts.VapourSynthSmartVsDebandItem,
+            s => VapourSynthSmartScriptEditor.ApplyFilterTemplate(s, 0, "Placebo.deband({var}, thr=2.0, radius=16, grain=4)", fromModule: "vsdeband", fromSymbol: "Placebo"),
+            requiredPackage: "vsdeband"));
+        debandSub.Items.Add(MakeFilterItem(
+            texts.VapourSynthSmartAddGrainItem,
+            s => VapourSynthSmartScriptEditor.ApplyFilterTemplate(s, 0, "core.grain.Add({var}, var=1.0, uvar=0.0, constant=False)"),
+            requiredNamespace: "grain"));
+        SmartInsertMenuFlyout.Items.Add(debandSub);
+
+        var denoiseSub = new MenuFlyoutSubItem { Text = texts.VapourSynthSmartCategoryDenoise };
+        denoiseSub.Items.Add(MakeFilterItem(
+            texts.VapourSynthSmartDftTestItem,
+            s => VapourSynthSmartScriptEditor.ApplyFilterTemplate(s, 0, "core.dfttest.DFTTest({var}, sigma=2.0)"),
+            requiredNamespace: "dfttest"));
+        denoiseSub.Items.Add(MakeFilterItem(
+            texts.VapourSynthSmartBm3dItem,
+            s => VapourSynthSmartScriptEditor.ApplyFilterTemplate(s, 0, "BM3D.denoise({var}, sigma=1.5, tr=2)", fromModule: "vsdenoise", fromSymbol: "BM3D"),
+            requiredPackage: "vsdenoise"));
+        denoiseSub.Items.Add(MakeFilterItem(
+            texts.VapourSynthSmartKnlMeansItem,
+            s => VapourSynthSmartScriptEditor.ApplyFilterTemplate(s, 0, "core.knlm.KNLMeansCL({var}, d=1, a=2, h=0.8)"),
+            requiredNamespace: "knlm"));
+        denoiseSub.Items.Add(MakeFilterItem(
+            texts.VapourSynthSmartSmDegrainItem,
+            s => VapourSynthSmartScriptEditor.ApplyFilterTemplate(s, 0, "{alias}.SMDegrain({var}, tr=2, thSAD=150, prefilter=2)", importModule: "havsfunc", importAlias: "haf"),
+            requiredPackage: "havsfunc"));
+        SmartInsertMenuFlyout.Items.Add(denoiseSub);
+
+        var aaSub = new MenuFlyoutSubItem { Text = texts.VapourSynthSmartCategoryAaScale };
+        aaSub.Items.Add(MakeFilterItem(
+            texts.VapourSynthSmartBasedAaItem,
+            s => VapourSynthSmartScriptEditor.ApplyFilterTemplate(s, 0, "based_aa({var}, rfactor=2.0)", fromModule: "vsaa", fromSymbol: "based_aa"),
+            requiredPackage: "vsaa"));
+        aaSub.Items.Add(MakeFilterItem(
+            texts.VapourSynthSmartFineDehaloItem,
+            s => VapourSynthSmartScriptEditor.ApplyFilterTemplate(s, 0, "fine_dehalo({var}, rx=2.0, ry=2.0)", fromModule: "vsdehalo", fromSymbol: "fine_dehalo"),
+            requiredPackage: "vsdehalo"));
+        aaSub.Items.Add(MakeFilterItem(
+            texts.VapourSynthSmartHafDehaloItem,
+            s => VapourSynthSmartScriptEditor.ApplyFilterTemplate(s, 0, "{alias}.FineDehalo({var}, rx=2.0, ry=2.0)", importModule: "havsfunc", importAlias: "haf"),
+            requiredPackage: "havsfunc"));
+        aaSub.Items.Add(new MenuFlyoutSeparator());
+        aaSub.Items.Add(MakeFilterItem(
+            texts.VapourSynthSmartResizeSpline36Item,
+            s => VapourSynthSmartScriptEditor.ApplyFilterTemplate(s, 0, "{var}.resize.Spline36(width=1920, height=1080)"),
+            requiredNamespace: "resize"));
+        aaSub.Items.Add(MakeFilterItem(
+            texts.VapourSynthSmartDescaleItem,
+            s => VapourSynthSmartScriptEditor.ApplyFilterTemplate(s, 0, "core.descale.Debicubic({var}, width=1280, height=720, b=0.0, c=0.5)"),
+            requiredNamespace: "descale"));
+        SmartInsertMenuFlyout.Items.Add(aaSub);
+
+        var maskSub = new MenuFlyoutSubItem { Text = texts.VapourSynthSmartCategoryMaskDebug };
+        maskSub.Items.Add(MakeFilterItem(
+            texts.VapourSynthSmartMaskedMergeItem,
+            s => VapourSynthSmartScriptEditor.ApplyMultiLineFilterTemplate(
+                s,
+                0,
+                ["mask = {var}.std.Prewitt().std.Maximum()", "{var} = core.std.MaskedMerge(flt, {var}, mask)"]),
+            requiredNamespace: "std"));
+        maskSub.Items.Add(MakeFilterItem(
+            texts.VapourSynthSmartReplaceRangesItem,
+            s => VapourSynthSmartScriptEditor.ApplyFilterTemplate(s, 0, "replace_ranges({var}, flt, [(0, 100)])", fromModule: "vstools", fromSymbol: "replace_ranges"),
+            requiredPackage: "vstools"));
+        maskSub.Items.Add(MakeFilterItem(
+            texts.VapourSynthSmartFrameInfoItem,
+            s => VapourSynthSmartScriptEditor.ApplyFilterTemplate(s, 0, "{alias}.FrameInfo({var}, title=\"Clip\")", importModule: "awsmfunc", importAlias: "awf"),
+            requiredPackage: "awsmfunc"));
+        SmartInsertMenuFlyout.Items.Add(maskSub);
+
+        SmartInsertMenuFlyout.Items.Add(new MenuFlyoutSeparator());
+
+        var abCompareItem = new MenuFlyoutItem { Text = texts.VapourSynthSmartToggleAbCompareItem };
+        abCompareItem.Click += async (_, _) => await RunUiActionAsync(ToggleBeforeAfterCompareAsync);
+        SmartInsertMenuFlyout.Items.Add(abCompareItem);
+
+        var benchmarkItem = new MenuFlyoutItem { Text = texts.VapourSynthSmartBenchmarkItem };
+        benchmarkItem.Click += async (_, _) => await RunUiActionAsync(RunScriptBenchmarkAsync);
+        SmartInsertMenuFlyout.Items.Add(benchmarkItem);
+
+        SmartInsertMenuFlyout.Items.Add(new MenuFlyoutSeparator());
+
+        var renameItem = new MenuFlyoutItem { Text = texts.VapourSynthSmartRenameSymbolItem };
+        renameItem.Click += async (_, _) => await RunUiActionAsync(() => ExecuteEditorCommandAsync("rename"));
+        SmartInsertMenuFlyout.Items.Add(renameItem);
+
+        var quickFixItem = new MenuFlyoutItem { Text = texts.VapourSynthSmartQuickFixItem };
+        quickFixItem.Click += async (_, _) => await RunUiActionAsync(() => ExecuteEditorCommandAsync("quickFix"));
+        SmartInsertMenuFlyout.Items.Add(quickFixItem);
     }
 
-    private async void SmartInsertBitdepth8_Click(object sender, RoutedEventArgs e)
+    private async Task ToggleBeforeAfterCompareAsync()
     {
-        await RunUiActionAsync(() => ApplySmartEditorRewriteAsync(script =>
-            VapourSynthSmartScriptEditor.ApplyFilterTemplate(
-                script,
-                outputIndex: 0,
-                expressionTemplateWithPlaceholder: "core.fmtc.bitdepth({var}, bits=8, dmode=3)",
-                derivedVariableName: "out8")));
+        if (!TryGetActiveEditorContext(out var pane, out var tab) || !IsPaneBoundToTab(pane, tab))
+        {
+            return;
+        }
+
+        var snapshot = await pane.CaptureStateAsync();
+        if (snapshot is not null)
+        {
+            ApplyEditorSnapshot(pane, snapshot);
+        }
+
+        var cursorLine = Math.Max(1, snapshot?.Line ?? 1);
+        var result = await ApplySmartEditorRewriteAsync(script =>
+            VapourSynthSmartScriptEditor.ToggleBeforeAfterCompare(script, cursorLine));
+        if (result is null)
+        {
+            return;
+        }
+
+        if (result.UpdatedInPlace)
+        {
+            ViewModel.SetWorkspaceStatus(tab, static t => t.VapourSynthSmartAbRestoredStatus);
+        }
+        else
+        {
+            ViewModel.SetWorkspaceStatus(tab, t => t.VapourSynthSmartAbEnabledStatus(result.ResolvedVariableName));
+        }
     }
 
-    private async void SmartInsertPlaceboDeband_Click(object sender, RoutedEventArgs e)
+    private async Task RunScriptBenchmarkAsync()
     {
-        await RunUiActionAsync(() => ApplySmartEditorRewriteAsync(script =>
-            VapourSynthSmartScriptEditor.ApplyFilterTemplate(
-                script,
-                outputIndex: 0,
-                expressionTemplateWithPlaceholder: "core.placebo.Deband({var}, iterations=1, threshold=4.0, radius=16.0, grain=6.0)")));
-    }
+        if (!TryGetActiveEditorContext(out var pane, out var tab))
+        {
+            return;
+        }
 
-    private async void SmartInsertNeoF3kdb_Click(object sender, RoutedEventArgs e)
-    {
-        await RunUiActionAsync(() => ApplySmartEditorRewriteAsync(script =>
-            VapourSynthSmartScriptEditor.ApplyFilterTemplate(
-                script,
-                outputIndex: 0,
-                expressionTemplateWithPlaceholder: "core.neo_f3kdb.Deband({var}, range=15, y=48, cb=36, cr=36, grainy=24, grainc=0)")));
-    }
+        await CaptureEditorStateAsync(pane);
+        if (!ViewModel.Tabs.Contains(tab))
+        {
+            return;
+        }
 
-    private async void SmartInsertBbmod_Click(object sender, RoutedEventArgs e)
-    {
-        await RunUiActionAsync(() => ApplySmartEditorRewriteAsync(script =>
-            VapourSynthSmartScriptEditor.ApplyFilterTemplate(
-                script,
-                outputIndex: 0,
-                expressionTemplateWithPlaceholder: "{alias}.bbmod({var}, top=2, bottom=2, left=2, right=2, thresh=32, blur=20)",
-                importModule: "awsmfunc",
-                importAlias: "awf")));
-    }
+        var workingDir = !string.IsNullOrWhiteSpace(tab.CurrentFilePath)
+            ? (Path.GetDirectoryName(tab.CurrentFilePath) ?? AppContext.BaseDirectory)
+            : AppContext.BaseDirectory;
+        LogExpander.IsExpanded = true;
+        ViewModel.SetWorkspaceStatus(tab, static t => t.VapourSynthSmartBenchmarkRunningStatus);
+        ViewModel.AppendPreviewLog(tab, new VapourSynthPreviewLogEntry(
+            DateTimeOffset.Now,
+            VapourSynthPreviewLogLevel.Information,
+            "Benchmark",
+            ViewModel.Texts.VapourSynthSmartBenchmarkRunningStatus));
 
-    private async void SmartInsertFrameInfo_Click(object sender, RoutedEventArgs e)
-    {
-        await RunUiActionAsync(() => ApplySmartEditorRewriteAsync(script =>
-            VapourSynthSmartScriptEditor.ApplyFilterTemplate(
-                script,
-                outputIndex: 0,
-                expressionTemplateWithPlaceholder: "{alias}.FrameInfo({var}, title=\"Clip\")",
-                importModule: "awsmfunc",
-                importAlias: "awf")));
-    }
+        var result = await _languageService.BenchmarkScriptAsync(
+            tab.CurrentFilePath,
+            tab.CurrentContent ?? string.Empty,
+            workingDir,
+            sampleFrames: 100,
+            outputIndex: 0,
+            CancellationToken.None);
 
-    private async void SmartInsertDftTest_Click(object sender, RoutedEventArgs e)
-    {
-        await RunUiActionAsync(() => ApplySmartEditorRewriteAsync(script =>
-            VapourSynthSmartScriptEditor.ApplyFilterTemplate(
-                script,
-                outputIndex: 0,
-                expressionTemplateWithPlaceholder: "core.dfttest.DFTTest({var}, sigma=2.0)")));
-    }
-
-    private async void SmartRenameSymbol_Click(object sender, RoutedEventArgs e)
-    {
-        await RunUiActionAsync(() => ExecuteEditorCommandAsync("rename"));
-    }
-
-    private async void SmartQuickFix_Click(object sender, RoutedEventArgs e)
-    {
-        await RunUiActionAsync(() => ExecuteEditorCommandAsync("quickFix"));
+        if (result.Succeeded)
+        {
+            var summary = ViewModel.Texts.VapourSynthSmartBenchmarkDoneStatus(
+                result.Fps,
+                result.FramesRendered,
+                result.ElapsedSeconds,
+                result.Width,
+                result.Height,
+                result.FormatName);
+            ViewModel.SetWorkspaceStatus(tab, _ => summary);
+            ViewModel.AppendPreviewLog(tab, new VapourSynthPreviewLogEntry(
+                DateTimeOffset.Now,
+                VapourSynthPreviewLogLevel.Information,
+                "Benchmark",
+                summary));
+        }
+        else
+        {
+            var err = ViewModel.Texts.VapourSynthSmartBenchmarkFailedStatus(result.ErrorMessage ?? "Unknown error");
+            ViewModel.SetWorkspaceStatus(tab, _ => err);
+            ViewModel.AppendPreviewLog(tab, new VapourSynthPreviewLogEntry(
+                DateTimeOffset.Now,
+                VapourSynthPreviewLogLevel.Error,
+                "Benchmark",
+                err));
+        }
     }
 
     public async Task InsertDroppedVideoSourceAsync(string videoFilePath)
@@ -1330,6 +1537,7 @@ public sealed partial class VapourSynthWorkspaceView : UserControl, IDisposable
         }
 
         var snapshot = await _languageService.GetLanguageFeaturesAsync(forceRefresh, CancellationToken.None);
+        _latestLanguageFeatures = snapshot;
         if (!snapshot.IsRuntimeReady)
         {
             ViewModel.SetWorkspaceStatus(texts => texts.VapourSynthLanguageRuntimeUnavailableStatus(snapshot.RuntimeSummary));
@@ -1484,6 +1692,15 @@ public sealed partial class VapourSynthWorkspaceView : UserControl, IDisposable
             object? result = method switch
             {
                 "completion" => await _languageService.GetPythonCompletionsAsync(
+                    document,
+                    position,
+                    GetString(root, "triggerCharacter"),
+                    CancellationToken.None),
+                "hover" => await _languageService.GetPythonHoverAsync(
+                    document,
+                    position,
+                    CancellationToken.None),
+                "signatureHelp" => await _languageService.GetPythonSignatureHelpAsync(
                     document,
                     position,
                     GetString(root, "triggerCharacter"),

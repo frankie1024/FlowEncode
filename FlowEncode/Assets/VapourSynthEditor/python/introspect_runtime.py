@@ -1,6 +1,45 @@
+import importlib.util
 import inspect
 import json
 import sys
+
+
+KNOWN_PYTHON_PACKAGES = (
+    "vsjetpack",
+    "vstools",
+    "vsdeband",
+    "vsdenoise",
+    "vsaa",
+    "vsscale",
+    "vsdehalo",
+    "vsmasktools",
+    "vsrgtools",
+    "awsmfunc",
+    "havsfunc",
+    "mvsfunc",
+    "lvsfunc",
+    "kagefunc",
+    "vodesfunc",
+    "fvsfunc",
+)
+
+VS_CONSTANT_PREFIXES = (
+    "YUV",
+    "RGB",
+    "GRAY",
+    "NONE",
+    "INTEGER",
+    "FLOAT",
+    "MATRIX_",
+    "TRANSFER_",
+    "PRIMARIES_",
+    "RANGE_",
+    "FIELD_",
+    "CHROMA_",
+    "AUDIO_",
+    "VIDEO",
+    "AUDIO",
+)
 
 
 def format_annotation(annotation):
@@ -34,6 +73,75 @@ def build_function_descriptor(namespace_name, plugin_name, function_name, functi
         ],
         "documentation": plugin_name or ""
     }
+
+
+def collect_vs_constants(vs):
+    constants = []
+    for name in sorted(dir(vs)):
+        if name.startswith("_"):
+            continue
+        if not name.isupper() and not any(name.startswith(prefix) for prefix in VS_CONSTANT_PREFIXES):
+            continue
+        try:
+            value = getattr(vs, name)
+        except Exception:
+            continue
+        if callable(value) or inspect.ismodule(value) or inspect.isclass(value):
+            continue
+        val_type = type(value).__name__
+        detail = f"{val_type} = {value}"
+        constants.append({
+            "name": name,
+            "kind": "enumMember" if "Enum" in val_type or "Preset" in val_type or "Matrix" in val_type or "Transfer" in val_type or "Primaries" in val_type or "Range" in val_type or "Field" in val_type or "Chroma" in val_type else "constant",
+            "detail": detail,
+            "documentation": f"vapoursynth.{name} ({detail})"
+        })
+    return constants
+
+
+def collect_video_node_members(vs):
+    members = []
+    node_cls = getattr(vs, "VideoNode", None)
+    if node_cls is None:
+        return members
+
+    for name in sorted(dir(node_cls)):
+        if name.startswith("_"):
+            continue
+        try:
+            attr = getattr(node_cls, name)
+        except Exception:
+            continue
+        is_callable = callable(attr)
+        doc = (inspect.getdoc(attr) or "").splitlines()
+        doc_summary = doc[0] if doc else f"VideoNode.{name}"
+        detail = "method"
+        if is_callable:
+            try:
+                sig = inspect.signature(attr)
+                detail = f"{name}{sig}"
+            except Exception:
+                detail = f"{name}(...)"
+        else:
+            detail = f"VideoNode.{name} property"
+        members.append({
+            "name": name,
+            "kind": "method" if is_callable else "property",
+            "detail": detail,
+            "documentation": doc_summary
+        })
+    return members
+
+
+def probe_installed_packages():
+    installed = []
+    for pkg in KNOWN_PYTHON_PACKAGES:
+        try:
+            if importlib.util.find_spec(pkg) is not None:
+                installed.append(pkg)
+        except Exception:
+            continue
+    return installed
 
 
 def build_runtime_snapshot():
@@ -140,7 +248,10 @@ def build_runtime_snapshot():
         "isRuntimeReady": True,
         "runtimeSummary": f"VapourSynth {core_version_label} / {len(namespaces)} plugins",
         "coreMembers": core_members,
-        "namespaces": namespaces
+        "namespaces": namespaces,
+        "vsConstants": collect_vs_constants(vs),
+        "videoNodeMembers": collect_video_node_members(vs),
+        "installedPackages": probe_installed_packages()
     }
 
 
@@ -152,7 +263,10 @@ def main():
             "isRuntimeReady": False,
             "runtimeSummary": str(ex),
             "coreMembers": [],
-            "namespaces": []
+            "namespaces": [],
+            "vsConstants": [],
+            "videoNodeMembers": [],
+            "installedPackages": []
         }
 
     json.dump(payload, sys.stdout, ensure_ascii=False)

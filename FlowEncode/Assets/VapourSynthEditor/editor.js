@@ -22,7 +22,10 @@ function createEmptyLanguageFeatures() {
         isRuntimeReady: false,
         runtimeSummary: "",
         coreMembers: [],
-        namespaces: []
+        namespaces: [],
+        vsConstants: [],
+        videoNodeMembers: [],
+        installedPackages: []
     };
 }
 
@@ -297,11 +300,35 @@ function normalizeLanguageFeatures(payload) {
                 }))
         }));
 
+    const vsConstants = normalizeArray(payload?.vsConstants)
+        .filter((item) => item && typeof item.name === "string")
+        .map((item) => ({
+            name: item.name,
+            kind: item.kind ?? "constant",
+            detail: item.detail ?? "",
+            documentation: item.documentation ?? ""
+        }));
+
+    const videoNodeMembers = normalizeArray(payload?.videoNodeMembers)
+        .filter((item) => item && typeof item.name === "string")
+        .map((item) => ({
+            name: item.name,
+            kind: item.kind ?? "property",
+            detail: item.detail ?? "",
+            documentation: item.documentation ?? ""
+        }));
+
+    const installedPackages = normalizeArray(payload?.installedPackages)
+        .filter((item) => typeof item === "string" && item.length > 0);
+
     return {
         isRuntimeReady: payload?.isRuntimeReady === true,
         runtimeSummary: payload?.runtimeSummary ?? "",
         coreMembers,
-        namespaces
+        namespaces,
+        vsConstants,
+        videoNodeMembers,
+        installedPackages
     };
 }
 
@@ -314,6 +341,9 @@ function normalizeQualifiedName(value) {
 function buildLanguageFeatureIndex(features) {
     const namespaceMap = new Map();
     const functionMap = new Map();
+    const vsConstantMap = new Map();
+    const videoNodeMemberMap = new Map();
+    const installedPackages = new Set(normalizeArray(features.installedPackages));
 
     for (const namespaceItem of features.namespaces) {
         namespaceMap.set(namespaceItem.name, namespaceItem);
@@ -329,10 +359,23 @@ function buildLanguageFeatureIndex(features) {
         }
     }
 
+    for (const constantItem of normalizeArray(features.vsConstants)) {
+        vsConstantMap.set(constantItem.name, constantItem);
+    }
+
+    for (const memberItem of normalizeArray(features.videoNodeMembers)) {
+        videoNodeMemberMap.set(memberItem.name, memberItem);
+    }
+
     return {
         rootMembers: features.coreMembers,
         namespaceMap,
-        functionMap
+        functionMap,
+        vsConstants: normalizeArray(features.vsConstants),
+        vsConstantMap,
+        videoNodeMembers: normalizeArray(features.videoNodeMembers),
+        videoNodeMemberMap,
+        installedPackages
     };
 }
 
@@ -834,21 +877,92 @@ function getWordRange(position) {
     };
 }
 
-function parseCoreChain(token) {
+const NON_CLIP_VARIABLES = new Set(["core", "vs", "os", "sys", "math", "Path", "path"]);
+
+function collectModelClipVariables(model) {
+    const vars = new Set();
+    const importedNames = new Set();
+    let outputVar = "";
+    let lastAssignedVar = "";
+    const lineCount = model.getLineCount();
+
+    for (let lineNum = 1; lineNum <= lineCount; lineNum++) {
+        const line = model.getLineContent(lineNum);
+        const trimmed = line.trim();
+        if (!trimmed || trimmed.startsWith("#")) {
+            continue;
+        }
+
+        const importMatch = /^import\s+([A-Za-z_][A-Za-z0-9_\.]*)(?:\s+as\s+([A-Za-z_][A-Za-z0-9_]*))?/.exec(trimmed);
+        if (importMatch) {
+            importedNames.add(importMatch[2] || importMatch[1].split(".")[0]);
+            continue;
+        }
+
+        const fromMatch = /^from\s+[A-Za-z_][A-Za-z0-9_\.]*\s+import\s+(.+)$/.exec(trimmed);
+        if (fromMatch) {
+            for (const part of fromMatch[1].split(",")) {
+                const alias = /\bas\s+([A-Za-z_][A-Za-z0-9_]*)/.exec(part);
+                const sym = alias ? alias[1] : part.trim().split(/\s+/)[0];
+                if (sym) importedNames.add(sym);
+            }
+            continue;
+        }
+
+        const outMatch = /^([A-Za-z_][A-Za-z0-9_]*)\.set_output\s*\(/.exec(trimmed);
+        if (outMatch) {
+            outputVar = outMatch[1];
+            vars.add(outMatch[1]);
+            continue;
+        }
+
+        const assignMatch = /^([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(.+)$/.exec(line);
+        if (assignMatch && !NON_CLIP_VARIABLES.has(assignMatch[1]) && !importedNames.has(assignMatch[1])) {
+            vars.add(assignMatch[1]);
+            lastAssignedVar = assignMatch[1];
+        }
+    }
+
+    return {
+        vars,
+        importedNames,
+        activeVar: outputVar || lastAssignedVar || "clip"
+    };
+}
+
+function parseVapourSynthChain(token, clipInfo) {
     if (!token) {
         return null;
     }
 
     const segments = token.split(".");
-    if (segments[0] === "vs" && segments[1] === "core") {
+    if (segments[0] === "vs") {
+        if (segments.length >= 2 && segments[1] === "core") {
+            return {
+                mode: "core",
+                raw: token,
+                normalizedSegments: ["core", ...segments.slice(2)]
+            };
+        }
         return {
+            mode: "vs",
             raw: token,
-            normalizedSegments: ["core", ...segments.slice(2)]
+            normalizedSegments: segments
         };
     }
 
     if (segments[0] === "core") {
         return {
+            mode: "core",
+            raw: token,
+            normalizedSegments: segments
+        };
+    }
+
+    if (clipInfo?.vars?.has(segments[0]) && !clipInfo.importedNames?.has(segments[0])) {
+        return {
+            mode: "clip",
+            rootVar: segments[0],
             raw: token,
             normalizedSegments: segments
         };
@@ -866,6 +980,492 @@ function getChainTokenBeforeCursor(model, position) {
     }
 
     return lineText.slice(index + 1);
+}
+
+function getChainTokenAtPosition(model, position) {
+    const lineText = model.getLineContent(position.lineNumber);
+    let start = Math.max(0, position.column - 1);
+    let end = start;
+    while (start > 0 && /[\w.]/.test(lineText[start - 1])) {
+        start -= 1;
+    }
+    while (end < lineText.length && /[\w]/.test(lineText[end])) {
+        end += 1;
+    }
+    return {
+        token: lineText.slice(start, end),
+        startColumn: start + 1,
+        endColumn: end + 1
+    };
+}
+
+function resolveVapourSynthFunctionFromChain(chainText, clipInfo) {
+    const parsed = parseVapourSynthChain(chainText, clipInfo);
+    if (!parsed) {
+        return null;
+    }
+
+    const segs = parsed.normalizedSegments;
+    if ((parsed.mode === "core" || parsed.mode === "clip") && segs.length >= 3) {
+        const ns = segs[1];
+        const fn = segs[2];
+        const descriptor = languageFeatureIndex.functionMap.get(`core.${ns}.${fn}`);
+        if (descriptor) {
+            return {
+                descriptor,
+                isChained: parsed.mode === "clip"
+            };
+        }
+    }
+
+    return null;
+}
+
+function findEnclosingCallContext(model, position, clipInfo) {
+    const startLine = Math.max(1, position.lineNumber - 8);
+    let text = "";
+    for (let l = startLine; l < position.lineNumber; l++) {
+        text += model.getLineContent(l) + "\n";
+    }
+    text += model.getLineContent(position.lineNumber).slice(0, position.column - 1);
+
+    let parenDepth = 0;
+    let bracketDepth = 0;
+    let braceDepth = 0;
+    let openParenIdx = -1;
+    let inQuote = null;
+
+    for (let i = text.length - 1; i >= 0; i--) {
+        const ch = text[i];
+        if (inQuote) {
+            if (ch === inQuote && text[i - 1] !== "\\") {
+                inQuote = null;
+            }
+            continue;
+        }
+        if (ch === '"' || ch === "'") {
+            inQuote = ch;
+            continue;
+        }
+        if (ch === ")") parenDepth++;
+        else if (ch === "(") {
+            if (parenDepth === 0) {
+                openParenIdx = i;
+                break;
+            }
+            parenDepth--;
+        } else if (ch === "]") bracketDepth++;
+        else if (ch === "[") bracketDepth = Math.max(0, bracketDepth - 1);
+        else if (ch === "}") braceDepth++;
+        else if (ch === "{") braceDepth = Math.max(0, braceDepth - 1);
+    }
+
+    if (openParenIdx < 0) {
+        return null;
+    }
+
+    let calleeEnd = openParenIdx;
+    while (calleeEnd > 0 && /\s/.test(text[calleeEnd - 1])) {
+        calleeEnd--;
+    }
+    let calleeStart = calleeEnd;
+    while (calleeStart > 0 && /[\w.]/.test(text[calleeStart - 1])) {
+        calleeStart--;
+    }
+    const calleeChain = text.slice(calleeStart, calleeEnd);
+    const argsText = text.slice(openParenIdx + 1);
+
+    let argIndex = 0;
+    let dParen = 0;
+    let dBrack = 0;
+    let dBrace = 0;
+    let q = null;
+    const argSegments = [];
+    let segStart = 0;
+
+    for (let i = 0; i < argsText.length; i++) {
+        const ch = argsText[i];
+        if (q) {
+            if (ch === "\\" && i + 1 < argsText.length) {
+                i++;
+                continue;
+            }
+            if (ch === q) q = null;
+            continue;
+        }
+        if (ch === '"' || ch === "'") {
+            q = ch;
+        } else if (ch === "(") dParen++;
+        else if (ch === ")") dParen = Math.max(0, dParen - 1);
+        else if (ch === "[") dBrack++;
+        else if (ch === "]") dBrack = Math.max(0, dBrack - 1);
+        else if (ch === "{") dBrace++;
+        else if (ch === "}") dBrace = Math.max(0, dBrace - 1);
+        else if (ch === "," && dParen === 0 && dBrack === 0 && dBrace === 0) {
+            argSegments.push(argsText.slice(segStart, i));
+            segStart = i + 1;
+            argIndex++;
+        }
+    }
+    const currentSegment = argsText.slice(segStart);
+    const usedKwargs = new Set();
+    for (const seg of argSegments) {
+        const m = /^\s*([A-Za-z_][A-Za-z0-9_]*)\s*=/.exec(seg);
+        if (m) usedKwargs.add(m[1]);
+    }
+
+    const eqMatch = /^\s*([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(.*)$/s.exec(currentSegment);
+    const currentKwargName = eqMatch ? eqMatch[1] : null;
+    const currentValuePrefix = eqMatch ? eqMatch[2] : "";
+    const isKeywordNamePosition = !eqMatch && /^\s*[A-Za-z0-9_]*$/.test(currentSegment);
+
+    const resolved = resolveVapourSynthFunctionFromChain(calleeChain, clipInfo);
+    return {
+        calleeChain,
+        resolved,
+        argIndex,
+        usedKwargs,
+        currentKwargName,
+        currentValuePrefix,
+        isKeywordNamePosition,
+        isValuePosition: Boolean(eqMatch)
+    };
+}
+
+const PARAMETER_VALUE_PRESETS = {
+    matrix_in_s: ['"709"', '"2020ncl"', '"170m"', '"470bg"', '"fcc"', '"rgb"'],
+    matrix_s: ['"709"', '"2020ncl"', '"170m"', '"470bg"', '"fcc"', '"rgb"'],
+    transfer_in_s: ['"709"', '"st2084"', '"std-b67"', '"linear"', '"srgb"', '"601"'],
+    transfer_s: ['"709"', '"st2084"', '"std-b67"', '"linear"', '"srgb"', '"601"'],
+    primaries_in_s: ['"709"', '"2020"', '"170m"', '"470bg"', '"display-p3"'],
+    primaries_s: ['"709"', '"2020"', '"170m"', '"470bg"', '"display-p3"'],
+    range_in_s: ['"limited"', '"full"'],
+    range_s: ['"limited"', '"full"'],
+    chromaloc_in_s: ['"left"', '"center"', '"top_left"'],
+    chromaloc_s: ['"left"', '"center"', '"top_left"'],
+    format: ["vs.YUV420P8", "vs.YUV420P10", "vs.YUV420P16", "vs.YUV444P16", "vs.RGB24", "vs.RGBS", "vs.GRAY8", "vs.GRAY16"],
+    dmode: ["3", "6", "7", "0", "1"]
+};
+
+function createParameterSuggestions(callContext, range) {
+    if (!callContext?.resolved) {
+        return [];
+    }
+
+    const { descriptor, isChained } = callContext.resolved;
+    const params = normalizeArray(descriptor.parameters);
+
+    if (callContext.isValuePosition && callContext.currentKwargName) {
+        const presets = PARAMETER_VALUE_PRESETS[callContext.currentKwargName];
+        if (!presets) {
+            return [];
+        }
+        const trimmedVal = (callContext.currentValuePrefix ?? "").trimStart();
+        const insideQuote = trimmedVal.startsWith('"') || trimmedVal.startsWith("'");
+        return presets.map((val, idx) => {
+            const isQuotedPreset = (val.startsWith('"') && val.endsWith('"')) || (val.startsWith("'") && val.endsWith("'"));
+            const textToInsert = insideQuote && isQuotedPreset ? val.slice(1, -1) : val;
+            return {
+                label: textToInsert,
+                kind: monaco.languages.CompletionItemKind.EnumMember,
+                detail: `${callContext.currentKwargName} preset`,
+                insertText: textToInsert,
+                sortText: `00-${String(idx).padStart(2, "0")}-${textToInsert}`,
+                range
+            };
+        });
+    }
+
+    if (!callContext.isKeywordNamePosition) {
+        return [];
+    }
+
+    const suggestions = [];
+    for (let i = 0; i < params.length; i++) {
+        const param = params[i];
+        if (i === 0 && isChained && (param.name === "clip" || param.name === "clips" || param.name === "input")) {
+            continue;
+        }
+        if (param.label.startsWith("*") || callContext.usedKwargs.has(param.name)) {
+            continue;
+        }
+        suggestions.push({
+            label: `${param.name}=`,
+            kind: monaco.languages.CompletionItemKind.Field,
+            detail: param.label,
+            documentation: descriptor.signatureLabel,
+            insertText: `${param.name}=`,
+            filterText: param.name,
+            sortText: `00-${String(i).padStart(2, "0")}-${param.name}`,
+            range
+        });
+    }
+
+    return suggestions;
+}
+
+function createVsConstantSuggestions(prefix, range) {
+    const items = [];
+    if (matchesPrefix("core", prefix)) {
+        items.push({
+            label: "core",
+            kind: monaco.languages.CompletionItemKind.Property,
+            detail: "VapourSynth Core singleton",
+            insertText: "core",
+            sortText: "0-core",
+            range
+        });
+    }
+    if (matchesPrefix("VideoNode", prefix)) {
+        items.push({
+            label: "VideoNode",
+            kind: monaco.languages.CompletionItemKind.Class,
+            detail: "VapourSynth VideoNode",
+            insertText: "VideoNode",
+            sortText: "0-VideoNode",
+            range
+        });
+    }
+    for (const c of languageFeatureIndex.vsConstants) {
+        if (!matchesPrefix(c.name, prefix)) continue;
+        items.push({
+            label: c.name,
+            kind: c.kind === "enumMember"
+                ? monaco.languages.CompletionItemKind.EnumMember
+                : monaco.languages.CompletionItemKind.Constant,
+            detail: c.detail,
+            documentation: c.documentation,
+            insertText: c.name,
+            filterText: `vs.${c.name}`,
+            sortText: `1-${c.name}`,
+            range
+        });
+    }
+    return items;
+}
+
+function createClipMemberSuggestions(prefix, range) {
+    const items = [];
+    for (const m of languageFeatureIndex.videoNodeMembers) {
+        if (!matchesPrefix(m.name, prefix)) continue;
+        items.push({
+            label: m.name,
+            kind: m.kind === "method"
+                ? monaco.languages.CompletionItemKind.Method
+                : monaco.languages.CompletionItemKind.Property,
+            detail: m.detail,
+            documentation: m.documentation,
+            insertText: m.name,
+            sortText: `0-${m.name}`,
+            range
+        });
+    }
+
+    for (const ns of languageFeatures.namespaces) {
+        if (!matchesPrefix(ns.name, prefix)) continue;
+        items.push({
+            label: ns.name,
+            kind: monaco.languages.CompletionItemKind.Module,
+            detail: ns.identifier || ns.displayName,
+            documentation: ns.displayName || "",
+            insertText: ns.name,
+            sortText: `1-${ns.name}`,
+            range
+        });
+    }
+
+    return items;
+}
+
+function createEncodingSnippets(model, position, range, clipInfo) {
+    const lineBefore = model.getLineContent(position.lineNumber).slice(0, position.column - 1);
+    if (/[.\(\[,=]\s*[\w]*$/.test(lineBefore) && !/^\s*[\w]*$/.test(lineBefore)) {
+        return [];
+    }
+
+    const v = clipInfo.activeVar || "clip";
+    const hasNs = (ns) => languageFeatureIndex.namespaceMap.has(ns);
+    const hasPkg = (pkg) => languageFeatureIndex.installedPackages.has(pkg);
+
+    const defs = [
+        {
+            label: "vsinit",
+            detail: "VapourSynth 脚本完整骨架",
+            ready: hasNs("lsmas") || hasNs("ffms2"),
+            body: `import vapoursynth as vs\ncore = vs.core\n\nsrc = core.lsmas.LWLibavSource(r"\${1:source.mkv}")\n\${0}\nsrc.set_output()`
+        },
+        {
+            label: "lsmas",
+            detail: "源加载: lsmas.LWLibavSource",
+            ready: hasNs("lsmas"),
+            req: "lsmas",
+            body: `\${1:src} = core.lsmas.LWLibavSource(r"\${2:source.mkv}")`
+        },
+        {
+            label: "ffms2",
+            detail: "源加载: ffms2.Source",
+            ready: hasNs("ffms2"),
+            req: "ffms2",
+            body: `\${1:src} = core.ffms2.Source(r"\${2:source.mkv}")`
+        },
+        {
+            label: "bestsource",
+            detail: "源加载: bs.VideoSource (BestSource)",
+            ready: hasNs("bs"),
+            req: "bestsource",
+            body: `\${1:src} = core.bs.VideoSource(r"\${2:source.mkv}")`
+        },
+        {
+            label: "bit16",
+            detail: "升位至 16-bit (fmtc.bitdepth)",
+            ready: hasNs("fmtc"),
+            req: "fmtc",
+            body: `\${1:src16} = core.fmtc.bitdepth(${v}, bits=16)`
+        },
+        {
+            label: "dither10",
+            detail: "降位至 10-bit 误差扩散抖动 (fmtc.bitdepth)",
+            ready: hasNs("fmtc"),
+            req: "fmtc",
+            body: `\${1:out10} = core.fmtc.bitdepth(${v}, bits=10, dmode=\${2:3})`
+        },
+        {
+            label: "dither8",
+            detail: "降位至 8-bit 误差扩散抖动 (fmtc.bitdepth)",
+            ready: hasNs("fmtc"),
+            req: "fmtc",
+            body: `\${1:out8} = core.fmtc.bitdepth(${v}, bits=8, dmode=\${2:3})`
+        },
+        {
+            label: "setprops",
+            detail: "设置 BT.709 色彩帧属性 (std.SetFrameProps)",
+            ready: hasNs("std"),
+            body: `${v} = ${v}.std.SetFrameProps(_Matrix=\${1:1}, _Transfer=\${2:1}, _Primaries=\${3:1}, _ColorRange=\${4:1})`
+        },
+        {
+            label: "hdr2sdr",
+            detail: "HDR 转 SDR 映射 (placebo.Tonemap)",
+            ready: hasNs("placebo"),
+            req: "placebo",
+            body: `${v} = core.placebo.Tonemap(${v}.resize.Spline36(format=vs.YUV444P16), src_csp=\${1:2}, dst_csp=0, target_peak=\${2:203.0}, tone_mapping_function=3)`
+        },
+        {
+            label: "deband",
+            detail: "去色带: placebo.Deband",
+            ready: hasNs("placebo"),
+            req: "placebo",
+            body: `${v} = core.placebo.Deband(${v}, iterations=\${1:1}, threshold=\${2:4.0}, radius=\${3:16.0}, grain=\${4:6.0})`
+        },
+        {
+            label: "f3kdb",
+            detail: "去色带: neo_f3kdb.Deband",
+            ready: hasNs("neo_f3kdb"),
+            req: "neo_f3kdb",
+            body: `${v} = core.neo_f3kdb.Deband(${v}, range=\${1:15}, y=\${2:48}, cb=\${3:36}, cr=\${4:36}, grainy=\${5:24}, grainc=0)`
+        },
+        {
+            label: "denoise",
+            detail: "降噪: dfttest.DFTTest",
+            ready: hasNs("dfttest"),
+            req: "dfttest",
+            body: `${v} = core.dfttest.DFTTest(${v}, sigma=\${1:2.0})`
+        },
+        {
+            label: "bm3d",
+            detail: "降噪: vsdenoise.BM3D / bm3dcuda",
+            ready: hasPkg("vsdenoise") || hasNs("bm3dcuda") || hasNs("bm3d"),
+            req: "vsdenoise / bm3d",
+            body: hasPkg("vsdenoise")
+                ? `from vsdenoise import BM3D\n${v} = BM3D.denoise(${v}, sigma=\${1:1.5}, tr=\${2:2})`
+                : `${v} = core.bm3dcuda.BM3D(${v}, sigma=[\${1:1.5}, 0, 0], radius=\${2:2})`
+        },
+        {
+            label: "bbmod",
+            detail: "边线修复: awsmfunc.bbmod",
+            ready: hasPkg("awsmfunc"),
+            req: "awsmfunc",
+            body: `${v} = awf.bbmod(${v}, top=\${1:2}, bottom=\${2:2}, left=\${3:2}, right=\${4:2}, thresh=\${5:32}, blur=\${6:20})`
+        },
+        {
+            label: "aa",
+            detail: "抗锯齿: vsaa.based_aa",
+            ready: hasPkg("vsaa") || hasPkg("vsjetpack"),
+            req: "vsaa / vsjetpack",
+            body: `from vsaa import based_aa\n${v} = based_aa(${v}, rfactor=\${1:2.0})`
+        },
+        {
+            label: "dehalo",
+            detail: "去光晕: vsdehalo / havsfunc.FineDehalo",
+            ready: hasPkg("vsdehalo") || hasPkg("havsfunc"),
+            req: "vsdehalo / havsfunc",
+            body: hasPkg("vsdehalo")
+                ? `from vsdehalo import fine_dehalo\n${v} = fine_dehalo(${v}, rx=\${1:2.0}, ry=\${2:2.0})`
+                : `import havsfunc as haf\n${v} = haf.FineDehalo(${v}, rx=\${1:2.0}, ry=\${2:2.0})`
+        },
+        {
+            label: "descale",
+            detail: "逆缩放: descale.Debicubic",
+            ready: hasNs("descale"),
+            req: "descale",
+            body: `${v} = core.descale.Debicubic(${v}, width=\${1:1280}, height=\${2:720}, b=\${3:0.0}, c=\${4:0.5})`
+        },
+        {
+            label: "qtgmc",
+            detail: "反交错: havsfunc.QTGMC",
+            ready: hasPkg("havsfunc"),
+            req: "havsfunc",
+            body: `import havsfunc as haf\n${v} = haf.QTGMC(${v}, Preset="\${1:Slow}", TFF=\${2:True}, FPSDivisor=\${3:2})`
+        },
+        {
+            label: "ivtc",
+            detail: "反胶片过带: vivtc.VFM + VDecimate",
+            ready: hasNs("vivtc"),
+            req: "vivtc",
+            body: `${v} = core.vivtc.VFM(${v}, order=\${1:1})\n${v} = core.vivtc.VDecimate(${v})`
+        },
+        {
+            label: "edgemask",
+            detail: "边缘遮罩合并: std.MaskedMerge",
+            ready: hasNs("std"),
+            body: `mask = ${v}.std.Prewitt().std.Maximum()\n${v} = core.std.MaskedMerge(\${1:flt}, ${v}, mask)`
+        },
+        {
+            label: "rfs",
+            detail: "帧区间局部替换: vstools.replace_ranges",
+            ready: hasPkg("vstools") || hasPkg("vsjetpack"),
+            req: "vstools / vsjetpack",
+            body: `${v} = replace_ranges(${v}, \${1:flt}, [(\${2:0}, \${3:100})])`
+        },
+        {
+            label: "frameinfo",
+            detail: "帧信息叠加: awsmfunc.FrameInfo",
+            ready: hasPkg("awsmfunc"),
+            req: "awsmfunc",
+            body: `${v} = awf.FrameInfo(${v}, title="\${1:Clip}")`
+        },
+        {
+            label: "vscmp",
+            detail: "双路输出对比骨架 (Output 0 vs Output 1)",
+            ready: true,
+            body: `\${1:src}.set_output(0)\n\${2:flt}.set_output(1)`
+        }
+    ];
+
+    const prefix = getWordRange(position);
+    const typed = model.getValueInRange(prefix).toLowerCase();
+
+    return defs
+        .filter((d) => typed.length === 0 || d.label.toLowerCase().startsWith(typed))
+        .map((d) => ({
+            label: d.label,
+            kind: monaco.languages.CompletionItemKind.Snippet,
+            detail: d.ready ? `${d.detail} ✓` : `${d.detail} [缺少 ${d.req}]`,
+            documentation: d.body.replace(/\$\{[0-9]+:([^}]*)\}/g, "$1").replace(/\$\{[0-9]+\}/g, ""),
+            insertText: d.body,
+            insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
+            sortText: `${d.ready ? "2" : "8"}-${d.label}`,
+            range
+        }));
 }
 
 function buildMemberDocumentation(member) {
@@ -911,6 +1511,7 @@ function createNamespaceFunctionSuggestions(namespaceName, prefix, range) {
             label: functionItem.name,
             kind: monaco.languages.CompletionItemKind.Function,
             detail: functionItem.signatureLabel,
+            documentation: functionItem.documentation || namespaceItem.displayName,
             insertText: functionItem.name,
             filterText: functionItem.qualifiedName,
             sortText: `0-${functionItem.name}`,
@@ -923,32 +1524,225 @@ function provideVapourSynthCompletions(model, position) {
         return { suggestions: [] };
     }
 
-    const chain = parseCoreChain(getChainTokenBeforeCursor(model, position));
-    if (!chain || chain.normalizedSegments[0] !== "core") {
-        return { suggestions: [] };
-    }
-
+    const clipInfo = collectModelClipVariables(model);
     const range = getWordRange(position);
-    const segments = chain.normalizedSegments;
+    const token = getChainTokenBeforeCursor(model, position);
+    const chain = parseVapourSynthChain(token, clipInfo);
 
-    if (segments.length === 1) {
-        return {
-            suggestions: createRootMemberSuggestions("", range)
-        };
+    if (chain) {
+        const segments = chain.normalizedSegments;
+        if (chain.mode === "vs") {
+            if (segments.length <= 2) {
+                return { suggestions: createVsConstantSuggestions(segments[1] ?? "", range) };
+            }
+            return { suggestions: [] };
+        }
+
+        if (chain.mode === "core") {
+            if (segments.length <= 2) {
+                return { suggestions: createRootMemberSuggestions(segments[1] ?? "", range) };
+            }
+            return { suggestions: createNamespaceFunctionSuggestions(segments[1], segments[2] ?? "", range) };
+        }
+
+        if (chain.mode === "clip") {
+            if (segments.length <= 2) {
+                return { suggestions: createClipMemberSuggestions(segments[1] ?? "", range) };
+            }
+            return { suggestions: createNamespaceFunctionSuggestions(segments[1], segments[2] ?? "", range) };
+        }
     }
 
-    if (segments.length === 2) {
-        return {
-            suggestions: createRootMemberSuggestions(segments[1] ?? "", range)
-        };
+    const callContext = findEnclosingCallContext(model, position, clipInfo);
+    const paramSuggestions = createParameterSuggestions(callContext, range);
+    if (paramSuggestions.length > 0) {
+        return { suggestions: paramSuggestions };
     }
 
     return {
-        suggestions: createNamespaceFunctionSuggestions(
-            segments[1],
-            segments[2] ?? "",
-            range)
+        suggestions: createEncodingSnippets(model, position, range, clipInfo)
     };
+}
+
+function buildLocalSignatureHelp(model, position) {
+    if (!languageFeatures.isRuntimeReady) {
+        return null;
+    }
+
+    const clipInfo = collectModelClipVariables(model);
+    const callContext = findEnclosingCallContext(model, position, clipInfo);
+    if (!callContext?.resolved) {
+        return null;
+    }
+
+    const { descriptor, isChained } = callContext.resolved;
+    const allParams = normalizeArray(descriptor.parameters);
+    const visibleParams = isChained && allParams.length > 0
+        && (allParams[0].name === "clip" || allParams[0].name === "clips" || allParams[0].name === "input")
+        ? allParams.slice(1)
+        : allParams;
+
+    let activeParam = callContext.argIndex;
+    if (callContext.currentKwargName) {
+        const kwIdx = visibleParams.findIndex((p) => p.name === callContext.currentKwargName);
+        if (kwIdx >= 0) {
+            activeParam = kwIdx;
+        }
+    }
+    if (visibleParams.length > 0) {
+        activeParam = Math.max(0, Math.min(activeParam, visibleParams.length - 1));
+    } else {
+        activeParam = 0;
+    }
+
+    const label = `${descriptor.namespaceName}.${descriptor.name}(${visibleParams.map((p) => p.label).join(", ")})`;
+    return {
+        value: {
+            signatures: [{
+                label,
+                documentation: descriptor.documentation || descriptor.namespaceDisplayName || "",
+                parameters: visibleParams.map((p) => ({
+                    label: p.label,
+                    documentation: p.documentation || ""
+                }))
+            }],
+            activeSignature: 0,
+            activeParameter: activeParam
+        },
+        dispose() {}
+    };
+}
+
+async function providePythonSignatureHelp(model, position, cancellationToken, context) {
+    const local = buildLocalSignatureHelp(model, position);
+    if (local) {
+        return local;
+    }
+
+    try {
+        const lsp = await requestLanguageFeature(
+            "signatureHelp",
+            buildLanguageRequestPayload(model, position, {
+                triggerCharacter: normalizeText(context?.triggerCharacter)
+            }),
+            cancellationToken);
+        if (lsp && Array.isArray(lsp.signatures) && lsp.signatures.length > 0) {
+            return {
+                value: {
+                    signatures: lsp.signatures.map((sig) => ({
+                        label: sig.label ?? "",
+                        documentation: sig.documentation ?? "",
+                        parameters: normalizeArray(sig.parameters).map((p) => ({
+                            label: p.label ?? "",
+                            documentation: p.documentation ?? ""
+                        }))
+                    })),
+                    activeSignature: Number(lsp.activeSignature ?? 0),
+                    activeParameter: Number(lsp.activeParameter ?? 0)
+                },
+                dispose() {}
+            };
+        }
+    } catch {
+    }
+
+    return null;
+}
+
+function buildLocalHover(model, position) {
+    if (!languageFeatures.isRuntimeReady) {
+        return null;
+    }
+
+    const clipInfo = collectModelClipVariables(model);
+    const { token, startColumn, endColumn } = getChainTokenAtPosition(model, position);
+    if (!token) {
+        return null;
+    }
+
+    const parsed = parseVapourSynthChain(token, clipInfo);
+    if (!parsed) {
+        return null;
+    }
+
+    const range = new monaco.Range(position.lineNumber, startColumn, position.lineNumber, endColumn);
+    const segs = parsed.normalizedSegments;
+
+    if (parsed.mode === "vs" && segs.length === 2) {
+        const c = languageFeatureIndex.vsConstantMap.get(segs[1]);
+        if (c) {
+            return {
+                range,
+                contents: [
+                    { value: `\`\`\`python\nvs.${c.name}  # ${c.detail}\n\`\`\`` },
+                    { value: c.documentation || "" }
+                ]
+            };
+        }
+    }
+
+    if ((parsed.mode === "core" || parsed.mode === "clip") && segs.length === 2) {
+        if (parsed.mode === "clip") {
+            const member = languageFeatureIndex.videoNodeMemberMap.get(segs[1]);
+            if (member) {
+                return {
+                    range,
+                    contents: [
+                        { value: `\`\`\`python\nVideoNode.${member.detail}\n\`\`\`` },
+                        { value: member.documentation || "" }
+                    ]
+                };
+            }
+        }
+        const ns = languageFeatureIndex.namespaceMap.get(segs[1]);
+        if (ns) {
+            return {
+                range,
+                contents: [
+                    { value: `**VapourSynth Plugin** \`${ns.name}\`` },
+                    { value: `${ns.displayName || ns.name} (${ns.functions.length} functions)` }
+                ]
+            };
+        }
+    }
+
+    if ((parsed.mode === "core" || parsed.mode === "clip") && segs.length >= 3) {
+        const desc = languageFeatureIndex.functionMap.get(`core.${segs[1]}.${segs[2]}`);
+        if (desc) {
+            const ret = desc.returnType ? ` -> ${desc.returnType}` : "";
+            return {
+                range,
+                contents: [
+                    { value: `\`\`\`python\n${desc.qualifiedName}(${normalizeArray(desc.parameters).map((p) => p.label).join(", ")})${ret}\n\`\`\`` },
+                    { value: desc.documentation || desc.namespaceDisplayName || "" }
+                ]
+            };
+        }
+    }
+
+    return null;
+}
+
+async function providePythonHover(model, position, cancellationToken) {
+    const local = buildLocalHover(model, position);
+    if (local) {
+        return local;
+    }
+
+    try {
+        const lsp = await requestLanguageFeature(
+            "hover",
+            buildLanguageRequestPayload(model, position),
+            cancellationToken);
+        if (lsp && typeof lsp.contents === "string" && lsp.contents.trim().length > 0) {
+            return {
+                contents: [{ value: lsp.contents }]
+            };
+        }
+    } catch {
+    }
+
+    return null;
 }
 
 async function providePythonCompletions(model, position, context, cancellationToken) {
@@ -1084,9 +1878,23 @@ function applySmartDocumentEdit(payload) {
 
 function registerLanguageProviders() {
     monaco.languages.registerCompletionItemProvider("python", {
-        triggerCharacters: ["."],
+        triggerCharacters: [".", "(", ",", "="],
         provideCompletionItems(model, position, context, cancellationToken) {
             return providePythonCompletions(model, position, context, cancellationToken);
+        }
+    });
+
+    monaco.languages.registerSignatureHelpProvider("python", {
+        signatureHelpTriggerCharacters: ["(", ","],
+        signatureHelpRetriggerCharacters: [","],
+        provideSignatureHelp(model, position, cancellationToken, context) {
+            return providePythonSignatureHelp(model, position, cancellationToken, context);
+        }
+    });
+
+    monaco.languages.registerHoverProvider("python", {
+        provideHover(model, position, cancellationToken) {
+            return providePythonHover(model, position, cancellationToken);
         }
     });
 
@@ -1218,7 +2026,7 @@ function createEditor() {
         },
         suggestOnTriggerCharacters: true,
         acceptSuggestionOnEnter: "smart",
-        parameterHints: { enabled: false },
+        parameterHints: { enabled: true },
         renderValidationDecorations: "on",
         contextmenu: true,
         overviewRulerLanes: 0,

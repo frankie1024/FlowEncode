@@ -169,4 +169,90 @@ public sealed class VapourSynthSmartScriptEditorTests
         StringAssert.Contains(second.UpdatedScript, @"src2 = core.lsmas.LWLibavSource(r""D:\Videos\encode.mkv"")");
         StringAssert.Contains(second.UpdatedScript, "src.set_output()");
     }
+
+    [TestMethod]
+    public void ToggleBeforeAfterCompare_WrapsInPlaceAndDerivedFiltersAndRestoresCleanly()
+    {
+        var script = """
+            import vapoursynth as vs
+            core = vs.core
+            src16 = core.lsmas.LWLibavSource("bd.mkv")
+            src16 = core.placebo.Deband(src16, threshold=4.0)
+            src16 = core.dfttest.DFTTest(src16, sigma=2.0)
+            src16.set_output()
+            """;
+
+        var enabled = VapourSynthSmartScriptEditor.ToggleBeforeAfterCompare(script, cursorLineNumber: 4);
+        Assert.IsFalse(enabled.UpdatedInPlace);
+        StringAssert.Contains(enabled.UpdatedScript, "_fe_before = src16");
+        StringAssert.Contains(enabled.UpdatedScript, "_fe_after = src16");
+        Assert.IsTrue(enabled.UpdatedScript.IndexOf("_fe_after = src16") < enabled.UpdatedScript.IndexOf("DFTTest"));
+        StringAssert.Contains(enabled.UpdatedScript, "_fe_before.set_output(0)");
+        StringAssert.Contains(enabled.UpdatedScript, "_fe_after.set_output(1)");
+        StringAssert.Contains(enabled.UpdatedScript, "# [FlowEncode A/B saved] src16.set_output()");
+
+        var restored = VapourSynthSmartScriptEditor.ToggleBeforeAfterCompare(enabled.UpdatedScript, cursorLineNumber: 4);
+        Assert.IsTrue(restored.UpdatedInPlace);
+        Assert.AreEqual(script, restored.UpdatedScript);
+    }
+
+    [TestMethod]
+    public void ApplyMultiLineFilterTemplate_InsertsStatementsBeforeSetOutput()
+    {
+        var script = """
+            import vapoursynth as vs
+            core = vs.core
+            src = core.lsmas.LWLibavSource("dvd.mkv")
+            src.set_output()
+            """;
+
+        var res = VapourSynthSmartScriptEditor.ApplyMultiLineFilterTemplate(
+            script,
+            outputIndex: 0,
+            ["{var} = core.vivtc.VFM({var}, order=1)", "{var} = core.vivtc.VDecimate({var})"]);
+
+        StringAssert.Contains(res.UpdatedScript, "src = core.vivtc.VFM(src, order=1)");
+        StringAssert.Contains(res.UpdatedScript, "src = core.vivtc.VDecimate(src)");
+        Assert.IsTrue(res.UpdatedScript.IndexOf("VDecimate") < res.UpdatedScript.IndexOf("src.set_output()"));
+    }
+
+    [TestMethod]
+    public void StubGenerator_EmitsValidPyiWithCoreAndBoundVideoNodePlugins()
+    {
+        var snapshot = new VapourSynthLanguageFeaturesSnapshot(
+            IsRuntimeReady: true,
+            RuntimeSummary: "VapourSynth R79 / 2 plugins",
+            CoreMembers: [new VapourSynthCoreMemberDescriptor("resize", "namespace", "zimg", "Resize")],
+            Namespaces:
+            [
+                new VapourSynthPluginNamespaceDescriptor(
+                    "resize",
+                    "com.vapoursynth.resize",
+                    "Resize",
+                    [
+                        new VapourSynthPluginFunctionDescriptor(
+                            "Spline36",
+                            "core.resize.Spline36",
+                            "Spline36(clip, width=None, height=None, format=None)",
+                            "VideoNode",
+                            [
+                                new VapourSynthFunctionParameterDescriptor("clip", "clip", ""),
+                                new VapourSynthFunctionParameterDescriptor("width", "width=None", ""),
+                                new VapourSynthFunctionParameterDescriptor("height", "height=None", ""),
+                                new VapourSynthFunctionParameterDescriptor("format", "format=None", "")
+                            ],
+                            "Zimg Spline36")
+                    ])
+            ],
+            VsConstants: [new VapourSynthCoreMemberDescriptor("YUV420P10", "enumMember", "PresetVideoFormat = 3000012", "10-bit 4:2:0")]);
+
+        var stub = VapourSynthStubGenerator.GenerateStub(snapshot);
+        StringAssert.Contains(stub, "YUV420P10: int");
+        StringAssert.Contains(stub, "class _Plugin_resize:");
+        StringAssert.Contains(stub, "def Spline36(self, clip: Any = ..., width: Any = ..., height: Any = ..., format: Any = ..., **kwargs: Any) -> 'VideoNode':");
+        StringAssert.Contains(stub, "class _BoundPlugin_resize:");
+        StringAssert.Contains(stub, "def Spline36(self, width: Any = ..., height: Any = ..., format: Any = ..., **kwargs: Any) -> 'VideoNode':");
+        StringAssert.Contains(stub, "    resize: _BoundPlugin_resize");
+        StringAssert.Contains(stub, "    resize: _Plugin_resize");
+    }
 }

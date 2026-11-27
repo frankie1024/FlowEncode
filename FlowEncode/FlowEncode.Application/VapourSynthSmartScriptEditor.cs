@@ -437,6 +437,277 @@ public static partial class VapourSynthSmartScriptEditor
             AddedImport: addedImport);
     }
 
+    public static SmartScriptEditResult ApplyMultiLineFilterTemplate(
+        string script,
+        int outputIndex,
+        IReadOnlyList<string> statementTemplatesWithPlaceholders,
+        string? importModule = null,
+        string? importAlias = null,
+        string? fromModule = null,
+        string? fromSymbol = null,
+        string? derivedVariableName = null)
+    {
+        var lines = SplitLines(script ?? string.Empty, out var newline);
+        var addedImport = false;
+        var resolvedAlias = importAlias ?? importModule ?? string.Empty;
+
+        if (!string.IsNullOrWhiteSpace(importModule))
+        {
+            addedImport = EnsureImportModule(
+                lines,
+                importModule,
+                string.IsNullOrWhiteSpace(importAlias) ? importModule : importAlias,
+                out resolvedAlias);
+        }
+        else if (!string.IsNullOrWhiteSpace(fromModule) && !string.IsNullOrWhiteSpace(fromSymbol))
+        {
+            addedImport = EnsureFromImportSymbol(lines, fromModule, fromSymbol);
+        }
+
+        var currentText = string.Join(newline, lines);
+        var target = ResolveOutputTarget(currentText, outputIndex);
+        var oldVar = target.VariableName;
+        var targetVar = string.IsNullOrWhiteSpace(derivedVariableName) ? oldVar : derivedVariableName.Trim();
+
+        var statements = statementTemplatesWithPlaceholders
+            .Select(template => template
+                .Replace("{var}", oldVar, StringComparison.Ordinal)
+                .Replace("{target}", targetVar, StringComparison.Ordinal)
+                .Replace("{alias}", resolvedAlias, StringComparison.Ordinal))
+            .ToList();
+
+        var insertAt = InsertBeforeOutput(lines, target.SetOutputLineIndex, statements);
+        if (target.FoundSetOutput && !string.Equals(targetVar, oldVar, StringComparison.Ordinal))
+        {
+            var newOutputLineIndex = target.SetOutputLineIndex + statements.Count;
+            if (newOutputLineIndex < lines.Count)
+            {
+                var line = lines[newOutputLineIndex];
+                var match = SetOutputMethodRegex.Match(line);
+                if (match.Success && string.Equals(match.Groups["var"].Value, oldVar, StringComparison.Ordinal))
+                {
+                    lines[newOutputLineIndex] = $"{match.Groups["indent"].Value}{targetVar}.set_output({match.Groups["args"].Value})";
+                }
+            }
+        }
+
+        return new SmartScriptEditResult(
+            string.Join(newline, lines),
+            insertAt + 1,
+            targetVar,
+            UpdatedInPlace: false,
+            AddedImport: addedImport);
+    }
+
+    private const string AbCompareMarker = "# [FlowEncode A/B]";
+    private const string AbCompareSavedPrefix = "# [FlowEncode A/B saved] ";
+
+    public static SmartScriptEditResult ToggleBeforeAfterCompare(string script, int cursorLineNumber)
+    {
+        var lines = SplitLines(script ?? string.Empty, out var newline);
+        var hasAbBlock = lines.Any(static l => l.Contains(AbCompareMarker, StringComparison.Ordinal)
+            || l.TrimStart().StartsWith(AbCompareSavedPrefix, StringComparison.Ordinal));
+
+        if (hasAbBlock)
+        {
+            var restored = new List<string>(lines.Count);
+            var firstRestoredLine = 1;
+            var foundSaved = false;
+            foreach (var line in lines)
+            {
+                if (line.Contains(AbCompareMarker, StringComparison.Ordinal))
+                {
+                    continue;
+                }
+
+                var trimmedStart = line.TrimStart();
+                if (trimmedStart.StartsWith(AbCompareSavedPrefix, StringComparison.Ordinal))
+                {
+                    var leading = line[..(line.Length - trimmedStart.Length)];
+                    var original = trimmedStart[AbCompareSavedPrefix.Length..];
+                    restored.Add(leading + original);
+                    if (!foundSaved)
+                    {
+                        firstRestoredLine = restored.Count;
+                        foundSaved = true;
+                    }
+                    continue;
+                }
+
+                restored.Add(line);
+            }
+
+            var targetAfterRestore = ResolveOutputTarget(string.Join(newline, restored), 0);
+            return new SmartScriptEditResult(
+                string.Join(newline, restored),
+                firstRestoredLine,
+                targetAfterRestore.VariableName,
+                UpdatedInPlace: true,
+                AddedImport: false);
+        }
+
+        // Locate candidate filter assignment at cursorLineNumber or fallback to the last assignment before set_output.
+        var outputTarget = ResolveOutputTarget(script ?? string.Empty, 0);
+        var limit = Math.Min(outputTarget.SetOutputLineIndex, lines.Count);
+        var targetLineIdx = -1;
+
+        var clampedCursorIdx = Math.Clamp(cursorLineNumber - 1, 0, Math.Max(0, lines.Count - 1));
+        if (clampedCursorIdx < limit && IsFilterAssignmentLine(lines[clampedCursorIdx]))
+        {
+            targetLineIdx = clampedCursorIdx;
+        }
+        else
+        {
+            for (var i = Math.Min(clampedCursorIdx, limit - 1); i >= 0; i--)
+            {
+                if (IsFilterAssignmentLine(lines[i]))
+                {
+                    targetLineIdx = i;
+                    break;
+                }
+            }
+
+            if (targetLineIdx < 0)
+            {
+                for (var i = limit - 1; i >= 0; i--)
+                {
+                    if (IsFilterAssignmentLine(lines[i]))
+                    {
+                        targetLineIdx = i;
+                        break;
+                    }
+                }
+            }
+        }
+
+        if (targetLineIdx < 0)
+        {
+            return new SmartScriptEditResult(script ?? string.Empty, Math.Max(1, cursorLineNumber), outputTarget.VariableName, false, false);
+        }
+
+        var filterMatch = AssignmentRegex.Match(lines[targetLineIdx]);
+        var afterVar = filterMatch.Groups["var"].Value;
+        var rhs = filterMatch.Groups["rhs"].Value;
+
+        // Collect clip variables defined strictly before targetLineIdx to determine the "before" clip variable.
+        var earlierVars = new List<string>();
+        for (var i = 0; i < targetLineIdx; i++)
+        {
+            var m = AssignmentRegex.Match(lines[i]);
+            if (m.Success && m.Groups["indent"].Value.Length == 0 && !NonClipVariableNames.Contains(m.Groups["var"].Value))
+            {
+                earlierVars.Add(m.Groups["var"].Value);
+            }
+        }
+
+        string beforeVar;
+        if (earlierVars.Contains(afterVar, StringComparer.Ordinal))
+        {
+            beforeVar = afterVar;
+        }
+        else
+        {
+            beforeVar = earlierVars
+                .LastOrDefault(v => Regex.IsMatch(rhs, $@"\b{Regex.Escape(v)}\b"))
+                ?? earlierVars.LastOrDefault()
+                ?? afterVar;
+        }
+
+        // Find the end line of this statement (supports multi-line parenthesized filter calls).
+        var stmtEndIdx = FindStatementEndLineIndex(lines, targetLineIdx);
+
+        // Comment out existing top-level set_output lines so toggling restores cleanly.
+        for (var i = 0; i < lines.Count; i++)
+        {
+            if (SetOutputMethodRegex.IsMatch(lines[i]))
+            {
+                var trimmedStart = lines[i].TrimStart();
+                var leading = lines[i][..(lines[i].Length - trimmedStart.Length)];
+                lines[i] = leading + AbCompareSavedPrefix + trimmedStart;
+            }
+        }
+
+        lines.Insert(stmtEndIdx + 1, $"_fe_after = {afterVar}  {AbCompareMarker}");
+        lines.Insert(targetLineIdx, $"_fe_before = {beforeVar}  {AbCompareMarker}");
+        lines.Add($"_fe_before.set_output(0)  {AbCompareMarker}");
+        lines.Add($"_fe_after.set_output(1)  {AbCompareMarker}");
+
+        return new SmartScriptEditResult(
+            string.Join(newline, lines),
+            targetLineIdx + 2,
+            $"{beforeVar} vs {afterVar}",
+            UpdatedInPlace: false,
+            AddedImport: false);
+    }
+
+    private static int FindStatementEndLineIndex(List<string> lines, int startLineIdx)
+    {
+        var depth = 0;
+        for (var i = startLineIdx; i < lines.Count; i++)
+        {
+            var line = lines[i];
+            char? quote = null;
+            for (var c = 0; c < line.Length; c++)
+            {
+                var ch = line[c];
+                if (quote.HasValue)
+                {
+                    if (ch == '\\')
+                    {
+                        c++;
+                        continue;
+                    }
+                    if (ch == quote.Value)
+                    {
+                        quote = null;
+                    }
+                    continue;
+                }
+                if (ch == '#')
+                {
+                    break;
+                }
+                if (ch is '"' or '\'')
+                {
+                    quote = ch;
+                }
+                else if (ch is '(' or '[' or '{')
+                {
+                    depth++;
+                }
+                else if (ch is ')' or ']' or '}')
+                {
+                    depth = Math.Max(0, depth - 1);
+                }
+            }
+
+            if (depth <= 0 && !line.TrimEnd().EndsWith('\\'))
+            {
+                return i;
+            }
+        }
+
+        return startLineIdx;
+    }
+
+    private static bool IsFilterAssignmentLine(string line)
+    {
+        var match = AssignmentRegex.Match(line);
+        if (!match.Success || match.Groups["indent"].Value.Length != 0)
+        {
+            return false;
+        }
+
+        var varName = match.Groups["var"].Value;
+        if (NonClipVariableNames.Contains(varName) || varName.StartsWith("_fe_", StringComparison.Ordinal))
+        {
+            return false;
+        }
+
+        var rhs = match.Groups["rhs"].Value.Trim();
+        return rhs.Contains('(', StringComparison.Ordinal);
+    }
+
     private static int FindAfterLastImportIndex(List<string> lines)
     {
         var lastImportLine = -1;

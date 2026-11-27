@@ -24,13 +24,38 @@ public interface IVapourSynthWorkspaceLanguageService
         string? triggerCharacter = null,
         CancellationToken cancellationToken = default);
 
+    Task<VapourSynthPythonHoverInfo?> GetPythonHoverAsync(
+        VapourSynthTextDocumentContext document,
+        VapourSynthTextDocumentPosition position,
+        CancellationToken cancellationToken = default) =>
+        Task.FromResult<VapourSynthPythonHoverInfo?>(null);
+
+    Task<VapourSynthPythonSignatureHelp?> GetPythonSignatureHelpAsync(
+        VapourSynthTextDocumentContext document,
+        VapourSynthTextDocumentPosition position,
+        string? triggerCharacter = null,
+        CancellationToken cancellationToken = default) =>
+        Task.FromResult<VapourSynthPythonSignatureHelp?>(null);
+
+    Task<VapourSynthScriptBenchmarkResult> BenchmarkScriptAsync(
+        string? filePath,
+        string content,
+        string workingDirectory,
+        int sampleFrames = 100,
+        int outputIndex = 0,
+        CancellationToken cancellationToken = default) =>
+        Task.FromResult(new VapourSynthScriptBenchmarkResult(false, outputIndex, 0, 0, 0, 0, 0, 0, 0, string.Empty, 0, "Benchmarking is not supported."));
+
 }
 
 public sealed record VapourSynthLanguageFeaturesSnapshot(
     bool IsRuntimeReady,
     string RuntimeSummary,
     IReadOnlyList<VapourSynthCoreMemberDescriptor> CoreMembers,
-    IReadOnlyList<VapourSynthPluginNamespaceDescriptor> Namespaces);
+    IReadOnlyList<VapourSynthPluginNamespaceDescriptor> Namespaces,
+    IReadOnlyList<VapourSynthCoreMemberDescriptor>? VsConstants = null,
+    IReadOnlyList<VapourSynthCoreMemberDescriptor>? VideoNodeMembers = null,
+    IReadOnlyList<string>? InstalledPackages = null);
 
 public sealed record VapourSynthCoreMemberDescriptor(
     string Name,
@@ -100,4 +125,35 @@ public sealed record VapourSynthPythonCompletionItem(
     string SortText,
     string FilterText,
     bool IsSnippet);
+
+public sealed record VapourSynthPythonHoverInfo(
+    string Contents);
+
+public sealed record VapourSynthPythonSignatureParameter(
+    string Label,
+    string Documentation);
+
+public sealed record VapourSynthPythonSignatureItem(
+    string Label,
+    string Documentation,
+    IReadOnlyList<VapourSynthPythonSignatureParameter> Parameters);
+
+public sealed record VapourSynthPythonSignatureHelp(
+    IReadOnlyList<VapourSynthPythonSignatureItem> Signatures,
+    int ActiveSignature,
+    int ActiveParameter);
+
+public sealed record VapourSynthScriptBenchmarkResult(
+    bool Succeeded,
+    int OutputIndex,
+    int FramesRendered,
+    int StartFrame,
+    int TotalFrames,
+    double ElapsedSeconds,
+    double Fps,
+    int Width,
+    int Height,
+    string FormatName,
+    int BitsPerSample,
+    string? ErrorMessage);
 

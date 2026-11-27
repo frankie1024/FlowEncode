@@ -23,6 +23,7 @@ public sealed class VapourSynthWorkspaceLanguageService : IVapourSynthWorkspaceL
     private readonly SemaphoreSlim _languageFeaturesLock = new(1, 1);
     private readonly SemaphoreSlim _pythonLspLock = new(1, 1);
     private readonly string _pythonLspRootPath;
+    private readonly string _stubsDirectoryPath;
     private readonly PythonLspBootstrapper _pythonLspBootstrapper;
     private string? _pythonPath;
     private VapourSynthLanguageFeaturesSnapshot? _cachedLanguageFeatures;
@@ -38,6 +39,7 @@ public sealed class VapourSynthWorkspaceLanguageService : IVapourSynthWorkspaceL
             "FlowEncode",
             "VapourSynthEditor",
             "python-lsp");
+        _stubsDirectoryPath = Path.Combine(_pythonLspRootPath, "stubs");
         _pythonLspBootstrapper = new PythonLspBootstrapper(_pythonLspRootPath);
     }
 
@@ -68,6 +70,11 @@ public sealed class VapourSynthWorkspaceLanguageService : IVapourSynthWorkspaceL
                 helperPath,
                 null,
                 cancellationToken);
+
+            if (snapshot.IsRuntimeReady)
+            {
+                TryRefreshRuntimeStubFile(snapshot);
+            }
 
             _cachedLanguageFeatures = snapshot;
             _cachedLanguageFeaturesAt = DateTimeOffset.UtcNow;
@@ -146,6 +153,112 @@ public sealed class VapourSynthWorkspaceLanguageService : IVapourSynthWorkspaceL
         finally
         {
             _pythonLspLock.Release();
+        }
+    }
+
+    public async Task<VapourSynthPythonHoverInfo?> GetPythonHoverAsync(
+        VapourSynthTextDocumentContext document,
+        VapourSynthTextDocumentPosition position,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(document);
+        ArgumentNullException.ThrowIfNull(position);
+
+        await _pythonLspLock.WaitAsync(cancellationToken);
+
+        try
+        {
+            return await ExecutePythonLanguageServerRequestAsync(
+                client => client.GetHoverAsync(document, position, cancellationToken),
+                cancellationToken);
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch
+        {
+            return null;
+        }
+        finally
+        {
+            _pythonLspLock.Release();
+        }
+    }
+
+    public async Task<VapourSynthPythonSignatureHelp?> GetPythonSignatureHelpAsync(
+        VapourSynthTextDocumentContext document,
+        VapourSynthTextDocumentPosition position,
+        string? triggerCharacter = null,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(document);
+        ArgumentNullException.ThrowIfNull(position);
+
+        await _pythonLspLock.WaitAsync(cancellationToken);
+
+        try
+        {
+            return await ExecutePythonLanguageServerRequestAsync(
+                client => client.GetSignatureHelpAsync(document, position, triggerCharacter, cancellationToken),
+                cancellationToken);
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch
+        {
+            return null;
+        }
+        finally
+        {
+            _pythonLspLock.Release();
+        }
+    }
+
+    public async Task<VapourSynthScriptBenchmarkResult> BenchmarkScriptAsync(
+        string? filePath,
+        string content,
+        string workingDirectory,
+        int sampleFrames = 100,
+        int outputIndex = 0,
+        CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            var helperPath = GetHelperPath("benchmark_script.py");
+            var payload = new ScriptBenchmarkRequest(
+                string.IsNullOrWhiteSpace(filePath) ? "<untitled.vpy>" : filePath,
+                content ?? string.Empty,
+                string.IsNullOrWhiteSpace(workingDirectory) ? AppContext.BaseDirectory : workingDirectory,
+                Math.Clamp(sampleFrames, 10, 500),
+                outputIndex);
+
+            return await RunHelperAsync<VapourSynthScriptBenchmarkResult>(
+                helperPath,
+                payload,
+                cancellationToken);
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch (Exception ex)
+        {
+            return new VapourSynthScriptBenchmarkResult(
+                false,
+                outputIndex,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                string.Empty,
+                0,
+                ex.Message);
         }
     }
 
@@ -286,8 +399,9 @@ public sealed class VapourSynthWorkspaceLanguageService : IVapourSynthWorkspaceL
 
         var pythonPath = await ResolvePythonPathAsync(cancellationToken);
         var additionalPythonPath = await _pythonLspBootstrapper.EnsurePackagePathAsync(pythonPath, cancellationToken);
+        var combinedPythonPath = BuildCombinedPythonPath(additionalPythonPath);
         var workspaceRootPath = Path.Combine(_pythonLspRootPath, "workspace");
-        var client = new PythonLspClient(pythonPath, additionalPythonPath, workspaceRootPath);
+        var client = new PythonLspClient(pythonPath, combinedPythonPath, workspaceRootPath);
 
         try
         {
@@ -354,5 +468,57 @@ public sealed class VapourSynthWorkspaceLanguageService : IVapourSynthWorkspaceL
         _pythonLspLock.Dispose();
     }
 
+    private string? BuildCombinedPythonPath(string? additionalPythonPath)
+    {
+        var paths = new System.Collections.Generic.List<string>(2);
+        var stubFilePath = Path.Combine(_stubsDirectoryPath, "vapoursynth.pyi");
+        if (File.Exists(stubFilePath))
+        {
+            paths.Add(_stubsDirectoryPath);
+        }
+
+        if (!string.IsNullOrWhiteSpace(additionalPythonPath))
+        {
+            paths.Add(additionalPythonPath);
+        }
+
+        return paths.Count == 0 ? null : string.Join(Path.PathSeparator, paths);
+    }
+
+    private void TryRefreshRuntimeStubFile(VapourSynthLanguageFeaturesSnapshot snapshot)
+    {
+        try
+        {
+            var stubContent = VapourSynthStubGenerator.GenerateStub(snapshot);
+            var hash = VapourSynthStubGenerator.ComputeContentHash(stubContent);
+            Directory.CreateDirectory(_stubsDirectoryPath);
+            var stubFilePath = Path.Combine(_stubsDirectoryPath, "vapoursynth.pyi");
+            var hashFilePath = Path.Combine(_stubsDirectoryPath, "vapoursynth.pyi.sha256");
+
+            if (File.Exists(stubFilePath) && File.Exists(hashFilePath))
+            {
+                var existingHash = File.ReadAllText(hashFilePath).Trim();
+                if (string.Equals(existingHash, hash, StringComparison.OrdinalIgnoreCase))
+                {
+                    return;
+                }
+            }
+
+            File.WriteAllText(stubFilePath, stubContent, new UTF8Encoding(false));
+            File.WriteAllText(hashFilePath, hash, new UTF8Encoding(false));
+        }
+        catch (Exception ex)
+        {
+            Debug.WriteLine($"Failed to refresh VapourSynth runtime stub: {ex.Message}");
+        }
+    }
+
     private sealed record ScriptDiagnosticRequest(string FilePath, string Content);
+
+    private sealed record ScriptBenchmarkRequest(
+        string FilePath,
+        string Content,
+        string WorkingDirectory,
+        int SampleFrames,
+        int OutputIndex);
 }

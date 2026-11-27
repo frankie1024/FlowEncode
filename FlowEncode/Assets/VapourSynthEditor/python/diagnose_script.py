@@ -1,5 +1,6 @@
 import ast
 import difflib
+import inspect
 import json
 import sys
 
@@ -10,6 +11,8 @@ def build_runtime_index():
     core = vs.core
     core_members = {}
     namespaces = {}
+    function_params = {}  # (namespace, function_name) -> (set_of_param_names, has_var_kwargs)
+    video_node_attrs = set(dir(getattr(vs, "VideoNode", object)))
 
     for name in dir(core):
         if name.startswith("_"):
@@ -35,6 +38,18 @@ def build_runtime_index():
 
                 if callable(function):
                     functions.add(function_name)
+                    try:
+                        sig = inspect.signature(function)
+                        param_names = set()
+                        has_kwargs = False
+                        for param in sig.parameters.values():
+                            if param.kind == inspect.Parameter.VAR_KEYWORD:
+                                has_kwargs = True
+                            elif param.kind != inspect.Parameter.VAR_POSITIONAL:
+                                param_names.add(param.name)
+                        function_params[(namespace, function_name)] = (param_names, has_kwargs)
+                    except Exception:
+                        pass
 
             namespaces[namespace] = functions
             core_members[namespace] = "namespace"
@@ -55,7 +70,9 @@ def build_runtime_index():
     return {
         "runtimeSummary": f"VapourSynth {version_label} / {len(namespaces)} plugins",
         "coreMembers": core_members,
-        "namespaces": namespaces
+        "namespaces": namespaces,
+        "functionParams": function_params,
+        "videoNodeAttrs": video_node_attrs,
     }
 
 
@@ -116,9 +133,9 @@ def normalize_chain(parts):
 def build_unknown_member_message(kind, name, candidates):
     suggestion = difflib.get_close_matches(name, candidates, n=1)
     if suggestion:
-        return f"Unknown VapourSynth {kind} '{name}'. Did you mean '{suggestion[0]}'?"
+        return f"Unknown VapourSynth {kind} '{name}'. Did you mean '{suggestion[0]}'?", suggestion[0]
 
-    return f"Unknown VapourSynth {kind} '{name}'."
+    return f"Unknown VapourSynth {kind} '{name}'.", None
 
 
 def locate_segment(node, source, segment):
@@ -135,77 +152,65 @@ def locate_segment(node, source, segment):
     }
 
 
+def _collect_top_level_clip_and_import_names(tree):
+    imported_names = set()
+    clip_vars = set()
+    non_clip_names = {"core", "vs", "os", "sys", "math", "Path", "path"}
+    for stmt in tree.body:
+        if isinstance(stmt, ast.Import):
+            for alias in stmt.names:
+                imported_names.add(alias.asname or alias.name.split(".")[0])
+        elif isinstance(stmt, ast.ImportFrom):
+            for alias in stmt.names:
+                imported_names.add(alias.asname or alias.name)
+        elif isinstance(stmt, ast.Assign):
+            for target in stmt.targets:
+                if isinstance(target, ast.Name) and target.id not in non_clip_names:
+                    clip_vars.add(target.id)
+    return clip_vars, imported_names
+
+
+def _locate_keyword_name(kw, source):
+    seg = ast.get_source_segment(source, kw) or kw.arg or ""
+    eq_idx = seg.find("=")
+    arg_text = seg[:eq_idx].strip() if eq_idx >= 0 else (kw.arg or "")
+    start_col = (kw.col_offset if getattr(kw, "col_offset", None) is not None else 0) + 1
+    return {
+        "startLine": getattr(kw, "lineno", 1) or 1,
+        "startColumn": start_col,
+        "endLine": getattr(kw, "lineno", 1) or 1,
+        "endColumn": start_col + len(arg_text or kw.arg or ""),
+    }
+
+
+def _locate_ast_node(node, source):
+    start_line = getattr(node, "lineno", 1) or 1
+    start_col = (getattr(node, "col_offset", 0) or 0) + 1
+    end_line = getattr(node, "end_lineno", start_line) or start_line
+    raw_end_col = getattr(node, "end_col_offset", None)
+    if raw_end_col is not None:
+        end_col = raw_end_col + 1
+    else:
+        end_col = start_col + max(1, len(ast.get_source_segment(source, node) or ""))
+    return {
+        "startLine": start_line,
+        "startColumn": start_col,
+        "endLine": end_line,
+        "endColumn": end_col,
+    }
+
+
 def build_static_diagnostics(tree, source, runtime_index):
     diagnostics = []
     seen = set()
 
     assign_parents(tree)
+    clip_vars, imported_names = _collect_top_level_clip_and_import_names(tree)
+    namespaces_map = runtime_index["namespaces"]
+    function_params = runtime_index.get("functionParams", {})
+    video_node_attrs = runtime_index.get("videoNodeAttrs", set())
 
-    for node in ast.walk(tree):
-        if not isinstance(node, ast.Attribute):
-            continue
-
-        if isinstance(getattr(node, "parent", None), ast.Attribute):
-            continue
-
-        chain = normalize_chain(extract_attribute_chain(node))
-        if not chain or len(chain) < 2:
-            continue
-
-        if chain[0] != "core":
-            continue
-
-        root_member = chain[1]
-        if len(chain) == 2:
-            if root_member in runtime_index["coreMembers"]:
-                continue
-
-            location = locate_segment(node, source, root_member)
-            diagnostic = {
-                "code": "vapoursynth-core-member",
-                "severity": "error",
-                "message": build_unknown_member_message(
-                    "core member",
-                    root_member,
-                    list(runtime_index["coreMembers"].keys())),
-                "source": "vapoursynth",
-                "relatedText": ast.get_source_segment(source, node) or root_member,
-                **location
-            }
-        else:
-            namespace = chain[1]
-            function = chain[2]
-            functions = runtime_index["namespaces"].get(namespace)
-
-            if functions is None:
-                location = locate_segment(node, source, namespace)
-                diagnostic = {
-                    "code": "vapoursynth-namespace",
-                    "severity": "error",
-                    "message": build_unknown_member_message(
-                        "plugin namespace",
-                        namespace,
-                        list(runtime_index["namespaces"].keys())),
-                    "source": "vapoursynth",
-                    "relatedText": ast.get_source_segment(source, node) or namespace,
-                    **location
-                }
-            elif function not in functions:
-                location = locate_segment(node, source, function)
-                diagnostic = {
-                    "code": "vapoursynth-function",
-                    "severity": "error",
-                    "message": build_unknown_member_message(
-                        "function",
-                        function,
-                        sorted(functions)),
-                    "source": "vapoursynth",
-                    "relatedText": ast.get_source_segment(source, node) or function,
-                    **location
-                }
-            else:
-                continue
-
+    def add_diag(diagnostic):
         key = (
             diagnostic["code"],
             diagnostic["startLine"],
@@ -214,11 +219,184 @@ def build_static_diagnostics(tree, source, runtime_index):
             diagnostic["endColumn"],
             diagnostic["message"]
         )
-        if key in seen:
+        if key not in seen:
+            seen.add(key)
+            diagnostics.append(diagnostic)
+
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Attribute):
+            if isinstance(getattr(node, "parent", None), ast.Attribute):
+                continue
+
+            raw_chain = extract_attribute_chain(node)
+            if not raw_chain or len(raw_chain) < 2:
+                continue
+
+            chain = normalize_chain(raw_chain)
+            if chain and len(chain) >= 2 and chain[0] == "core":
+                root_member = chain[1]
+                if len(chain) == 2:
+                    if root_member in runtime_index["coreMembers"]:
+                        continue
+                    msg, suggestion = build_unknown_member_message(
+                        "core member",
+                        root_member,
+                        list(runtime_index["coreMembers"].keys()))
+                    location = locate_segment(node, source, root_member)
+                    diag = {
+                        "code": "vapoursynth-core-member",
+                        "severity": "error",
+                        "message": msg,
+                        "source": "vapoursynth",
+                        "relatedText": ast.get_source_segment(source, node) or root_member,
+                        **location
+                    }
+                    if suggestion:
+                        diag["quickFixTitle"] = f"Replace '{root_member}' with '{suggestion}'"
+                        diag["suggestedReplacement"] = suggestion
+                    add_diag(diag)
+                else:
+                    namespace = chain[1]
+                    function = chain[2]
+                    functions = namespaces_map.get(namespace)
+                    if functions is None:
+                        msg, suggestion = build_unknown_member_message(
+                            "plugin namespace",
+                            namespace,
+                            list(namespaces_map.keys()))
+                        location = locate_segment(node, source, namespace)
+                        diag = {
+                            "code": "vapoursynth-namespace",
+                            "severity": "error",
+                            "message": msg,
+                            "source": "vapoursynth",
+                            "relatedText": ast.get_source_segment(source, node) or namespace,
+                            **location
+                        }
+                        if suggestion:
+                            diag["quickFixTitle"] = f"Replace '{namespace}' with '{suggestion}'"
+                            diag["suggestedReplacement"] = suggestion
+                        add_diag(diag)
+                    elif function not in functions:
+                        msg, suggestion = build_unknown_member_message(
+                            "function",
+                            function,
+                            sorted(functions))
+                        location = locate_segment(node, source, function)
+                        diag = {
+                            "code": "vapoursynth-function",
+                            "severity": "error",
+                            "message": msg,
+                            "source": "vapoursynth",
+                            "relatedText": ast.get_source_segment(source, node) or function,
+                            **location
+                        }
+                        if suggestion:
+                            diag["quickFixTitle"] = f"Replace '{function}' with '{suggestion}'"
+                            diag["suggestedReplacement"] = suggestion
+                        add_diag(diag)
+            elif (
+                len(raw_chain) >= 3
+                and raw_chain[0] in clip_vars
+                and raw_chain[0] not in imported_names
+            ):
+                # Chained VideoNode call: clip.<namespace>.<function>
+                ns = raw_chain[1]
+                fn = raw_chain[2]
+                if ns in namespaces_map:
+                    functions = namespaces_map[ns]
+                    if fn not in functions:
+                        msg, suggestion = build_unknown_member_message("function", fn, sorted(functions))
+                        location = locate_segment(node, source, fn)
+                        diag = {
+                            "code": "vapoursynth-chained-function",
+                            "severity": "error",
+                            "message": msg,
+                            "source": "vapoursynth",
+                            "relatedText": ast.get_source_segment(source, node) or fn,
+                            **location
+                        }
+                        if suggestion:
+                            diag["quickFixTitle"] = f"Replace '{fn}' with '{suggestion}'"
+                            diag["suggestedReplacement"] = suggestion
+                        add_diag(diag)
+                elif ns not in video_node_attrs:
+                    close_ns = difflib.get_close_matches(ns, list(namespaces_map.keys()), n=1, cutoff=0.72)
+                    if close_ns:
+                        suggestion = close_ns[0]
+                        location = locate_segment(node, source, ns)
+                        add_diag({
+                            "code": "vapoursynth-chained-namespace",
+                            "severity": "error",
+                            "message": f"Unknown VapourSynth plugin namespace '{ns}' on clip '{raw_chain[0]}'. Did you mean '{suggestion}'?",
+                            "source": "vapoursynth",
+                            "relatedText": ast.get_source_segment(source, node) or ns,
+                            "quickFixTitle": f"Replace '{ns}' with '{suggestion}'",
+                            "suggestedReplacement": suggestion,
+                            **location
+                        })
             continue
 
-        seen.add(key)
-        diagnostics.append(diagnostic)
+        if isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute):
+            raw_chain = extract_attribute_chain(node.func)
+            if not raw_chain or len(raw_chain) < 3:
+                continue
+            norm = normalize_chain(raw_chain)
+            if norm and norm[0] == "core" and len(norm) >= 3:
+                ns, fn = norm[1], norm[2]
+            elif raw_chain[0] in clip_vars and raw_chain[0] not in imported_names and raw_chain[1] in namespaces_map:
+                ns, fn = raw_chain[1], raw_chain[2]
+            else:
+                continue
+
+            sig_info = function_params.get((ns, fn))
+            if sig_info is not None:
+                valid_params, has_kwargs = sig_info
+                if not has_kwargs:
+                    for kw in node.keywords:
+                        if kw.arg is None:
+                            continue
+                        if kw.arg not in valid_params:
+                            close = difflib.get_close_matches(kw.arg, sorted(valid_params), n=1, cutoff=0.55)
+                            suggestion = close[0] if close else None
+                            msg = (
+                                f"Unknown parameter '{kw.arg}' for {ns}.{fn}. Did you mean '{suggestion}'?"
+                                if suggestion
+                                else f"Unknown parameter '{kw.arg}' for {ns}.{fn}."
+                            )
+                            loc = _locate_keyword_name(kw, source)
+                            diag = {
+                                "code": "vapoursynth-unknown-kwarg",
+                                "severity": "error",
+                                "message": msg,
+                                "source": "vapoursynth",
+                                "relatedText": f"{ns}.{fn}({kw.arg}=...)",
+                                **loc
+                            }
+                            if suggestion:
+                                diag["quickFixTitle"] = f"Replace '{kw.arg}' with '{suggestion}'"
+                                diag["suggestedReplacement"] = suggestion
+                            add_diag(diag)
+
+            # Check odd pixel crop values on std.CropRel / std.CropAbs / std.Crop
+            if ns == "std" and fn in ("CropRel", "CropAbs", "Crop"):
+                for kw in node.keywords:
+                    if kw.arg in ("left", "right", "top", "bottom", "width", "height"):
+                        if isinstance(kw.value, ast.Constant) and isinstance(kw.value.value, int) and not isinstance(kw.value.value, bool):
+                            val = kw.value.value
+                            if val > 0 and (val % 2) == 1:
+                                even_val = max(0, val - 1) if kw.arg not in ("width", "height") else max(2, val - 1)
+                                loc = _locate_ast_node(kw.value, source)
+                                add_diag({
+                                    "code": "vapoursynth-odd-crop",
+                                    "severity": "warning",
+                                    "message": f"Odd {kw.arg}={val} in {ns}.{fn} fails on YUV420 clips (even values required).",
+                                    "source": "vapoursynth-flow",
+                                    "relatedText": f"{kw.arg}={val}",
+                                    "quickFixTitle": f"Round {kw.arg} to even ({even_val})",
+                                    "suggestedReplacement": str(even_val),
+                                    **loc
+                                })
 
     diagnostics.sort(key=lambda item: (
         item["startLine"],
@@ -387,6 +565,38 @@ def build_variable_flow_diagnostics(tree, source):
                 "suggestedReplacement": latest,
                 **loc,
             })
+
+    # Rule 2b: Orphan clip/filter variable (assigned from a call, never referenced or output, not already reported as stale-output)
+    reported_stale_targets = {
+        d.get("suggestedReplacement")
+        for d in diagnostics
+        if d.get("code") == "vapoursynth-stale-output"
+    }
+    if output_calls:
+        for stmt in tree.body:
+            if not isinstance(stmt, ast.Assign) or not isinstance(stmt.value, ast.Call):
+                continue
+            for target in stmt.targets:
+                if not isinstance(target, ast.Name):
+                    continue
+                lhs = target.id
+                if (
+                    lhs.startswith("_")
+                    or lhs in non_clip_names
+                    or lhs in all_output_vars
+                    or lhs in used_after_def
+                    or lhs in reported_stale_targets
+                ):
+                    continue
+                loc = locate_segment(target, source, lhs)
+                diagnostics.append({
+                    "code": "vapoursynth-unused-clip",
+                    "severity": "info",
+                    "message": f"Variable '{lhs}' is assigned but never referenced or passed to set_output().",
+                    "source": "vapoursynth-flow",
+                    "relatedText": lhs,
+                    **loc,
+                })
 
     # Rule 3: Missing common VapourSynth imports (with Quick Fix inserting at top of file / after last import)
     all_bound_names = set(defined_vars)

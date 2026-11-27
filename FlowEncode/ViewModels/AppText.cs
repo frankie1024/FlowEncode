@@ -241,16 +241,61 @@ public sealed class AppText
     public string VapourSynthPreviewButton => Pick("预览 F5", "Preview F5");
     public string VapourSynthEncodeButton => Pick("压制 F9", "Encode F9");
     public string VapourSynthSmartInsertButton => Pick("智能插入", "Smart Insert");
+    public string VapourSynthSmartCategoryDepthColor => Pick("位深与色彩", "Depth & Color");
+    public string VapourSynthSmartCategoryCropEdge => Pick("裁切与修边", "Crop & Edge");
+    public string VapourSynthSmartCategoryDeinterlace => Pick("反交错与 IVTC", "Deinterlace & IVTC");
+    public string VapourSynthSmartCategoryDebandGrain => Pick("去色带与加噪", "Deband & Grain");
+    public string VapourSynthSmartCategoryDenoise => Pick("降噪", "Denoise");
+    public string VapourSynthSmartCategoryAaScale => Pick("抗锯齿 / 去光晕 / 缩放", "AA / Dehalo / Scale");
+    public string VapourSynthSmartCategoryMaskDebug => Pick("遮罩 / 替换 / 调试", "Mask / Scening / Debug");
     public string VapourSynthSmartBitdepth16Item => Pick("升位至 16-bit（自动更新输出）", "Promote to 16-bit (Update Output)");
     public string VapourSynthSmartBitdepth10Item => Pick("降位至 10-bit 抖动（自动更新输出）", "Dither to 10-bit (Update Output)");
     public string VapourSynthSmartBitdepth8Item => Pick("降位至 8-bit 抖动（自动更新输出）", "Dither to 8-bit (Update Output)");
-    public string VapourSynthSmartPlaceboDebandItem => Pick("Deband（vs-placebo）", "Deband (vs-placebo)");
-    public string VapourSynthSmartNeoF3kdbItem => Pick("Deband（neo_f3kdb）", "Deband (neo_f3kdb)");
+    public string VapourSynthSmartSetProps709Item => Pick("设置 BT.709 帧属性（std.SetFrameProps）", "Set BT.709 Props (std.SetFrameProps)");
+    public string VapourSynthSmartHdrTonemapItem => Pick("HDR 转 SDR 映射（placebo.Tonemap）", "HDR to SDR Tone Map (placebo.Tonemap)");
+    public string VapourSynthSmartCropRelItem => Pick("相对裁切（std.CropRel）", "Relative Crop (std.CropRel)");
+    public string VapourSynthSmartFillBordersItem => Pick("补边修复（awsmfunc.fb）", "Fill Borders (awsmfunc.fb)");
+    public string VapourSynthSmartQtgmcItem => Pick("QTGMC 反交错（havsfunc.QTGMC）", "QTGMC Deinterlace (havsfunc.QTGMC)");
+    public string VapourSynthSmartIvtcItem => Pick("IVTC 反胶片过带（vivtc）", "IVTC (vivtc VFM + VDecimate)");
+    public string VapourSynthSmartPlaceboDebandItem => Pick("Deband（placebo.Deband）", "Deband (placebo.Deband)");
+    public string VapourSynthSmartNeoF3kdbItem => Pick("Deband（neo_f3kdb.Deband）", "Deband (neo_f3kdb.Deband)");
+    public string VapourSynthSmartVsDebandItem => Pick("Deband（vsdeband.Placebo）", "Deband (vsdeband.Placebo)");
+    public string VapourSynthSmartAddGrainItem => Pick("补加胶片噪点（grain.Add）", "Add Grain (grain.Add)");
     public string VapourSynthSmartBbmodItem => Pick("边线修复（awsmfunc.bbmod）", "Edge Fix (awsmfunc.bbmod)");
     public string VapourSynthSmartFrameInfoItem => Pick("帧信息叠加（awsmfunc.FrameInfo）", "Frame Info (awsmfunc.FrameInfo)");
-    public string VapourSynthSmartDftTestItem => Pick("降噪（DFTTest）", "Denoise (DFTTest)");
+    public string VapourSynthSmartDftTestItem => Pick("降噪（dfttest.DFTTest）", "Denoise (dfttest.DFTTest)");
+    public string VapourSynthSmartBm3dItem => Pick("降噪（vsdenoise.BM3D）", "Denoise (vsdenoise.BM3D)");
+    public string VapourSynthSmartKnlMeansItem => Pick("GPU 降噪（knlm.KNLMeansCL）", "GPU Denoise (knlm.KNLMeansCL)");
+    public string VapourSynthSmartSmDegrainItem => Pick("时域降噪（havsfunc.SMDegrain）", "Temporal Denoise (havsfunc.SMDegrain)");
+    public string VapourSynthSmartBasedAaItem => Pick("抗锯齿（vsaa.based_aa）", "Anti-Aliasing (vsaa.based_aa)");
+    public string VapourSynthSmartFineDehaloItem => Pick("去光晕（vsdehalo.fine_dehalo）", "Dehalo (vsdehalo.fine_dehalo)");
+    public string VapourSynthSmartHafDehaloItem => Pick("去光晕（havsfunc.FineDehalo）", "Dehalo (havsfunc.FineDehalo)");
+    public string VapourSynthSmartResizeSpline36Item => Pick("缩放（resize.Spline36）", "Resize (resize.Spline36)");
+    public string VapourSynthSmartDescaleItem => Pick("逆缩放（descale.Debicubic）", "Descale (descale.Debicubic)");
+    public string VapourSynthSmartMaskedMergeItem => Pick("边缘遮罩合并（std.MaskedMerge）", "Edge Mask Merge (std.MaskedMerge)");
+    public string VapourSynthSmartReplaceRangesItem => Pick("帧区间替换（vstools.replace_ranges）", "Replace Ranges (vstools.replace_ranges)");
+    public string VapourSynthSmartToggleAbCompareItem => Pick("切换当前行前后对比（A/B）", "Toggle Filter Before/After Compare (A/B)");
+    public string VapourSynthSmartBenchmarkItem => Pick("脚本测速（片中 100 帧 FPS）", "Benchmark Script (100 Mid-Clip Frames)");
     public string VapourSynthSmartRenameSymbolItem => Pick("重命名变量（F2）", "Rename Symbol (F2)");
     public string VapourSynthSmartQuickFixItem => Pick("快速修复（Ctrl+.）", "Quick Fix (Ctrl+.)");
+    public string VapourSynthSmartMissingDepSuffix(string depName) => IsChinese
+        ? $"（未安装 {depName}）"
+        : $" (missing {depName})";
+    public string VapourSynthSmartAbEnabledStatus(string pairLabel) => IsChinese
+        ? $"已切换为前后对比输出（{pairLabel}），按 F5 即可卷帘对比，再次点击还原。"
+        : $"Enabled A/B compare output ({pairLabel}). Press F5 to preview, click again to restore.";
+    public string VapourSynthSmartAbRestoredStatus => Pick(
+        "已恢复单路输出。",
+        "Restored single-output script.");
+    public string VapourSynthSmartBenchmarkRunningStatus => Pick(
+        "正在片中抽跑 100 帧测速…",
+        "Benchmarking 100 mid-clip frames...");
+    public string VapourSynthSmartBenchmarkDoneStatus(double fps, int frames, double elapsedSec, int width, int height, string formatName) => IsChinese
+        ? $"测速完成：{fps:0.##} fps（{frames} 帧 / {elapsedSec:0.##}s · {width}×{height} {formatName}）"
+        : $"Benchmark: {fps:0.##} fps ({frames} frames in {elapsedSec:0.##}s · {width}x{height} {formatName})";
+    public string VapourSynthSmartBenchmarkFailedStatus(string error) => IsChinese
+        ? $"脚本测速失败：{error}"
+        : $"Script benchmark failed: {error}";
     public string VapourSynthSmartEditAppliedStatus(string variableName, int lineNumber) => IsChinese
         ? $"已插入 {variableName}（第 {lineNumber} 行），按 Ctrl+Z 可撤销。"
         : $"Inserted for {variableName} (line {lineNumber}). Press Ctrl+Z to undo.";
