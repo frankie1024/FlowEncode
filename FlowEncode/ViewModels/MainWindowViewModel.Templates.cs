@@ -41,14 +41,17 @@ public partial class MainWindowViewModel : ITemplateLibraryHost
         }
     }
 
-    async Task ITemplateLibraryHost.ApplyUserTemplateToDraftAsync(SavedTemplate template)
+    void ITemplateLibraryHost.ApplyUserTemplateToDraft(SavedTemplate template)
     {
         ApplyProfileToDraft(
             template.Profile,
             Texts.UserCaption(template.Name),
             template.Name,
             template.Notes);
+    }
 
+    async Task ITemplateLibraryHost.RefreshActiveProfilePreviewAsync()
+    {
         if (_activeProfile is not null)
         {
             await RefreshPreviewNowAsync(_activeProfile);
@@ -98,16 +101,16 @@ public partial class MainWindowViewModel : ITemplateLibraryHost
             template.Name,
             template.Notes);
 
-        if (_activeProfile is not null)
-        {
-            await RefreshPreviewNowAsync(_activeProfile);
-        }
-
         TemplatesModule.Library.CaptureTemplateEditingBaseline(
             null,
             null,
             template.Name,
             template.Notes,
             _activeProfile);
+
+        if (_activeProfile is not null)
+        {
+            await RefreshPreviewNowAsync(_activeProfile);
+        }
     }
 }

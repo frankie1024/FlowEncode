@@ -318,11 +318,16 @@ public sealed partial class TemplatesView : UserControl
                         var nextItem = libraryViewModel.TemplateLibraryItems.Count == 0
                             ? null
                             : libraryViewModel.TemplateLibraryItems[Math.Min(deletedItemIndex, libraryViewModel.TemplateLibraryItems.Count - 1)];
-                        SyncTemplateSelectors(nextItem);
 
                         if (nextItem?.UserTemplate is not null)
                         {
-                            await libraryViewModel.SelectUserTemplateAsync(nextItem.UserTemplate);
+                            var selectTask = libraryViewModel.SelectUserTemplateAsync(nextItem.UserTemplate);
+                            SyncTemplateSelectors(nextItem);
+                            await selectTask;
+                        }
+                        else
+                        {
+                            SyncTemplateSelectors(nextItem);
                         }
                     }
                     else
@@ -358,10 +363,8 @@ public sealed partial class TemplatesView : UserControl
                     var currentTemplate = templateItem.UserTemplate
                         ?? libraryViewModel.FindUserTemplateById(templateItem.TemplateId)
                         ?? throw new InvalidOperationException(libraryViewModel.Texts.TemplateMissingMessage);
-                    var updatedTemplate = await libraryViewModel.SetTemplatePinnedAsync(currentTemplate.Id, !currentTemplate.IsPinned);
-                    var updatedTemplateItem = libraryViewModel.TemplateLibraryItems.FirstOrDefault(item =>
-                        string.Equals(item.TemplateId, updatedTemplate.Id, StringComparison.OrdinalIgnoreCase));
-                    SyncTemplateSelectors(updatedTemplateItem);
+                    await libraryViewModel.SetTemplatePinnedAsync(currentTemplate.Id, !currentTemplate.IsPinned);
+                    RestoreCurrentTemplateSelection();
                 }
                 catch (Exception ex)
                 {
@@ -478,11 +481,15 @@ public sealed partial class TemplatesView : UserControl
             return;
         }
 
-        SyncTemplateSelectors(templateItem);
-
         if (templateItem.UserTemplate is not null)
         {
-            await libraryViewModel.SelectUserTemplateAsync(templateItem.UserTemplate);
+            var selectTask = libraryViewModel.SelectUserTemplateAsync(templateItem.UserTemplate);
+            SyncTemplateSelectors(templateItem);
+            await selectTask;
+        }
+        else
+        {
+            SyncTemplateSelectors(templateItem);
         }
     }
 

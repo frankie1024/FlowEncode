@@ -452,9 +452,10 @@ public sealed partial class OverviewView : UserControl
 
                 var templateItem = composerViewModel.TemplateLibraryItems
                     .FirstOrDefault(item => string.Equals(item.TemplateId, template.Id, StringComparison.OrdinalIgnoreCase));
+                var selectTask = composerViewModel.SelectUserTemplateAsync(template);
                 RunWithTemplateSelectionSync(() => OverviewTemplatePicker.SelectedItem = templateItem);
                 Host?.SetTemplateLibrarySelection(templateItem);
-                await composerViewModel.SelectUserTemplateAsync(template);
+                await selectTask;
             });
     }
 

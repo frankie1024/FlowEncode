@@ -58,7 +58,7 @@
                                                                 <TextBlock FontSize="{StaticResource AppSmallFontSize}" FontWeight="SemiBold" Foreground="{ThemeResource TextFillColorSecondaryBrush}" Text="{Binding SourceLabel}" />
                                                             </Border>
                                                             <Border Padding="10,4" Background="{ThemeResource AppWarningSoftBrush}" CornerRadius="{StaticResource AppControlCornerRadius}" Visibility="{Binding ModifiedVisibility}">
-                                                                <TextBlock FontSize="{StaticResource AppSmallFontSize}" FontWeight="SemiBold" Foreground="{ThemeResource AppWarningBrush}" Text="{Binding Texts.TemplateModifiedLabel}" />
+                                                                <TextBlock FontSize="{StaticResource AppSmallFontSize}" FontWeight="SemiBold" Foreground="{ThemeResource AppWarningBrush}" Text="{Binding ModifiedLabel}" />
                                                             </Border>
                                                         </StackPanel>
                                                     </Grid>

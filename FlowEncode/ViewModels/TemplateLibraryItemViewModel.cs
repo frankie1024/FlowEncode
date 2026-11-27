@@ -20,6 +20,7 @@ public sealed class TemplateLibraryItemViewModel : ObservableObject
         bool isPinned,
         string pinActionLabel,
         string deleteActionLabel,
+        string modifiedLabel,
         SavedTemplate? userTemplate)
     {
         Key = key;
@@ -31,6 +32,7 @@ public sealed class TemplateLibraryItemViewModel : ObservableObject
         IsPinned = isPinned;
         PinActionLabel = pinActionLabel;
         DeleteActionLabel = deleteActionLabel;
+        ModifiedLabel = modifiedLabel;
         UserTemplate = userTemplate;
     }
 
@@ -51,6 +53,8 @@ public sealed class TemplateLibraryItemViewModel : ObservableObject
     public string PinActionLabel { get; }
 
     public string DeleteActionLabel { get; }
+
+    public string ModifiedLabel { get; }
 
     public SavedTemplate? UserTemplate { get; }
 

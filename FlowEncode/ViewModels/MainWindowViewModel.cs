@@ -530,7 +530,7 @@ public partial class MainWindowViewModel : CommunityToolkit.Mvvm.ComponentModel.
         get => _draftTemplateName;
         set
         {
-            if (SetProperty(ref _draftTemplateName, value))
+            if (SetProperty(ref _draftTemplateName, value) && !_isSynchronizingDraft)
             {
                 TemplatesModule?.Library.NotifyDraftChanged();
             }
@@ -542,7 +542,7 @@ public partial class MainWindowViewModel : CommunityToolkit.Mvvm.ComponentModel.
         get => _draftTemplateNotes;
         set
         {
-            if (SetProperty(ref _draftTemplateNotes, value))
+            if (SetProperty(ref _draftTemplateNotes, value) && !_isSynchronizingDraft)
             {
                 TemplatesModule?.Library.NotifyDraftChanged();
             }
@@ -609,6 +609,11 @@ public partial class MainWindowViewModel : CommunityToolkit.Mvvm.ComponentModel.
         get => _selectedEncoder;
         set
         {
+            if (value is null && !_isSynchronizingDraft)
+            {
+                return;
+            }
+
             if (SetProperty(ref _selectedEncoder, value) && !_isSynchronizingDraft)
             {
                 ApplyCapabilityDefaults();
@@ -622,6 +627,11 @@ public partial class MainWindowViewModel : CommunityToolkit.Mvvm.ComponentModel.
         get => _selectedRateControl;
         set
         {
+            if (value is null && !_isSynchronizingDraft)
+            {
+                return;
+            }
+
             if (SetProperty(ref _selectedRateControl, value) && !_isSynchronizingDraft)
             {
                 if (!_isApplyingEncodingModeConstraint
@@ -647,6 +657,11 @@ public partial class MainWindowViewModel : CommunityToolkit.Mvvm.ComponentModel.
         get => _selectedPreset;
         set
         {
+            if (value is null && !_isSynchronizingDraft)
+            {
+                return;
+            }
+
             if (SetProperty(ref _selectedPreset, value) && !_isSynchronizingDraft)
             {
                 FinalizeDraftChange(syncOutputPath: false, markAsCustomized: true);
@@ -659,6 +674,11 @@ public partial class MainWindowViewModel : CommunityToolkit.Mvvm.ComponentModel.
         get => _selectedTune;
         set
         {
+            if (value is null && !_isSynchronizingDraft)
+            {
+                return;
+            }
+
             if (SetProperty(ref _selectedTune, value) && !_isSynchronizingDraft)
             {
                 FinalizeDraftChange(syncOutputPath: false, markAsCustomized: true);
@@ -671,6 +691,11 @@ public partial class MainWindowViewModel : CommunityToolkit.Mvvm.ComponentModel.
         get => _selectedProfileOption;
         set
         {
+            if (value is null && !_isSynchronizingDraft)
+            {
+                return;
+            }
+
             if (SetProperty(ref _selectedProfileOption, value) && !_isSynchronizingDraft)
             {
                 FinalizeDraftChange(syncOutputPath: false, markAsCustomized: true);
@@ -683,6 +708,11 @@ public partial class MainWindowViewModel : CommunityToolkit.Mvvm.ComponentModel.
         get => _selectedOutputFormat;
         set
         {
+            if (value is null && !_isSynchronizingDraft)
+            {
+                return;
+            }
+
             if (SetProperty(ref _selectedOutputFormat, value) && !_isSynchronizingDraft)
             {
                 FinalizeDraftChange(syncOutputPath: true, markAsCustomized: true);

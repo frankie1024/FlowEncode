@@ -17,7 +17,9 @@ public interface ITemplateLibraryHost
 
     void EndTemplateLibraryMutation();
 
-    Task ApplyUserTemplateToDraftAsync(SavedTemplate template);
+    void ApplyUserTemplateToDraft(SavedTemplate template);
+
+    Task RefreshActiveProfilePreviewAsync();
 
     void ApplySavedTemplateToDraft(SavedTemplate savedTemplate);
 

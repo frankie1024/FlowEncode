@@ -1,4 +1,5 @@
 using System.Collections.ObjectModel;
+using System.ComponentModel;
 using System.Threading.Tasks;
 using FlowEncode.Domain;
 using Microsoft.UI.Xaml;
@@ -7,9 +8,14 @@ namespace FlowEncode.ViewModels;
 
 public sealed class TemplateEditorViewModel : ModuleViewModelBase
 {
-    public TemplateEditorViewModel(MainWindowViewModel owner)
+    private readonly TemplateLibraryViewModel _library;
+    private bool _isEditorDisposed;
+
+    public TemplateEditorViewModel(MainWindowViewModel owner, TemplateLibraryViewModel library)
         : base(owner)
     {
+        _library = library;
+        _library.PropertyChanged += Library_PropertyChanged;
     }
 
     public AppText Texts => Owner.Texts;
@@ -118,11 +124,11 @@ public sealed class TemplateEditorViewModel : ModuleViewModelBase
 
     public Visibility DraftConstraintWarningVisibility => Owner.DraftConstraintWarningVisibility;
 
-    public string? EditingUserTemplateId => Owner.TemplatesModule.Library.EditingUserTemplateId;
+    public string? EditingUserTemplateId => _library.EditingUserTemplateId;
 
-    public bool CanEditTemplateDraft => Owner.TemplatesModule.Library.CanEditTemplateDraft;
+    public bool CanEditTemplateDraft => _library.CanEditTemplateDraft;
 
-    public bool HasUnsavedTemplateChanges => Owner.TemplatesModule.Library.HasUnsavedTemplateChanges;
+    public bool HasUnsavedTemplateChanges => _library.HasUnsavedTemplateChanges;
 
     public void BeginNewTemplateDraft()
     {
@@ -131,11 +137,45 @@ public sealed class TemplateEditorViewModel : ModuleViewModelBase
 
     public Task<SavedTemplate?> SaveCurrentTemplateAsync()
     {
-        return Owner.TemplatesModule.Library.SaveCurrentTemplateAsync();
+        return _library.SaveCurrentTemplateAsync();
     }
 
     public Task ExportCurrentTemplateAsync(string filePath)
     {
-        return Owner.TemplatesModule.Library.ExportCurrentTemplateAsync(filePath);
+        return _library.ExportCurrentTemplateAsync(filePath);
+    }
+
+    public override void Dispose()
+    {
+        if (!_isEditorDisposed)
+        {
+            _isEditorDisposed = true;
+            _library.PropertyChanged -= Library_PropertyChanged;
+        }
+
+        base.Dispose();
+    }
+
+    private void Library_PropertyChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (_isEditorDisposed)
+        {
+            return;
+        }
+
+        if (string.IsNullOrEmpty(e.PropertyName))
+        {
+            OnPropertyChanged(nameof(EditingUserTemplateId));
+            OnPropertyChanged(nameof(CanEditTemplateDraft));
+            OnPropertyChanged(nameof(HasUnsavedTemplateChanges));
+            return;
+        }
+
+        if (e.PropertyName is nameof(EditingUserTemplateId)
+            or nameof(CanEditTemplateDraft)
+            or nameof(HasUnsavedTemplateChanges))
+        {
+            OnPropertyChanged(e.PropertyName);
+        }
     }
 }

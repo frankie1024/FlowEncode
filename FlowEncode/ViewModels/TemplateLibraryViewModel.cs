@@ -19,9 +19,7 @@ public sealed class TemplateLibraryViewModel : CommunityToolkit.Mvvm.ComponentMo
     private string _templateSearchText = string.Empty;
     private string? _editingTemplateId;
     private string? _currentTemplateSelectionKey;
-    private string _templateBaselineName = string.Empty;
-    private string _templateBaselineNotes = string.Empty;
-    private EncodingProfile? _templateBaselineProfile;
+    private TemplateEditingBaseline _templateEditingBaseline = TemplateEditingBaseline.Empty;
 
     public TemplateLibraryViewModel(
         IProfileLibraryService profileLibraryService,
@@ -73,7 +71,7 @@ public sealed class TemplateLibraryViewModel : CommunityToolkit.Mvvm.ComponentMo
 
     public bool CanEditTemplateDraft => !IsEditingPinnedTemplate;
 
-    public bool HasUnsavedTemplateChanges => !MatchesTemplateEditingBaseline();
+    public bool HasUnsavedTemplateChanges => !IsEditingPinnedTemplate && !MatchesTemplateEditingBaseline();
 
     public void ClearTemplateSearch()
     {
@@ -108,7 +106,7 @@ public sealed class TemplateLibraryViewModel : CommunityToolkit.Mvvm.ComponentMo
             return;
         }
 
-        await _host.ApplyUserTemplateToDraftAsync(template);
+        _host.ApplyUserTemplateToDraft(template);
 
         CaptureTemplateEditingBaseline(
             template.Id,
@@ -116,6 +114,8 @@ public sealed class TemplateLibraryViewModel : CommunityToolkit.Mvvm.ComponentMo
             template.Name,
             template.Notes,
             _host.ActiveProfile);
+
+        await _host.RefreshActiveProfilePreviewAsync();
     }
 
     public Task<SavedTemplate> ReadTemplateAsync(string filePath)
@@ -271,6 +271,9 @@ public sealed class TemplateLibraryViewModel : CommunityToolkit.Mvvm.ComponentMo
             ReplaceItems(UserTemplates, await _profileLibraryService.GetUserTemplatesAsync());
             RefreshTemplateLibraryItems();
             RaiseTemplateLockPropertyChanges();
+            OnPropertyChanged(nameof(HasUnsavedTemplateChanges));
+            UpdateTemplateSelection(TemplateLibraryItems.FirstOrDefault(item =>
+                string.Equals(item.Key, _currentTemplateSelectionKey, StringComparison.Ordinal)));
             _host.RaiseSummaryPropertyChanges();
             _host.StatusText = isPinned
                 ? Texts.TemplatePinnedStatus(updatedTemplate.Name)
@@ -292,9 +295,7 @@ public sealed class TemplateLibraryViewModel : CommunityToolkit.Mvvm.ComponentMo
     {
         _editingTemplateId = editingTemplateId;
         _currentTemplateSelectionKey = selectionKey;
-        _templateBaselineName = templateName?.Trim() ?? string.Empty;
-        _templateBaselineNotes = templateNotes?.Trim() ?? string.Empty;
-        _templateBaselineProfile = profile;
+        _templateEditingBaseline = TemplateEditingBaseline.Capture(templateName, templateNotes, profile);
 
         OnPropertyChanged(nameof(EditingUserTemplateId));
         OnPropertyChanged(nameof(CurrentTemplateSelectionKey));
@@ -381,14 +382,13 @@ public sealed class TemplateLibraryViewModel : CommunityToolkit.Mvvm.ComponentMo
 
             ReplaceItems(UserTemplates, await _profileLibraryService.GetUserTemplatesAsync());
             RefreshTemplateLibraryItems();
+            _host.ApplySavedTemplateToDraft(savedTemplate);
             CaptureTemplateEditingBaseline(
                 savedTemplate.Id,
                 $"user:{savedTemplate.Id}",
                 savedTemplate.Name,
                 savedTemplate.Notes,
                 savedTemplate.Profile);
-
-            _host.ApplySavedTemplateToDraft(savedTemplate);
             _host.RaiseSummaryPropertyChanges();
             _host.StatusText = statusText;
             return savedTemplate;
@@ -409,12 +409,10 @@ public sealed class TemplateLibraryViewModel : CommunityToolkit.Mvvm.ComponentMo
 
     private bool MatchesTemplateEditingBaseline()
     {
-        var currentName = _host.DraftTemplateName?.Trim() ?? string.Empty;
-        var currentNotes = _host.DraftTemplateNotes?.Trim() ?? string.Empty;
-
-        return string.Equals(currentName, _templateBaselineName, StringComparison.Ordinal)
-            && string.Equals(currentNotes, _templateBaselineNotes, StringComparison.Ordinal)
-            && EqualityComparer<EncodingProfile?>.Default.Equals(_host.ActiveProfile, _templateBaselineProfile);
+        return _templateEditingBaseline.Matches(
+            _host.DraftTemplateName,
+            _host.DraftTemplateNotes,
+            _host.ActiveProfile);
     }
 
     private TemplateLibraryItemViewModel BuildUserTemplateLibraryItem(SavedTemplate template)
@@ -429,6 +427,7 @@ public sealed class TemplateLibraryViewModel : CommunityToolkit.Mvvm.ComponentMo
             template.IsPinned,
             template.IsPinned ? Texts.UnpinTemplateButton : Texts.PinTemplateButton,
             Texts.DeleteTemplateButton,
+            Texts.TemplateModifiedLabel,
             template);
     }
 
