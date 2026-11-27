@@ -216,20 +216,20 @@
                             StatusText="{Binding BluRayDemuxStatusText}"
                             Title="{Binding Texts.BluRayDemuxStatusTitle}" />
 
-                        <shared:CommandPreviewBox
-                            Header="{Binding Texts.BluRayDemuxCommandTitle}"
-                            PlaceholderText="{Binding Texts.BluRayDemuxCommandPlaceholder}"
-                            Text="{Binding BluRayDemuxCommandLine}"
+                        <shared:TaskDiagnosticsPanel
+                            x:Name="BluRayDiagnosticsPanel"
+                            BodyMaxHeight="220"
+                            BodyMinHeight="88"
+                            CommandPlaceholderText="{Binding Texts.BluRayDemuxCommandPlaceholder}"
+                            CommandText="{Binding BluRayDemuxCommandLine}"
+                            CommandTitle="{Binding Texts.BluRayDemuxCommandTitle}"
+                            IsCollapsible="True"
+                            IsExpanded="False"
+                            LogPlaceholderText="{Binding Texts.BluRayDemuxLogPlaceholder}"
+                            LogText="{Binding BluRayDemuxLog}"
+                            LogTitle="{Binding Texts.BluRayDemuxLogTitle}"
+                            PresentationState="{Binding BluRayDemuxPresentationState}"
                             Texts="{Binding Texts}" />
-
-                        <shared:AnimatedExpander HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch">
-                            <shared:AnimatedExpander.HeaderContent>
-                                <TextBlock FontFamily="{StaticResource AppDisplayFont}" FontSize="{StaticResource AppBodyLargeFontSize}" FontWeight="SemiBold" Text="{Binding Texts.BluRayDemuxLogTitle}" />
-                            </shared:AnimatedExpander.HeaderContent>
-                            <shared:AnimatedExpander.BodyContent>
-                                <TextBox MinHeight="120" MaxHeight="360" Background="Transparent" BorderThickness="0" FontFamily="{StaticResource AppMonoFont}" IsReadOnly="True" IsTabStop="False" PlaceholderText="{Binding Texts.BluRayDemuxLogPlaceholder}" ScrollViewer.VerticalScrollBarVisibility="Auto" Text="{Binding BluRayDemuxLog}" TextWrapping="Wrap" />
-                            </shared:AnimatedExpander.BodyContent>
-                        </shared:AnimatedExpander>
                     </StackPanel>
                 </Border>
             </Grid>

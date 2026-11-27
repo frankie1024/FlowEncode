@@ -9,7 +9,7 @@ public sealed partial class TaskStatusPanel : UserControl
     public static readonly DependencyProperty TitleProperty = RegisterStringProperty(nameof(Title));
     public static readonly DependencyProperty StatusTextProperty = RegisterStringProperty(nameof(StatusText));
     public static readonly DependencyProperty ProgressValueProperty = DependencyProperty.Register(nameof(ProgressValue), typeof(double), typeof(TaskStatusPanel), new PropertyMetadata(0d));
-    public static readonly DependencyProperty ProgressHeightProperty = DependencyProperty.Register(nameof(ProgressHeight), typeof(double), typeof(TaskStatusPanel), new PropertyMetadata(48d));
+    public static readonly DependencyProperty ProgressHeightProperty = DependencyProperty.Register(nameof(ProgressHeight), typeof(double), typeof(TaskStatusPanel), new PropertyMetadata(64d));
     public static readonly DependencyProperty ProgressTextProperty = RegisterStringProperty(nameof(ProgressText));
     public static readonly DependencyProperty SecondaryTextProperty = RegisterStringProperty(nameof(SecondaryText));
     public static readonly DependencyProperty SecondaryVisibilityProperty = DependencyProperty.Register(nameof(SecondaryVisibility), typeof(Visibility), typeof(TaskStatusPanel), new PropertyMetadata(Visibility.Collapsed));

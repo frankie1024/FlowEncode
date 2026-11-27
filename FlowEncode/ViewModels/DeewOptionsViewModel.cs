@@ -94,6 +94,7 @@ public sealed class DeewOptionsViewModel : ObservableObject
     public string Warning => _warning;
     public Visibility WarningVisibility => string.IsNullOrEmpty(_warning) ? Visibility.Collapsed : Visibility.Visible;
     public string EffectiveDescription { get; private set; } = "";
+    public DeewEffectiveOutputProfile? EffectiveProfile { get; private set; }
 
     public DeewOptions Build(ICollection<string>? warnings = null)
     {
@@ -147,15 +148,16 @@ public sealed class DeewOptionsViewModel : ObservableObject
         {
             var warnings = new List<string>();
             var profile = ResolveProfile(warnings);
-            _warning = string.Join(Environment.NewLine, warnings);
-            if (Atmos && !profile.Options.MeasureOnly) _warning += Texts.Pick("\nAtmos 为实验功能，3.0.0 尚无真实 Atmos 素材验收。", "\nAtmos is experimental; 3.0.0 has not passed genuine Atmos media acceptance.");
+            EffectiveProfile = profile;
+            if (Atmos && !profile.Options.MeasureOnly) warnings.Add(Texts.Pick("Atmos 为实验性功能。", "Atmos is an experimental feature."));
             EffectiveDescription = profile.Options.MeasureOnly ? Texts.Pick("测量原始输入响度，忽略输出格式和编码设置，不生成媒体文件", "Measure the original source; output format and encoding settings are ignored; no media output")
                 : $"{profile.Options.Format} · {profile.OutputSlots} slots · DRC {profile.Drc} · {profile.Mode} · {profile.EffectiveBitrateKbps?.ToString() ?? "lossless"} kbps · {profile.Extension}";
-            if (_options.TempMode == DeewTempMode.DeewSettings) _warning += Texts.Pick("\n使用 deew 自管临时目录；取消后可能有残留，FlowEncode 不递归清理该目录。", "\nThe deew-managed temporary directory may retain files after cancellation; FlowEncode never recursively cleans it.");
+            if (_options.TempMode == DeewTempMode.DeewSettings) warnings.Add(Texts.Pick("使用 deew 自管临时目录；取消后可能有残留，FlowEncode 不递归清理该目录。", "The deew-managed temporary directory may retain files after cancellation; FlowEncode never recursively cleans it."));
+            _warning = string.Join(Environment.NewLine, warnings);
             var candidates = DeewBitrates.Allowed(profile).Select(b => b.ToString(CultureInfo.InvariantCulture)).Prepend(DefaultLabel).ToArray();
             if (!BitrateOptions.SequenceEqual(candidates)) { BitrateOptions.Clear(); foreach (var candidate in candidates) BitrateOptions.Add(candidate); }
         }
-        catch (Exception ex) { _warning = ex.Message; EffectiveDescription = ""; }
+        catch (Exception ex) { EffectiveProfile = null; _warning = ex.Message; EffectiveDescription = ""; }
         OnPropertyChanged(string.Empty);
         _refreshing = false;
     }

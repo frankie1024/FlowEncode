@@ -49,6 +49,8 @@
             <SolidColorBrush x:Key="AppDividerBrush" Color="{ThemeResource DividerStrokeColorDefault}" />
             <SolidColorBrush x:Key="AppAccentBrush" Color="{ThemeResource SystemAccentColorDark1}" />
             <SolidColorBrush x:Key="AppAccentSoftBrush" Color="{ThemeResource SystemAccentColorDark1}" Opacity="0.12" />
+            <SolidColorBrush x:Key="FocalPanelBrush" Color="{ThemeResource SystemAccentColorDark1}" Opacity="0.06" />
+            <SolidColorBrush x:Key="FocalPanelBorderBrush" Color="{ThemeResource SystemAccentColorDark1}" Opacity="0.30" />
             <SolidColorBrush x:Key="AppSuccessBrush" Color="{ThemeResource SystemFillColorSuccess}" />
             <SolidColorBrush x:Key="AppSuccessSoftBrush" Color="{ThemeResource SystemFillColorSuccessBackground}" />
             <SolidColorBrush x:Key="AppWarningBrush" Color="{ThemeResource SystemFillColorCaution}" />
@@ -144,6 +146,8 @@
             <SolidColorBrush x:Key="AppDividerBrush" Color="{ThemeResource DividerStrokeColorDefault}" />
             <SolidColorBrush x:Key="AppAccentBrush" Color="{ThemeResource SystemAccentColorLight2}" />
             <SolidColorBrush x:Key="AppAccentSoftBrush" Color="{ThemeResource SystemAccentColorLight2}" Opacity="0.16" />
+            <SolidColorBrush x:Key="FocalPanelBrush" Color="{ThemeResource SystemAccentColorLight2}" Opacity="0.10" />
+            <SolidColorBrush x:Key="FocalPanelBorderBrush" Color="{ThemeResource SystemAccentColorLight2}" Opacity="0.34" />
             <SolidColorBrush x:Key="AppSuccessBrush" Color="{ThemeResource SystemFillColorSuccess}" />
             <SolidColorBrush x:Key="AppSuccessSoftBrush" Color="{ThemeResource SystemFillColorSuccessBackground}" />
             <SolidColorBrush x:Key="AppWarningBrush" Color="{ThemeResource SystemFillColorCaution}" />
@@ -239,6 +243,8 @@
             <SolidColorBrush x:Key="AppDividerBrush" Color="{ThemeResource SystemColorWindowTextColor}" />
             <SolidColorBrush x:Key="AppAccentBrush" Color="{ThemeResource SystemColorHighlightColor}" />
             <SolidColorBrush x:Key="AppAccentSoftBrush" Color="{ThemeResource SystemColorButtonFaceColor}" />
+            <SolidColorBrush x:Key="FocalPanelBrush" Color="{ThemeResource SystemColorButtonFaceColor}" />
+            <SolidColorBrush x:Key="FocalPanelBorderBrush" Color="{ThemeResource SystemColorHighlightColor}" />
             <SolidColorBrush x:Key="AppSuccessBrush" Color="{ThemeResource SystemColorWindowTextColor}" />
             <SolidColorBrush x:Key="AppSuccessSoftBrush" Color="{ThemeResource SystemColorButtonFaceColor}" />
             <SolidColorBrush x:Key="AppWarningBrush" Color="{ThemeResource SystemColorWindowTextColor}" />

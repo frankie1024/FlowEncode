@@ -10,181 +10,358 @@
     mc:Ignorable="d">
     <ScrollViewer x:Name="RootScrollViewer" VerticalScrollBarVisibility="Auto">
         <Grid x:Name="ContentStack" Padding="{StaticResource AppPagePadding}">
-            <Border x:Name="AutoFormCard" Padding="{StaticResource AppCardPadding}" Background="{ThemeResource CardBrush}" BorderBrush="{ThemeResource CardBorderBrush}" BorderThickness="{StaticResource AppCardBorderThickness}" CornerRadius="{StaticResource AppLargeCornerRadius}">
-                <Grid x:Name="AutoWorkspaceGrid" RowSpacing="{StaticResource AppSpacingM}">
-                    <Grid.RowDefinitions>
-                        <RowDefinition Height="Auto" />
-                        <RowDefinition Height="Auto" />
-                        <RowDefinition Height="*" />
-                    </Grid.RowDefinitions>
-                    <StackPanel x:Name="AutoFormPanel" Spacing="{StaticResource AppSpacingM}" DataContext="{Binding Form}">
-                        <TextBlock FontFamily="{StaticResource AppDisplayFont}" FontSize="{StaticResource AppSectionTitleFontSize}" FontWeight="SemiBold" Text="{Binding Texts.AutoCompressionTitle}" />
+            <Grid x:Name="AutoWorkspaceGrid" ColumnSpacing="{StaticResource AppSpacingL}" RowSpacing="{StaticResource AppSpacingL}">
+                <Grid.RowDefinitions>
+                    <RowDefinition x:Name="AutoWorkspacePrimaryRow" Height="*" />
+                    <RowDefinition x:Name="AutoWorkspaceSecondaryRow" Height="0" />
+                </Grid.RowDefinitions>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition x:Name="AutoPrimaryColumn" Width="52*" />
+                    <ColumnDefinition x:Name="AutoSecondaryColumn" Width="48*" />
+                </Grid.ColumnDefinitions>
 
-                        <Grid x:Name="AutoPathsGrid" ColumnSpacing="{StaticResource AppSpacingM}" RowSpacing="{StaticResource AppSpacingM}">
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="*" />
-                                <ColumnDefinition Width="*" />
-                            </Grid.ColumnDefinitions>
-                            <Grid.RowDefinitions>
-                                <RowDefinition Height="Auto" />
-                                <RowDefinition Height="Auto" />
-                            </Grid.RowDefinitions>
-                        <Grid x:Name="AutoSourcePathGrid" ColumnSpacing="{StaticResource AppSpacingM}" RowSpacing="{StaticResource AppSpacingM}">
-                            <Grid.RowDefinitions>
-                                <RowDefinition Height="Auto" />
-                                <RowDefinition Height="Auto" />
-                            </Grid.RowDefinitions>
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition x:Name="AutoSourcePathInputColumn" Width="*" />
-                                <ColumnDefinition x:Name="AutoSourcePathActionColumn" Width="Auto" />
-                            </Grid.ColumnDefinitions>
-                            <TextBox x:Name="AutoSourcePathTextBox" Header="{Binding Texts.SourceHeader}" PlaceholderText="{Binding Texts.SourcePlaceholder}" Text="{Binding AutoCompressionSourcePath, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
-                            <Button x:Name="AutoSourceBrowseButton" Grid.Column="1" Style="{StaticResource StandardButtonStyle}" HorizontalAlignment="Right" VerticalAlignment="Bottom" AutomationProperties.Name="{Binding Texts.BrowseButton}" Click="BrowseAutoSourceButton_Click" ToolTipService.ToolTip="{Binding Texts.BrowseButton}">
-                                <StackPanel Orientation="Horizontal" Spacing="{StaticResource AppCommandIconTextSpacing}">
-                                    <SymbolIcon Symbol="OpenFile" />
-                                    <TextBlock Text="{Binding Texts.BrowseButton}" />
-                                </StackPanel>
-                            </Button>
-                        </Grid>
+                <!-- Left 52%: Auto Encode Form with independent scroll and sticky bottom actions -->
+                <Border
+                    x:Name="AutoFormCard"
+                    Grid.Row="0"
+                    Grid.Column="0"
+                    Background="{ThemeResource CardBrush}"
+                    BorderBrush="{ThemeResource CardBorderBrush}"
+                    BorderThickness="{StaticResource AppCardBorderThickness}"
+                    CornerRadius="{StaticResource AppLargeCornerRadius}"
+                    VerticalAlignment="Stretch"
+                    DataContext="{Binding Form}">
+                    <Grid>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="*" />
+                            <RowDefinition Height="Auto" />
+                        </Grid.RowDefinitions>
 
-                        <Grid x:Name="AutoOutputPathGrid" Grid.Column="1" ColumnSpacing="{StaticResource AppSpacingM}" RowSpacing="{StaticResource AppSpacingM}">
-                            <Grid.RowDefinitions>
-                                <RowDefinition Height="Auto" />
-                                <RowDefinition Height="Auto" />
-                            </Grid.RowDefinitions>
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition x:Name="AutoOutputPathInputColumn" Width="*" />
-                                <ColumnDefinition x:Name="AutoOutputPathActionColumn" Width="Auto" />
-                            </Grid.ColumnDefinitions>
-                            <TextBox x:Name="AutoOutputPathTextBox" Header="{Binding Texts.OutputDirectoryHeader}" Text="{Binding AutoCompressionOutputPath, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
-                            <Button x:Name="AutoOutputBrowseButton" Grid.Column="1" Style="{StaticResource StandardButtonStyle}" HorizontalAlignment="Right" VerticalAlignment="Bottom" AutomationProperties.Name="{Binding Texts.ChooseFolderButton}" Click="BrowseAutoOutputButton_Click" ToolTipService.ToolTip="{Binding Texts.ChooseFolderButton}">
-                                <StackPanel Orientation="Horizontal" Spacing="{StaticResource AppCommandIconTextSpacing}">
-                                    <SymbolIcon Symbol="Folder" />
-                                    <TextBlock Text="{Binding Texts.ChooseFolderButton}" />
-                                </StackPanel>
-                            </Button>
-                            <TextBlock Grid.Row="1" Grid.ColumnSpan="2" FontFamily="{StaticResource AppMonoFont}" Foreground="{ThemeResource SubtleTextBrush}" Text="{Binding AutoCompressionOutputPreviewText}" TextWrapping="Wrap" />
-                        </Grid>
+                        <!-- Single-line header with inline metric guidance -->
+                        <Border
+                            Padding="16,12,16,10"
+                            BorderBrush="{ThemeResource AppDividerBrush}"
+                            BorderThickness="0,0,0,1">
+                            <Grid ColumnSpacing="{StaticResource AppSpacingS}">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+                                <TextBlock
+                                    FontFamily="{StaticResource AppDisplayFont}"
+                                    FontSize="{StaticResource AppSubsectionTitleFontSize}"
+                                    FontWeight="SemiBold"
+                                    Text="{Binding Texts.AutoCompressionTitle}"
+                                    VerticalAlignment="Center" />
+                                <TextBlock
+                                    Grid.Column="1"
+                                    HorizontalAlignment="Right"
+                                    VerticalAlignment="Center"
+                                    FontSize="{StaticResource AppSmallFontSize}"
+                                    Foreground="{ThemeResource SubtleTextBrush}"
+                                    MaxLines="1"
+                                    Text="{Binding AutoCompressionMetricGuidanceText}"
+                                    TextTrimming="CharacterEllipsis"
+                                    ToolTipService.ToolTip="{Binding AutoCompressionMetricGuidanceText}" />
+                            </Grid>
+                        </Border>
 
-                        </Grid>
+                        <!-- Scrollable form body -->
+                        <ScrollViewer
+                            x:Name="AutoFormScrollViewer"
+                            Grid.Row="1"
+                            VerticalScrollBarVisibility="Auto"
+                            HorizontalScrollBarVisibility="Disabled">
+                            <StackPanel x:Name="AutoFormPanel" Padding="16,12,16,12" Spacing="{StaticResource AppSpacingM}">
+                                <!-- Input & Output (Output preview inline on Output label row) -->
+                                <Border
+                                    Padding="{StaticResource AppInsetPanelPadding}"
+                                    Background="{ThemeResource CardAltBrush}"
+                                    BorderBrush="{ThemeResource CardBorderBrush}"
+                                    BorderThickness="{StaticResource AppCardBorderThickness}"
+                                    CornerRadius="{StaticResource AppCardCornerRadius}">
+                                    <StackPanel Spacing="{StaticResource AppSpacingS}">
+                                        <Grid x:Name="AutoSourcePathGrid" ColumnSpacing="{StaticResource AppSpacingS}" RowSpacing="{StaticResource AppSpacingXS}">
+                                            <Grid.RowDefinitions>
+                                                <RowDefinition Height="Auto" />
+                                                <RowDefinition Height="Auto" />
+                                            </Grid.RowDefinitions>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition x:Name="AutoSourcePathInputColumn" Width="*" />
+                                                <ColumnDefinition x:Name="AutoSourcePathActionColumn" Width="Auto" />
+                                            </Grid.ColumnDefinitions>
+                                            <TextBlock
+                                                Grid.ColumnSpan="2"
+                                                FontSize="{StaticResource AppCaptionFontSize}"
+                                                Foreground="{ThemeResource SubtleTextBrush}"
+                                                Text="{Binding Texts.SourceHeader}" />
+                                            <TextBox
+                                                x:Name="AutoSourcePathTextBox"
+                                                Grid.Row="1"
+                                                AutomationProperties.Name="{Binding Texts.SourceHeader}"
+                                                PlaceholderText="{Binding Texts.SourcePlaceholder}"
+                                                Text="{Binding AutoCompressionSourcePath, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                                            <Button
+                                                x:Name="AutoSourceBrowseButton"
+                                                Grid.Row="1"
+                                                Grid.Column="1"
+                                                Style="{StaticResource StandardButtonStyle}"
+                                                HorizontalAlignment="Right"
+                                                VerticalAlignment="Center"
+                                                AutomationProperties.Name="{Binding Texts.BrowseButton}"
+                                                Click="BrowseAutoSourceButton_Click"
+                                                ToolTipService.ToolTip="{Binding Texts.BrowseButton}">
+                                                <StackPanel Orientation="Horizontal" Spacing="{StaticResource AppCommandIconTextSpacing}">
+                                                    <SymbolIcon Symbol="OpenFile" />
+                                                    <TextBlock Text="{Binding Texts.BrowseButton}" />
+                                                </StackPanel>
+                                            </Button>
+                                        </Grid>
 
-                        <Grid x:Name="AutoCompressionOptionsGrid" ColumnSpacing="{StaticResource AppSpacingM}" RowSpacing="{StaticResource AppSpacingM}">
-                            <Grid.RowDefinitions>
-                                <RowDefinition Height="Auto" />
-                                <RowDefinition Height="Auto" />
-                                <RowDefinition Height="Auto" />
-                                <RowDefinition Height="Auto" />
-                                <RowDefinition Height="Auto" />
-                            </Grid.RowDefinitions>
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition x:Name="AutoCompressionEncoderColumn" Width="*" />
-                                <ColumnDefinition x:Name="AutoCompressionMetricColumn" Width="*" />
-                                <ColumnDefinition x:Name="AutoCompressionTargetColumn" Width="*" />
-                                <ColumnDefinition x:Name="AutoCompressionProbesColumn" Width="*" />
-                                <ColumnDefinition x:Name="AutoCompressionWorkersColumn" Width="*" />
-                            </Grid.ColumnDefinitions>
-
-                            <ComboBox x:Name="AutoCompressionEncoderComboBox" Header="{Binding Texts.EncoderHeader}" DisplayMemberPath="Label" ItemsSource="{Binding EncoderOptions}" SelectedItem="{Binding SelectedAutoEncoder, Mode=TwoWay}" />
-                            <ComboBox x:Name="AutoCompressionMetricComboBox" Grid.Column="1" Header="{Binding Texts.AutoCompressionMetricHeader}" DisplayMemberPath="Label" ItemsSource="{Binding AutoCompressionMetricOptions}" SelectedItem="{Binding SelectedAutoCompressionMetricOption, Mode=TwoWay}" ToolTipService.ToolTip="{Binding AutoCompressionMetricGuidanceText}" />
-                            <NumberBox x:Name="AutoCompressionTargetVmafBox" Grid.Column="2" Header="{Binding Texts.AutoCompressionTargetVmafHeader}" Minimum="{Binding AutoCompressionTargetScoreMinimum}" Maximum="{Binding AutoCompressionTargetScoreMaximum}" SmallChange="0.5" SpinButtonPlacementMode="Inline" Value="{Binding AutoCompressionTargetVmaf, Mode=TwoWay}" />
-                            <NumberBox x:Name="AutoCompressionProbesBox" Grid.Column="3" Header="{Binding Texts.AutoCompressionProbesHeader}" Minimum="1" Maximum="50" SmallChange="1" SpinButtonPlacementMode="Inline" Value="{Binding AutoCompressionProbes, Mode=TwoWay}" />
-                            <NumberBox x:Name="AutoCompressionWorkersBox" Grid.Column="4" Header="{Binding Texts.AutoCompressionWorkersHeader}" Minimum="0" Maximum="64" SmallChange="1" SpinButtonPlacementMode="Inline" Value="{Binding AutoCompressionWorkers, Mode=TwoWay}" />
-                        </Grid>
-
-                        <TextBox
-                            x:Name="AutoCompressionVideoParametersTextBox"
-                            Header="{Binding Texts.AutoCompressionSmallParametersHeader}"
-                            PlaceholderText="--preset 6 --film-grain 8"
-                            Text="{Binding AutoCompressionVideoParameters, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
-
-                        <shared:AnimatedExpander x:Name="AutoAdvancedParametersExpander" HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch" IsExpanded="{Binding IsAutoCompressionAdvancedOptionsExpanded, Mode=TwoWay}">
-                            <shared:AnimatedExpander.HeaderContent>
-                                <TextBlock FontWeight="SemiBold" Text="{Binding Texts.AutoCompressionAdvancedHeader}" />
-                            </shared:AnimatedExpander.HeaderContent>
-                            <shared:AnimatedExpander.BodyContent>
-                                <StackPanel Spacing="{StaticResource AppSpacingM}">
-                                    <Grid x:Name="AutoCompressionAdvancedOptionsGrid" ColumnSpacing="{StaticResource AppSpacingM}" RowSpacing="{StaticResource AppSpacingM}">
-                                        <Grid.RowDefinitions>
-                                            <RowDefinition Height="Auto" />
-                                        </Grid.RowDefinitions>
-                                        <Grid.ColumnDefinitions>
-                                            <ColumnDefinition x:Name="AutoCompressionAdvancedColumn0" Width="*" />
-                                            <ColumnDefinition x:Name="AutoCompressionAdvancedColumn1" Width="*" />
-                                            <ColumnDefinition x:Name="AutoCompressionAdvancedColumn2" Width="*" />
-                                            <ColumnDefinition x:Name="AutoCompressionAdvancedColumn3" Width="*" />
-                                        </Grid.ColumnDefinitions>
-
-                                        <NumberBox x:Name="AutoCompressionProbingRateBox" Header="{Binding Texts.AutoCompressionProbingRateHeader}" Minimum="1" Maximum="64" SmallChange="1" SpinButtonPlacementMode="Inline" Value="{Binding AutoCompressionProbingRate, Mode=TwoWay}" />
-                                        <ComboBox x:Name="AutoCompressionProbingStatisticComboBox" Grid.Column="1" Header="{Binding Texts.AutoCompressionProbingStatisticHeader}" DisplayMemberPath="Label" ItemsSource="{Binding AutoCompressionProbingStatisticOptions}" SelectedItem="{Binding SelectedAutoCompressionProbingStatisticOption, Mode=TwoWay}" />
-                                        <TextBox x:Name="AutoCompressionProbeResolutionTextBox" Grid.Column="2" Header="{Binding Texts.AutoCompressionProbeResolutionHeader}" PlaceholderText="{Binding Texts.AutoCompressionProbeResolutionPlaceholder}" Text="{Binding AutoCompressionProbeResolution, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
-                                        <ComboBox x:Name="AutoCompressionInterpolationMethodComboBox" Grid.Column="3" Header="{Binding Texts.AutoCompressionInterpolationMethodHeader}" DisplayMemberPath="Label" ItemsSource="{Binding AutoCompressionInterpolationMethodOptions}" SelectedItem="{Binding SelectedAutoCompressionInterpolationMethodOption, Mode=TwoWay}" />
-                                    </Grid>
-
-                                    <TextBox
-                                        x:Name="AutoCompressionBackendArgumentsTextBox"
-                                        Header="{Binding Texts.AutoCompressionBackendArgumentsHeader}"
-                                        PlaceholderText="{Binding Texts.AutoCompressionBackendArgumentsPlaceholder}"
-                                        Text="{Binding AutoCompressionBackendArguments, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
-
-                                </StackPanel>
-                            </shared:AnimatedExpander.BodyContent>
-                        </shared:AnimatedExpander>
-
-                        <shared:TaskActionBar x:Name="AutoCompressionActionBar">
-                            <shared:TaskActionBar.PrimaryContent>
-                                <Button x:Name="StartAutoCompressionButton" FontWeight="SemiBold" HorizontalAlignment="Stretch" AutomationProperties.Name="{Binding Texts.AutoCompressionStartButton}" Click="StartAutoCompressionButton_Click" IsEnabled="{Binding CanStartAutoCompression}" Style="{StaticResource AccentActionButtonStyle}" ToolTipService.ToolTip="{Binding Texts.AutoCompressionStartButton}">
-                                    <StackPanel Orientation="Horizontal" Spacing="{StaticResource AppCommandIconTextSpacing}">
-                                        <SymbolIcon Symbol="Play" />
-                                        <TextBlock Text="{Binding Texts.AutoCompressionStartButton}" />
+                                        <Grid x:Name="AutoOutputPathGrid" ColumnSpacing="{StaticResource AppSpacingS}" RowSpacing="{StaticResource AppSpacingXS}">
+                                            <Grid.RowDefinitions>
+                                                <RowDefinition Height="Auto" />
+                                                <RowDefinition Height="Auto" />
+                                            </Grid.RowDefinitions>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition x:Name="AutoOutputPathInputColumn" Width="*" />
+                                                <ColumnDefinition x:Name="AutoOutputPathActionColumn" Width="Auto" />
+                                            </Grid.ColumnDefinitions>
+                                            <Grid Grid.ColumnSpan="2" ColumnSpacing="{StaticResource AppSpacingS}">
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="Auto" />
+                                                    <ColumnDefinition Width="*" />
+                                                </Grid.ColumnDefinitions>
+                                                <TextBlock
+                                                    FontSize="{StaticResource AppCaptionFontSize}"
+                                                    Foreground="{ThemeResource SubtleTextBrush}"
+                                                    Text="{Binding Texts.OutputDirectoryHeader}"
+                                                    VerticalAlignment="Center" />
+                                                <TextBlock
+                                                    Grid.Column="1"
+                                                    HorizontalAlignment="Right"
+                                                    VerticalAlignment="Center"
+                                                    FontFamily="{StaticResource AppMonoFont}"
+                                                    FontSize="{StaticResource AppSmallFontSize}"
+                                                    Foreground="{ThemeResource SubtleTextBrush}"
+                                                    MaxLines="1"
+                                                    Text="{Binding AutoCompressionOutputPreviewText}"
+                                                    TextTrimming="CharacterEllipsis"
+                                                    ToolTipService.ToolTip="{Binding AutoCompressionOutputPreviewText}" />
+                                            </Grid>
+                                            <TextBox
+                                                x:Name="AutoOutputPathTextBox"
+                                                Grid.Row="1"
+                                                AutomationProperties.Name="{Binding Texts.OutputDirectoryHeader}"
+                                                Text="{Binding AutoCompressionOutputPath, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                                            <Button
+                                                x:Name="AutoOutputBrowseButton"
+                                                Grid.Row="1"
+                                                Grid.Column="1"
+                                                Style="{StaticResource StandardButtonStyle}"
+                                                HorizontalAlignment="Right"
+                                                VerticalAlignment="Center"
+                                                AutomationProperties.Name="{Binding Texts.ChooseFolderButton}"
+                                                Click="BrowseAutoOutputButton_Click"
+                                                ToolTipService.ToolTip="{Binding Texts.ChooseFolderButton}">
+                                                <StackPanel Orientation="Horizontal" Spacing="{StaticResource AppCommandIconTextSpacing}">
+                                                    <SymbolIcon Symbol="Folder" />
+                                                    <TextBlock Text="{Binding Texts.ChooseFolderButton}" />
+                                                </StackPanel>
+                                            </Button>
+                                        </Grid>
                                     </StackPanel>
-                                </Button>
-                            </shared:TaskActionBar.PrimaryContent>
-                            <shared:TaskActionBar.SecondaryContent>
-                                <Button x:Name="CancelAutoCompressionButton" Style="{StaticResource StandardButtonStyle}" FontWeight="SemiBold" HorizontalAlignment="Stretch" AutomationProperties.Name="{Binding Texts.AutoCompressionCancelButton}" Click="CancelAutoCompressionButton_Click" IsEnabled="{Binding CanCancelAutoCompression}" ToolTipService.ToolTip="{Binding Texts.AutoCompressionCancelButton}">
-                                    <StackPanel Orientation="Horizontal" Spacing="{StaticResource AppCommandIconTextSpacing}">
-                                        <SymbolIcon Symbol="Cancel" />
-                                        <TextBlock Text="{Binding Texts.AutoCompressionCancelButton}" />
-                                    </StackPanel>
-                                </Button>
-                            </shared:TaskActionBar.SecondaryContent>
-                        </shared:TaskActionBar>
-                    </StackPanel>
+                                </Border>
 
-                    <shared:TaskStatusPanel x:Name="AutoTaskStatusPanel" Grid.Row="1" DataContext="{Binding Status}"
+                                <!-- Row 1: Encoder / Metric / Target Score -->
+                                <Grid x:Name="AutoCompressionTargetGrid" ColumnSpacing="{StaticResource AppSpacingS}" RowSpacing="{StaticResource AppSpacingS}">
+                                    <Grid.RowDefinitions>
+                                        <RowDefinition Height="Auto" />
+                                        <RowDefinition Height="Auto" />
+                                        <RowDefinition Height="Auto" />
+                                    </Grid.RowDefinitions>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition x:Name="AutoCompressionEncoderColumn" Width="*" />
+                                        <ColumnDefinition x:Name="AutoCompressionMetricColumn" Width="*" />
+                                        <ColumnDefinition x:Name="AutoCompressionTargetColumn" Width="*" />
+                                    </Grid.ColumnDefinitions>
+
+                                    <ComboBox x:Name="AutoCompressionEncoderComboBox" Header="{Binding Texts.EncoderHeader}" DisplayMemberPath="Label" ItemsSource="{Binding EncoderOptions}" SelectedItem="{Binding SelectedAutoEncoder, Mode=TwoWay}" />
+                                    <ComboBox x:Name="AutoCompressionMetricComboBox" Grid.Column="1" Header="{Binding Texts.AutoCompressionMetricHeader}" DisplayMemberPath="Label" ItemsSource="{Binding AutoCompressionMetricOptions}" SelectedItem="{Binding SelectedAutoCompressionMetricOption, Mode=TwoWay}" ToolTipService.ToolTip="{Binding AutoCompressionMetricGuidanceText}" />
+                                    <NumberBox x:Name="AutoCompressionTargetVmafBox" Grid.Column="2" Header="{Binding Texts.AutoCompressionTargetVmafHeader}" Minimum="{Binding AutoCompressionTargetScoreMinimum}" Maximum="{Binding AutoCompressionTargetScoreMaximum}" SmallChange="0.5" SpinButtonPlacementMode="Inline" Value="{Binding AutoCompressionTargetVmaf, Mode=TwoWay}" />
+                                </Grid>
+
+                                <!-- Row 2: Probes / Workers -->
+                                <Grid x:Name="AutoCompressionBudgetGrid" ColumnSpacing="{StaticResource AppSpacingS}" RowSpacing="{StaticResource AppSpacingS}">
+                                    <Grid.RowDefinitions>
+                                        <RowDefinition Height="Auto" />
+                                        <RowDefinition Height="Auto" />
+                                    </Grid.RowDefinitions>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition x:Name="AutoCompressionProbesColumn" Width="*" />
+                                        <ColumnDefinition x:Name="AutoCompressionWorkersColumn" Width="*" />
+                                    </Grid.ColumnDefinitions>
+
+                                    <NumberBox x:Name="AutoCompressionProbesBox" Header="{Binding Texts.AutoCompressionProbesHeader}" Minimum="1" Maximum="50" SmallChange="1" SpinButtonPlacementMode="Inline" Value="{Binding AutoCompressionProbes, Mode=TwoWay}" />
+                                    <NumberBox x:Name="AutoCompressionWorkersBox" Grid.Column="1" Header="{Binding Texts.AutoCompressionWorkersHeader}" Minimum="0" Maximum="64" SmallChange="1" SpinButtonPlacementMode="Inline" Value="{Binding AutoCompressionWorkers, Mode=TwoWay}" />
+                                </Grid>
+
+                                <!-- Encoder Video Params -->
+                                <TextBox
+                                    x:Name="AutoCompressionVideoParametersTextBox"
+                                    Header="{Binding Texts.AutoCompressionSmallParametersHeader}"
+                                    PlaceholderText="--preset 6 --film-grain 8"
+                                    Text="{Binding AutoCompressionVideoParameters, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+
+                                <!-- Collapsible Advanced Probing / Backend Args -->
+                                <shared:AnimatedExpander x:Name="AutoAdvancedParametersExpander" HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch" IsExpanded="{Binding IsAutoCompressionAdvancedOptionsExpanded, Mode=TwoWay}">
+                                    <shared:AnimatedExpander.HeaderContent>
+                                        <TextBlock FontWeight="SemiBold" Text="{Binding Texts.AutoCompressionAdvancedHeader}" />
+                                    </shared:AnimatedExpander.HeaderContent>
+                                    <shared:AnimatedExpander.BodyContent>
+                                        <StackPanel Spacing="{StaticResource AppSpacingM}">
+                                            <Grid x:Name="AutoCompressionAdvancedOptionsGrid" ColumnSpacing="{StaticResource AppSpacingS}" RowSpacing="{StaticResource AppSpacingS}">
+                                                <Grid.RowDefinitions>
+                                                    <RowDefinition Height="Auto" />
+                                                    <RowDefinition Height="Auto" />
+                                                </Grid.RowDefinitions>
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition x:Name="AutoCompressionAdvancedColumn0" Width="*" />
+                                                    <ColumnDefinition x:Name="AutoCompressionAdvancedColumn1" Width="*" />
+                                                </Grid.ColumnDefinitions>
+
+                                                <NumberBox x:Name="AutoCompressionProbingRateBox" Header="{Binding Texts.AutoCompressionProbingRateHeader}" Minimum="1" Maximum="64" SmallChange="1" SpinButtonPlacementMode="Inline" Value="{Binding AutoCompressionProbingRate, Mode=TwoWay}" />
+                                                <ComboBox x:Name="AutoCompressionProbingStatisticComboBox" Grid.Column="1" Header="{Binding Texts.AutoCompressionProbingStatisticHeader}" DisplayMemberPath="Label" ItemsSource="{Binding AutoCompressionProbingStatisticOptions}" SelectedItem="{Binding SelectedAutoCompressionProbingStatisticOption, Mode=TwoWay}" />
+                                                <TextBox x:Name="AutoCompressionProbeResolutionTextBox" Grid.Row="1" Header="{Binding Texts.AutoCompressionProbeResolutionHeader}" PlaceholderText="{Binding Texts.AutoCompressionProbeResolutionPlaceholder}" Text="{Binding AutoCompressionProbeResolution, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                                                <ComboBox x:Name="AutoCompressionInterpolationMethodComboBox" Grid.Row="1" Grid.Column="1" Header="{Binding Texts.AutoCompressionInterpolationMethodHeader}" DisplayMemberPath="Label" ItemsSource="{Binding AutoCompressionInterpolationMethodOptions}" SelectedItem="{Binding SelectedAutoCompressionInterpolationMethodOption, Mode=TwoWay}" />
+                                            </Grid>
+
+                                            <TextBox
+                                                x:Name="AutoCompressionBackendArgumentsTextBox"
+                                                Header="{Binding Texts.AutoCompressionBackendArgumentsHeader}"
+                                                PlaceholderText="{Binding Texts.AutoCompressionBackendArgumentsPlaceholder}"
+                                                Text="{Binding AutoCompressionBackendArguments, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                                        </StackPanel>
+                                    </shared:AnimatedExpander.BodyContent>
+                                </shared:AnimatedExpander>
+                            </StackPanel>
+                        </ScrollViewer>
+
+                        <!-- Sticky Bottom 2-Button Action Bar -->
+                        <Border
+                            Grid.Row="2"
+                            Padding="16,10,16,12"
+                            BorderBrush="{ThemeResource AppDividerBrush}"
+                            BorderThickness="0,1,0,0">
+                            <shared:TaskActionBar x:Name="AutoCompressionActionBar">
+                                <shared:TaskActionBar.PrimaryContent>
+                                    <Button x:Name="StartAutoCompressionButton" FontWeight="SemiBold" HorizontalAlignment="Stretch" AutomationProperties.Name="{Binding Texts.AutoCompressionStartButton}" Click="StartAutoCompressionButton_Click" IsEnabled="{Binding CanStartAutoCompression}" Style="{StaticResource AccentActionButtonStyle}" ToolTipService.ToolTip="{Binding Texts.AutoCompressionStartButton}">
+                                        <StackPanel Orientation="Horizontal" Spacing="{StaticResource AppCommandIconTextSpacing}">
+                                            <SymbolIcon Symbol="Play" />
+                                            <TextBlock Text="{Binding Texts.AutoCompressionStartButton}" />
+                                        </StackPanel>
+                                    </Button>
+                                </shared:TaskActionBar.PrimaryContent>
+                                <shared:TaskActionBar.SecondaryContent>
+                                    <Button x:Name="CancelAutoCompressionButton" Style="{StaticResource StandardButtonStyle}" FontWeight="SemiBold" HorizontalAlignment="Stretch" AutomationProperties.Name="{Binding Texts.AutoCompressionCancelButton}" Click="CancelAutoCompressionButton_Click" IsEnabled="{Binding CanCancelAutoCompression}" ToolTipService.ToolTip="{Binding Texts.AutoCompressionCancelButton}">
+                                        <StackPanel Orientation="Horizontal" Spacing="{StaticResource AppCommandIconTextSpacing}">
+                                            <SymbolIcon Symbol="Cancel" />
+                                            <TextBlock Text="{Binding Texts.AutoCompressionCancelButton}" />
+                                        </StackPanel>
+                                    </Button>
+                                </shared:TaskActionBar.SecondaryContent>
+                            </shared:TaskActionBar>
+                        </Border>
+                    </Grid>
+                </Border>
+
+                <!-- Right 48%: Top-Right Progress Bar + 3-Metric Plan Strip + Full-Height Persistent Diagnostics -->
+                <Border
+                    x:Name="AutoMonitorCard"
+                    Grid.Row="0"
+                    Grid.Column="1"
+                    Padding="{StaticResource AppCardPadding}"
+                    Background="{ThemeResource CardBrush}"
+                    BorderBrush="{ThemeResource CardBorderBrush}"
+                    BorderThickness="{StaticResource AppCardBorderThickness}"
+                    CornerRadius="{StaticResource AppLargeCornerRadius}"
+                    VerticalAlignment="Stretch">
+                    <Grid RowSpacing="{StaticResource AppSpacingM}">
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="*" />
+                        </Grid.RowDefinitions>
+
+                        <shared:TaskStatusPanel
+                            x:Name="AutoTaskStatusPanel"
+                            Grid.Row="0"
+                            DataContext="{Binding Status}"
                             PresentationState="{Binding AutoCompressionPresentationState}"
+                            ProgressHeight="64"
                             ProgressText="{Binding AutoCompressionProgressPercentText}"
                             ProgressValue="{Binding AutoCompressionProgressValue}"
-                            SecondaryText="{Binding AutoCompressionProgressHint}"
-                            SecondaryVisibility="{Binding AutoCompressionProgressHintVisibility}"
+                            SecondaryVisibility="Collapsed"
                             StatusText="{Binding AutoCompressionStatusText}"
                             Title="{Binding Texts.AutoCompressionStatusTitle}" />
 
-                    <Grid x:Name="AutoStatusGrid" Grid.Row="2" ColumnSpacing="{StaticResource AppSpacingM}" DataContext="{Binding Status}">
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="*" />
-                            <ColumnDefinition Width="*" />
-                        </Grid.ColumnDefinitions>
-                        <Grid.RowDefinitions>
-                            <RowDefinition Height="Auto" />
-                        </Grid.RowDefinitions>
-                        <shared:CommandPreviewBox
-                            x:Name="AutoCommandPreviewBox" PreviewHeight="96" PreviewMinHeight="80"
-                            Header="{Binding Texts.AutoCompressionCommandTitle}"
-                            PlaceholderText="{Binding Texts.AutoCompressionCommandPlaceholder}"
-                            Text="{Binding AutoCompressionCommandLine}"
-                            Texts="{Binding Texts}" />
+                        <!-- Compact 4-Metric Execution Summary Strip -->
+                        <Grid Grid.Row="1" ColumnSpacing="{StaticResource AppSpacingS}" DataContext="{Binding Form}">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="1.25*" />
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
 
-                        <shared:AnimatedExpander x:Name="AutoLogExpander" Grid.Column="1" HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch">
-                            <shared:AnimatedExpander.HeaderContent>
-                                <TextBlock FontFamily="{StaticResource AppDisplayFont}" FontSize="{StaticResource AppBodyLargeFontSize}" FontWeight="SemiBold" Text="{Binding Texts.AutoCompressionLogTitle}" />
-                            </shared:AnimatedExpander.HeaderContent>
-                            <shared:AnimatedExpander.BodyContent>
-                                <TextBox x:Name="AutoLogTextBox" Height="96" MinHeight="80" Background="Transparent" BorderThickness="0" FontFamily="{StaticResource AppMonoFont}" IsReadOnly="True" PlaceholderText="{Binding Texts.AutoCompressionLogPlaceholder}" ScrollViewer.VerticalScrollBarVisibility="Auto" Text="{Binding AutoCompressionLog}" TextWrapping="Wrap" />
-                            </shared:AnimatedExpander.BodyContent>
-                        </shared:AnimatedExpander>
+                            <Border Padding="10,8" Background="{ThemeResource CardAltBrush}" BorderBrush="{ThemeResource CardBorderBrush}" BorderThickness="{StaticResource AppCardBorderThickness}" CornerRadius="{StaticResource AppCardCornerRadius}">
+                                <StackPanel HorizontalAlignment="Center" Spacing="2">
+                                    <TextBlock HorizontalAlignment="Center" FontSize="{StaticResource AppSmallFontSize}" Foreground="{ThemeResource SubtleTextBrush}" MaxLines="1" Text="{Binding Texts.EncoderHeader}" TextTrimming="CharacterEllipsis" />
+                                    <TextBlock HorizontalAlignment="Center" FontFamily="{StaticResource AppMonoFont}" FontSize="{StaticResource AppBodyFontSize}" FontWeight="SemiBold" MaxLines="1" Text="{Binding SelectedAutoEncoder.Label}" TextTrimming="CharacterEllipsis" />
+                                </StackPanel>
+                            </Border>
+
+                            <Border Grid.Column="1" Padding="10,8" Background="{ThemeResource CardAltBrush}" BorderBrush="{ThemeResource CardBorderBrush}" BorderThickness="{StaticResource AppCardBorderThickness}" CornerRadius="{StaticResource AppCardCornerRadius}">
+                                <StackPanel HorizontalAlignment="Center" Spacing="2">
+                                    <TextBlock HorizontalAlignment="Center" FontSize="{StaticResource AppSmallFontSize}" Foreground="{ThemeResource SubtleTextBrush}" MaxLines="1" Text="{Binding SelectedAutoCompressionMetricOption.Label}" TextTrimming="CharacterEllipsis" />
+                                    <TextBlock HorizontalAlignment="Center" FontFamily="{StaticResource AppMonoFont}" FontSize="{StaticResource AppBodyFontSize}" FontWeight="SemiBold" Text="{Binding AutoCompressionTargetVmaf}" />
+                                </StackPanel>
+                            </Border>
+
+                            <Border Grid.Column="2" Padding="10,8" Background="{ThemeResource CardAltBrush}" BorderBrush="{ThemeResource CardBorderBrush}" BorderThickness="{StaticResource AppCardBorderThickness}" CornerRadius="{StaticResource AppCardCornerRadius}">
+                                <StackPanel HorizontalAlignment="Center" Spacing="2">
+                                    <TextBlock HorizontalAlignment="Center" FontSize="{StaticResource AppSmallFontSize}" Foreground="{ThemeResource SubtleTextBrush}" MaxLines="1" Text="{Binding Texts.AutoCompressionProbesHeader}" TextTrimming="CharacterEllipsis" />
+                                    <TextBlock HorizontalAlignment="Center" FontFamily="{StaticResource AppMonoFont}" FontSize="{StaticResource AppBodyFontSize}" FontWeight="SemiBold" Text="{Binding AutoCompressionProbes}" />
+                                </StackPanel>
+                            </Border>
+
+                            <Border Grid.Column="3" Padding="10,8" Background="{ThemeResource CardAltBrush}" BorderBrush="{ThemeResource CardBorderBrush}" BorderThickness="{StaticResource AppCardBorderThickness}" CornerRadius="{StaticResource AppCardCornerRadius}">
+                                <StackPanel HorizontalAlignment="Center" Spacing="2">
+                                    <TextBlock HorizontalAlignment="Center" FontSize="{StaticResource AppSmallFontSize}" Foreground="{ThemeResource SubtleTextBrush}" MaxLines="1" Text="{Binding Texts.AutoCompressionWorkersHeader}" TextTrimming="CharacterEllipsis" />
+                                    <TextBlock HorizontalAlignment="Center" FontFamily="{StaticResource AppMonoFont}" FontSize="{StaticResource AppBodyFontSize}" FontWeight="SemiBold" Text="{Binding AutoCompressionWorkers}" />
+                                </StackPanel>
+                            </Border>
+                        </Grid>
+
+                        <shared:TaskDiagnosticsPanel
+                            x:Name="AutoDiagnosticsPanel"
+                            Grid.Row="2"
+                            DataContext="{Binding Status}"
+                            BodyMinHeight="180"
+                            CommandPlaceholderText="{Binding Texts.AutoCompressionCommandPlaceholder}"
+                            CommandText="{Binding AutoCompressionCommandLine}"
+                            CommandTitle="{Binding Texts.AutoCompressionCommandTitle}"
+                            DefaultToLogTab="False"
+                            IsCollapsible="False"
+                            LogPlaceholderText="{Binding Texts.AutoCompressionLogPlaceholder}"
+                            LogText="{Binding AutoCompressionLog}"
+                            LogTitle="{Binding Texts.AutoCompressionLogTitle}"
+                            PresentationState="{Binding AutoCompressionPresentationState}"
+                            Texts="{Binding Texts}" />
                     </Grid>
-                </Grid>
-            </Border>
+                </Border>
+            </Grid>
         </Grid>
     </ScrollViewer>
 </UserControl>

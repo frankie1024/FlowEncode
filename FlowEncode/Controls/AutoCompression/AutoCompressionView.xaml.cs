@@ -12,6 +12,9 @@ namespace FlowEncode.Controls.AutoCompression;
 public sealed partial class AutoCompressionView : UserControl
 {
     private bool _interactionsInitialized;
+    private bool _isAutoApplyingAdvancedExpanded;
+    private bool _userToggledAdvancedExpanded;
+    private bool _stackedWorkspace;
 
     private AutoCompressionViewModel? ViewModel => DataContext as AutoCompressionViewModel;
     private AutoCompressionFormViewModel? FormViewModel => ViewModel?.Form;
@@ -20,94 +23,107 @@ public sealed partial class AutoCompressionView : UserControl
     {
         InitializeComponent();
         Loaded += AutoCompressionView_Loaded;
-        RootScrollViewer.SizeChanged += (_, e) =>
-        {
-            ContentStack.MinHeight = Math.Max(0, Math.Floor(e.NewSize.Height));
-            AutoTaskStatusPanel.ProgressHeight = Math.Clamp(e.NewSize.Height * 0.1, 64, 96);
-            ScheduleDiagnosticsLayout();
-        };
-        Loaded += (_, _) => ScheduleDiagnosticsLayout();
-        AutoFormPanel.SizeChanged += (_, _) => ScheduleDiagnosticsLayout();
-        AutoTaskStatusPanel.SizeChanged += (_, _) => ScheduleDiagnosticsLayout();
+        RootScrollViewer.SizeChanged += (_, _) => ScheduleWorkspaceHeightRefresh();
+        AutoAdvancedParametersExpander.Expanded += (_, _) => MarkAdvancedExpanderUserToggled();
+        AutoAdvancedParametersExpander.Collapsed += (_, _) => MarkAdvancedExpanderUserToggled();
     }
 
-    public void ApplyLayout(double availableWidth, bool compactForms, int optionColumnCount, int advancedOptionColumnCount, Thickness contentPadding)
+    public void ApplyLayout(double availableWidth, bool stackedWorkspace, bool compactForms, Thickness contentPadding)
     {
+        _stackedWorkspace = stackedWorkspace;
         ContentStack.Padding = contentPadding;
-        // A cached, detached page has no measured width when navigation prepares it.
-        var splitPaths = availableWidth - contentPadding.Left - contentPadding.Right >= 840;
-        AutoPathsGrid.RowSpacing = splitPaths ? 0 : UiTokens.SpacingM;
-        AutoPathsGrid.ColumnSpacing = splitPaths ? UiTokens.SpacingM : 0;
-        AutoPathsGrid.ColumnDefinitions[1].Width = splitPaths ? new GridLength(1, GridUnitType.Star) : new GridLength(0);
-        Grid.SetRow(AutoOutputPathGrid, splitPaths ? 0 : 1);
-        Grid.SetColumn(AutoOutputPathGrid, splitPaths ? 1 : 0);
-        AutoStatusGrid.ColumnDefinitions[1].Width = compactForms ? new GridLength(0) : new GridLength(1, GridUnitType.Star);
-        AutoStatusGrid.ColumnSpacing = compactForms ? 0 : UiTokens.SpacingM;
-        AutoStatusGrid.RowSpacing = compactForms ? UiTokens.SpacingM : 0;
-        if (AutoStatusGrid.RowDefinitions.Count != (compactForms ? 2 : 1))
-        {
-            AutoStatusGrid.RowDefinitions.Clear();
-            AutoStatusGrid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
-            if (compactForms) AutoStatusGrid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
-        }
-        Grid.SetRow(AutoLogExpander, compactForms ? 1 : 0);
-        Grid.SetColumn(AutoLogExpander, compactForms ? 0 : 1);
-        ConfigureTwoItemGrid(AutoSourcePathGrid, AutoSourcePathActionColumn, AutoSourceBrowseButton, false, GridLength.Auto);
-        ConfigureTwoItemGrid(AutoOutputPathGrid, AutoOutputPathActionColumn, AutoOutputBrowseButton, false, GridLength.Auto);
-        AutoSourcePathGrid.RowSpacing = 0;
 
-        RebuildAutoRows(
-            AutoCompressionOptionsGrid,
-            optionColumnCount switch
-            {
-                >= 5 => 1,
-                3 => 2,
-                2 => 3,
-                _ => 5
-            });
-        ConfigureFiveItemGrid(
-            AutoCompressionOptionsGrid,
+        AutoWorkspaceGrid.ColumnSpacing = stackedWorkspace ? 0 : UiTokens.SpacingL;
+        AutoWorkspaceGrid.RowSpacing = stackedWorkspace ? UiTokens.SpacingL : 0;
+        AutoPrimaryColumn.Width = stackedWorkspace
+            ? new GridLength(1, GridUnitType.Star)
+            : new GridLength(52, GridUnitType.Star);
+        AutoSecondaryColumn.Width = stackedWorkspace
+            ? new GridLength(0)
+            : new GridLength(48, GridUnitType.Star);
+        AutoWorkspacePrimaryRow.Height = stackedWorkspace ? GridLength.Auto : new GridLength(1, GridUnitType.Star);
+        AutoWorkspaceSecondaryRow.Height = stackedWorkspace ? GridLength.Auto : new GridLength(0);
+
+        Grid.SetRow(AutoFormCard, 0);
+        Grid.SetColumn(AutoFormCard, 0);
+        Grid.SetColumnSpan(AutoFormCard, 1);
+        Grid.SetRow(AutoMonitorCard, stackedWorkspace ? 1 : 0);
+        Grid.SetColumn(AutoMonitorCard, stackedWorkspace ? 0 : 1);
+        Grid.SetColumnSpan(AutoMonitorCard, stackedWorkspace ? 2 : 1);
+
+        AutoFormScrollViewer.VerticalScrollBarVisibility = stackedWorkspace
+            ? ScrollBarVisibility.Disabled
+            : ScrollBarVisibility.Auto;
+
+        ConfigureThreeItemGrid(
+            AutoCompressionTargetGrid,
+            AutoCompressionMetricColumn,
+            AutoCompressionTargetColumn,
             AutoCompressionMetricComboBox,
             AutoCompressionTargetVmafBox,
-            AutoCompressionProbesBox,
+            compactForms);
+
+        ConfigureTwoItemGrid(
+            AutoCompressionBudgetGrid,
+            AutoCompressionWorkersColumn,
             AutoCompressionWorkersBox,
-            optionColumnCount);
+            compactForms);
 
-        ConfigureFourAdvancedItemsGrid(AutoCompressionAdvancedOptionsGrid, advancedOptionColumnCount);
-
+        ConfigureFourAdvancedItemsGrid(AutoCompressionAdvancedOptionsGrid, compactForms ? 1 : 2);
         AutoCompressionActionBar.IsStacked = compactForms;
-        ScheduleDiagnosticsLayout();
+        if (!_userToggledAdvancedExpanded)
+        {
+            _isAutoApplyingAdvancedExpanded = true;
+            try
+            {
+                AutoAdvancedParametersExpander.IsExpanded = !stackedWorkspace;
+            }
+            finally
+            {
+                _isAutoApplyingAdvancedExpanded = false;
+            }
+        }
+
+        ScheduleWorkspaceHeightRefresh();
     }
 
-    private void ScheduleDiagnosticsLayout() => DispatcherQueue.TryEnqueue(UpdateDiagnosticsLayout);
-
-    private void UpdateDiagnosticsLayout()
+    private void MarkAdvancedExpanderUserToggled()
     {
-        if (!IsLoaded || AutoFormPanel.ActualHeight <= 0 || AutoAdvancedParametersExpander.IsExpanded) return;
+        if (!_isAutoApplyingAdvancedExpanded)
+        {
+            _userToggledAdvancedExpanded = true;
+        }
+    }
 
-        // Fit the default form. Expanding advanced options simply pushes these panes down.
-        var stacked = AutoStatusGrid.ColumnDefinitions[1].Width.Value == 0;
-        var top = AutoStatusGrid.TransformToVisual(ContentStack).TransformPoint(new Windows.Foundation.Point()).Y;
-        var chrome = Math.Max(60, Math.Max(
-            AutoCommandPreviewBox.ActualHeight - AutoCommandPreviewBox.PreviewHeight,
-            AutoLogExpander.ActualHeight - AutoLogTextBox.ActualHeight));
-        var remaining = RootScrollViewer.ActualHeight - top - ContentStack.Padding.Bottom
-            - AutoFormCard.Padding.Bottom - 2;
-        var bodyHeight = stacked ? 120 : Math.Max(80, Math.Floor(remaining - chrome));
-        AutoCommandPreviewBox.PreviewHeight = bodyHeight;
-        AutoLogTextBox.Height = bodyHeight;
+    private void ScheduleWorkspaceHeightRefresh() => DispatcherQueue.TryEnqueue(UpdateWorkspaceHeight);
+
+    private void UpdateWorkspaceHeight()
+    {
+        if (_stackedWorkspace || RootScrollViewer.ActualHeight <= 0)
+        {
+            AutoWorkspaceGrid.Height = double.NaN;
+            return;
+        }
+
+        var availableHeight = RootScrollViewer.ActualHeight
+            - ContentStack.Padding.Top
+            - ContentStack.Padding.Bottom;
+
+        AutoWorkspaceGrid.Height = availableHeight >= 460
+            ? Math.Floor(availableHeight)
+            : double.NaN;
     }
 
     private void AutoCompressionView_Loaded(object sender, RoutedEventArgs e)
     {
-        if (_interactionsInitialized)
+        if (!_interactionsInitialized)
         {
-            return;
+            _interactionsInitialized = true;
+            AutoSourcePathTextBox.AddHandler(UIElement.DoubleTappedEvent, new DoubleTappedEventHandler(AutoSourcePathTextBox_DoubleTapped), true);
+            AutoOutputPathTextBox.AddHandler(UIElement.DoubleTappedEvent, new DoubleTappedEventHandler(AutoOutputPathTextBox_DoubleTapped), true);
         }
 
-        _interactionsInitialized = true;
-        AutoSourcePathTextBox.AddHandler(UIElement.DoubleTappedEvent, new DoubleTappedEventHandler(AutoSourcePathTextBox_DoubleTapped), true);
-        AutoOutputPathTextBox.AddHandler(UIElement.DoubleTappedEvent, new DoubleTappedEventHandler(AutoOutputPathTextBox_DoubleTapped), true);
+        ScheduleWorkspaceHeightRefresh();
     }
 
     private async void BrowseAutoSourceButton_Click(object sender, RoutedEventArgs e)
@@ -250,38 +266,54 @@ public sealed partial class AutoCompressionView : UserControl
         Grid grid,
         ColumnDefinition secondColumn,
         FrameworkElement secondItem,
-        bool stacked,
-        GridLength expandedSecondColumnWidth)
+        bool stacked)
     {
-        grid.ColumnSpacing = stacked ? 0 : UiTokens.SpacingM;
-        secondColumn.Width = stacked ? new GridLength(0) : expandedSecondColumnWidth;
+        grid.ColumnSpacing = stacked ? 0 : UiTokens.SpacingS;
+        grid.RowSpacing = stacked ? UiTokens.SpacingS : 0;
+        secondColumn.Width = stacked ? new GridLength(0) : new GridLength(1, GridUnitType.Star);
         Grid.SetRow(secondItem, stacked ? 1 : 0);
         Grid.SetColumn(secondItem, stacked ? 0 : 1);
     }
 
-    private static void RebuildAutoRows(Grid grid, int rowCount)
+    private static void ConfigureThreeItemGrid(
+        Grid grid,
+        ColumnDefinition secondColumn,
+        ColumnDefinition thirdColumn,
+        FrameworkElement secondItem,
+        FrameworkElement thirdItem,
+        bool stacked)
     {
-        grid.RowDefinitions.Clear();
-        for (var index = 0; index < rowCount; index++)
-        {
-            grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
-        }
+        grid.ColumnSpacing = stacked ? 0 : UiTokens.SpacingS;
+        grid.RowSpacing = stacked ? UiTokens.SpacingS : 0;
+        secondColumn.Width = stacked ? new GridLength(0) : new GridLength(1, GridUnitType.Star);
+        thirdColumn.Width = stacked ? new GridLength(0) : new GridLength(1, GridUnitType.Star);
+        Grid.SetRow(secondItem, stacked ? 1 : 0);
+        Grid.SetColumn(secondItem, stacked ? 0 : 1);
+        Grid.SetRow(thirdItem, stacked ? 2 : 0);
+        Grid.SetColumn(thirdItem, stacked ? 0 : 2);
     }
 
     private void ConfigureFourAdvancedItemsGrid(Grid grid, int columnCount)
     {
-        RebuildAutoRows(
-            grid,
-            columnCount switch
+        var rowCount = columnCount >= 2 ? 2 : 4;
+        if (grid.RowDefinitions.Count != rowCount)
+        {
+            grid.RowDefinitions.Clear();
+            for (var index = 0; index < rowCount; index++)
             {
-                >= 4 => 1,
-                2 => 2,
-                _ => 4
-            });
+                grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+            }
+        }
 
-        grid.ColumnSpacing = columnCount == 1 ? 0 : UiTokens.SpacingM;
-
-        SetColumnCount(grid, columnCount);
+        grid.ColumnSpacing = columnCount == 1 ? 0 : UiTokens.SpacingS;
+        if (grid.ColumnDefinitions.Count != columnCount)
+        {
+            grid.ColumnDefinitions.Clear();
+            for (var index = 0; index < columnCount; index++)
+            {
+                grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+            }
+        }
 
         var items = new FrameworkElement[]
         {
@@ -293,63 +325,8 @@ public sealed partial class AutoCompressionView : UserControl
 
         for (var index = 0; index < items.Length; index++)
         {
-            var item = items[index];
-            var row = index / columnCount;
-            var column = index % columnCount;
-            Grid.SetRow(item, row);
-            Grid.SetColumn(item, column);
+            Grid.SetRow(items[index], index / columnCount);
+            Grid.SetColumn(items[index], index % columnCount);
         }
-    }
-
-    private static void ConfigureFiveItemGrid(
-        Grid grid,
-        FrameworkElement secondItem,
-        FrameworkElement thirdItem,
-        FrameworkElement fourthItem,
-        FrameworkElement fifthItem,
-        int columnCount)
-    {
-        grid.ColumnSpacing = columnCount == 1 ? 0 : UiTokens.SpacingM;
-        SetColumnCount(grid, columnCount);
-
-        var items = new[] { secondItem, thirdItem, fourthItem, fifthItem };
-        for (var index = 0; index < items.Length; index++)
-        {
-            var item = items[index];
-            int row;
-            int column;
-
-            if (columnCount >= 5)
-            {
-                row = 0;
-                column = index + 1;
-            }
-            else if (columnCount == 3)
-            {
-                row = (index + 1) / 3;
-                column = (index + 1) % 3;
-            }
-            else if (columnCount == 2)
-            {
-                row = (index + 1) / 2;
-                column = (index + 1) % 2;
-            }
-            else
-            {
-                row = index + 1;
-                column = 0;
-            }
-
-            Grid.SetRow(item, row);
-            Grid.SetColumn(item, column);
-        }
-    }
-
-    private static void SetColumnCount(Grid grid, int columnCount)
-    {
-        if (grid.ColumnDefinitions.Count == columnCount) return;
-        grid.ColumnDefinitions.Clear();
-        for (var index = 0; index < columnCount; index++)
-            grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
     }
 }

@@ -30,6 +30,7 @@ public sealed partial class BluRayDemuxView : UserControl
         InitializeComponent();
         Loaded += BluRayDemuxView_Loaded;
         RootScrollViewer.SizeChanged += (_, _) => ScheduleWorkspaceHeightRefresh();
+        BluRayDiagnosticsPanel.SizeChanged += (_, _) => ScheduleWorkspaceHeightRefresh();
     }
 
     public void ApplyLayout(bool stackedWorkspace, bool compactForms, Thickness contentPadding)

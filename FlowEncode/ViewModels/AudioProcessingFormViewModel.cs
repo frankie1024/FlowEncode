@@ -14,10 +14,29 @@ public sealed class AudioProcessingFormViewModel : ModuleViewModelBase
         : base(owner)
     {
         Deew = new(owner.LoadDeewOptions(), owner.DeewOptionsChanged, () => owner.Texts);
-        Deew.PropertyChanged += (_, _) => NotifyDeewModeVisibility();
+        Deew.PropertyChanged += (_, _) =>
+        {
+            NotifyDeewModeVisibility();
+            NotifySummaryCards();
+        };
         PropertyChanged += (_, e) =>
         {
-            if (e.PropertyName == nameof(AudioDeewOptionsVisibility)) NotifyDeewModeVisibility();
+            if (e.PropertyName == nameof(AudioDeewOptionsVisibility))
+            {
+                NotifyDeewModeVisibility();
+            }
+
+            if (string.IsNullOrEmpty(e.PropertyName)
+                || e.PropertyName is nameof(SelectedAudioWorkflow)
+                    or nameof(SelectedAudioEac3ToOutputFormat)
+                    or nameof(SelectedAudioOpusBitrate)
+                    or nameof(AudioOpusUseMappingFamily1)
+                    or nameof(AudioProcessingAdditionalArguments)
+                    or nameof(AudioDeewOptionsVisibility)
+                    or nameof(Texts))
+            {
+                NotifySummaryCards();
+            }
         };
     }
 
@@ -28,12 +47,93 @@ public sealed class AudioProcessingFormViewModel : ModuleViewModelBase
     public Visibility DeewAtmosModeVisibility => AudioDeewOptionsVisibility == Visibility.Visible ? Deew.AtmosModeVisibility : Visibility.Collapsed;
     public Visibility DeewAc4ImsModeVisibility => AudioDeewOptionsVisibility == Visibility.Visible ? Deew.Ac4ImsModeVisibility : Visibility.Collapsed;
     public Visibility DeewWarningVisibility => AudioDeewOptionsVisibility == Visibility.Visible ? Deew.WarningVisibility : Visibility.Collapsed;
+
+    public string SummaryCard1Label => Texts.AudioWorkflowHeader;
+
+    public string SummaryCard1Value => SelectedAudioWorkflow?.Label ?? "deew";
+
+    public string SummaryCard2Label => (SelectedAudioWorkflow?.Value ?? AudioProcessingMode.Ddp) switch
+    {
+        AudioProcessingMode.Ddp when Deew.MeasureOnly => Texts.Pick("运行模式", "Mode"),
+        AudioProcessingMode.Ddp => Texts.DeewFormatHeader,
+        AudioProcessingMode.Opus => Texts.Pick("编码后端", "Backend"),
+        _ => Texts.AudioEac3ToOutputFormatHeader
+    };
+
+    public string SummaryCard2Value => (SelectedAudioWorkflow?.Value ?? AudioProcessingMode.Ddp) switch
+    {
+        AudioProcessingMode.Ddp when Deew.MeasureOnly => Texts.Pick("仅测响度", "Measure Only"),
+        AudioProcessingMode.Ddp => Deew.EffectiveProfile is { } profile
+            ? $"{profile.Options.Format} ({profile.Extension})"
+            : Deew.Format,
+        AudioProcessingMode.Opus => AudioOpusUseMappingFamily1 ? "FFmpeg libopus" : "opusenc",
+        _ => SelectedAudioEac3ToOutputFormat?.Label ?? ".flac"
+    };
+
+    public string SummaryCard3Label => (SelectedAudioWorkflow?.Value ?? AudioProcessingMode.Ddp) switch
+    {
+        AudioProcessingMode.Ddp when Deew.MeasureOnly => Texts.Pick("媒体输出", "Media Output"),
+        AudioProcessingMode.Ddp => Texts.Pick("码率", "Bitrate"),
+        AudioProcessingMode.Opus => Texts.AudioOpusBitrateHeader,
+        _ => Texts.Pick("编码类型", "Encoding")
+    };
+
+    public string SummaryCard3Value => (SelectedAudioWorkflow?.Value ?? AudioProcessingMode.Ddp) switch
+    {
+        AudioProcessingMode.Ddp when Deew.MeasureOnly => Texts.Pick("不生成", "None"),
+        AudioProcessingMode.Ddp => Deew.EffectiveProfile?.EffectiveBitrateKbps is { } bitrate
+            ? $"{bitrate} kbps"
+            : Texts.Pick("无损", "Lossless"),
+        AudioProcessingMode.Opus => SelectedAudioOpusBitrate?.Label ?? Texts.Pick("未选择", "Not set"),
+        _ => SelectedAudioEac3ToOutputFormat?.Value == AudioEac3ToOutputFormat.Ac3
+            ? Texts.Pick("有损", "Lossy")
+            : Texts.Pick("无损", "Lossless")
+    };
+
+    public string SummaryCard4Label => (SelectedAudioWorkflow?.Value ?? AudioProcessingMode.Ddp) switch
+    {
+        AudioProcessingMode.Ddp when Deew.MeasureOnly => Texts.Pick("分析目标", "Target"),
+        AudioProcessingMode.Ddp => Texts.Pick("模式 / DRC", "Mode / DRC"),
+        AudioProcessingMode.Opus => Texts.AudioOpusMappingFamilyHeader,
+        _ => Texts.AudioEac3ToAdditionalArgumentsHeader
+    };
+
+    public string SummaryCard4Value => (SelectedAudioWorkflow?.Value ?? AudioProcessingMode.Ddp) switch
+    {
+        AudioProcessingMode.Ddp when Deew.MeasureOnly => Texts.Pick("原始输入", "Original Source"),
+        AudioProcessingMode.Ddp => Deew.EffectiveProfile is { } profile
+            ? $"{profile.Mode} · {profile.Drc}"
+            : "--",
+        AudioProcessingMode.Opus => AudioOpusUseMappingFamily1 ? "Family 1" : Texts.Pick("标准", "Standard"),
+        _ => string.IsNullOrWhiteSpace(AudioProcessingAdditionalArguments)
+            ? Texts.Pick("默认", "Default")
+            : AudioProcessingAdditionalArguments.Trim()
+    };
+
+    public string SummaryCard4Tooltip => (SelectedAudioWorkflow?.Value ?? AudioProcessingMode.Ddp) == AudioProcessingMode.Ddp
+        && !string.IsNullOrWhiteSpace(Deew.EffectiveDescription)
+        ? Deew.EffectiveDescription
+        : SummaryCard4Value;
+
     private void NotifyDeewModeVisibility()
     {
         OnPropertyChanged(nameof(DeewDdpModeVisibility));
         OnPropertyChanged(nameof(DeewAtmosModeVisibility));
         OnPropertyChanged(nameof(DeewAc4ImsModeVisibility));
         OnPropertyChanged(nameof(DeewWarningVisibility));
+    }
+
+    private void NotifySummaryCards()
+    {
+        OnPropertyChanged(nameof(SummaryCard1Label));
+        OnPropertyChanged(nameof(SummaryCard1Value));
+        OnPropertyChanged(nameof(SummaryCard2Label));
+        OnPropertyChanged(nameof(SummaryCard2Value));
+        OnPropertyChanged(nameof(SummaryCard3Label));
+        OnPropertyChanged(nameof(SummaryCard3Value));
+        OnPropertyChanged(nameof(SummaryCard4Label));
+        OnPropertyChanged(nameof(SummaryCard4Value));
+        OnPropertyChanged(nameof(SummaryCard4Tooltip));
     }
 
     public AppText Texts => Owner.Texts;

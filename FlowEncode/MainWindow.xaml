@@ -37,7 +37,7 @@
             IsBackButtonVisible="Collapsed"
             IsEnabled="{x:Bind ViewModel.IsWorkspaceRootChangeIdle, Mode=OneWay}"
             IsSettingsVisible="True"
-            OpenPaneLength="208"
+            OpenPaneLength="172"
             SelectionChanged="ShellNavigationView_SelectionChanged">
             <NavigationView.MenuItems>
                 <NavigationViewItem AutomationProperties.Name="{x:Bind ViewModel.Texts.NavDashboard, Mode=OneWay}" Content="{x:Bind ViewModel.Texts.NavDashboard, Mode=OneWay}" Icon="Home" IsSelected="True" Tag="dashboard" />

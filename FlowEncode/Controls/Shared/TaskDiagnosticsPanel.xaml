@@ -1,0 +1,166 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<UserControl
+    x:Class="FlowEncode.Controls.Shared.TaskDiagnosticsPanel"
+    x:Name="Root"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <Border
+        Padding="{StaticResource AppInsetPanelPadding}"
+        Background="{ThemeResource CardAltBrush}"
+        BorderBrush="{ThemeResource CardBorderBrush}"
+        BorderThickness="{StaticResource AppCardBorderThickness}"
+        CornerRadius="{StaticResource AppCardCornerRadius}">
+        <Grid x:Name="RootGrid" RowSpacing="{StaticResource AppSpacingS}">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition x:Name="BodyRow" Height="*" />
+            </Grid.RowDefinitions>
+
+            <Grid ColumnSpacing="{StaticResource AppSpacingS}">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+
+                <Border
+                    HorizontalAlignment="Left"
+                    Padding="2"
+                    Background="{ThemeResource CardBrush}"
+                    BorderBrush="{ThemeResource CardBorderBrush}"
+                    BorderThickness="{StaticResource AppCardBorderThickness}"
+                    CornerRadius="{StaticResource AppControlCornerRadius}">
+                    <StackPanel Orientation="Horizontal" Spacing="2">
+                        <ToggleButton
+                            x:Name="CommandTabButton"
+                            MinHeight="30"
+                            Padding="10,2"
+                            CornerRadius="4"
+                            BorderThickness="0"
+                            IsChecked="True"
+                            Click="CommandTabButton_Click">
+                            <TextBlock
+                                FontSize="{StaticResource AppCaptionFontSize}"
+                                FontWeight="SemiBold"
+                                Text="{x:Bind CommandTitle, Mode=OneWay}" />
+                        </ToggleButton>
+                        <ToggleButton
+                            x:Name="LogTabButton"
+                            MinHeight="30"
+                            Padding="10,2"
+                            CornerRadius="4"
+                            BorderThickness="0"
+                            IsChecked="False"
+                            Click="LogTabButton_Click">
+                            <TextBlock
+                                FontSize="{StaticResource AppCaptionFontSize}"
+                                FontWeight="SemiBold"
+                                Text="{x:Bind LogTitle, Mode=OneWay}" />
+                        </ToggleButton>
+                    </StackPanel>
+                </Border>
+
+                <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="{StaticResource AppSpacingS}" VerticalAlignment="Center">
+                    <TextBlock
+                        x:Name="CopyStatusBadge"
+                        VerticalAlignment="Center"
+                        AutomationProperties.LiveSetting="Polite"
+                        FontSize="{StaticResource AppSmallFontSize}"
+                        Foreground="{ThemeResource SubtleTextBrush}"
+                        Visibility="Collapsed" />
+                    <Button
+                        x:Name="CopyCommandButton"
+                        Style="{StaticResource StandardButtonStyle}"
+                        MinHeight="32"
+                        Padding="10,0"
+                        Click="CopyCommandButton_Click">
+                        <StackPanel Orientation="Horizontal" Spacing="{StaticResource AppSpacingXS}">
+                            <SymbolIcon Symbol="Copy" />
+                            <TextBlock x:Name="CopyCommandLabel" FontSize="{StaticResource AppCaptionFontSize}" />
+                        </StackPanel>
+                    </Button>
+                    <Button
+                        x:Name="CollapseToggleButton"
+                        Style="{StaticResource IconButtonStyle}"
+                        MinWidth="32"
+                        MinHeight="32"
+                        Padding="6"
+                        Visibility="Collapsed"
+                        Click="CollapseToggleButton_Click">
+                        <FontIcon x:Name="CollapseChevronIcon" FontSize="12" Glyph="&#xE70D;" />
+                    </Button>
+                </StackPanel>
+            </Grid>
+
+            <Border
+                x:Name="BodyContainer"
+                Grid.Row="1"
+                Background="{ThemeResource CardBrush}"
+                BorderBrush="{ThemeResource CardBorderBrush}"
+                BorderThickness="{StaticResource AppCardBorderThickness}"
+                CornerRadius="{StaticResource AppControlCornerRadius}">
+                <Grid>
+                    <TextBox
+                        x:Name="CommandTextBox"
+                        MinHeight="{x:Bind BodyMinHeight, Mode=OneWay}"
+                        MaxHeight="{x:Bind BodyMaxHeight, Mode=OneWay}"
+                        Padding="10,8"
+                        Background="Transparent"
+                        BorderThickness="0"
+                        FontFamily="{StaticResource AppMonoFont}"
+                        FontSize="{StaticResource AppCaptionFontSize}"
+                        IsReadOnly="True"
+                        IsTabStop="False"
+                        ScrollViewer.VerticalScrollBarVisibility="Auto"
+                        Text="{x:Bind CommandText, Mode=OneWay}"
+                        TextWrapping="Wrap" />
+                    <TextBox
+                        x:Name="LogTextBox"
+                        MinHeight="{x:Bind BodyMinHeight, Mode=OneWay}"
+                        MaxHeight="{x:Bind BodyMaxHeight, Mode=OneWay}"
+                        Padding="10,8"
+                        Background="Transparent"
+                        BorderThickness="0"
+                        FontFamily="{StaticResource AppMonoFont}"
+                        FontSize="{StaticResource AppCaptionFontSize}"
+                        IsReadOnly="True"
+                        IsTabStop="False"
+                        ScrollViewer.VerticalScrollBarVisibility="Auto"
+                        Text="{x:Bind LogText, Mode=OneWay}"
+                        TextWrapping="Wrap"
+                        Visibility="Collapsed" />
+                    <StackPanel
+                        x:Name="EmptyStateOverlay"
+                        Padding="20,16"
+                        HorizontalAlignment="Center"
+                        VerticalAlignment="Center"
+                        IsHitTestVisible="False"
+                        Spacing="{StaticResource AppSpacingS}"
+                        Visibility="Collapsed">
+                        <Border
+                            Width="36"
+                            Height="36"
+                            HorizontalAlignment="Center"
+                            Background="{ThemeResource CardAltBrush}"
+                            BorderBrush="{ThemeResource CardBorderBrush}"
+                            BorderThickness="{StaticResource AppCardBorderThickness}"
+                            CornerRadius="18">
+                            <FontIcon
+                                x:Name="EmptyStateIcon"
+                                FontSize="15"
+                                Foreground="{ThemeResource SubtleTextBrush}"
+                                Glyph="&#xE756;" />
+                        </Border>
+                        <TextBlock
+                            x:Name="EmptyStateTextBlock"
+                            MaxWidth="340"
+                            HorizontalAlignment="Center"
+                            FontSize="{StaticResource AppCaptionFontSize}"
+                            Foreground="{ThemeResource SubtleTextBrush}"
+                            TextAlignment="Center"
+                            TextWrapping="Wrap" />
+                    </StackPanel>
+                </Grid>
+            </Border>
+        </Grid>
+    </Border>
+</UserControl>

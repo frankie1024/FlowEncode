@@ -42,15 +42,7 @@ public sealed partial class OverviewView : UserControl
         Loaded += OverviewView_Loaded;
         Unloaded += OverviewView_Unloaded;
         OverviewScrollViewer.SizeChanged += OverviewScrollViewer_SizeChanged;
-        OverviewComposerGrid.SizeChanged += (_, _) => ScheduleOverviewWorkspaceHeightRefresh(_lastStackedWorkspace);
-        OverviewAdvancedOptionsPanel.SizeChanged += (_, _) => ScheduleOverviewWorkspaceHeightRefresh(_lastStackedWorkspace);
-        DraftRateValuePanel.SizeChanged += (_, _) => ScheduleOverviewWorkspaceHeightRefresh(_lastStackedWorkspace);
-        DraftAv1anParallelWorkersNumberBox.RegisterPropertyChangedCallback(VisibilityProperty, (_, _) => UpdateParallelWorkersColumn());
-        foreach (var child in OverviewAdvancedOptionsPanel.Children.OfType<FrameworkElement>())
-        {
-            child.RegisterPropertyChangedCallback(VisibilityProperty, (_, _) => UpdateOptionalParameterRows());
-        }
-        UpdateOptionalParameterRows();
+        DraftAv1anParallelWorkersNumberBox.RegisterPropertyChangedCallback(VisibilityProperty, (_, _) => UpdateAdvancedModeGrid());
     }
 
     public void ApplyLayout(bool stackedWorkspace, bool compactForms, bool stackRateValue, Thickness contentPadding)
@@ -62,10 +54,12 @@ public sealed partial class OverviewView : UserControl
         OverviewContentStack.Padding = contentPadding;
         OverviewWorkspaceGrid.ColumnSpacing = stackedWorkspace ? 0 : UiTokens.SpacingL;
         OverviewWorkspaceGrid.RowSpacing = stackedWorkspace ? UiTokens.SpacingL : 0;
-        OverviewPrimaryColumn.Width = new GridLength(1, GridUnitType.Star);
+        OverviewPrimaryColumn.Width = stackedWorkspace
+            ? new GridLength(1, GridUnitType.Star)
+            : new GridLength(52, GridUnitType.Star);
         OverviewSecondaryColumn.Width = stackedWorkspace
             ? new GridLength(0)
-            : new GridLength(1, GridUnitType.Star);
+            : new GridLength(48, GridUnitType.Star);
         OverviewWorkspacePrimaryRow.Height = stackedWorkspace ? GridLength.Auto : new GridLength(1, GridUnitType.Star);
         OverviewWorkspaceSecondaryRow.Height = stackedWorkspace ? GridLength.Auto : new GridLength(0);
 
@@ -75,6 +69,10 @@ public sealed partial class OverviewView : UserControl
         Grid.SetRow(OverviewQueuePanel, stackedWorkspace ? 1 : 0);
         Grid.SetColumn(OverviewQueuePanel, stackedWorkspace ? 0 : 1);
         Grid.SetColumnSpan(OverviewQueuePanel, stackedWorkspace ? 2 : 1);
+
+        OverviewComposerScrollViewer.VerticalScrollBarVisibility = stackedWorkspace
+            ? ScrollBarVisibility.Disabled
+            : ScrollBarVisibility.Auto;
 
         if (stackedWorkspace)
         {
@@ -87,62 +85,47 @@ public sealed partial class OverviewView : UserControl
             ScheduleOverviewWorkspaceHeightRefresh(stackedWorkspace);
         }
 
-        ConfigureTwoItemGrid(SourcePathGrid, SourcePathActionColumn, SourcePathBrowseButton, false, GridLength.Auto);
-        ConfigureTwoItemGrid(OutputPathGrid, OutputPathActionColumn, OutputPathBrowseButton, false, GridLength.Auto);
-        SourcePathGrid.RowSpacing = 0;
-        OutputPathGrid.RowSpacing = UiTokens.SpacingXS;
         QueueActionBar.IsStacked = compactForms;
         ConfigureThreeItemGrid(DraftEncoderRatePresetGrid, DraftRateColumn, DraftPresetColumn, DraftRateControlComboBox, DraftPresetComboBox, compactForms);
-        ConfigureThreeItemGrid(DraftTuneProfileFormatValueGrid, DraftProfileColumn, DraftOutputFormatColumn, DraftProfileComboBox, DraftOutputFormatComboBox, compactForms);
-        ConfigureTwoItemGrid(DraftRateValueGrid, DraftRateValueInputColumn, DraftRateValueEditorHost, compactForms, new GridLength(1, GridUnitType.Star));
-        ConfigureTwoItemGrid(OverviewTemplateActionGrid, OverviewTemplateActionSecondaryColumn, SaveCurrentConfigurationButton, compactForms, GridLength.Auto);
+        ConfigureTwoItemGrid(DraftTuneProfileGrid, DraftProfileColumn, DraftProfileComboBox, compactForms, new GridLength(1, GridUnitType.Star));
+        DraftTuneProfileGrid.RowSpacing = compactForms ? UiTokens.SpacingS : 0;
+        ConfigureTwoItemGrid(DraftRateValueGrid, DraftRateValueInputColumn, DraftRateValueEditorHost, compactForms, new GridLength(188));
         DraftRateValueGrid.RowSpacing = compactForms ? UiTokens.SpacingS : 0;
+        ConfigureTwoItemGrid(OverviewTemplateActionGrid, OverviewTemplateActionSecondaryColumn, SaveCurrentConfigurationButton, compactForms, GridLength.Auto);
         OverviewTemplateActionGrid.RowSpacing = compactForms ? UiTokens.SpacingS : 0;
-        ConfigureTwoItemGrid(DraftEncodingModeSelectorGrid, DraftEncodingModeSelectorColumn, DraftVideoEncodingModeComboBox, compactForms, new GridLength(1, GridUnitType.Star));
-        DraftEncodingModeSelectorGrid.RowSpacing = compactForms ? UiTokens.SpacingS : 0;
-        ConfigureTwoItemGrid(DraftAdditionalArgumentsGrid, DraftAdditionalArgumentsEditorColumn, DraftAdditionalArgumentsTextBox, compactForms, new GridLength(1, GridUnitType.Star));
-        DraftAdditionalArgumentsLabelRow.Height = compactForms ? GridLength.Auto : new GridLength(1, GridUnitType.Star);
-        DraftAdditionalArgumentsEditorRow.Height = compactForms ? new GridLength(1, GridUnitType.Star) : new GridLength(0);
-        DraftAdditionalArgumentsGrid.RowSpacing = compactForms ? UiTokens.SpacingS : 0;
-        DraftAdditionalArgumentsLabel.SetBinding(TextBlock.TextProperty, new Microsoft.UI.Xaml.Data.Binding
-        {
-            Path = new PropertyPath(compactForms ? "Texts.AdditionalArgumentsHeader" : "Texts.AdditionalArgumentsSideHeader")
-        });
-        DraftAdditionalArgumentsLabel.MaxWidth = double.PositiveInfinity;
-        DraftAdditionalArgumentsLabel.TextAlignment = compactForms ? TextAlignment.Left : TextAlignment.Center;
-        DraftAdditionalArgumentsLabel.VerticalAlignment = compactForms ? VerticalAlignment.Top : VerticalAlignment.Center;
-        UpdateParallelWorkersColumn();
+        UpdateAdvancedModeGrid();
     }
 
-    private void UpdateOptionalParameterRows()
-    {
-        var showOptions = OverviewAdvancedOptionsPanel.Children.OfType<FrameworkElement>()
-            .Any(child => child.Visibility == Visibility.Visible);
-        OverviewAdvancedOptionsPanel.Visibility = showOptions ? Visibility.Visible : Visibility.Collapsed;
-        if (showOptions && OverviewAdvancedSectionGrid.RowDefinitions.Count == 2)
-        {
-            OverviewAdvancedSectionGrid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
-        }
-        else if (!showOptions && OverviewAdvancedSectionGrid.RowDefinitions.Count == 3)
-        {
-            OverviewAdvancedSectionGrid.RowDefinitions.RemoveAt(2);
-        }
-        ScheduleOverviewWorkspaceHeightRefresh(_lastStackedWorkspace);
-    }
-
-    private void UpdateParallelWorkersColumn()
+    private void UpdateAdvancedModeGrid()
     {
         var showWorkers = DraftAv1anParallelWorkersNumberBox.Visibility == Visibility.Visible;
-        var splitWorkers = showWorkers && !_compactForms;
-        if (splitWorkers && !DraftEncodingModeGrid.ColumnDefinitions.Contains(DraftParallelWorkersColumn))
-            DraftEncodingModeGrid.ColumnDefinitions.Add(DraftParallelWorkersColumn);
-        else if (!splitWorkers && DraftEncodingModeGrid.ColumnDefinitions.Contains(DraftParallelWorkersColumn))
-            DraftEncodingModeGrid.ColumnDefinitions.Remove(DraftParallelWorkersColumn);
-        DraftParallelWorkersColumn.Width = new GridLength(1, GridUnitType.Star);
-        DraftEncodingModeGrid.ColumnSpacing = splitWorkers ? UiTokens.SpacingM : 0;
-        DraftEncodingModeGrid.RowSpacing = showWorkers && _compactForms ? UiTokens.SpacingM : 0;
-        Grid.SetRow(DraftAv1anParallelWorkersNumberBox, _compactForms ? 1 : 0);
-        Grid.SetColumn(DraftAv1anParallelWorkersNumberBox, splitWorkers ? 1 : 0);
+        if (_compactForms)
+        {
+            DraftEncodingModeGrid.ColumnSpacing = 0;
+            DraftEncodingModeGrid.RowSpacing = UiTokens.SpacingS;
+            DraftOutputFormatColumn.Width = new GridLength(1, GridUnitType.Star);
+            DraftEncodingModeColumn.Width = new GridLength(0);
+            DraftParallelWorkersColumn.Width = new GridLength(0);
+            Grid.SetRow(DraftOutputFormatComboBox, 0);
+            Grid.SetColumn(DraftOutputFormatComboBox, 0);
+            Grid.SetRow(DraftVideoEncodingModeComboBox, 1);
+            Grid.SetColumn(DraftVideoEncodingModeComboBox, 0);
+            Grid.SetRow(DraftAv1anParallelWorkersNumberBox, 2);
+            Grid.SetColumn(DraftAv1anParallelWorkersNumberBox, 0);
+            return;
+        }
+
+        DraftEncodingModeGrid.ColumnSpacing = UiTokens.SpacingS;
+        DraftEncodingModeGrid.RowSpacing = 0;
+        DraftOutputFormatColumn.Width = new GridLength(1, GridUnitType.Star);
+        DraftEncodingModeColumn.Width = new GridLength(1, GridUnitType.Star);
+        DraftParallelWorkersColumn.Width = showWorkers ? new GridLength(1, GridUnitType.Star) : new GridLength(0);
+        Grid.SetRow(DraftOutputFormatComboBox, 0);
+        Grid.SetColumn(DraftOutputFormatComboBox, 0);
+        Grid.SetRow(DraftVideoEncodingModeComboBox, 0);
+        Grid.SetColumn(DraftVideoEncodingModeComboBox, 1);
+        Grid.SetRow(DraftAv1anParallelWorkersNumberBox, 0);
+        Grid.SetColumn(DraftAv1anParallelWorkersNumberBox, showWorkers ? 2 : 0);
     }
 
     public void SetOverviewTemplateSelection(TemplateLibraryItemViewModel? templateItem)
@@ -1295,22 +1278,9 @@ public sealed partial class OverviewView : UserControl
             return;
         }
 
-        OverviewComposerGrid.RowSpacing = Math.Clamp(availableHeight * 0.009, 6, UiTokens.SpacingM);
-        var composerMinimum = OverviewComposerGrid.RowDefinitions.Take(8).Sum(row => row.ActualHeight)
-            + (8 * OverviewComposerGrid.RowSpacing) + OverviewTemplateActionGrid.ActualHeight
-            + DraftAdditionalArgumentsTextBox.MinHeight
-            + (OverviewAdvancedOptionsPanel.Visibility == Visibility.Visible ? OverviewAdvancedOptionsPanel.ActualHeight : 0)
-            + (_compactForms ? DraftAdditionalArgumentsLabel.ActualHeight + DraftAdditionalArgumentsGrid.RowSpacing : 0)
-            + ((OverviewAdvancedSectionGrid.RowDefinitions.Count - 1) * OverviewAdvancedSectionGrid.RowSpacing)
-            + OverviewComposerPanel.Padding.Top + OverviewComposerPanel.Padding.Bottom + 2;
-        var queueMinimum = OverviewQueueGrid.RowDefinitions[0].ActualHeight
-            + OverviewQueueGrid.RowDefinitions[2].ActualHeight + JobsList.MinHeight + QueueTableHeader.ActualHeight
-            + (2 * OverviewQueueGrid.RowSpacing)
-            + OverviewQueuePanel.Padding.Top + OverviewQueuePanel.Padding.Bottom + 2;
-
-        // Bound the workspace to the current viewport so star rows can allocate
-        // editor/list space. Only an undersized window falls back to scrolling.
-        OverviewWorkspaceGrid.Height = availableHeight >= Math.Max(composerMinimum, queueMinimum)
+        // Bind both 52:48 columns to the viewport height so the left form scrolls independently
+        // while the right progress bar, queue hero list, and bottom diagnostics stay aligned.
+        OverviewWorkspaceGrid.Height = availableHeight >= 460
             ? Math.Floor(availableHeight)
             : double.NaN;
     }

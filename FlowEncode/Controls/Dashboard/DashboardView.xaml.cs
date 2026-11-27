@@ -132,14 +132,16 @@ public sealed partial class DashboardView : UserControl
         _lastWidth = width;
         DashboardContentStack.Padding = contentPadding;
         DashboardContentStack.RowSpacing = UiTokens.SpacingL;
-        DashboardHeroCard.Padding = UiTokens.CardPadding;
-        DashboardHeroCard.MinHeight = 104;
-        DashboardHeaderTitle.FontSize = width < 1100 ? UiTokens.DisplayFontSizeCompact : UiTokens.DisplayFontSize;
+        DashboardHeroCard.Padding = width < 1100
+            ? new Thickness(20, 16, 20, 16)
+            : new Thickness(24, 20, 24, 20);
+        DashboardHeroCard.MinHeight = width < 1100 ? 128 : 148;
+        DashboardHeaderTitle.FontSize = width < 1100 ? UiTokens.DisplayFontSizeCompact : 36;
         DashboardHeaderPanel.MaxWidth = width < 1100 ? 720 : 960;
         DashboardHeaderPanel.Margin = new Thickness(0);
         DashboardHeroGrid.ColumnSpacing = width < 1100 ? UiTokens.SpacingL : UiTokens.SpacingXL;
 
-        var dashboardHeroIconSize = width < 1100 ? 72 : 80;
+        var dashboardHeroIconSize = width < 1100 ? 96 : 112;
         DashboardHeroIconFrame.Width = dashboardHeroIconSize;
         DashboardHeroIconFrame.Height = dashboardHeroIconSize;
         DashboardHeroIconFrame.Visibility = width < 760 ? Visibility.Collapsed : Visibility.Visible;

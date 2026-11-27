@@ -40,7 +40,7 @@ public partial class MainWindowViewModel
     private EncodingJobState? _autoCompressionDisplayState;
     private TaskPresentationState _autoCompressionPresentationState;
     private bool _isAutoCompressionCancellationRequested;
-    private bool _isAutoCompressionAdvancedOptionsExpanded;
+    private bool _isAutoCompressionAdvancedOptionsExpanded = true;
     private readonly List<string> _autoCompressionLogStageLines = [];
     private string _autoCompressionLiveLogLine = string.Empty;
     private CancellationTokenSource? _autoCompressionInputRefreshCancellationTokenSource;
