@@ -58,6 +58,8 @@ public sealed class AppText
     public string DragDropScriptOverlayHint => Pick("支持 .vpy 和 .py 文件", "Supports .vpy and .py files");
     public string DragDropVideoOverlayTitle => Pick("拖放视频以压制", "Drop a video to encode");
     public string DragDropVideoOverlayHint => Pick("支持 .mkv / .mp4 / .avi / .flv / .y4m / .yuv / .avs", "Supports .mkv / .mp4 / .avi / .flv / .y4m / .yuv / .avs");
+    public string DragDropCompareVideoOverlayTitle => Pick("拖放两个视频以直接对比", "Drop two videos to compare");
+    public string DragDropCompareVideoOverlayHint => Pick("将自动打开预览窗口对比两个画面，无需手动编写 .vpy 脚本", "Open both videos directly in preview compare mode without writing a .vpy script");
     public string DragDropAudioOverlayTitle => Pick("拖放音频以处理", "Drop an audio file to process");
     public string DragDropAudioOverlayHint => Pick("支持 .flac / .wav / .thd / .truehd / .dts / .mka 等", "Supports .flac / .wav / .thd / .truehd / .dts / .mka, etc.");
     public string DragDropBluRayOverlayTitle => Pick("拖放蓝光目录以分离", "Drop a Blu-ray folder to demux");
@@ -238,6 +240,23 @@ public sealed class AppText
     public string VapourSynthRedoButton => Pick("重做", "Redo");
     public string VapourSynthPreviewButton => Pick("预览 F5", "Preview F5");
     public string VapourSynthEncodeButton => Pick("压制 F9", "Encode F9");
+    public string VapourSynthSmartInsertButton => Pick("智能插入", "Smart Insert");
+    public string VapourSynthSmartBitdepth16Item => Pick("升位至 16-bit（自动更新输出）", "Promote to 16-bit (Update Output)");
+    public string VapourSynthSmartBitdepth10Item => Pick("降位至 10-bit 抖动（自动更新输出）", "Dither to 10-bit (Update Output)");
+    public string VapourSynthSmartBitdepth8Item => Pick("降位至 8-bit 抖动（自动更新输出）", "Dither to 8-bit (Update Output)");
+    public string VapourSynthSmartPlaceboDebandItem => Pick("Deband（vs-placebo）", "Deband (vs-placebo)");
+    public string VapourSynthSmartNeoF3kdbItem => Pick("Deband（neo_f3kdb）", "Deband (neo_f3kdb)");
+    public string VapourSynthSmartBbmodItem => Pick("边线修复（awsmfunc.bbmod）", "Edge Fix (awsmfunc.bbmod)");
+    public string VapourSynthSmartFrameInfoItem => Pick("帧信息叠加（awsmfunc.FrameInfo）", "Frame Info (awsmfunc.FrameInfo)");
+    public string VapourSynthSmartDftTestItem => Pick("降噪（DFTTest）", "Denoise (DFTTest)");
+    public string VapourSynthSmartRenameSymbolItem => Pick("重命名变量（F2）", "Rename Symbol (F2)");
+    public string VapourSynthSmartQuickFixItem => Pick("快速修复（Ctrl+.）", "Quick Fix (Ctrl+.)");
+    public string VapourSynthSmartEditAppliedStatus(string variableName, int lineNumber) => IsChinese
+        ? $"已插入 {variableName}（第 {lineNumber} 行），按 Ctrl+Z 可撤销。"
+        : $"Inserted for {variableName} (line {lineNumber}). Press Ctrl+Z to undo.";
+    public string VapourSynthDroppedVideoInsertedStatus(string variableName, string fileName) => IsChinese
+        ? $"已为 {fileName} 插入源加载语句（{variableName}）。"
+        : $"Inserted source loader ({variableName}) for {fileName}.";
     public string VapourSynthPreviewPreparingStatus => Pick(
         "正在加载预览。首次读取视频可能需要建立 .lwi 等索引，请稍候，无需重复点击。",
         "Loading preview. The first read may need to build an index such as .lwi. Please wait; no need to click again.");
@@ -331,8 +350,8 @@ public sealed class AppText
     public string VapourSynthPreviewCopyFrameButton => Pick("复制帧", "Copy Frame");
     public string VapourSynthPreviewFilterHeader => Pick("预览滤镜", "Preview Filter");
     public string VapourSynthPreviewFilterHint => Pick(
-        "按 F 切换滤镜，按 Shift+F 反向切换。亮度和色度取自当前预览画面。",
-        "Press F to cycle filters or Shift+F to cycle backward. Luma and chroma are derived from the preview image.");
+        "按 F 切换滤镜，按 Shift+F 反向切换；点开菜单可切换单平面、HDR 预览映射与源诊断。",
+        "Press F / Shift+F to cycle filters, or open the menu for raw planes, HDR tone mapping, and diagnostics.");
 
     internal string VapourSynthPreviewFilterLabel(PreviewDisplayFilter filter) => filter switch
     {
@@ -341,12 +360,37 @@ public sealed class AppText
         PreviewDisplayFilter.Solar1 => "Solar ×1",
         PreviewDisplayFilter.Solar2 => "Solar ×2",
         PreviewDisplayFilter.Residual => Pick("残差", "Residual"),
+        PreviewDisplayFilter.ShadowBoost => Pick("暗场提亮", "Shadow Boost"),
+        PreviewDisplayFilter.LegalRangeAlert => Pick("范围越界", "Legal Range"),
+        PreviewDisplayFilter.EdgeHighlight => Pick("边缘高亮", "Edge Highlight"),
         _ => Pick("原图", "Original")
     };
+    public string VapourSynthPreviewPlaneSubmenuHeader => Pick("原始平面", "Raw Plane");
+    public string VapourSynthPreviewPlaneModeLabel(PreviewPlaneMode mode) => mode switch
+    {
+        PreviewPlaneMode.Y => Pick("Y 亮度平面", "Y Luma Plane"),
+        PreviewPlaneMode.U => Pick("U 色度平面", "U Chroma Plane"),
+        PreviewPlaneMode.V => Pick("V 色度平面", "V Chroma Plane"),
+        _ => Pick("完整画面 (RGB)", "Full Image (RGB)")
+    };
+    public string VapourSynthPreviewHdrToneMapToggle => Pick("HDR 转 SDR 预览映射", "HDR to SDR Tone Map");
+    public string VapourSynthPreviewHdrTargetNitsSubmenuHeader => Pick("HDR 映射亮度", "HDR Target Peak");
+    public string VapourSynthPreviewHdrBannerMessage(string? transferName) => IsChinese
+        ? (string.IsNullOrWhiteSpace(transferName)
+            ? "检测到 HDR 画面，预览映射默认关闭，可按需开启。"
+            : $"检测到 HDR 画面（{transferName}），预览映射默认关闭，可按需开启。")
+        : (string.IsNullOrWhiteSpace(transferName)
+            ? "HDR source detected. Preview tone mapping is off by default."
+            : $"HDR source detected ({transferName}). Preview tone mapping is off by default.");
+    public string VapourSynthPreviewHdrBannerEnableButton => Pick("开启映射", "Enable");
+    public string VapourSynthPreviewHdrBannerDismissButton => Pick("关闭提示", "Dismiss");
+    public string VapourSynthPreviewSeparateFieldsToggle => Pick("分场检查（顶/底场）", "Separate Fields (Top/Bottom)");
+    public string VapourSynthPreviewFftSpectrumToggle => Pick("FFT 频谱", "FFT Spectrum");
+    public string VapourSynthPreviewExportMenuTooltip => Pick("保存当前帧，或展开选择复制与批量导出", "Save current frame, or open menu to copy or export all outputs");
     public string VapourSynthPreviewCompareHeader => Pick("对比", "Compare");
     public string VapourSynthPreviewCompareHint => Pick(
-        "按 C 切换对比模式，按 X 交换输出 A/B，按 Shift+0-9 切换输出 B。",
-        "Press C to cycle compare modes, X to swap A/B, or Shift+0-9 to select Output B.");
+        "按 C 切换对比模式，按住 Tab 瞬切 A/B，按 X 交换 A/B，Alt+, / Alt+. 调 B 路帧偏移。",
+        "Press C to cycle compare modes, hold Tab to flip A/B, X to swap A/B, Alt+, / Alt+. to nudge Output B offset.");
     public string VapourSynthPreviewCompareNeedsTwoOutputsHint => Pick(
         "脚本需要至少 2 个 set_output 输出才能对比。",
         "Expose at least 2 set_output clips to compare outputs.");
@@ -355,8 +399,179 @@ public sealed class AppText
         PreviewCompareMode.Wipe => Pick("卷帘对比", "Wipe Split"),
         PreviewCompareMode.SideBySide => Pick("左右并排", "Side by Side"),
         PreviewCompareMode.Difference => Pick("差异图", "Difference"),
+        PreviewCompareMode.Flicker => Pick("闪烁对比", "Flicker"),
         _ => Pick("单图", "Single")
     };
+    public string VapourSynthPreviewCompareDiffStyleHeader => Pick("样式", "Style");
+    public string VapourSynthPreviewCompareDiffStyleLabel(PreviewDifferenceStyle style) => style switch
+    {
+        PreviewDifferenceStyle.Heatmap => Pick("热力图", "Heatmap"),
+        PreviewDifferenceStyle.Signed => Pick("有符号", "Signed"),
+        _ => Pick("绝对差值", "Absolute")
+    };
+    public string VapourSynthPreviewFlickerIntervalHeader => Pick("频率", "Interval");
+    public string VapourSynthPreviewFlickerIntervalLabel(int milliseconds) => $"{milliseconds / 1000.0:0.0}s";
+    public string VapourSynthPreviewAlignFlyoutButton(int frameOffset) => frameOffset == 0
+        ? VapourSynthPreviewCompareSizeAlignmentHeader
+        : $"{VapourSynthPreviewCompareSizeAlignmentHeader} ({(frameOffset > 0 ? "+" : string.Empty)}{frameOffset}f)";
+    public string VapourSynthPreviewFrameOffsetHeader => Pick("B 路帧偏移", "Output B Frame Offset");
+    public string VapourSynthPreviewFrameOffsetHint => Pick("支持快捷键 Alt+, / Alt+. 单帧微调，无需重载脚本。", "Use Alt+, / Alt+. to step by 1 frame without reloading.");
+    public string VapourSynthPreviewResetOffsetButton => Pick("归零", "Reset");
+    public string VapourSynthPreviewCopyAlignSnippetButton => Pick("复制 .vpy 对齐代码", "Copy .vpy Alignment");
+    public string VapourSynthPreviewCopyAlignSnippetStatus => Pick("已复制对齐代码。", "Alignment snippet copied.");
+    public string VapourSynthPreviewAlignFlyoutButton(int frameOffset, double subpixelX, double subpixelY)
+    {
+        var parts = new System.Collections.Generic.List<string>(2);
+        if (frameOffset != 0)
+        {
+            parts.Add($"{(frameOffset > 0 ? "+" : string.Empty)}{frameOffset}f");
+        }
+        if (Math.Abs(subpixelX) >= 0.005 || Math.Abs(subpixelY) >= 0.005)
+        {
+            parts.Add($"{subpixelX:0.##},{subpixelY:0.##}px");
+        }
+        return parts.Count == 0
+            ? VapourSynthPreviewCompareSizeAlignmentHeader
+            : $"{VapourSynthPreviewCompareSizeAlignmentHeader} ({string.Join(" · ", parts)})";
+    }
+    public string VapourSynthPreviewAutoTemporalAlignButton => Pick("自动时间对齐", "Auto Temporal Sync");
+    public string VapourSynthPreviewAutoSpatialAlignButton => Pick("自动空间对齐", "Auto Subpixel Align");
+    public string VapourSynthPreviewSearchRadiusHeader => Pick("搜索范围", "Search Range");
+    public string VapourSynthPreviewSubpixelOffsetHeader => Pick("B 路空间亚像素偏移 (px)", "Output B Subpixel Offset (px)");
+    public string VapourSynthPreviewTemporalAligningStatus => Pick("正在计算时间轴对齐…", "Calculating temporal alignment...");
+    public string VapourSynthPreviewSpatialAligningStatus => Pick("正在计算空间亚像素对齐…", "Calculating spatial subpixel alignment...");
+    public string VapourSynthPreviewTemporalAlignedStatus(int offset, double confidence, double elapsedMs, bool hasDrift, string? driftSummary) =>
+        IsChinese
+            ? (hasDrift
+                ? $"时间对齐完成：{(offset > 0 ? "+" : string.Empty)}{offset} 帧（置信度 {confidence:P0}，{elapsedMs:0} ms）· 检测到偏移漂移：{driftSummary}"
+                : $"时间对齐完成：{(offset > 0 ? "+" : string.Empty)}{offset} 帧（置信度 {confidence:P0}，{elapsedMs:0} ms）。")
+            : (hasDrift
+                ? $"Temporal sync: {(offset > 0 ? "+" : string.Empty)}{offset}f (conf {confidence:P0}, {elapsedMs:0} ms) · Drift detected: {driftSummary}"
+                : $"Temporal sync: {(offset > 0 ? "+" : string.Empty)}{offset}f (conf {confidence:P0}, {elapsedMs:0} ms).");
+    public string VapourSynthPreviewSpatialAlignedStatus(double dx, double dy, double confidence, double elapsedMs) =>
+        IsChinese
+            ? $"空间对齐完成：dX={dx:0.###} px, dY={dy:0.###} px（置信度 {confidence:P0}，{elapsedMs:0} ms）。"
+            : $"Spatial sync: dX={dx:0.###} px, dY={dy:0.###} px (conf {confidence:P0}, {elapsedMs:0} ms).";
+    public string VapourSynthPreviewAlignFailedStatus(string detail) =>
+        IsChinese ? $"自动对齐失败：{detail}" : $"Auto alignment failed: {detail}";
+    public string VapourSynthPreviewPipetteButton => Pick("吸管", "Pipette");
+    public string VapourSynthPreviewPipetteHint => Pick(
+        "开启后在画面悬停可查看像素值，单击可锁定坐标并读取原始位深 YUV/RGB。",
+        "Hover over the image to inspect RGB/delta; click to lock coordinates and read native bit-depth YUV/RGB.");
+    public string VapourSynthPreviewPipetteIdleText => Pick("移动鼠标到画面上查看像素值，单击锁定。", "Move pointer over image to sample; click to lock.");
+    public string VapourSynthPreviewPipetteLockedTag => Pick("已锁定", "Locked");
+    public string VapourSynthPreviewInspectorButton => Pick("检查器", "Inspector");
+    public string VapourSynthPreviewInspectorTabProps => Pick("属性", "Props");
+    public string VapourSynthPreviewInspectorTabScopes => Pick("示波器", "Scopes");
+    public string VapourSynthPreviewScopeHistogram => Pick("直方图", "Histogram");
+    public string VapourSynthPreviewScopeWaveform => Pick("波形", "Waveform");
+    public string VapourSynthPreviewScopeVectorscope => Pick("矢量", "Vector");
+    public string VapourSynthPreviewScopeSourceA => Pick("A 路", "Output A");
+    public string VapourSynthPreviewScopeSourceB => Pick("B 路", "Output B");
+    public string VapourSynthPreviewScopeHint => Pick(
+        "仅在展开示波器页签时计算；参考线标记 16 / 235 合法范围。",
+        "Computed only while Scopes is open. Guides mark 16 / 235 legal range.");
+    public string VapourSynthPreviewInspectorTabBasket => Pick("对比篮", "Basket");
+    public string VapourSynthPreviewBookmarkFrameMenu => Pick("收藏当前帧 (B)", "Bookmark Frame (B)");
+    public string VapourSynthPreviewOpenBasketMenu => Pick("对比篮 / 导出 HTML / slow.pics", "Compare Basket / HTML / slow.pics");
+    public string VapourSynthPreviewBasketAddCurrentButton => Pick("收藏当前帧", "Add Current");
+    public string VapourSynthPreviewBasketSampleButton => Pick("片中抽 8 帧", "Sample 8");
+    public string VapourSynthPreviewBasketClearButton => Pick("清空", "Clear");
+    public string VapourSynthPreviewBasketEmptyHint => Pick(
+        "按 B 收藏当前帧，或点“片中抽 8 帧”快速填充。随后可一键导出离线 HTML 对比页或上传到 slow.pics。",
+        "Press B to bookmark frames or click Sample 8, then export an offline HTML comparison or upload to slow.pics.");
+    public string VapourSynthPreviewBasketModeHint(int frameCount) => IsChinese
+        ? (frameCount <= PreviewComparisonExportCoordinator.AutoSingleFileFrameThreshold
+            ? $"当前 {frameCount} 帧（≤ 10 帧默认导出单文件便携 HTML）"
+            : $"当前 {frameCount} 帧（> 10 帧默认导出文件夹模式，避免大图卡顿）")
+        : (frameCount <= PreviewComparisonExportCoordinator.AutoSingleFileFrameThreshold
+            ? $"{frameCount} frame(s) (<= 10: single self-contained HTML)"
+            : $"{frameCount} frame(s) (> 10: folder mode with images/)");
+    public string VapourSynthPreviewExportHtmlButton => Pick("导出离线 HTML", "Export Offline HTML");
+    public string VapourSynthPreviewUploadSlowPicsButton => Pick("上传到 slow.pics", "Upload to slow.pics");
+    public string VapourSynthPreviewBookmarkedAddedStatus(int frame, int total) =>
+        IsChinese ? $"已收藏第 {frame} 帧到对比篮（共 {total} 帧）。" : $"Bookmarked frame {frame} ({total} total).";
+    public string VapourSynthPreviewBookmarkedRemovedStatus(int frame, int total) =>
+        IsChinese ? $"已从对比篮移除第 {frame} 帧（剩余 {total} 帧）。" : $"Removed frame {frame} from basket ({total} left).";
+    public string VapourSynthPreviewBasketExportingStatus(int totalImages) =>
+        IsChinese ? $"正在高速导出 {totalImages} 张无损 PNG…" : $"Exporting {totalImages} lossless PNG frames...";
+    public string VapourSynthPreviewHtmlExportedStatus(string path, int count, double elapsedMs) =>
+        IsChinese ? $"离线对比页已导出（{count} 张图，{elapsedMs / 1000.0:0.0}s）：{path}" : $"Offline HTML exported ({count} images, {elapsedMs / 1000.0:0.0}s): {path}";
+    public string VapourSynthPreviewSlowPicsDialogTitle => Pick("上传对比图到 slow.pics", "Upload Comparison to slow.pics");
+    public string VapourSynthPreviewSlowPicsCollectionHeader => Pick("对比标题", "Collection Title");
+    public string VapourSynthPreviewSlowPicsPublicToggle => Pick("公开显示在 slow.pics 列表（默认仅持链接可见）", "List publicly on slow.pics (off = unlisted by default)");
+    public string VapourSynthPreviewSlowPicsOptimizeToggle => Pick("允许 slow.pics 压缩优化图片体积", "Allow slow.pics to optimize image size");
+    public string VapourSynthPreviewSlowPicsConfirmSummary(int frames, int outputs) => IsChinese
+        ? $"即将渲染并上传 {frames} 组画面 × {outputs} 路输出（共 {frames * outputs} 张无损 PNG）。本地 PNG 副本也会保留在导出目录中。"
+        : $"Will render and upload {frames} frame(s) x {outputs} output(s) ({frames * outputs} lossless PNGs). Local PNG copies are kept.";
+    public string VapourSynthPreviewSlowPicsConfirmButton => Pick("确认上传", "Upload");
+    public string VapourSynthPreviewSlowPicsUploadingStatus => Pick("正在上传到 slow.pics…", "Uploading to slow.pics...");
+    public string VapourSynthPreviewSlowPicsSuccessStatus(string url) =>
+        IsChinese ? $"上传成功，已复制链接：{url}" : $"Uploaded and copied link: {url}";
+    public string VapourSynthPreviewSlowPicsFailedStatus(string error, string localDir) =>
+        IsChinese ? $"slow.pics 上传失败（{error}），本地 PNG 已保留在：{localDir}" : $"slow.pics upload failed ({error}). Local PNGs saved at: {localDir}";
+    public string VapourSynthPreviewInspectorTabWorst => Pick("检错", "QC");
+    public string VapourSynthPreviewInspectorTabScenes => Pick("场景", "Scenes");
+    public string VapourSynthPreviewWorstSkipHeader => Pick("跳过首尾", "Skip Ends");
+    public string VapourSynthPreviewWorstSamplesHeader => Pick("抽样帧数", "Samples");
+    public string VapourSynthPreviewWorstMetricHeader => Pick("指标", "Metric");
+    public string VapourSynthPreviewWorstStartButton => Pick("开始片中抽样检测", "Run Mid-Clip Scan");
+    public string VapourSynthPreviewWorstSendToBasketButton => Pick("加入对比篮", "Send to Basket");
+    public string VapourSynthPreviewWorstIdleHint => Pick(
+        "默认不自动运行。点击后跳过片头片尾各 10 分钟（短片自动改跳首尾 10%），仅对片中抽样帧算分，点击结果可直接跳帧复核。",
+        "Runs only on demand. Skips 10 min from start/end (10% on short clips), scores sampled mid-clip frames, and jumps on click.");
+    public string VapourSynthPreviewWorstScanningStatus(int sampleCount, double appliedSkipMinutes, bool adjusted) => IsChinese
+        ? (adjusted
+            ? $"正在片中抽样检测 {sampleCount} 帧（短片已自动调整为跳过首尾各 {appliedSkipMinutes:0.#} 分钟）…"
+            : $"正在片中抽样检测 {sampleCount} 帧（跳过首尾各 {appliedSkipMinutes:0.#} 分钟）…")
+        : (adjusted
+            ? $"Scanning {sampleCount} sampled frames (short clip: skipping {appliedSkipMinutes:0.#} min each end)..."
+            : $"Scanning {sampleCount} sampled frames (skipping {appliedSkipMinutes:0.#} min each end)...");
+    public string VapourSynthPreviewWorstSummary(string metric, string backend, int count, double median, double p10, double min, double elapsedMs) => IsChinese
+        ? $"{metric}（{backend}）· {count} 帧 · {elapsedMs / 1000.0:0.0}s | 中位 {median:0.##} · P10 {p10:0.##} · 最低 {min:0.##}"
+        : $"{metric} ({backend}) · {count}f · {elapsedMs / 1000.0:0.0}s | Med {median:0.##} · P10 {p10:0.##} · Min {min:0.##}";
+    public string VapourSynthPreviewWorstAddedToBasketStatus(int count) =>
+        IsChinese ? $"已将前 {count} 个最差帧加入对比篮。" : $"Added top {count} worst frames to Compare Basket.";
+    public string VapourSynthPreviewWorstFailedStatus(string error) =>
+        IsChinese ? $"抽样检测失败：{error}" : $"Worst-frame scan failed: {error}";
+    public string VapourSynthPreviewSceneMarkInButton => Pick("起点 (I)", "In (I)");
+    public string VapourSynthPreviewSceneMarkOutButton => Pick("终点 (O)", "Out (O)");
+    public string VapourSynthPreviewSceneEmptyHint => Pick(
+        "按 I 记下起点帧，再按 O 记下终点帧即可添加场景区间；支持一键复制 replace_ranges、x264/x265 --zones 与 Av1an zones。",
+        "Press I for start and O for end to add scene ranges, then copy replace_ranges, --zones, or Av1an zones.");
+    public string VapourSynthPreviewScenePendingInText(int startFrame) =>
+        IsChinese ? $"当前起点：#{startFrame}（移动至终点后按 O 添加）" : $"Pending In: #{startFrame} (seek and press O to finish)";
+    public string VapourSynthPreviewSceneCopyReplaceRangesButton => Pick("复制 replace_ranges", "Copy replace_ranges");
+    public string VapourSynthPreviewSceneCopyZonesButton => Pick("复制 --zones", "Copy --zones");
+    public string VapourSynthPreviewSceneCopyAv1anZonesButton => Pick("复制 Av1an zones", "Copy Av1an zones");
+    public string VapourSynthPreviewSceneCopiedStatus => Pick("已复制场景区间代码。", "Scene ranges copied.");
+    public string VapourSynthPreviewAutoCropButton => Pick("自动黑边", "AutoCrop");
+    public string VapourSynthPreviewCopyCropBbmodButton => Pick("Crop+bbmod", "Crop+bbmod");
+    public string VapourSynthPreviewAutoCropRunningStatus => Pick("正在片中抽样检测黑边…", "Detecting letterbox borders...");
+    public string VapourSynthPreviewAutoCropDoneStatus(int left, int top, int right, int bottom, double elapsedMs) => IsChinese
+        ? $"自动黑边检测完成：左 {left}、上 {top}、右 {right}、下 {bottom}（{elapsedMs:0} ms）。"
+        : $"AutoCrop: L={left}, T={top}, R={right}, B={bottom} ({elapsedMs:0} ms).";
+    public string VapourSynthPreviewAutoCropFailedStatus(string error) =>
+        IsChinese ? $"自动黑边检测失败：{error}" : $"AutoCrop failed: {error}";
+    public string VapourSynthPreviewInsertToEditorButton => Pick("插回编辑器", "Insert to Editor");
+    public string VapourSynthPreviewInsertReplaceRangesButton => Pick("插回 replace_ranges", "Insert replace_ranges");
+    public string VapourSynthPreviewSmartInsertedStatus(string variableName, int lineNumber, bool updatedInPlace) => IsChinese
+        ? (updatedInPlace
+            ? $"已原地更新 {variableName} 的语句（第 {lineNumber} 行），按 Ctrl+Z 可撤销。"
+            : $"已智能插入到 {variableName}（第 {lineNumber} 行），按 Ctrl+Z 可撤销。")
+        : (updatedInPlace
+            ? $"Updated {variableName} in place (line {lineNumber}). Press Ctrl+Z in editor to undo."
+            : $"Inserted for {variableName} (line {lineNumber}). Press Ctrl+Z in editor to undo.");
+    public string VapourSynthPreviewNoBoundEditorFallbackStatus => Pick(
+        "当前为临时快速对比会话，未绑定脚本，已将代码复制到剪贴板。",
+        "No script tab is bound to this quick compare session; code copied to clipboard instead.");
+    public string VapourSynthPreviewQuickCompareTitle(string nameA, string nameB) => $"{nameA} vs {nameB}";
+    public string VapourSynthPreviewDropCompareLoadingStatus(string nameA, string nameB) => IsChinese
+        ? $"正在加载对比：{nameA} vs {nameB}…"
+        : $"Loading comparison: {nameA} vs {nameB}...";
+    public string VapourSynthPreviewDropCompareUnsupportedStatus => Pick(
+        "请拖入视频文件或 VapourSynth 脚本（.vpy / .py）进行对比。",
+        "Drop a video file or VapourSynth script (.vpy / .py) to compare.");
     public string VapourSynthPreviewCompareOutputAHeader => Pick("输出 A", "Output A");
     public string VapourSynthPreviewCompareOutputBHeader => Pick("输出 B", "Output B");
     public string VapourSynthPreviewCompareSwapButton => Pick("交换 A/B", "Swap A/B");
@@ -669,6 +884,7 @@ public sealed class AppText
     public string JobMenuCancel => Pick("取消任务", "Cancel Job");
     public string JobMenuRestart => Pick("重启任务", "Restart Job");
     public string JobMenuDelete => Pick("删除任务", "Delete Job");
+    public string JobMenuCompareWithSource => Pick("与源文件对比", "Compare with Source");
     public string QueueEnterSelectionModeButton => Pick("批量选择", "Batch Select");
     public string QueueExitSelectionModeButton => Pick("完成", "Done");
     public string QueueSelectAllButton => Pick("全选", "Select All");

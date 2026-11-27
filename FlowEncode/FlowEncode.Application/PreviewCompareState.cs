@@ -9,7 +9,15 @@ public enum PreviewCompareMode
     Single,
     Wipe,
     SideBySide,
-    Difference
+    Difference,
+    Flicker
+}
+
+public enum PreviewDifferenceStyle
+{
+    Absolute,
+    Heatmap,
+    Signed
 }
 
 public enum PreviewDifferenceGain
@@ -18,6 +26,65 @@ public enum PreviewDifferenceGain
     X4,
     X16,
     Boost
+}
+
+public enum PreviewPlaneMode
+{
+    Rgb,
+    Y,
+    U,
+    V
+}
+
+public sealed record PreviewRenderOptions(
+    PreviewPlaneMode PlaneMode = PreviewPlaneMode.Rgb,
+    bool ToneMapHdr = false,
+    double ToneMapTargetNits = 203.0,
+    bool SeparateFields = false,
+    bool FftSpectrum = false,
+    double SubpixelOffsetX = 0.0,
+    double SubpixelOffsetY = 0.0)
+{
+    public static PreviewRenderOptions Default { get; } = new();
+
+    public bool IsDefault =>
+        PlaneMode == PreviewPlaneMode.Rgb
+        && !ToneMapHdr
+        && !SeparateFields
+        && !FftSpectrum
+        && Math.Abs(SubpixelOffsetX) < 0.0001
+        && Math.Abs(SubpixelOffsetY) < 0.0001;
+
+    public string ToPlaneModeWireValue() => PlaneMode switch
+    {
+        PreviewPlaneMode.Y => "y",
+        PreviewPlaneMode.U => "u",
+        PreviewPlaneMode.V => "v",
+        _ => "rgb"
+    };
+
+    public static bool IsHdrTransferProperties(IReadOnlyList<VapourSynthPreviewFrameProperty>? properties)
+    {
+        if (properties is null || properties.Count == 0)
+        {
+            return false;
+        }
+
+        foreach (var property in properties)
+        {
+            if (string.Equals(property.Key, "_Transfer", StringComparison.Ordinal))
+            {
+                var value = property.Value?.Trim();
+                if (string.Equals(value, "16", StringComparison.Ordinal)
+                    || string.Equals(value, "18", StringComparison.Ordinal))
+                {
+                    return true;
+                }
+            }
+        }
+
+        return false;
+    }
 }
 
 public enum PreviewCompareSizeAlignment
@@ -45,7 +112,8 @@ public static class PreviewCompareCoordinator
         PreviewCompareMode.Single,
         PreviewCompareMode.Wipe,
         PreviewCompareMode.SideBySide,
-        PreviewCompareMode.Difference
+        PreviewCompareMode.Difference,
+        PreviewCompareMode.Flicker
     ];
 
     public static bool CanCompare(int outputCount) => outputCount >= 2;
@@ -121,7 +189,8 @@ public static class PreviewCompareCoordinator
         VapourSynthPreviewOutputInfo secondaryOutput,
         int primaryFrameNumber,
         string? outputSyncMode,
-        bool isTimelineTimeMode)
+        bool isTimelineTimeMode,
+        int secondaryFrameOffset = 0)
     {
         ArgumentNullException.ThrowIfNull(primaryOutput);
         ArgumentNullException.ThrowIfNull(secondaryOutput);
@@ -132,16 +201,49 @@ public static class PreviewCompareCoordinator
         var useTimestamp = string.Equals(outputSyncMode, "time", StringComparison.OrdinalIgnoreCase)
             || (string.Equals(outputSyncMode, "timeline", StringComparison.OrdinalIgnoreCase) && isTimelineTimeMode);
 
+        int baseSecondaryFrame;
         if (!useTimestamp)
         {
-            return Math.Clamp(clampedPrimary, 0, maxSecondaryFrame);
+            baseSecondaryFrame = clampedPrimary;
+        }
+        else
+        {
+            var primaryFps = ResolveFps(primaryOutput);
+            var secondaryFps = ResolveFps(secondaryOutput);
+            var timestampSeconds = clampedPrimary / primaryFps;
+            baseSecondaryFrame = (int)Math.Round(timestampSeconds * secondaryFps);
         }
 
-        var primaryFps = ResolveFps(primaryOutput);
-        var secondaryFps = ResolveFps(secondaryOutput);
-        var timestampSeconds = clampedPrimary / primaryFps;
-        var mappedFrame = (int)Math.Round(timestampSeconds * secondaryFps);
-        return Math.Clamp(mappedFrame, 0, maxSecondaryFrame);
+        return Math.Clamp(baseSecondaryFrame + secondaryFrameOffset, 0, maxSecondaryFrame);
+    }
+
+    public static string FormatAlignmentScriptSnippet(
+        int secondaryFrameOffset,
+        double subpixelOffsetX = 0.0,
+        double subpixelOffsetY = 0.0,
+        string clipVariableName = "clip_b")
+    {
+        var lines = new List<string>();
+        if (secondaryFrameOffset > 0)
+        {
+            lines.Add($"{clipVariableName} = {clipVariableName}[{secondaryFrameOffset}:]");
+        }
+        else if (secondaryFrameOffset < 0)
+        {
+            var pad = -secondaryFrameOffset;
+            lines.Add($"{clipVariableName} = {clipVariableName}[0] * {pad} + {clipVariableName}");
+        }
+
+        if (Math.Abs(subpixelOffsetX) >= 0.0005 || Math.Abs(subpixelOffsetY) >= 0.0005)
+        {
+            lines.Add(string.Create(
+                System.Globalization.CultureInfo.InvariantCulture,
+                $"{clipVariableName} = {clipVariableName}.resize.Spline36(src_left={subpixelOffsetX:0.###}, src_top={subpixelOffsetY:0.###})"));
+        }
+
+        return lines.Count == 0
+            ? $"# {clipVariableName} is already aligned (offset=0)"
+            : string.Join(Environment.NewLine, lines);
     }
 
     public static double ClampSplitRatio(double ratio)

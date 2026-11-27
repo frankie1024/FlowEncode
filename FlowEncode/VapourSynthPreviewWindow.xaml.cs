@@ -80,6 +80,11 @@ public sealed partial class VapourSynthPreviewWindow : Window
     private int _previewDrawingSurfaceHeightDiff;
     private int _previewDrawingSurfaceWidthDiff;
     private PreviewDisplayFilter _previewFilter;
+    private PreviewRenderOptions _lastRenderOptions = PreviewRenderOptions.Default;
+    private PreviewRenderOptions _secondaryLastRenderOptions = PreviewRenderOptions.Default;
+    private CancellationTokenSource? _pipetteSampleCts;
+    private int _pipetteLockedX = -1;
+    private int _pipetteLockedY = -1;
     private bool _isClosed;
     private bool _isFullScreenActive;
     private bool _isInternalControlUpdate;
@@ -125,8 +130,12 @@ public sealed partial class VapourSynthPreviewWindow : Window
     private VapourSynthPreviewOutputInfo? _secondaryOutputInfo;
     private int _activeChapterIndex = -1;
     private int? _pendingNavigationFrame;
+    private AppLanguage _lastLanguage = AppLanguage.Chinese;
+    private AppThemePreference _lastThemePreference;
 
     public VapourSynthPreviewWindowViewModel ViewModel { get; }
+
+    public Func<Func<string, SmartScriptEditResult>, Task<SmartScriptEditResult?>>? SmartEditScriptAsync { get; set; }
 
     public event EventHandler? PreviewWindowClosed;
 
@@ -155,7 +164,9 @@ public sealed partial class VapourSynthPreviewWindow : Window
         BuildPreviewFilterMenu();
         BuildCompareModeMenu();
         _playbackTimer.Tick += PlaybackTimer_Tick;
+        _flickerTimer.Tick += FlickerTimer_Tick;
         _statusCommitTimer.Tick += StatusCommitTimer_Tick;
+        Activated += VapourSynthPreviewWindow_Activated;
         Closed += VapourSynthPreviewWindow_Closed;
         ViewModel.PropertyChanged += ViewModel_PropertyChanged;
         AttachFrameSliderInteractionHandlers();
@@ -171,6 +182,7 @@ public sealed partial class VapourSynthPreviewWindow : Window
     }
 
     private DispatcherTimer _playbackTimer { get; } = new();
+    private DispatcherTimer _flickerTimer { get; } = new() { Interval = TimeSpan.FromMilliseconds(500) };
     private DispatcherTimer _statusCommitTimer { get; } = new()
     {
         Interval = TimeSpan.FromMilliseconds(180)
@@ -179,7 +191,8 @@ public sealed partial class VapourSynthPreviewWindow : Window
     public async Task<bool> OpenOrRefreshAsync(
         VapourSynthPreviewOpenRequest request,
         AppLanguage language,
-        AppThemePreference themePreference)
+        AppThemePreference themePreference,
+        PreviewCompareMode? initialCompareMode = null)
     {
         if (_previewLifetimeToken.IsCancellationRequested)
         {
@@ -192,11 +205,24 @@ public sealed partial class VapourSynthPreviewWindow : Window
         if (shouldResetChapters)
         {
             _activeChapterIndex = -1;
+            ViewModel.SecondaryFrameOffset = 0;
+            ViewModel.SubpixelOffsetX = 0;
+            ViewModel.SubpixelOffsetY = 0;
+            ViewModel.AlignStatusText = string.Empty;
+            ViewModel.BookmarkedFrames.Clear();
+            ViewModel.BasketStatusText = string.Empty;
+            ViewModel.NotifyBasketChanged();
+            ViewModel.WorstFrameResults.Clear();
+            ViewModel.WorstScanStatusText = string.Empty;
+            ViewModel.NotifyWorstScanResultsChanged();
+            ViewModel.SceneRanges.Clear();
+            ViewModel.PendingSceneStartFrame = null;
+            ViewModel.NotifySceneRangesChanged();
             ViewModel.ReplaceChapters([]);
         }
 
         ApplyPresentation(language, themePreference);
-        var loaded = await LoadSessionAsync(preserveCurrentFrame: true);
+        var loaded = await LoadSessionAsync(preserveCurrentFrame: !shouldResetChapters, initialCompareMode: initialCompareMode);
         if (_previewLifetimeToken.IsCancellationRequested)
         {
             return false;
@@ -266,6 +292,8 @@ public sealed partial class VapourSynthPreviewWindow : Window
         AppLanguage language,
         AppThemePreference themePreference)
     {
+        _lastLanguage = language;
+        _lastThemePreference = themePreference;
         ViewModel.ApplyLanguage(language);
         BuildPreviewFilterMenu();
         BuildCompareModeMenu();
@@ -275,7 +303,101 @@ public sealed partial class VapourSynthPreviewWindow : Window
         QueueAttachPreviewNumberBoxEditorHandlers();
     }
 
-    private async Task<bool> LoadSessionAsync(bool preserveCurrentFrame)
+    private void RootLayout_DragOver(object sender, DragEventArgs e)
+    {
+        if (e.DataView.Contains(StandardDataFormats.StorageItems))
+        {
+            e.AcceptedOperation = DataPackageOperation.Copy;
+        }
+        else
+        {
+            e.AcceptedOperation = DataPackageOperation.None;
+        }
+    }
+
+    private async void RootLayout_Drop(object sender, DragEventArgs e)
+    {
+        await RunWindowEventHandlerAsync(
+            nameof(RootLayout_Drop),
+            async () =>
+            {
+                if (!e.DataView.Contains(StandardDataFormats.StorageItems))
+                {
+                    return;
+                }
+
+                var items = await e.DataView.GetStorageItemsAsync();
+                var files = items
+                    .OfType<Windows.Storage.StorageFile>()
+                    .Where(static file =>
+                    {
+                        var kind = AppLaunchActivation.ClassifyFilePath(file.Path);
+                        return kind is DragDropPayloadType.Video or DragDropPayloadType.Script;
+                    })
+                    .ToList();
+
+                if (files.Count == 0)
+                {
+                    SetStatusText(ViewModel.Texts.VapourSynthPreviewDropCompareUnsupportedStatus);
+                    return;
+                }
+
+                string sourceAPath;
+                string sourceBPath;
+                string labelA;
+                string labelB;
+
+                if (files.Count >= 2)
+                {
+                    sourceAPath = Path.GetFullPath(files[0].Path);
+                    sourceBPath = Path.GetFullPath(files[1].Path);
+                    labelA = Path.GetFileName(sourceAPath);
+                    labelB = Path.GetFileName(sourceBPath);
+                }
+                else
+                {
+                    sourceBPath = Path.GetFullPath(files[0].Path);
+                    labelB = Path.GetFileName(sourceBPath);
+
+                    if (!string.IsNullOrWhiteSpace(_currentRequest?.SourceFilePath) && File.Exists(_currentRequest.SourceFilePath))
+                    {
+                        sourceAPath = Path.GetFullPath(_currentRequest.SourceFilePath);
+                        labelA = Path.GetFileName(sourceAPath);
+                    }
+                    else if (!string.IsNullOrWhiteSpace(_currentRequest?.Content))
+                    {
+                        var tempDir = Path.Combine(_appPaths.DataRootPath, "vapoursynth-preview");
+                        Directory.CreateDirectory(tempDir);
+                        sourceAPath = Path.Combine(tempDir, "drop-compare-source.vpy");
+                        await File.WriteAllTextAsync(sourceAPath, _currentRequest.Content, new System.Text.UTF8Encoding(false));
+                        labelA = string.IsNullOrWhiteSpace(_currentRequest.DisplayName) ? "Current" : _currentRequest.DisplayName;
+                    }
+                    else
+                    {
+                        SetStatusText(ViewModel.Texts.VapourSynthPreviewDropCompareUnsupportedStatus);
+                        return;
+                    }
+                }
+
+                SetStatusText(ViewModel.Texts.VapourSynthPreviewDropCompareLoadingStatus(labelA, labelB));
+                var compareScript = PreviewCompareScriptBuilder.BuildTwoSourceCompareScript(sourceAPath, sourceBPath, labelA, labelB);
+                var workingDir = Path.GetDirectoryName(sourceBPath) ?? Path.GetDirectoryName(sourceAPath) ?? AppContext.BaseDirectory;
+                var displayName = ViewModel.Texts.VapourSynthPreviewQuickCompareTitle(labelA, labelB);
+                var compareRequest = new VapourSynthPreviewOpenRequest(
+                    null,
+                    displayName,
+                    compareScript,
+                    workingDir);
+                SmartEditScriptAsync = null;
+                await OpenOrRefreshAsync(
+                    compareRequest,
+                    _lastLanguage,
+                    _lastThemePreference,
+                    initialCompareMode: PreviewCompareMode.Wipe);
+            });
+    }
+
+    private async Task<bool> LoadSessionAsync(bool preserveCurrentFrame, PreviewCompareMode? initialCompareMode = null)
     {
         if (_currentRequest is null || _previewLifetimeToken.IsCancellationRequested)
         {
@@ -301,11 +423,21 @@ public sealed partial class VapourSynthPreviewWindow : Window
         {
             _currentSession = await _previewService.OpenSessionAsync(_currentRequest, _previewLifetimeToken);
             _previewLifetimeToken.ThrowIfCancellationRequested();
+            ViewModel.ApplySessionCapabilities(
+                _currentSession.HasVsAlign,
+                _currentSession.HasVmafCambi,
+                _currentSession.HasNativeRes);
             ViewModel.ResetForSession(
                 _currentRequest.DisplayName,
                 ViewModel.Texts.VapourSynthPreviewSessionReadyStatus,
                 _currentSession.Outputs);
             PruneOutputStates(_currentSession.Outputs);
+            if (initialCompareMode is { } targetCompareMode && ViewModel.CanCompareOutputs)
+            {
+                ViewModel.CompareMode = PreviewCompareCoordinator.NormalizeMode(targetCompareMode, ViewModel.Outputs.Count);
+                UpdateCompareModeSelection();
+                SyncFlickerTimer();
+            }
 
             var output = _currentSession.Outputs.FirstOrDefault(item => item.Index == previousOutputIndex)
                 ?? _currentSession.Outputs[0];
@@ -428,7 +560,8 @@ public sealed partial class VapourSynthPreviewWindow : Window
                     resolvedSecondary,
                     frameNumber,
                     ViewModel.SelectedOutputSyncMode?.Value,
-                    ViewModel.IsTimelineTimeMode);
+                    ViewModel.IsTimelineTimeMode,
+                    ViewModel.SecondaryFrameOffset);
             }
             else
             {
@@ -442,7 +575,9 @@ public sealed partial class VapourSynthPreviewWindow : Window
             frameNumber,
             compareMode,
             secondaryOutput,
-            secondaryFrameNumber);
+            secondaryFrameNumber,
+            ViewModel.CurrentRenderOptions,
+            ViewModel.SecondaryRenderOptions);
         return _frameRequestScheduler.ScheduleAsync(request);
     }
 
@@ -467,7 +602,8 @@ public sealed partial class VapourSynthPreviewWindow : Window
             if (_lastFrameData is { } cachedFrameA
                 && _sourceFramePixels is { } cachedPixelsA
                 && cachedFrameA.OutputIndex == request.OutputInfo.Index
-                && cachedFrameA.FrameNumber == request.FrameNumber)
+                && cachedFrameA.FrameNumber == request.FrameNumber
+                && _lastRenderOptions == request.RenderOptions)
             {
                 frameData = cachedFrameA;
                 loadedSourcePixels = cachedPixelsA;
@@ -477,12 +613,14 @@ public sealed partial class VapourSynthPreviewWindow : Window
                 frameData = await _previewService.RenderFrameAsync(
                     request.OutputInfo.Index,
                     request.FrameNumber,
+                    request.RenderOptions,
                     ConsumeReusableSourcePixels(),
                     _previewLifetimeToken);
                 helperRenderElapsed += frameData.HelperRenderElapsed;
                 transportReadElapsed += frameData.TransportReadElapsed;
                 loadedSourcePixels = frameData.Pixels;
                 ownsLoadedSourcePixels = true;
+                _lastRenderOptions = request.RenderOptions;
             }
 
             if (!IsActiveFrameRequest(request, scheduledRequest))
@@ -503,28 +641,33 @@ public sealed partial class VapourSynthPreviewWindow : Window
                 if (_secondaryLastFrameData is { } cachedFrameB
                     && _secondarySourceFramePixels is { } cachedPixelsB
                     && cachedFrameB.OutputIndex == secondaryOutput.Index
-                    && cachedFrameB.FrameNumber == secondaryFrameNumber)
+                    && cachedFrameB.FrameNumber == secondaryFrameNumber
+                    && _secondaryLastRenderOptions == request.SecondaryRenderOptions)
                 {
                     secondaryFrameData = cachedFrameB;
                     loadedSecondarySourcePixels = cachedPixelsB;
                 }
                 else if (secondaryOutput.Index == request.OutputInfo.Index
-                         && secondaryFrameNumber == request.FrameNumber)
+                         && secondaryFrameNumber == request.FrameNumber
+                         && request.SecondaryRenderOptions == request.RenderOptions)
                 {
                     secondaryFrameData = frameData;
                     loadedSecondarySourcePixels = loadedSourcePixels;
+                    _secondaryLastRenderOptions = request.SecondaryRenderOptions;
                 }
                 else
                 {
                     secondaryFrameData = await _previewService.RenderFrameAsync(
                         secondaryOutput.Index,
                         secondaryFrameNumber,
+                        request.SecondaryRenderOptions,
                         ConsumeReusableSecondarySourcePixels(),
                         _previewLifetimeToken);
                     helperRenderElapsed += secondaryFrameData.HelperRenderElapsed;
                     transportReadElapsed += secondaryFrameData.TransportReadElapsed;
                     loadedSecondarySourcePixels = secondaryFrameData.Pixels;
                     ownsLoadedSecondarySourcePixels = true;
+                    _secondaryLastRenderOptions = request.SecondaryRenderOptions;
                 }
             }
 
@@ -605,6 +748,12 @@ public sealed partial class VapourSynthPreviewWindow : Window
                         secondaryFrameData.FrameNumber)
                     : ViewModel.Texts.VapourSynthPreviewReadyStatus(request.OutputInfo.Index, request.FrameNumber));
             SyncControls();
+            InvalidateScopeCanvasIfVisible();
+            if (ViewModel.IsPipetteEnabled && ViewModel.IsPipetteLocked && _pipetteLockedX >= 0 && _pipetteLockedY >= 0)
+            {
+                UpdatePipetteFromMemory(_pipetteLockedX, _pipetteLockedY, isLocked: true);
+                _ = SampleNativePixelAsync(_pipetteLockedX, _pipetteLockedY, isLocked: true);
+            }
         }
         catch (OperationCanceledException) when (_previewLifetimeToken.IsCancellationRequested)
         {
@@ -874,8 +1023,14 @@ public sealed partial class VapourSynthPreviewWindow : Window
             CompareOutputAComboBox.SelectedItem = ViewModel.SelectedOutput;
             CompareOutputBComboBox.SelectedItem = ViewModel.SelectedSecondaryOutput;
             CompareModeComboBox.SelectedItem = ViewModel.SelectedCompareModeOption;
+            DifferenceStyleComboBox.SelectedItem = ViewModel.SelectedDifferenceStyleOption;
             DifferenceGainComboBox.SelectedItem = ViewModel.SelectedDifferenceGainOption;
+            FlickerIntervalComboBox.SelectedItem = ViewModel.SelectedFlickerIntervalOption;
             CompareSizeAlignmentComboBox.SelectedItem = ViewModel.SelectedSizeAlignmentOption;
+            SecondaryFrameOffsetBox.Value = ViewModel.SecondaryFrameOffset;
+            SubpixelOffsetXBox.Value = ViewModel.SubpixelOffsetX;
+            SubpixelOffsetYBox.Value = ViewModel.SubpixelOffsetY;
+            PipetteToggleButton.IsChecked = ViewModel.IsPipetteEnabled;
             UpdateCompareModeSelection();
             FrameNumberBox.Maximum = Math.Max(0, ViewModel.TotalFrames - 1);
             FrameNumberBox.Value = activeFrame;
@@ -891,7 +1046,7 @@ public sealed partial class VapourSynthPreviewWindow : Window
             ZoomRatioBox.Value = Math.Round(ViewModel.ZoomRatio * 100);
             ZoomRatioBox.Visibility = ViewModel.CustomZoomVisibility;
             FramePropsPanel.Visibility = ViewModel.IsFramePropsVisible ? Visibility.Visible : Visibility.Collapsed;
-            PropsColumn.Width = ViewModel.IsFramePropsVisible ? new GridLength(300) : new GridLength(0);
+            PropsColumn.Width = ViewModel.IsFramePropsVisible ? new GridLength(324) : new GridLength(0);
             FramePropsToggleButton.IsChecked = ViewModel.IsFramePropsVisible;
             CropToggleButton.IsChecked = ViewModel.IsCropPanelVisible;
             TimelineModeComboBox.SelectedItem = ViewModel.SelectedTimelineMode;
@@ -942,10 +1097,18 @@ public sealed partial class VapourSynthPreviewWindow : Window
             });
     }
 
-    private async void SaveSnapshotButton_Click(object sender, RoutedEventArgs e)
+    private async void SaveSnapshotButton_Click(SplitButton sender, SplitButtonClickEventArgs args)
     {
         await RunWindowEventHandlerAsync(
             nameof(SaveSnapshotButton_Click),
+            SaveCurrentSnapshotAsync,
+            ViewModel.Texts.VapourSynthPreviewSnapshotSaveFailedStatus);
+    }
+
+    private async void SaveSnapshotMenuItem_Click(object sender, RoutedEventArgs e)
+    {
+        await RunWindowEventHandlerAsync(
+            nameof(SaveSnapshotMenuItem_Click),
             SaveCurrentSnapshotAsync,
             ViewModel.Texts.VapourSynthPreviewSnapshotSaveFailedStatus);
     }
@@ -1095,6 +1258,19 @@ public sealed partial class VapourSynthPreviewWindow : Window
     private bool TryGetActiveSnapshotPixels(out byte[] pixels, out int width, out int height)
     {
         if (ViewModel.IsCompareModeActive
+            && (ViewModel.IsTemporaryFlipToB || (ViewModel.IsFlickerMode && ViewModel.IsShowingSecondaryInFlip))
+            && _secondaryDisplayedFramePixels is not null
+            && _secondaryDisplayedFrameWidth > 0
+            && _secondaryDisplayedFrameHeight > 0)
+        {
+            pixels = _secondaryDisplayedFramePixels;
+            width = _secondaryDisplayedFrameWidth;
+            height = _secondaryDisplayedFrameHeight;
+            return true;
+        }
+
+        if (ViewModel.IsCompareModeActive
+            && !ViewModel.IsFlickerMode
             && _previewCanvasDevice is not null
             && _cachedBitmapA is not null
             && _cachedBitmapB is not null)
@@ -1110,7 +1286,8 @@ public sealed partial class VapourSynthPreviewWindow : Window
                 ViewModel.SplitRatio,
                 GetCanvasImageInterpolation(),
                 _lastFrameData?.Properties,
-                _secondaryLastFrameData?.Properties);
+                _secondaryLastFrameData?.Properties,
+                ViewModel.DifferenceStyle);
             pixels = composite.Pixels;
             width = composite.Width;
             height = composite.Height;
@@ -1139,6 +1316,7 @@ public sealed partial class VapourSynthPreviewWindow : Window
     private void FramePropsToggleButton_Checked(object sender, RoutedEventArgs e)
     {
         UpdateFramePropsVisibility(true);
+        InvalidateScopeCanvasIfVisible();
     }
 
     private void FramePropsToggleButton_Unchecked(object sender, RoutedEventArgs e)
@@ -1594,6 +1772,29 @@ public sealed partial class VapourSynthPreviewWindow : Window
             QueueFocusPreviewSurface();
         }
 
+        if (ViewModel.IsPipetteEnabled && sender is ScrollViewer pipetteScrollViewer)
+        {
+            var ptProps = e.GetCurrentPoint(pipetteScrollViewer).Properties;
+            if (ptProps.IsRightButtonPressed)
+            {
+                ViewModel.IsPipetteLocked = false;
+                _pipetteLockedX = -1;
+                _pipetteLockedY = -1;
+                e.Handled = true;
+                return;
+            }
+            if (ptProps.IsLeftButtonPressed && TryResolveSourcePixelCoordinates(pipetteScrollViewer, e, out var px, out var py))
+            {
+                ViewModel.IsPipetteLocked = true;
+                _pipetteLockedX = px;
+                _pipetteLockedY = py;
+                UpdatePipetteFromMemory(px, py, isLocked: true);
+                _ = SampleNativePixelAsync(px, py, isLocked: true);
+                e.Handled = true;
+                return;
+            }
+        }
+
         if (e.Handled || sender is not ScrollViewer scrollViewer || !CanPanPreview(scrollViewer))
         {
             return;
@@ -1617,6 +1818,14 @@ public sealed partial class VapourSynthPreviewWindow : Window
 
     private void PreviewScrollViewer_PointerMoved(object sender, PointerRoutedEventArgs e)
     {
+        if (ViewModel.IsPipetteEnabled && !_isPreviewPanActive && !ViewModel.IsPipetteLocked && sender is ScrollViewer hoverScrollViewer)
+        {
+            if (TryResolveSourcePixelCoordinates(hoverScrollViewer, e, out var px, out var py))
+            {
+                UpdatePipetteFromMemory(px, py, isLocked: false);
+            }
+        }
+
         if (!_isPreviewPanActive
             || e.Pointer.PointerId != _previewPanPointerId
             || _activePanScrollViewer is null)
@@ -2109,6 +2318,12 @@ public sealed partial class VapourSynthPreviewWindow : Window
                 }
 
                 _isClosed = true;
+                _flickerTimer.Stop();
+                _pipetteSampleCts?.Cancel();
+                _pipetteSampleCts?.Dispose();
+                _pipetteSampleCts = null;
+                ScopeCanvas.RemoveFromVisualTree();
+                Activated -= VapourSynthPreviewWindow_Activated;
                 StopPlayback();
                 _frameRequestScheduler.Dispose();
                 SaveCurrentOutputState();
@@ -2825,7 +3040,7 @@ public sealed partial class VapourSynthPreviewWindow : Window
         VapourSynthPreviewOutputInfo outputInfo,
         int frameNumber)
     {
-        var frameData = await _previewService.RenderFrameAsync(outputInfo.Index, frameNumber, cancellationToken: _previewLifetimeToken);
+        var frameData = await _previewService.RenderFrameAsync(outputInfo.Index, frameNumber, ViewModel.CurrentRenderOptions, cancellationToken: _previewLifetimeToken);
         _previewLifetimeToken.ThrowIfCancellationRequested();
         var sourcePixels = frameData.Pixels;
         return _frameComposer.Compose(
@@ -3498,8 +3713,13 @@ public sealed partial class VapourSynthPreviewWindow : Window
         CompareModeComboBox.SelectionChanged -= CompareModeComboBox_SelectionChanged;
         CompareOutputAComboBox.SelectionChanged -= CompareOutputAComboBox_SelectionChanged;
         CompareOutputBComboBox.SelectionChanged -= CompareOutputBComboBox_SelectionChanged;
+        DifferenceStyleComboBox.SelectionChanged -= DifferenceStyleComboBox_SelectionChanged;
         DifferenceGainComboBox.SelectionChanged -= DifferenceGainComboBox_SelectionChanged;
+        FlickerIntervalComboBox.SelectionChanged -= FlickerIntervalComboBox_SelectionChanged;
         CompareSizeAlignmentComboBox.SelectionChanged -= CompareSizeAlignmentComboBox_SelectionChanged;
+        SecondaryFrameOffsetBox.ValueChanged -= SecondaryFrameOffsetBox_ValueChanged;
+        SubpixelOffsetXBox.ValueChanged -= SubpixelOffsetBox_ValueChanged;
+        SubpixelOffsetYBox.ValueChanged -= SubpixelOffsetBox_ValueChanged;
         FrameNumberBox.ValueChanged -= FrameNumberBox_ValueChanged;
         ZoomModeComboBox.SelectionChanged -= ZoomModeComboBox_SelectionChanged;
         ZoomRatioBox.ValueChanged -= ZoomRatioBox_ValueChanged;
@@ -3524,8 +3744,13 @@ public sealed partial class VapourSynthPreviewWindow : Window
         CompareModeComboBox.SelectionChanged -= CompareModeComboBox_SelectionChanged;
         CompareOutputAComboBox.SelectionChanged -= CompareOutputAComboBox_SelectionChanged;
         CompareOutputBComboBox.SelectionChanged -= CompareOutputBComboBox_SelectionChanged;
+        DifferenceStyleComboBox.SelectionChanged -= DifferenceStyleComboBox_SelectionChanged;
         DifferenceGainComboBox.SelectionChanged -= DifferenceGainComboBox_SelectionChanged;
+        FlickerIntervalComboBox.SelectionChanged -= FlickerIntervalComboBox_SelectionChanged;
         CompareSizeAlignmentComboBox.SelectionChanged -= CompareSizeAlignmentComboBox_SelectionChanged;
+        SecondaryFrameOffsetBox.ValueChanged -= SecondaryFrameOffsetBox_ValueChanged;
+        SubpixelOffsetXBox.ValueChanged -= SubpixelOffsetBox_ValueChanged;
+        SubpixelOffsetYBox.ValueChanged -= SubpixelOffsetBox_ValueChanged;
         FrameNumberBox.ValueChanged -= FrameNumberBox_ValueChanged;
         ZoomModeComboBox.SelectionChanged -= ZoomModeComboBox_SelectionChanged;
         ZoomRatioBox.ValueChanged -= ZoomRatioBox_ValueChanged;
@@ -3546,8 +3771,13 @@ public sealed partial class VapourSynthPreviewWindow : Window
         CompareModeComboBox.SelectionChanged += CompareModeComboBox_SelectionChanged;
         CompareOutputAComboBox.SelectionChanged += CompareOutputAComboBox_SelectionChanged;
         CompareOutputBComboBox.SelectionChanged += CompareOutputBComboBox_SelectionChanged;
+        DifferenceStyleComboBox.SelectionChanged += DifferenceStyleComboBox_SelectionChanged;
         DifferenceGainComboBox.SelectionChanged += DifferenceGainComboBox_SelectionChanged;
+        FlickerIntervalComboBox.SelectionChanged += FlickerIntervalComboBox_SelectionChanged;
         CompareSizeAlignmentComboBox.SelectionChanged += CompareSizeAlignmentComboBox_SelectionChanged;
+        SecondaryFrameOffsetBox.ValueChanged += SecondaryFrameOffsetBox_ValueChanged;
+        SubpixelOffsetXBox.ValueChanged += SubpixelOffsetBox_ValueChanged;
+        SubpixelOffsetYBox.ValueChanged += SubpixelOffsetBox_ValueChanged;
         FrameNumberBox.ValueChanged += FrameNumberBox_ValueChanged;
         ZoomModeComboBox.SelectionChanged += ZoomModeComboBox_SelectionChanged;
         ZoomRatioBox.ValueChanged += ZoomRatioBox_ValueChanged;
@@ -4229,7 +4459,8 @@ public sealed partial class VapourSynthPreviewWindow : Window
                 ViewModel.SizeAlignment,
                 GetCanvasImageInterpolation(),
                 _lastFrameData?.Properties,
-                _secondaryLastFrameData?.Properties);
+                _secondaryLastFrameData?.Properties,
+                ViewModel.DifferenceStyle);
         }
 
         stopwatch.Stop();
@@ -4238,30 +4469,36 @@ public sealed partial class VapourSynthPreviewWindow : Window
 
     private void UpdateCompareVisualPresentation()
     {
+        var showingBFull = ViewModel.IsCompareModeActive
+            && (ViewModel.IsTemporaryFlipToB || (ViewModel.IsFlickerMode && ViewModel.IsShowingSecondaryInFlip));
+        var isWipeActive = ViewModel.IsWipeMode && !ViewModel.IsTemporaryFlipToB;
+        var isDiffActive = ViewModel.IsDifferenceMode && !ViewModel.IsTemporaryFlipToB;
+
         if (_wipeLayerAContainerVisual is not null)
         {
-            _wipeLayerAContainerVisual.IsVisible = !ViewModel.IsDifferenceMode;
-            _wipeLayerAContainerVisual.Clip = ViewModel.IsWipeMode ? _wipeVisualAClip : null;
+            _wipeLayerAContainerVisual.IsVisible = !isDiffActive && !showingBFull;
+            _wipeLayerAContainerVisual.Clip = isWipeActive ? _wipeVisualAClip : null;
         }
 
         if (_previewImageVisual is not null)
         {
-            _previewImageVisual.IsVisible = !ViewModel.IsDifferenceMode;
+            _previewImageVisual.IsVisible = !isDiffActive && !showingBFull;
         }
 
         if (_wipeLayerBContainerVisual is not null)
         {
-            _wipeLayerBContainerVisual.IsVisible = ViewModel.IsWipeMode;
+            _wipeLayerBContainerVisual.IsVisible = isWipeActive || showingBFull;
+            _wipeLayerBContainerVisual.Clip = isWipeActive ? _wipeVisualBClip : null;
         }
 
         if (_previewImageVisualB is not null)
         {
-            _previewImageVisualB.IsVisible = ViewModel.IsWipeMode;
+            _previewImageVisualB.IsVisible = isWipeActive || showingBFull;
         }
 
         if (_previewImageVisualDiff is not null)
         {
-            _previewImageVisualDiff.IsVisible = ViewModel.IsDifferenceMode;
+            _previewImageVisualDiff.IsVisible = isDiffActive;
         }
     }
 
@@ -4425,6 +4662,1398 @@ public sealed partial class VapourSynthPreviewWindow : Window
         }
     }
 
+    private void DifferenceStyleComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (_isInternalControlUpdate
+            || DifferenceStyleComboBox.SelectedItem is not PreviewDifferenceStyleOption option)
+        {
+            return;
+        }
+
+        ViewModel.DifferenceStyle = option.Style;
+        if (ViewModel.IsDifferenceMode && _cachedBitmapA is not null && _cachedBitmapB is not null)
+        {
+            RedrawDifferenceSurface();
+        }
+    }
+
+    private void FlickerIntervalComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (_isInternalControlUpdate
+            || FlickerIntervalComboBox.SelectedItem is not PreviewFlickerIntervalOption option)
+        {
+            return;
+        }
+
+        ViewModel.FlickerIntervalMs = option.Milliseconds;
+        SyncFlickerTimer();
+    }
+
+    private void FlickerTimer_Tick(object? sender, object e)
+    {
+        if (_isClosed || !ViewModel.IsFlickerMode || _isPlaying || ViewModel.IsTemporaryFlipToB)
+        {
+            _flickerTimer.Stop();
+            return;
+        }
+
+        ViewModel.IsShowingSecondaryInFlip = !ViewModel.IsShowingSecondaryInFlip;
+        UpdateCompareVisualPresentation();
+    }
+
+    private void SyncFlickerTimer()
+    {
+        if (!_isClosed && ViewModel.IsFlickerMode && !_isPlaying && !ViewModel.IsTemporaryFlipToB)
+        {
+            _flickerTimer.Interval = TimeSpan.FromMilliseconds(ViewModel.FlickerIntervalMs);
+            if (!_flickerTimer.IsEnabled)
+            {
+                _flickerTimer.Start();
+            }
+        }
+        else
+        {
+            _flickerTimer.Stop();
+            if (!ViewModel.IsFlickerMode)
+            {
+                ViewModel.IsShowingSecondaryInFlip = false;
+            }
+        }
+    }
+
+    private void SetTemporaryFlipToB(bool flipToB)
+    {
+        if (ViewModel.IsTemporaryFlipToB == flipToB)
+        {
+            return;
+        }
+
+        ViewModel.IsTemporaryFlipToB = flipToB;
+        SyncFlickerTimer();
+        UpdateCompareVisualPresentation();
+        UpdatePreviewImageVisualSize();
+        UpdateWipeClipAndOverlay();
+    }
+
+    private void VapourSynthPreviewWindow_Activated(object sender, Microsoft.UI.Xaml.WindowActivatedEventArgs args)
+    {
+        if (args.WindowActivationState == WindowActivationState.Deactivated && ViewModel.IsTemporaryFlipToB)
+        {
+            SetTemporaryFlipToB(false);
+        }
+    }
+
+    private async void SecondaryFrameOffsetBox_ValueChanged(NumberBox sender, NumberBoxValueChangedEventArgs args)
+    {
+        if (_isInternalControlUpdate || double.IsNaN(sender.Value))
+        {
+            return;
+        }
+
+        await RunWindowEventHandlerAsync(
+            nameof(SecondaryFrameOffsetBox_ValueChanged),
+            () => SetSecondaryFrameOffsetAsync((int)Math.Round(sender.Value)));
+    }
+
+    private async void DecrementFrameOffsetButton_Click(object sender, RoutedEventArgs e)
+    {
+        await RunWindowEventHandlerAsync(
+            nameof(DecrementFrameOffsetButton_Click),
+            () => SetSecondaryFrameOffsetAsync(ViewModel.SecondaryFrameOffset - 1));
+    }
+
+    private async void IncrementFrameOffsetButton_Click(object sender, RoutedEventArgs e)
+    {
+        await RunWindowEventHandlerAsync(
+            nameof(IncrementFrameOffsetButton_Click),
+            () => SetSecondaryFrameOffsetAsync(ViewModel.SecondaryFrameOffset + 1));
+    }
+
+    private async void ResetFrameOffsetButton_Click(object sender, RoutedEventArgs e)
+    {
+        await RunWindowEventHandlerAsync(
+            nameof(ResetFrameOffsetButton_Click),
+            () => SetSecondaryFrameOffsetAsync(0));
+    }
+
+    private void CopyAlignSnippetButton_Click(object sender, RoutedEventArgs e)
+    {
+        var snippet = PreviewCompareCoordinator.FormatAlignmentScriptSnippet(
+            ViewModel.SecondaryFrameOffset,
+            ViewModel.SubpixelOffsetX,
+            ViewModel.SubpixelOffsetY);
+        var dataPackage = new Windows.ApplicationModel.DataTransfer.DataPackage();
+        dataPackage.SetText(snippet);
+        Windows.ApplicationModel.DataTransfer.Clipboard.SetContent(dataPackage);
+        SetStatusText(ViewModel.Texts.VapourSynthPreviewCopyAlignSnippetStatus);
+    }
+
+    private async void SubpixelOffsetBox_ValueChanged(NumberBox sender, NumberBoxValueChangedEventArgs args)
+    {
+        if (_isInternalControlUpdate || double.IsNaN(sender.Value))
+        {
+            return;
+        }
+
+        await RunWindowEventHandlerAsync(
+            nameof(SubpixelOffsetBox_ValueChanged),
+            async () =>
+            {
+                ViewModel.SubpixelOffsetX = double.IsNaN(SubpixelOffsetXBox.Value) ? 0.0 : SubpixelOffsetXBox.Value;
+                ViewModel.SubpixelOffsetY = double.IsNaN(SubpixelOffsetYBox.Value) ? 0.0 : SubpixelOffsetYBox.Value;
+                if (ViewModel.IsCompareModeActive && _selectedOutputInfo is not null)
+                {
+                    await RequestFrameAsync(_selectedOutputInfo, ViewModel.CurrentFrame);
+                }
+            });
+    }
+
+    private async void ResetSubpixelOffsetButton_Click(object sender, RoutedEventArgs e)
+    {
+        await RunWindowEventHandlerAsync(
+            nameof(ResetSubpixelOffsetButton_Click),
+            async () =>
+            {
+                ViewModel.SubpixelOffsetX = 0.0;
+                ViewModel.SubpixelOffsetY = 0.0;
+                SyncControls();
+                if (ViewModel.IsCompareModeActive && _selectedOutputInfo is not null)
+                {
+                    await RequestFrameAsync(_selectedOutputInfo, ViewModel.CurrentFrame);
+                }
+            });
+    }
+
+    private async void AutoTemporalAlignButton_Click(object sender, RoutedEventArgs e)
+    {
+        await RunWindowEventHandlerAsync(
+            nameof(AutoTemporalAlignButton_Click),
+            async () =>
+            {
+                if (!ViewModel.IsCompareModeActive || _selectedOutputInfo is null || _secondaryOutputInfo is null || ViewModel.IsAutoAlignBusy)
+                {
+                    return;
+                }
+
+                StopPlayback();
+                ViewModel.IsAutoAlignBusy = true;
+                ViewModel.AlignStatusText = ViewModel.Texts.VapourSynthPreviewTemporalAligningStatus;
+                SetStatusText(ViewModel.Texts.VapourSynthPreviewTemporalAligningStatus);
+
+                try
+                {
+                    var baseFrameB = PreviewCompareCoordinator.ResolveSecondaryFrameNumber(
+                        _selectedOutputInfo,
+                        _secondaryOutputInfo,
+                        ViewModel.CurrentFrame,
+                        ViewModel.SelectedOutputSyncMode?.Value,
+                        ViewModel.IsTimelineTimeMode,
+                        secondaryFrameOffset: 0);
+
+                    var result = await _previewService.AutoAlignTemporalAsync(
+                        _selectedOutputInfo.Index,
+                        _secondaryOutputInfo.Index,
+                        ViewModel.CurrentFrame,
+                        baseFrameB,
+                        ViewModel.SecondaryFrameOffset,
+                        ViewModel.TemporalSearchRadius,
+                        verifyMultiAnchor: true,
+                        _previewLifetimeToken);
+
+                    ViewModel.SecondaryFrameOffset = result.FrameOffset;
+                    var msg = ViewModel.Texts.VapourSynthPreviewTemporalAlignedStatus(
+                        result.FrameOffset,
+                        result.Confidence,
+                        result.ElapsedMs,
+                        result.HasDrift,
+                        result.DriftSummary);
+                    ViewModel.AlignStatusText = msg;
+                    SetStatusText(msg);
+                    SyncControls();
+                    await RequestFrameAsync(_selectedOutputInfo, ViewModel.CurrentFrame);
+                }
+                catch (Exception ex) when (ex is not OperationCanceledException)
+                {
+                    var err = ViewModel.Texts.VapourSynthPreviewAlignFailedStatus(ex.Message);
+                    ViewModel.AlignStatusText = err;
+                    SetStatusText(err);
+                }
+                finally
+                {
+                    ViewModel.IsAutoAlignBusy = false;
+                }
+            });
+    }
+
+    private async void AutoSpatialAlignButton_Click(object sender, RoutedEventArgs e)
+    {
+        await RunWindowEventHandlerAsync(
+            nameof(AutoSpatialAlignButton_Click),
+            async () =>
+            {
+                if (!ViewModel.IsCompareModeActive || _selectedOutputInfo is null || _secondaryOutputInfo is null || ViewModel.IsAutoAlignBusy)
+                {
+                    return;
+                }
+
+                StopPlayback();
+                ViewModel.IsAutoAlignBusy = true;
+                ViewModel.AlignStatusText = ViewModel.Texts.VapourSynthPreviewSpatialAligningStatus;
+                SetStatusText(ViewModel.Texts.VapourSynthPreviewSpatialAligningStatus);
+
+                try
+                {
+                    var frameB = PreviewCompareCoordinator.ResolveSecondaryFrameNumber(
+                        _selectedOutputInfo,
+                        _secondaryOutputInfo,
+                        ViewModel.CurrentFrame,
+                        ViewModel.SelectedOutputSyncMode?.Value,
+                        ViewModel.IsTimelineTimeMode,
+                        ViewModel.SecondaryFrameOffset);
+
+                    var result = await _previewService.AutoAlignSpatialAsync(
+                        _selectedOutputInfo.Index,
+                        _secondaryOutputInfo.Index,
+                        ViewModel.CurrentFrame,
+                        frameB,
+                        _previewLifetimeToken);
+
+                    ViewModel.SubpixelOffsetX = result.OffsetX;
+                    ViewModel.SubpixelOffsetY = result.OffsetY;
+                    var msg = ViewModel.Texts.VapourSynthPreviewSpatialAlignedStatus(
+                        result.OffsetX,
+                        result.OffsetY,
+                        result.Confidence,
+                        result.ElapsedMs);
+                    ViewModel.AlignStatusText = msg;
+                    SetStatusText(msg);
+                    SyncControls();
+                    await RequestFrameAsync(_selectedOutputInfo, ViewModel.CurrentFrame);
+                }
+                catch (Exception ex) when (ex is not OperationCanceledException)
+                {
+                    var err = ViewModel.Texts.VapourSynthPreviewAlignFailedStatus(ex.Message);
+                    ViewModel.AlignStatusText = err;
+                    SetStatusText(err);
+                }
+                finally
+                {
+                    ViewModel.IsAutoAlignBusy = false;
+                }
+            });
+    }
+
+    private void PipetteToggleButton_Checked(object sender, RoutedEventArgs e)
+    {
+        ViewModel.IsPipetteEnabled = true;
+        if (string.IsNullOrWhiteSpace(ViewModel.PipetteReadoutText))
+        {
+            ViewModel.PipetteReadoutText = ViewModel.Texts.VapourSynthPreviewPipetteIdleText;
+        }
+        RequestPreviewFocus();
+    }
+
+    private void PipetteToggleButton_Unchecked(object sender, RoutedEventArgs e)
+    {
+        ViewModel.IsPipetteEnabled = false;
+        ViewModel.IsPipetteLocked = false;
+        _pipetteLockedX = -1;
+        _pipetteLockedY = -1;
+        _pipetteSampleCts?.Cancel();
+        RequestPreviewFocus();
+    }
+
+    private void SetActiveInspectorTab(string tab)
+    {
+        ViewModel.ActiveInspectorTab = tab;
+        InspectorPropsTabButton.IsChecked = ViewModel.IsPropsTabActive;
+        InspectorScopesTabButton.IsChecked = ViewModel.IsScopesTabActive;
+        InspectorBasketTabButton.IsChecked = ViewModel.IsBasketTabActive;
+        InspectorWorstTabButton.IsChecked = ViewModel.IsWorstTabActive;
+        InspectorScenesTabButton.IsChecked = ViewModel.IsScenesTabActive;
+        if (ViewModel.IsScopesTabActive)
+        {
+            InvalidateScopeCanvasIfVisible();
+        }
+    }
+
+    private void InspectorWorstTabButton_Click(object sender, RoutedEventArgs e)
+    {
+        SetActiveInspectorTab("worst");
+    }
+
+    private void InspectorScenesTabButton_Click(object sender, RoutedEventArgs e)
+    {
+        SetActiveInspectorTab("scenes");
+    }
+
+    private async void StartWorstScanButton_Click(object sender, RoutedEventArgs e)
+    {
+        await RunWindowEventHandlerAsync(
+            nameof(StartWorstScanButton_Click),
+            async () =>
+            {
+                if (!ViewModel.CanStartWorstScan || _selectedOutputInfo is null)
+                {
+                    return;
+                }
+
+                EnsureSecondaryOutputSelection(_selectedOutputInfo);
+                if (_secondaryOutputInfo is null)
+                {
+                    return;
+                }
+
+                StopPlayback();
+                ViewModel.IsWorstScanBusy = true;
+                try
+                {
+                    var fps = _selectedOutputInfo.FpsNumerator > 0 && _selectedOutputInfo.FpsDenominator > 0
+                        ? _selectedOutputInfo.FpsNumerator / (double)_selectedOutputInfo.FpsDenominator
+                        : 24.0;
+                    var plan = PreviewWorstFramePlanner.BuildSamplingPlan(
+                        _selectedOutputInfo.TotalFrames,
+                        fps,
+                        ViewModel.WorstSkipMinutes,
+                        ViewModel.WorstSampleCount);
+
+                    if (plan.SampleFrames.Count == 0)
+                    {
+                        return;
+                    }
+
+                    var framesB = plan.SampleFrames
+                        .Select(f => PreviewCompareCoordinator.ResolveSecondaryFrameNumber(
+                            _selectedOutputInfo,
+                            _secondaryOutputInfo,
+                            f,
+                            ViewModel.SelectedOutputSyncMode?.Value,
+                            ViewModel.IsTimelineTimeMode,
+                            ViewModel.SecondaryFrameOffset))
+                        .ToArray();
+
+                    var scanningMsg = ViewModel.Texts.VapourSynthPreviewWorstScanningStatus(
+                        plan.SampleFrames.Count,
+                        plan.AppliedSkipMinutes,
+                        plan.AdjustedForShortVideo);
+                    ViewModel.WorstScanStatusText = scanningMsg;
+                    SetStatusText(scanningMsg);
+
+                    var result = await _previewService.ScanWorstFramesAsync(
+                        _selectedOutputInfo.Index,
+                        _secondaryOutputInfo.Index,
+                        plan.SampleFrames,
+                        framesB,
+                        ViewModel.WorstMetric,
+                        topN: 15,
+                        ViewModel.SubpixelOffsetX,
+                        ViewModel.SubpixelOffsetY,
+                        _previewLifetimeToken);
+
+                    ViewModel.WorstFrameResults.Clear();
+                    foreach (var entry in result.WorstFrames)
+                    {
+                        var tc = TimeSpan.FromSeconds(entry.FrameNumber / fps);
+                        var tcStr = tc.TotalHours >= 1 ? tc.ToString(@"h\:mm\:ss\.fff") : tc.ToString(@"mm\:ss\.fff");
+                        var typeSuffix = string.IsNullOrWhiteSpace(entry.FrameType) ? string.Empty : $" [{entry.FrameType}]";
+                        ViewModel.WorstFrameResults.Add(new PreviewWorstFrameRowItem(
+                            entry.FrameNumber,
+                            entry.SecondaryFrameNumber,
+                            entry.Score,
+                            $"{entry.Score:0.##}",
+                            $"#{entry.FrameNumber}{typeSuffix} · {tcStr}"));
+                    }
+                    ViewModel.NotifyWorstScanResultsChanged();
+
+                    var summary = ViewModel.Texts.VapourSynthPreviewWorstSummary(
+                        result.MetricUsed,
+                        result.BackendUsed,
+                        result.SampledCount,
+                        result.MedianScore,
+                        result.P10Score,
+                        result.MinScore,
+                        result.ElapsedMs);
+                    ViewModel.WorstScanStatusText = summary;
+                    SetStatusText(summary);
+                }
+                catch (Exception ex) when (ex is not OperationCanceledException)
+                {
+                    var err = ViewModel.Texts.VapourSynthPreviewWorstFailedStatus(ex.Message);
+                    ViewModel.WorstScanStatusText = err;
+                    SetStatusText(err);
+                }
+                finally
+                {
+                    ViewModel.IsWorstScanBusy = false;
+                }
+            });
+    }
+
+    private async void WorstFramesListView_ItemClick(object sender, ItemClickEventArgs e)
+    {
+        if (e.ClickedItem is not PreviewWorstFrameRowItem item || _selectedOutputInfo is null)
+        {
+            return;
+        }
+
+        await RunWindowEventHandlerAsync(
+            nameof(WorstFramesListView_ItemClick),
+            async () =>
+            {
+                if (!ViewModel.IsCompareModeActive && ViewModel.CanCompareOutputs)
+                {
+                    await SetCompareModeAsync(PreviewCompareMode.Wipe);
+                }
+                await RequestFrameAsync(_selectedOutputInfo, item.FrameNumber);
+            });
+    }
+
+    private void SendWorstToBasketButton_Click(object sender, RoutedEventArgs e)
+    {
+        var count = 0;
+        foreach (var item in ViewModel.WorstFrameResults.Take(10))
+        {
+            AddBookmarkedFrame(item.FrameNumber);
+            count++;
+        }
+
+        SetStatusText(ViewModel.Texts.VapourSynthPreviewWorstAddedToBasketStatus(count));
+        SetActiveInspectorTab("basket");
+    }
+
+    private void MarkSceneInAtCurrentFrame()
+    {
+        if (_selectedOutputInfo is null)
+        {
+            return;
+        }
+
+        ViewModel.PendingSceneStartFrame = ViewModel.CurrentFrame;
+        SetStatusText(ViewModel.PendingSceneInText);
+    }
+
+    private void MarkSceneOutAtCurrentFrame()
+    {
+        if (_selectedOutputInfo is null)
+        {
+            return;
+        }
+
+        var end = ViewModel.CurrentFrame;
+        var start = ViewModel.PendingSceneStartFrame ?? end;
+        if (start > end)
+        {
+            (start, end) = (end, start);
+        }
+
+        var label = $"[{start}, {end}] ({end - start + 1}f)";
+        var item = new PreviewSceneRangeItem(start, end, label);
+        var insertAt = 0;
+        while (insertAt < ViewModel.SceneRanges.Count && ViewModel.SceneRanges[insertAt].StartFrame < start)
+        {
+            insertAt++;
+        }
+        ViewModel.SceneRanges.Insert(insertAt, item);
+        ViewModel.PendingSceneStartFrame = null;
+        ViewModel.NotifySceneRangesChanged();
+    }
+
+    private void SceneMarkInButton_Click(object sender, RoutedEventArgs e)
+    {
+        MarkSceneInAtCurrentFrame();
+        RequestPreviewFocus();
+    }
+
+    private void SceneMarkOutButton_Click(object sender, RoutedEventArgs e)
+    {
+        MarkSceneOutAtCurrentFrame();
+        RequestPreviewFocus();
+    }
+
+    private void SceneClearButton_Click(object sender, RoutedEventArgs e)
+    {
+        ViewModel.SceneRanges.Clear();
+        ViewModel.PendingSceneStartFrame = null;
+        ViewModel.NotifySceneRangesChanged();
+    }
+
+    private async void SceneRangesListView_ItemClick(object sender, ItemClickEventArgs e)
+    {
+        if (e.ClickedItem is not PreviewSceneRangeItem item || _selectedOutputInfo is null)
+        {
+            return;
+        }
+
+        await RunWindowEventHandlerAsync(
+            nameof(SceneRangesListView_ItemClick),
+            () => RequestFrameAsync(_selectedOutputInfo, item.StartFrame));
+    }
+
+    private void SceneRemoveRangeButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is Button { Tag: PreviewSceneRangeItem item })
+        {
+            ViewModel.SceneRanges.Remove(item);
+            ViewModel.NotifySceneRangesChanged();
+        }
+    }
+
+    private IReadOnlyList<PreviewSceneRange> GetDomainSceneRanges() =>
+        ViewModel.SceneRanges.Select(static r => new PreviewSceneRange(r.StartFrame, r.EndFrame, r.Label)).ToArray();
+
+    private void CopyTextToClipboardWithStatus(string text, string statusText)
+    {
+        if (string.IsNullOrWhiteSpace(text))
+        {
+            return;
+        }
+
+        var dataPackage = new Windows.ApplicationModel.DataTransfer.DataPackage();
+        dataPackage.SetText(text);
+        Windows.ApplicationModel.DataTransfer.Clipboard.SetContent(dataPackage);
+        SetStatusText(statusText);
+    }
+
+    private void CopyReplaceRangesButton_Click(object sender, RoutedEventArgs e)
+    {
+        CopyTextToClipboardWithStatus(
+            PreviewSceningFormatter.FormatReplaceRanges(GetDomainSceneRanges()),
+            ViewModel.Texts.VapourSynthPreviewSceneCopiedStatus);
+    }
+
+    private void CopyEncoderZonesButton_Click(object sender, RoutedEventArgs e)
+    {
+        CopyTextToClipboardWithStatus(
+            PreviewSceningFormatter.FormatEncoderZones(GetDomainSceneRanges()),
+            ViewModel.Texts.VapourSynthPreviewSceneCopiedStatus);
+    }
+
+    private void CopyAv1anZonesButton_Click(object sender, RoutedEventArgs e)
+    {
+        CopyTextToClipboardWithStatus(
+            PreviewSceningFormatter.FormatAv1anZones(GetDomainSceneRanges()),
+            ViewModel.Texts.VapourSynthPreviewSceneCopiedStatus);
+    }
+
+    private async void AutoCropButton_Click(object sender, RoutedEventArgs e)
+    {
+        await RunWindowEventHandlerAsync(
+            nameof(AutoCropButton_Click),
+            async () =>
+            {
+                if (_selectedOutputInfo is null)
+                {
+                    return;
+                }
+
+                StopPlayback();
+                SetStatusText(ViewModel.Texts.VapourSynthPreviewAutoCropRunningStatus);
+                try
+                {
+                    var result = await _previewService.AutoDetectCropAsync(
+                        _selectedOutputInfo.Index,
+                        sampleCount: 12,
+                        _previewLifetimeToken);
+                    var outputState = GetOrCreateOutputState(_selectedOutputInfo);
+                    outputState.RelativeCrop.Left = result.Left;
+                    outputState.RelativeCrop.Top = result.Top;
+                    outputState.RelativeCrop.Right = result.Right;
+                    outputState.RelativeCrop.Bottom = result.Bottom;
+                    outputState.AbsoluteCrop.Left = result.Left;
+                    outputState.AbsoluteCrop.Top = result.Top;
+                    outputState.AbsoluteCrop.Width = Math.Max(1, _selectedOutputInfo.Width - result.Left - result.Right);
+                    outputState.AbsoluteCrop.Height = Math.Max(1, _selectedOutputInfo.Height - result.Top - result.Bottom);
+                    ApplyCropControlsFromState(outputState, _selectedOutputInfo);
+                    RefreshDisplayedFrame();
+                    SetStatusText(ViewModel.Texts.VapourSynthPreviewAutoCropDoneStatus(
+                        result.Left,
+                        result.Top,
+                        result.Right,
+                        result.Bottom,
+                        result.ElapsedMs));
+                }
+                catch (Exception ex) when (ex is not OperationCanceledException)
+                {
+                    SetStatusText(ViewModel.Texts.VapourSynthPreviewAutoCropFailedStatus(ex.Message));
+                }
+            });
+    }
+
+    private async Task ApplySmartScriptEditOrFallbackCopyAsync(
+        Func<string, SmartScriptEditResult> rewriter,
+        string fallbackClipboardSnippet)
+    {
+        if (SmartEditScriptAsync is null)
+        {
+            CopyTextToClipboardWithStatus(fallbackClipboardSnippet, ViewModel.Texts.VapourSynthPreviewNoBoundEditorFallbackStatus);
+            return;
+        }
+
+        var result = await SmartEditScriptAsync(rewriter);
+        if (result is null)
+        {
+            CopyTextToClipboardWithStatus(fallbackClipboardSnippet, ViewModel.Texts.VapourSynthPreviewNoBoundEditorFallbackStatus);
+            return;
+        }
+
+        SetStatusText(ViewModel.Texts.VapourSynthPreviewSmartInsertedStatus(
+            result.ResolvedVariableName,
+            result.TargetLineNumber,
+            result.UpdatedInPlace));
+    }
+
+    private async void InsertAlignSnippetButton_Click(object sender, RoutedEventArgs e)
+    {
+        await RunWindowEventHandlerAsync(
+            nameof(InsertAlignSnippetButton_Click),
+            async () =>
+            {
+                var targetIndex = _secondaryOutputInfo?.Index ?? _selectedOutputInfo?.Index ?? 0;
+                var fallback = PreviewCompareCoordinator.FormatAlignmentScriptSnippet(
+                    ViewModel.SecondaryFrameOffset,
+                    ViewModel.SubpixelOffsetX,
+                    ViewModel.SubpixelOffsetY);
+                await ApplySmartScriptEditOrFallbackCopyAsync(
+                    script => VapourSynthSmartScriptEditor.ApplyAlignment(
+                        script,
+                        targetIndex,
+                        ViewModel.SecondaryFrameOffset,
+                        ViewModel.SubpixelOffsetX,
+                        ViewModel.SubpixelOffsetY),
+                    fallback);
+            });
+    }
+
+    private async void InsertCropToEditorButton_Click(object sender, RoutedEventArgs e)
+    {
+        await RunWindowEventHandlerAsync(
+            nameof(InsertCropToEditorButton_Click),
+            async () =>
+            {
+                if (_selectedOutputInfo is null)
+                {
+                    return;
+                }
+
+                var outputState = GetOrCreateOutputState(_selectedOutputInfo);
+                var isAbs = ViewModel.IsAbsoluteCropMode;
+                var left = (int)Math.Max(0, isAbs ? outputState.AbsoluteCrop.Left : outputState.RelativeCrop.Left);
+                var top = (int)Math.Max(0, isAbs ? outputState.AbsoluteCrop.Top : outputState.RelativeCrop.Top);
+                var widthOrRight = (int)Math.Max(0, isAbs ? outputState.AbsoluteCrop.Width : outputState.RelativeCrop.Right);
+                var heightOrBottom = (int)Math.Max(0, isAbs ? outputState.AbsoluteCrop.Height : outputState.RelativeCrop.Bottom);
+                var fallback = BuildCropCommandSnippet(useSnippetPlaceholder: false);
+
+                await ApplySmartScriptEditOrFallbackCopyAsync(
+                    script => VapourSynthSmartScriptEditor.ApplyCrop(
+                        script,
+                        _selectedOutputInfo.Index,
+                        isAbs,
+                        left,
+                        top,
+                        widthOrRight,
+                        heightOrBottom),
+                    fallback);
+            });
+    }
+
+    private async void CopyCropBbmodButton_Click(object sender, RoutedEventArgs e)
+    {
+        await RunWindowEventHandlerAsync(
+            nameof(CopyCropBbmodButton_Click),
+            async () =>
+            {
+                if (_selectedOutputInfo is null)
+                {
+                    return;
+                }
+
+                var outputState = GetOrCreateOutputState(_selectedOutputInfo);
+                var left = (int)Math.Max(0, outputState.RelativeCrop.Left);
+                var top = (int)Math.Max(0, outputState.RelativeCrop.Top);
+                var right = (int)Math.Max(0, outputState.RelativeCrop.Right);
+                var bottom = (int)Math.Max(0, outputState.RelativeCrop.Bottom);
+                var fallback = PreviewSceningFormatter.FormatCropAndBbmodSnippet(left, top, right, bottom);
+
+                await ApplySmartScriptEditOrFallbackCopyAsync(
+                    script => VapourSynthSmartScriptEditor.ApplyCropAndBbmod(
+                        script,
+                        _selectedOutputInfo.Index,
+                        left,
+                        top,
+                        right,
+                        bottom),
+                    fallback);
+            });
+    }
+
+    private async void InsertReplaceRangesButton_Click(object sender, RoutedEventArgs e)
+    {
+        await RunWindowEventHandlerAsync(
+            nameof(InsertReplaceRangesButton_Click),
+            async () =>
+            {
+                var ranges = GetDomainSceneRanges();
+                if (ranges.Count == 0)
+                {
+                    return;
+                }
+
+                var targetIndex = _selectedOutputInfo?.Index ?? 0;
+                var fallback = PreviewSceningFormatter.FormatReplaceRanges(ranges);
+                await ApplySmartScriptEditOrFallbackCopyAsync(
+                    script => VapourSynthSmartScriptEditor.ApplyReplaceRanges(script, targetIndex, ranges),
+                    fallback);
+            });
+    }
+
+    private void InspectorPropsTabButton_Click(object sender, RoutedEventArgs e)
+    {
+        SetActiveInspectorTab("props");
+    }
+
+    private void InspectorScopesTabButton_Click(object sender, RoutedEventArgs e)
+    {
+        SetActiveInspectorTab("scopes");
+    }
+
+    private void InspectorBasketTabButton_Click(object sender, RoutedEventArgs e)
+    {
+        SetActiveInspectorTab("basket");
+    }
+
+    private void OpenBasketDrawerMenuItem_Click(object sender, RoutedEventArgs e)
+    {
+        UpdateFramePropsVisibility(true);
+        SetActiveInspectorTab("basket");
+    }
+
+    private void ToggleBookmarkCurrentFrame()
+    {
+        if (_selectedOutputInfo is null)
+        {
+            return;
+        }
+
+        var frame = ViewModel.CurrentFrame;
+        var existing = ViewModel.BookmarkedFrames.FirstOrDefault(item => item.FrameNumber == frame);
+        if (existing is not null)
+        {
+            ViewModel.BookmarkedFrames.Remove(existing);
+            ViewModel.NotifyBasketChanged();
+            SetStatusText(ViewModel.Texts.VapourSynthPreviewBookmarkedRemovedStatus(frame, ViewModel.BookmarkedFrames.Count));
+            return;
+        }
+
+        AddBookmarkedFrame(frame);
+        SetStatusText(ViewModel.Texts.VapourSynthPreviewBookmarkedAddedStatus(frame, ViewModel.BookmarkedFrames.Count));
+    }
+
+    private void AddBookmarkedFrame(int frame)
+    {
+        if (_selectedOutputInfo is null)
+        {
+            return;
+        }
+
+        if (ViewModel.BookmarkedFrames.Any(item => item.FrameNumber == frame))
+        {
+            return;
+        }
+
+        var fps = _selectedOutputInfo.FpsNumerator > 0 && _selectedOutputInfo.FpsDenominator > 0
+            ? _selectedOutputInfo.FpsNumerator / (double)_selectedOutputInfo.FpsDenominator
+            : 24.0;
+        var tc = TimeSpan.FromSeconds(frame / fps);
+        var tcText = tc.TotalHours >= 1 ? tc.ToString(@"h\:mm\:ss\.fff") : tc.ToString(@"mm\:ss\.fff");
+        var entry = new PreviewBasketFrameItem(frame, tcText, $"#{frame}");
+
+        var insertIndex = 0;
+        while (insertIndex < ViewModel.BookmarkedFrames.Count && ViewModel.BookmarkedFrames[insertIndex].FrameNumber < frame)
+        {
+            insertIndex++;
+        }
+        ViewModel.BookmarkedFrames.Insert(insertIndex, entry);
+        ViewModel.NotifyBasketChanged();
+    }
+
+    private void BasketAddCurrentButton_Click(object sender, RoutedEventArgs e)
+    {
+        ToggleBookmarkCurrentFrame();
+        RequestPreviewFocus();
+    }
+
+    private void BasketSampleFramesButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (_selectedOutputInfo is null || _selectedOutputInfo.TotalFrames <= 0)
+        {
+            return;
+        }
+
+        var samples = PreviewComparisonExportCoordinator.BuildUniformSampleFrames(_selectedOutputInfo.TotalFrames, 8);
+        foreach (var frame in samples)
+        {
+            AddBookmarkedFrame(frame);
+        }
+
+        SetStatusText(ViewModel.Texts.VapourSynthPreviewBasketModeHint(ViewModel.BookmarkedFrames.Count));
+    }
+
+    private void BasketClearButton_Click(object sender, RoutedEventArgs e)
+    {
+        ViewModel.BookmarkedFrames.Clear();
+        ViewModel.BasketStatusText = string.Empty;
+        ViewModel.NotifyBasketChanged();
+    }
+
+    private async void BasketFramesListView_ItemClick(object sender, ItemClickEventArgs e)
+    {
+        if (e.ClickedItem is not PreviewBasketFrameItem item || _selectedOutputInfo is null)
+        {
+            return;
+        }
+
+        await RunWindowEventHandlerAsync(
+            nameof(BasketFramesListView_ItemClick),
+            () => RequestFrameAsync(_selectedOutputInfo, item.FrameNumber));
+    }
+
+    private void BasketRemoveItemButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is Button { Tag: int frame })
+        {
+            var existing = ViewModel.BookmarkedFrames.FirstOrDefault(item => item.FrameNumber == frame);
+            if (existing is not null)
+            {
+                ViewModel.BookmarkedFrames.Remove(existing);
+                ViewModel.NotifyBasketChanged();
+            }
+        }
+    }
+
+    private IReadOnlyList<PreviewExportOutputSpec> BuildExportOutputSpecs()
+    {
+        if (ViewModel.IsCompareModeActive && _selectedOutputInfo is not null && _secondaryOutputInfo is not null)
+        {
+            return
+            [
+                new PreviewExportOutputSpec(_selectedOutputInfo.Index, _selectedOutputInfo.Name, 0, 0, 0),
+                new PreviewExportOutputSpec(
+                    _secondaryOutputInfo.Index,
+                    _secondaryOutputInfo.Name,
+                    ViewModel.SecondaryFrameOffset,
+                    ViewModel.SubpixelOffsetX,
+                    ViewModel.SubpixelOffsetY)
+            ];
+        }
+
+        return ViewModel.Outputs
+            .Select(opt => new PreviewExportOutputSpec(
+                opt.Info.Index,
+                opt.Info.Name,
+                _secondaryOutputInfo is not null && opt.Info.Index == _secondaryOutputInfo.Index ? ViewModel.SecondaryFrameOffset : 0,
+                _secondaryOutputInfo is not null && opt.Info.Index == _secondaryOutputInfo.Index ? ViewModel.SubpixelOffsetX : 0,
+                _secondaryOutputInfo is not null && opt.Info.Index == _secondaryOutputInfo.Index ? ViewModel.SubpixelOffsetY : 0))
+            .ToArray();
+    }
+
+    private (List<PreviewExportFrameRequestItem> Items, List<PreviewComparisonGroup> Groups) BuildComparisonExportPlan(
+        string imagesDirectory,
+        bool useRelativePathsForHtml)
+    {
+        var specs = BuildExportOutputSpecs();
+        var items = new List<PreviewExportFrameRequestItem>();
+        var groups = new List<PreviewComparisonGroup>();
+        var primaryOutput = _selectedOutputInfo ?? ViewModel.Outputs.First().Info;
+
+        foreach (var bookmark in ViewModel.BookmarkedFrames)
+        {
+            var groupImages = new List<PreviewComparisonImageEntry>();
+            for (var s = 0; s < specs.Count; s++)
+            {
+                var spec = specs[s];
+                var outputInfo = ViewModel.Outputs.FirstOrDefault(o => o.Info.Index == spec.OutputIndex)?.Info ?? primaryOutput;
+                var targetFrame = spec.OutputIndex == primaryOutput.Index
+                    ? Math.Clamp(bookmark.FrameNumber, 0, Math.Max(0, outputInfo.TotalFrames - 1))
+                    : PreviewCompareCoordinator.ResolveSecondaryFrameNumber(
+                        primaryOutput,
+                        outputInfo,
+                        bookmark.FrameNumber,
+                        ViewModel.SelectedOutputSyncMode?.Value,
+                        ViewModel.IsTimelineTimeMode,
+                        spec.FrameOffset);
+
+                var safeOutName = PreviewComparisonExportCoordinator.SanitizeFileNameSegment(spec.DisplayName, $"out{spec.OutputIndex}");
+                var fileName = $"f{bookmark.FrameNumber:D6}_{s:D2}_{safeOutName}.png";
+                var fullPath = Path.Combine(imagesDirectory, fileName);
+
+                items.Add(new PreviewExportFrameRequestItem(
+                    bookmark.FrameNumber,
+                    bookmark.Label,
+                    spec.OutputIndex,
+                    spec.DisplayName,
+                    targetFrame,
+                    fullPath,
+                    spec.SubpixelOffsetX,
+                    spec.SubpixelOffsetY));
+
+                groupImages.Add(new PreviewComparisonImageEntry(
+                    spec.DisplayName,
+                    useRelativePathsForHtml ? $"images/{fileName}" : fullPath));
+            }
+
+            groups.Add(new PreviewComparisonGroup(bookmark.Label, bookmark.FrameNumber, groupImages));
+        }
+
+        return (items, groups);
+    }
+
+    private string ResolveComparisonExportRootDirectory()
+    {
+        var baseDir = !string.IsNullOrWhiteSpace(_currentRequest?.WorkingDirectory) && Directory.Exists(_currentRequest.WorkingDirectory)
+            ? _currentRequest.WorkingDirectory
+            : _appPaths.DataRootPath;
+        var root = Path.Combine(baseDir, "Comparisons");
+        Directory.CreateDirectory(root);
+        return root;
+    }
+
+    private async void ExportOfflineHtmlButton_Click(object sender, RoutedEventArgs e)
+    {
+        await RunWindowEventHandlerAsync(
+            nameof(ExportOfflineHtmlButton_Click),
+            async () =>
+            {
+                if (!ViewModel.CanExportBasket || _selectedOutputInfo is null)
+                {
+                    return;
+                }
+
+                StopPlayback();
+                ViewModel.IsExportBusy = true;
+                try
+                {
+                    var mode = PreviewComparisonExportCoordinator.ResolveHtmlPackageMode(ViewModel.BookmarkedFrames.Count);
+                    var safeTitle = PreviewComparisonExportCoordinator.SanitizeFileNameSegment(ViewModel.WindowTitleDocumentName, "comparison");
+                    var stamp = DateTime.Now.ToString("yyyyMMdd-HHmmss");
+                    var exportRoot = ResolveComparisonExportRootDirectory();
+                    var bundleDir = Path.Combine(exportRoot, $"{safeTitle}-{stamp}");
+                    var imagesDir = Path.Combine(bundleDir, "images");
+                    Directory.CreateDirectory(imagesDir);
+
+                    var (items, groups) = BuildComparisonExportPlan(imagesDir, useRelativePathsForHtml: mode == PreviewHtmlPackageMode.FolderLinked);
+                    var status = ViewModel.Texts.VapourSynthPreviewBasketExportingStatus(items.Count);
+                    ViewModel.BasketStatusText = status;
+                    SetStatusText(status);
+
+                    var exportResult = await _previewService.ExportFramesAsync(items, ViewModel.CurrentRenderOptions, _previewLifetimeToken);
+
+                    string htmlPath;
+                    if (mode == PreviewHtmlPackageMode.SingleFileEmbedded)
+                    {
+                        var embeddedGroups = groups.Select(g => new PreviewComparisonGroup(
+                            g.Name,
+                            g.FrameNumber,
+                            g.Images.Select(img => img with { Base64PngDataUri = PreviewOfflineHtmlBuilder.CreatePngDataUri(img.RelativeOrAbsolutePath) }).ToArray())).ToArray();
+
+                        var html = PreviewOfflineHtmlBuilder.BuildHtml(ViewModel.WindowTitleDocumentName, embeddedGroups, PreviewHtmlPackageMode.SingleFileEmbedded);
+                        htmlPath = Path.Combine(exportRoot, $"{safeTitle}-{stamp}.html");
+                        await File.WriteAllTextAsync(htmlPath, html, new System.Text.UTF8Encoding(false), _previewLifetimeToken);
+                        try
+                        {
+                            Directory.Delete(bundleDir, recursive: true);
+                        }
+                        catch
+                        {
+                        }
+                    }
+                    else
+                    {
+                        var html = PreviewOfflineHtmlBuilder.BuildHtml(ViewModel.WindowTitleDocumentName, groups, PreviewHtmlPackageMode.FolderLinked);
+                        htmlPath = Path.Combine(bundleDir, "index.html");
+                        await File.WriteAllTextAsync(htmlPath, html, new System.Text.UTF8Encoding(false), _previewLifetimeToken);
+                    }
+
+                    var doneMsg = ViewModel.Texts.VapourSynthPreviewHtmlExportedStatus(htmlPath, exportResult.ExportedCount, exportResult.ElapsedMs);
+                    ViewModel.BasketStatusText = doneMsg;
+                    SetStatusText(doneMsg);
+                    try
+                    {
+                        Process.Start(new ProcessStartInfo(htmlPath) { UseShellExecute = true });
+                    }
+                    catch
+                    {
+                    }
+                }
+                finally
+                {
+                    ViewModel.IsExportBusy = false;
+                }
+            });
+    }
+
+    private async void UploadSlowPicsButton_Click(object sender, RoutedEventArgs e)
+    {
+        await RunWindowEventHandlerAsync(
+            nameof(UploadSlowPicsButton_Click),
+            async () =>
+            {
+                if (!ViewModel.CanExportBasket || _selectedOutputInfo is null || RootLayout.XamlRoot is null)
+                {
+                    return;
+                }
+
+                var specs = BuildExportOutputSpecs();
+                var titleBox = new TextBox
+                {
+                    Header = ViewModel.Texts.VapourSynthPreviewSlowPicsCollectionHeader,
+                    Text = ViewModel.WindowTitleDocumentName
+                };
+                var publicToggle = new CheckBox
+                {
+                    Content = ViewModel.Texts.VapourSynthPreviewSlowPicsPublicToggle,
+                    IsChecked = false
+                };
+                var optimizeToggle = new CheckBox
+                {
+                    Content = ViewModel.Texts.VapourSynthPreviewSlowPicsOptimizeToggle,
+                    IsChecked = false
+                };
+                var summaryText = new TextBlock
+                {
+                    Text = ViewModel.Texts.VapourSynthPreviewSlowPicsConfirmSummary(ViewModel.BookmarkedFrames.Count, specs.Count),
+                    TextWrapping = TextWrapping.Wrap,
+                    Opacity = 0.85
+                };
+
+                var panel = new StackPanel { Spacing = 10 };
+                panel.Children.Add(titleBox);
+                panel.Children.Add(publicToggle);
+                panel.Children.Add(optimizeToggle);
+                panel.Children.Add(summaryText);
+
+                var dialog = new ContentDialog
+                {
+                    XamlRoot = RootLayout.XamlRoot,
+                    RequestedTheme = RootLayout.ActualTheme,
+                    Title = ViewModel.Texts.VapourSynthPreviewSlowPicsDialogTitle,
+                    Content = panel,
+                    PrimaryButtonText = ViewModel.Texts.VapourSynthPreviewSlowPicsConfirmButton,
+                    CloseButtonText = ViewModel.Texts.CancelButton,
+                    DefaultButton = ContentDialogButton.Primary
+                };
+
+                var dialogResult = await dialog.ShowAsync();
+                if (dialogResult != ContentDialogResult.Primary)
+                {
+                    return;
+                }
+
+                StopPlayback();
+                ViewModel.IsExportBusy = true;
+                try
+                {
+                    var safeTitle = PreviewComparisonExportCoordinator.SanitizeFileNameSegment(titleBox.Text, "slowpics");
+                    var stamp = DateTime.Now.ToString("yyyyMMdd-HHmmss");
+                    var localDir = Path.Combine(ResolveComparisonExportRootDirectory(), $"slowpics-{safeTitle}-{stamp}");
+                    Directory.CreateDirectory(localDir);
+
+                    var (items, groups) = BuildComparisonExportPlan(localDir, useRelativePathsForHtml: false);
+                    var exportMsg = ViewModel.Texts.VapourSynthPreviewBasketExportingStatus(items.Count);
+                    ViewModel.BasketStatusText = exportMsg;
+                    SetStatusText(exportMsg);
+
+                    await _previewService.ExportFramesAsync(items, ViewModel.CurrentRenderOptions, _previewLifetimeToken);
+
+                    ViewModel.BasketStatusText = ViewModel.Texts.VapourSynthPreviewSlowPicsUploadingStatus;
+                    SetStatusText(ViewModel.Texts.VapourSynthPreviewSlowPicsUploadingStatus);
+
+                    var uploader = new SlowPicsUploadService();
+                    var uploadResult = await uploader.UploadAsync(
+                        new SlowPicsUploadRequest(
+                            titleBox.Text,
+                            publicToggle.IsChecked == true,
+                            optimizeToggle.IsChecked == true,
+                            groups),
+                        new Progress<string>(msg => RootLayout.DispatcherQueue.TryEnqueue(() => ViewModel.BasketStatusText = msg)),
+                        _previewLifetimeToken);
+
+                    if (uploadResult.Succeeded && !string.IsNullOrWhiteSpace(uploadResult.ComparisonUrl))
+                    {
+                        var dataPackage = new Windows.ApplicationModel.DataTransfer.DataPackage();
+                        dataPackage.SetText(uploadResult.ComparisonUrl);
+                        Windows.ApplicationModel.DataTransfer.Clipboard.SetContent(dataPackage);
+                        var okMsg = ViewModel.Texts.VapourSynthPreviewSlowPicsSuccessStatus(uploadResult.ComparisonUrl);
+                        ViewModel.BasketStatusText = okMsg;
+                        SetStatusText(okMsg);
+                        try
+                        {
+                            if (Uri.TryCreate(uploadResult.ComparisonUrl, UriKind.Absolute, out var comparisonUri)
+                                && string.Equals(comparisonUri.Scheme, Uri.UriSchemeHttps, StringComparison.OrdinalIgnoreCase))
+                            {
+                                Process.Start(new ProcessStartInfo(comparisonUri.AbsoluteUri) { UseShellExecute = true });
+                            }
+                        }
+                        catch
+                        {
+                        }
+                    }
+                    else
+                    {
+                        var failMsg = ViewModel.Texts.VapourSynthPreviewSlowPicsFailedStatus(
+                            uploadResult.ErrorMessage ?? "Unknown error",
+                            localDir);
+                        ViewModel.BasketStatusText = failMsg;
+                        SetStatusText(failMsg);
+                    }
+                }
+                finally
+                {
+                    ViewModel.IsExportBusy = false;
+                }
+            });
+    }
+
+    private void ScopeModeButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is Button { Tag: string mode })
+        {
+            ViewModel.SelectedScopeMode = mode;
+            InvalidateScopeCanvasIfVisible();
+        }
+    }
+
+    private void ScopeSourceButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is ToggleButton { Tag: string slot })
+        {
+            var useB = string.Equals(slot, "B", StringComparison.OrdinalIgnoreCase);
+            ViewModel.ScopeUseSecondary = useB;
+            ScopeSourceAButton.IsChecked = !useB;
+            ScopeSourceBButton.IsChecked = useB;
+            InvalidateScopeCanvasIfVisible();
+        }
+    }
+
+    private void ScopeCanvas_Draw(Microsoft.Graphics.Canvas.UI.Xaml.CanvasControl sender, Microsoft.Graphics.Canvas.UI.Xaml.CanvasDrawEventArgs args)
+    {
+        if (!ViewModel.IsFramePropsVisible || !ViewModel.IsScopesTabActive)
+        {
+            args.DrawingSession.Clear(Windows.UI.Color.FromArgb(255, 16, 18, 22));
+            return;
+        }
+
+        var useSecondary = ViewModel.ScopeUseSecondary
+            && ViewModel.IsCompareModeActive
+            && _secondarySourceFramePixels is not null
+            && _secondarySourceFrameWidth > 0
+            && _secondarySourceFrameHeight > 0;
+        var pixels = useSecondary ? _secondarySourceFramePixels : _sourceFramePixels;
+        var frameW = useSecondary ? _secondarySourceFrameWidth : _sourceFrameWidth;
+        var frameH = useSecondary ? _secondarySourceFrameHeight : _sourceFrameHeight;
+
+        var kind = ViewModel.SelectedScopeMode switch
+        {
+            "waveform" => PreviewScopeKind.Waveform,
+            "vectorscope" => PreviewScopeKind.Vectorscope,
+            _ => PreviewScopeKind.Histogram
+        };
+
+        PreviewScopesRenderer.Render(
+            args.DrawingSession,
+            (float)sender.ActualWidth,
+            (float)sender.ActualHeight,
+            kind,
+            pixels,
+            frameW,
+            frameH);
+    }
+
+    private void InvalidateScopeCanvasIfVisible()
+    {
+        if (!_isClosed && ViewModel.IsFramePropsVisible && ViewModel.IsScopesTabActive)
+        {
+            ScopeCanvas.Invalidate();
+        }
+    }
+
+    private bool TryResolveSourcePixelCoordinates(ScrollViewer scrollViewer, PointerRoutedEventArgs e, out int px, out int py)
+    {
+        px = 0;
+        py = 0;
+        var isRightPane = ReferenceEquals(scrollViewer, RightCompareScrollViewer);
+        var host = isRightPane
+            ? RightCompareImageHost
+            : (ReferenceEquals(scrollViewer, LeftCompareScrollViewer) ? LeftCompareImageHost : PreviewImageHost);
+        var srcW = isRightPane ? _secondarySourceFrameWidth : _sourceFrameWidth;
+        var srcH = isRightPane ? _secondarySourceFrameHeight : _sourceFrameHeight;
+
+        if (srcW <= 0 || srcH <= 0 || host.ActualWidth <= 0 || host.ActualHeight <= 0)
+        {
+            return false;
+        }
+
+        var local = e.GetCurrentPoint(host).Position;
+        if (local.X < 0 || local.Y < 0 || local.X > host.ActualWidth || local.Y > host.ActualHeight)
+        {
+            return false;
+        }
+
+        px = Math.Clamp((int)Math.Floor(local.X / host.ActualWidth * srcW), 0, srcW - 1);
+        py = Math.Clamp((int)Math.Floor(local.Y / host.ActualHeight * srcH), 0, srcH - 1);
+        return true;
+    }
+
+    private void UpdatePipetteFromMemory(int x, int y, bool isLocked)
+    {
+        if (_sourceFramePixels is null || _sourceFrameWidth <= 0 || _sourceFrameHeight <= 0)
+        {
+            return;
+        }
+
+        var cx = Math.Clamp(x, 0, _sourceFrameWidth - 1);
+        var cy = Math.Clamp(y, 0, _sourceFrameHeight - 1);
+        var idxA = (cy * _sourceFrameWidth + cx) * 4;
+        if (idxA + 2 >= _sourceFramePixels.Length)
+        {
+            return;
+        }
+
+        var bA = _sourceFramePixels[idxA];
+        var gA = _sourceFramePixels[idxA + 1];
+        var rA = _sourceFramePixels[idxA + 2];
+        var lockSuffix = isLocked ? $" [{ViewModel.Texts.VapourSynthPreviewPipetteLockedTag}]" : string.Empty;
+
+        if (ViewModel.IsCompareModeActive
+            && _secondarySourceFramePixels is not null
+            && _secondarySourceFrameWidth > 0
+            && _secondarySourceFrameHeight > 0)
+        {
+            var bx = Math.Clamp(cx, 0, _secondarySourceFrameWidth - 1);
+            var by = Math.Clamp(cy, 0, _secondarySourceFrameHeight - 1);
+            var idxB = (by * _secondarySourceFrameWidth + bx) * 4;
+            if (idxB + 2 < _secondarySourceFramePixels.Length)
+            {
+                var bB = _secondarySourceFramePixels[idxB];
+                var gB = _secondarySourceFramePixels[idxB + 1];
+                var rB = _secondarySourceFramePixels[idxB + 2];
+                ViewModel.PipetteReadoutText =
+                    $"({cx}, {cy}){lockSuffix}  A: RGB({rA},{gA},{bA}) #{rA:X2}{gA:X2}{bA:X2}  |  B: RGB({rB},{gB},{bB})  |  Δ({rB - rA:+0;-0;0},{gB - gA:+0;-0;0},{bB - bA:+0;-0;0})";
+                return;
+            }
+        }
+
+        ViewModel.PipetteReadoutText = $"({cx}, {cy}){lockSuffix}  RGB({rA}, {gA}, {bA})  #{rA:X2}{gA:X2}{bA:X2}";
+    }
+
+    private async Task SampleNativePixelAsync(int x, int y, bool isLocked)
+    {
+        if (_selectedOutputInfo is null || _isClosed)
+        {
+            return;
+        }
+
+        _pipetteSampleCts?.Cancel();
+        _pipetteSampleCts?.Dispose();
+        _pipetteSampleCts = CancellationTokenSource.CreateLinkedTokenSource(_previewLifetimeToken);
+        var token = _pipetteSampleCts.Token;
+
+        try
+        {
+            var sampleA = await _previewService.SamplePixelAsync(_selectedOutputInfo.Index, ViewModel.CurrentFrame, x, y, token);
+            token.ThrowIfCancellationRequested();
+
+            static string FormatSample(string slot, PreviewPixelSampleResult s)
+            {
+                var p0 = $"{s.Plane0Name}={s.Plane0Raw:0.##} ({s.Plane0Normalized:0.000})";
+                var p1 = s.Plane1Name is not null && s.Plane1Raw.HasValue
+                    ? $" {s.Plane1Name}={s.Plane1Raw.Value:0.##}"
+                    : string.Empty;
+                var p2 = s.Plane2Name is not null && s.Plane2Raw.HasValue
+                    ? $" {s.Plane2Name}={s.Plane2Raw.Value:0.##}"
+                    : string.Empty;
+                return $"{slot} [{s.ColorFamily} {s.BitsPerSample}-bit]: {p0}{p1}{p2}";
+            }
+
+            if (ViewModel.IsCompareModeActive && _secondaryOutputInfo is not null)
+            {
+                var frameB = PreviewCompareCoordinator.ResolveSecondaryFrameNumber(
+                    _selectedOutputInfo,
+                    _secondaryOutputInfo,
+                    ViewModel.CurrentFrame,
+                    ViewModel.SelectedOutputSyncMode?.Value,
+                    ViewModel.IsTimelineTimeMode,
+                    ViewModel.SecondaryFrameOffset);
+                var sampleB = await _previewService.SamplePixelAsync(_secondaryOutputInfo.Index, frameB, x, y, token);
+                token.ThrowIfCancellationRequested();
+
+                var deltaLine = $"Δ {sampleA.Plane0Name}={sampleB.Plane0Raw - sampleA.Plane0Raw:+0.##;-0.##;0}";
+                if (sampleA.Plane1Raw.HasValue && sampleB.Plane1Raw.HasValue && sampleA.Plane1Name is not null)
+                {
+                    deltaLine += $" {sampleA.Plane1Name}={sampleB.Plane1Raw.Value - sampleA.Plane1Raw.Value:+0.##;-0.##;0}";
+                }
+                if (sampleA.Plane2Raw.HasValue && sampleB.Plane2Raw.HasValue && sampleA.Plane2Name is not null)
+                {
+                    deltaLine += $" {sampleA.Plane2Name}={sampleB.Plane2Raw.Value - sampleA.Plane2Raw.Value:+0.##;-0.##;0}";
+                }
+
+                var lockTag = isLocked ? $" [{ViewModel.Texts.VapourSynthPreviewPipetteLockedTag}]" : string.Empty;
+                ViewModel.PipetteDetailText = $"({sampleA.X}, {sampleA.Y}){lockTag}{Environment.NewLine}{FormatSample("A", sampleA)}{Environment.NewLine}{FormatSample("B", sampleB)}{Environment.NewLine}{deltaLine}";
+                ViewModel.PipetteReadoutText = $"({sampleA.X}, {sampleA.Y}){lockTag}  {FormatSample("A", sampleA)}  |  {deltaLine}";
+            }
+            else
+            {
+                var lockTag = isLocked ? $" [{ViewModel.Texts.VapourSynthPreviewPipetteLockedTag}]" : string.Empty;
+                ViewModel.PipetteDetailText = $"({sampleA.X}, {sampleA.Y}){lockTag}{Environment.NewLine}{FormatSample("Native", sampleA)}";
+                ViewModel.PipetteReadoutText = $"({sampleA.X}, {sampleA.Y}){lockTag}  {FormatSample("Native", sampleA)}";
+            }
+        }
+        catch (OperationCanceledException)
+        {
+        }
+        catch
+        {
+            // Keep fast memory RGB readout if native sampling is temporarily unavailable.
+        }
+    }
+
+    private async Task SetSecondaryFrameOffsetAsync(int offset)
+    {
+        var clamped = Math.Clamp(offset, -100000, 100000);
+        if (ViewModel.SecondaryFrameOffset == clamped)
+        {
+            return;
+        }
+
+        ViewModel.SecondaryFrameOffset = clamped;
+        SyncControls();
+        if (ViewModel.IsCompareModeActive && _selectedOutputInfo is not null)
+        {
+            await RequestFrameAsync(_selectedOutputInfo, ViewModel.CurrentFrame);
+        }
+    }
+
+    private async void EnableHdrToneMapBannerButton_Click(object sender, RoutedEventArgs e)
+    {
+        await RunWindowEventHandlerAsync(
+            nameof(EnableHdrToneMapBannerButton_Click),
+            async () =>
+            {
+                ViewModel.ToneMapHdr = true;
+                UpdatePreviewFilterSelection();
+                if (_selectedOutputInfo is not null)
+                {
+                    await RequestFrameAsync(_selectedOutputInfo, ViewModel.CurrentFrame);
+                }
+                RequestPreviewFocus();
+            });
+    }
+
+    private void DismissHdrToneMapBannerButton_Click(object sender, RoutedEventArgs e)
+    {
+        ViewModel.IsHdrBannerDismissed = true;
+        RequestPreviewFocus();
+    }
+
     private void CompareSizeAlignmentComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
     {
         if (_isInternalControlUpdate
@@ -4459,6 +6088,7 @@ public sealed partial class VapourSynthPreviewWindow : Window
             EnsureSecondaryOutputSelection(_selectedOutputInfo);
         }
 
+        SyncFlickerTimer();
         UpdateCompareModeSelection();
         UpdateCompareVisualPresentation();
         UpdatePreviewImageVisualSize();
@@ -4491,7 +6121,8 @@ public sealed partial class VapourSynthPreviewWindow : Window
             _secondaryOutputInfo,
             ViewModel.CurrentFrame,
             ViewModel.SelectedOutputSyncMode?.Value,
-            ViewModel.IsTimelineTimeMode);
+            ViewModel.IsTimelineTimeMode,
+            ViewModel.SecondaryFrameOffset);
 
         var hasMatchingCachedPair = _cachedBitmapA is not null
             && _cachedBitmapB is not null
@@ -4667,20 +6298,222 @@ public sealed partial class VapourSynthPreviewWindow : Window
             PreviewFilterMenu.Items.Add(item);
         }
 
+        PreviewFilterMenu.Items.Add(new MenuFlyoutSeparator());
+
+        var planeSubmenu = new MenuFlyoutSubItem
+        {
+            Text = ViewModel.Texts.VapourSynthPreviewPlaneSubmenuHeader,
+            Tag = "PlaneSubmenu"
+        };
+        foreach (var planeMode in Enum.GetValues<PreviewPlaneMode>())
+        {
+            var planeItem = new RadioMenuFlyoutItem
+            {
+                Text = ViewModel.Texts.VapourSynthPreviewPlaneModeLabel(planeMode),
+                Tag = planeMode,
+                GroupName = "PreviewPlaneModeGroup"
+            };
+            planeItem.Click += PreviewPlaneModeMenuItem_Click;
+            planeSubmenu.Items.Add(planeItem);
+        }
+        PreviewFilterMenu.Items.Add(planeSubmenu);
+
+        PreviewFilterMenu.Items.Add(new MenuFlyoutSeparator());
+
+        var hdrToggle = new ToggleMenuFlyoutItem
+        {
+            Text = ViewModel.Texts.VapourSynthPreviewHdrToneMapToggle,
+            Tag = "ToneMapHdr"
+        };
+        hdrToggle.Click += PreviewHdrToneMapToggle_Click;
+        PreviewFilterMenu.Items.Add(hdrToggle);
+
+        var nitsSubmenu = new MenuFlyoutSubItem
+        {
+            Text = ViewModel.Texts.VapourSynthPreviewHdrTargetNitsSubmenuHeader,
+            Tag = "HdrNitsSubmenu"
+        };
+        foreach (var nits in new[] { 100.0, 203.0, 300.0, 500.0 })
+        {
+            var nitsItem = new RadioMenuFlyoutItem
+            {
+                Text = $"{nits:0} nits",
+                Tag = nits,
+                GroupName = "PreviewHdrNitsGroup"
+            };
+            nitsItem.Click += PreviewHdrTargetNitsMenuItem_Click;
+            nitsSubmenu.Items.Add(nitsItem);
+        }
+        PreviewFilterMenu.Items.Add(nitsSubmenu);
+
+        PreviewFilterMenu.Items.Add(new MenuFlyoutSeparator());
+
+        var separateFieldsToggle = new ToggleMenuFlyoutItem
+        {
+            Text = ViewModel.Texts.VapourSynthPreviewSeparateFieldsToggle,
+            Tag = "SeparateFields"
+        };
+        separateFieldsToggle.Click += PreviewSeparateFieldsToggle_Click;
+        PreviewFilterMenu.Items.Add(separateFieldsToggle);
+
+        var fftToggle = new ToggleMenuFlyoutItem
+        {
+            Text = ViewModel.Texts.VapourSynthPreviewFftSpectrumToggle,
+            Tag = "FftSpectrum"
+        };
+        fftToggle.Click += PreviewFftSpectrumToggle_Click;
+        PreviewFilterMenu.Items.Add(fftToggle);
+
         UpdatePreviewFilterSelection();
     }
 
     private void UpdatePreviewFilterSelection()
     {
-        var filterLabel = ViewModel.Texts.VapourSynthPreviewFilterLabel(_previewFilter);
-        PreviewFilterButton.Content = _previewFilter == PreviewDisplayFilter.Original
-            ? ViewModel.Texts.VapourSynthPreviewFilterHeader
-            : filterLabel;
-        Microsoft.UI.Xaml.Automation.AutomationProperties.SetItemStatus(PreviewFilterButton, filterLabel);
-        foreach (RadioMenuFlyoutItem item in PreviewFilterMenu.Items)
+        var activeTags = new List<string>();
+        if (_previewFilter != PreviewDisplayFilter.Original)
         {
-            item.IsChecked = Equals(item.Tag, _previewFilter);
+            activeTags.Add(ViewModel.Texts.VapourSynthPreviewFilterLabel(_previewFilter));
         }
+        if (ViewModel.PlaneMode != PreviewPlaneMode.Rgb)
+        {
+            activeTags.Add(ViewModel.PlaneMode.ToString());
+        }
+        if (ViewModel.ToneMapHdr)
+        {
+            activeTags.Add("HDR");
+        }
+        if (ViewModel.SeparateFields)
+        {
+            activeTags.Add("Fields");
+        }
+        if (ViewModel.FftSpectrum)
+        {
+            activeTags.Add("FFT");
+        }
+
+        var summary = activeTags.Count == 0
+            ? ViewModel.Texts.VapourSynthPreviewFilterHeader
+            : string.Join(" · ", activeTags);
+        PreviewFilterButton.Content = summary;
+        Microsoft.UI.Xaml.Automation.AutomationProperties.SetItemStatus(PreviewFilterButton, summary);
+
+        foreach (var menuItem in PreviewFilterMenu.Items)
+        {
+            switch (menuItem)
+            {
+                case RadioMenuFlyoutItem radio when radio.Tag is PreviewDisplayFilter filterTag:
+                    radio.IsChecked = filterTag == _previewFilter;
+                    break;
+                case ToggleMenuFlyoutItem toggle when Equals(toggle.Tag, "ToneMapHdr"):
+                    toggle.IsChecked = ViewModel.ToneMapHdr;
+                    break;
+                case ToggleMenuFlyoutItem toggle when Equals(toggle.Tag, "SeparateFields"):
+                    toggle.IsChecked = ViewModel.SeparateFields;
+                    break;
+                case ToggleMenuFlyoutItem toggle when Equals(toggle.Tag, "FftSpectrum"):
+                    toggle.IsChecked = ViewModel.FftSpectrum;
+                    break;
+                case MenuFlyoutSubItem sub when Equals(sub.Tag, "PlaneSubmenu"):
+                    foreach (var child in sub.Items.OfType<RadioMenuFlyoutItem>())
+                    {
+                        child.IsChecked = Equals(child.Tag, ViewModel.PlaneMode);
+                    }
+                    break;
+                case MenuFlyoutSubItem sub when Equals(sub.Tag, "HdrNitsSubmenu"):
+                    foreach (var child in sub.Items.OfType<RadioMenuFlyoutItem>())
+                    {
+                        child.IsChecked = child.Tag is double nits && Math.Abs(nits - ViewModel.ToneMapTargetNits) < 0.5;
+                    }
+                    break;
+            }
+        }
+    }
+
+    private async void PreviewPlaneModeMenuItem_Click(object sender, RoutedEventArgs e)
+    {
+        await RunWindowEventHandlerAsync(
+            nameof(PreviewPlaneModeMenuItem_Click),
+            async () =>
+            {
+                if (((RadioMenuFlyoutItem)sender).Tag is PreviewPlaneMode mode && ViewModel.PlaneMode != mode)
+                {
+                    ViewModel.PlaneMode = mode;
+                    UpdatePreviewFilterSelection();
+                    if (_selectedOutputInfo is not null)
+                    {
+                        await RequestFrameAsync(_selectedOutputInfo, ViewModel.CurrentFrame);
+                    }
+                }
+                RequestPreviewFocus();
+            });
+    }
+
+    private async void PreviewHdrToneMapToggle_Click(object sender, RoutedEventArgs e)
+    {
+        await RunWindowEventHandlerAsync(
+            nameof(PreviewHdrToneMapToggle_Click),
+            async () =>
+            {
+                ViewModel.ToneMapHdr = ((ToggleMenuFlyoutItem)sender).IsChecked;
+                UpdatePreviewFilterSelection();
+                if (_selectedOutputInfo is not null)
+                {
+                    await RequestFrameAsync(_selectedOutputInfo, ViewModel.CurrentFrame);
+                }
+                RequestPreviewFocus();
+            });
+    }
+
+    private async void PreviewHdrTargetNitsMenuItem_Click(object sender, RoutedEventArgs e)
+    {
+        await RunWindowEventHandlerAsync(
+            nameof(PreviewHdrTargetNitsMenuItem_Click),
+            async () =>
+            {
+                if (((RadioMenuFlyoutItem)sender).Tag is double nits)
+                {
+                    ViewModel.ToneMapTargetNits = nits;
+                    ViewModel.ToneMapHdr = true;
+                    UpdatePreviewFilterSelection();
+                    if (_selectedOutputInfo is not null)
+                    {
+                        await RequestFrameAsync(_selectedOutputInfo, ViewModel.CurrentFrame);
+                    }
+                }
+                RequestPreviewFocus();
+            });
+    }
+
+    private async void PreviewSeparateFieldsToggle_Click(object sender, RoutedEventArgs e)
+    {
+        await RunWindowEventHandlerAsync(
+            nameof(PreviewSeparateFieldsToggle_Click),
+            async () =>
+            {
+                ViewModel.SeparateFields = ((ToggleMenuFlyoutItem)sender).IsChecked;
+                UpdatePreviewFilterSelection();
+                if (_selectedOutputInfo is not null)
+                {
+                    await RequestFrameAsync(_selectedOutputInfo, ViewModel.CurrentFrame);
+                }
+                RequestPreviewFocus();
+            });
+    }
+
+    private async void PreviewFftSpectrumToggle_Click(object sender, RoutedEventArgs e)
+    {
+        await RunWindowEventHandlerAsync(
+            nameof(PreviewFftSpectrumToggle_Click),
+            async () =>
+            {
+                ViewModel.FftSpectrum = ((ToggleMenuFlyoutItem)sender).IsChecked;
+                UpdatePreviewFilterSelection();
+                if (_selectedOutputInfo is not null)
+                {
+                    await RequestFrameAsync(_selectedOutputInfo, ViewModel.CurrentFrame);
+                }
+                RequestPreviewFocus();
+            });
     }
 
     private async void PreviewFilterMenuItem_Click(object sender, RoutedEventArgs e)
@@ -4888,7 +6721,7 @@ public sealed partial class VapourSynthPreviewWindow : Window
             _wipeLayerBContainerVisual.Offset = Vector3.Zero;
         }
 
-        if (ViewModel.IsWipeMode
+        if ((ViewModel.IsWipeMode || ViewModel.IsFlickerMode || ViewModel.IsTemporaryFlipToB)
             && _displayedFrameWidth > 0
             && _displayedFrameHeight > 0
             && _secondaryDisplayedFrameWidth > 0
@@ -5024,6 +6857,65 @@ public sealed partial class VapourSynthPreviewWindow : Window
                     return;
                 }
 
+                if (e.Key == VirtualKey.Tab && !IsControlKeyPressed() && !IsKeyPressed(VirtualKey.Menu) && !IsKeyPressed(VirtualKey.Shift))
+                {
+                    if (ViewModel.IsCompareModeActive)
+                    {
+                        e.Handled = true;
+                        if (!e.KeyStatus.WasKeyDown)
+                        {
+                            SetTemporaryFlipToB(true);
+                        }
+                        return;
+                    }
+                }
+
+                if (IsKeyPressed(VirtualKey.Menu) && !IsControlKeyPressed() && ViewModel.IsCompareModeActive)
+                {
+                    if ((int)e.Key == 188)
+                    {
+                        e.Handled = true;
+                        await SetSecondaryFrameOffsetAsync(ViewModel.SecondaryFrameOffset - 1);
+                        return;
+                    }
+                    if ((int)e.Key == 190)
+                    {
+                        e.Handled = true;
+                        await SetSecondaryFrameOffsetAsync(ViewModel.SecondaryFrameOffset + 1);
+                        return;
+                    }
+                }
+
+                if (e.Key == VirtualKey.I && !IsControlKeyPressed() && !IsKeyPressed(VirtualKey.Menu) && !IsKeyPressed(VirtualKey.Shift))
+                {
+                    e.Handled = true;
+                    if (!e.KeyStatus.WasKeyDown)
+                    {
+                        MarkSceneInAtCurrentFrame();
+                    }
+                    return;
+                }
+
+                if (e.Key == VirtualKey.O && !IsControlKeyPressed() && !IsKeyPressed(VirtualKey.Menu) && !IsKeyPressed(VirtualKey.Shift))
+                {
+                    e.Handled = true;
+                    if (!e.KeyStatus.WasKeyDown)
+                    {
+                        MarkSceneOutAtCurrentFrame();
+                    }
+                    return;
+                }
+
+                if (e.Key == VirtualKey.B && !IsControlKeyPressed() && !IsKeyPressed(VirtualKey.Menu) && !IsKeyPressed(VirtualKey.Shift))
+                {
+                    e.Handled = true;
+                    if (!e.KeyStatus.WasKeyDown)
+                    {
+                        ToggleBookmarkCurrentFrame();
+                    }
+                    return;
+                }
+
                 if (e.Key == VirtualKey.X && !IsControlKeyPressed() && !IsKeyPressed(VirtualKey.Menu))
                 {
                     if (ViewModel.IsCompareModeActive)
@@ -5097,6 +6989,13 @@ public sealed partial class VapourSynthPreviewWindow : Window
 
     private void RootLayout_KeyUp(object sender, KeyRoutedEventArgs e)
     {
+        if (e.Key == VirtualKey.Tab && ViewModel.IsTemporaryFlipToB)
+        {
+            e.Handled = true;
+            SetTemporaryFlipToB(false);
+            return;
+        }
+
         if (e.Handled || e.Key != VirtualKey.Enter)
         {
             return;
@@ -5475,7 +7374,9 @@ public sealed partial class VapourSynthPreviewWindow : Window
         int FrameNumber,
         PreviewCompareMode CompareMode,
         VapourSynthPreviewOutputInfo? SecondaryOutputInfo,
-        int? SecondaryFrameNumber);
+        int? SecondaryFrameNumber,
+        PreviewRenderOptions RenderOptions,
+        PreviewRenderOptions SecondaryRenderOptions);
 
     private sealed record ChapterEntry(
         TimeSpan Timecode,

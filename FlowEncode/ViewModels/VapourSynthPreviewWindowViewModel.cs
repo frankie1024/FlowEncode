@@ -47,8 +47,48 @@ public sealed class VapourSynthPreviewWindowViewModel : ObservableObject
     private string _snapshotTemplate;
     private string _scalingAlgorithm;
     private PreviewCompareMode _compareMode = PreviewCompareMode.Single;
+    private PreviewDifferenceStyle _differenceStyle = PreviewDifferenceStyle.Absolute;
     private PreviewDifferenceGain _differenceGain = PreviewDifferenceGain.Boost;
     private PreviewCompareSizeAlignment _sizeAlignment = PreviewCompareSizeAlignment.Center1To1;
+    private int _secondaryFrameOffset;
+    private double _subpixelOffsetX;
+    private double _subpixelOffsetY;
+    private int _temporalSearchRadius = 120;
+    private bool _isAutoAlignBusy;
+    private string _alignStatusText = string.Empty;
+    private bool _isPipetteEnabled;
+    private bool _isPipetteLocked;
+    private string _pipetteReadoutText = string.Empty;
+    private string _pipetteDetailText = string.Empty;
+    private string _activeInspectorTab = "props";
+    private string _selectedScopeMode = "histogram";
+    private bool _scopeUseSecondary;
+    private bool _isExportBusy;
+    private string _basketStatusText = string.Empty;
+    private bool _isWorstScanBusy;
+    private string _worstScanStatusText = string.Empty;
+    private double _worstSkipMinutes = 10.0;
+    private int _worstSampleCount = 80;
+    private string _worstMetric = "xpsnr";
+    private bool _hasVsAlign;
+    private bool _hasVmafCambi;
+    private bool _hasNativeRes;
+    private int? _pendingSceneStartFrame;
+    private StringChoiceOption? _selectedWorstSkipOption;
+    private StringChoiceOption? _selectedWorstSampleOption;
+    private StringChoiceOption? _selectedWorstMetricOption;
+    private StringChoiceOption? _selectedTemporalSearchRadiusOption;
+    private int _flickerIntervalMs = 500;
+    private bool _isShowingSecondaryInFlip;
+    private bool _isTemporaryFlipToB;
+    private PreviewPlaneMode _planeMode = PreviewPlaneMode.Rgb;
+    private bool _toneMapHdr;
+    private double _toneMapTargetNits = 203.0;
+    private bool _separateFields;
+    private bool _fftSpectrum;
+    private bool _isHdrDetected;
+    private string? _hdrTransferName;
+    private bool _isHdrBannerDismissed;
     private double _splitRatio = 0.5;
     private string _compareInfoText = string.Empty;
     private string _compareOutputABadgeText = string.Empty;
@@ -57,8 +97,10 @@ public sealed class VapourSynthPreviewWindowViewModel : ObservableObject
     private VapourSynthPreviewOutputOption? _selectedOutput;
     private VapourSynthPreviewOutputOption? _selectedSecondaryOutput;
     private PreviewCompareModeOption? _selectedCompareModeOption;
+    private PreviewDifferenceStyleOption? _selectedDifferenceStyleOption;
     private PreviewDifferenceGainOption? _selectedDifferenceGainOption;
     private PreviewCompareSizeAlignmentOption? _selectedSizeAlignmentOption;
+    private PreviewFlickerIntervalOption? _selectedFlickerIntervalOption;
     private StringChoiceOption? _selectedZoomMode;
     private StringChoiceOption? _selectedTimelineMode;
     private StringChoiceOption? _selectedCropMode;
@@ -104,9 +146,27 @@ public sealed class VapourSynthPreviewWindowViewModel : ObservableObject
 
     public ObservableCollection<PreviewCompareModeOption> CompareModes { get; } = [];
 
+    public ObservableCollection<PreviewDifferenceStyleOption> DifferenceStyles { get; } = [];
+
     public ObservableCollection<PreviewDifferenceGainOption> DifferenceGains { get; } = [];
 
     public ObservableCollection<PreviewCompareSizeAlignmentOption> SizeAlignments { get; } = [];
+
+    public ObservableCollection<PreviewFlickerIntervalOption> FlickerIntervals { get; } = [];
+
+    public ObservableCollection<StringChoiceOption> TemporalSearchRadii { get; } = [];
+
+    public ObservableCollection<PreviewBasketFrameItem> BookmarkedFrames { get; } = [];
+
+    public ObservableCollection<PreviewWorstFrameRowItem> WorstFrameResults { get; } = [];
+
+    public ObservableCollection<PreviewSceneRangeItem> SceneRanges { get; } = [];
+
+    public ObservableCollection<StringChoiceOption> WorstSkipOptions { get; } = [];
+
+    public ObservableCollection<StringChoiceOption> WorstSampleOptions { get; } = [];
+
+    public ObservableCollection<StringChoiceOption> WorstMetricOptions { get; } = [];
 
     public ObservableCollection<StringChoiceOption> ZoomModes { get; }
 
@@ -380,6 +440,597 @@ public sealed class VapourSynthPreviewWindowViewModel : ObservableObject
         }
     }
 
+    public PreviewDifferenceStyle DifferenceStyle
+    {
+        get => _differenceStyle;
+        set
+        {
+            if (SetProperty(ref _differenceStyle, value))
+            {
+                _selectedDifferenceStyleOption = DifferenceStyles.FirstOrDefault(option => option.Style == value)
+                    ?? DifferenceStyles.FirstOrDefault();
+                OnPropertyChanged(nameof(SelectedDifferenceStyleOption));
+            }
+        }
+    }
+
+    public PreviewDifferenceStyleOption? SelectedDifferenceStyleOption
+    {
+        get => _selectedDifferenceStyleOption;
+        set
+        {
+            if (value is null) return;
+            DifferenceStyle = value.Style;
+        }
+    }
+
+    public int SecondaryFrameOffset
+    {
+        get => _secondaryFrameOffset;
+        set
+        {
+            var clamped = Math.Clamp(value, -100000, 100000);
+            if (SetProperty(ref _secondaryFrameOffset, clamped))
+            {
+                OnPropertyChanged(nameof(AlignButtonLabel));
+        OnPropertyChanged(nameof(CanRunAutoAlign));
+        OnPropertyChanged(nameof(CanStartWorstScan));
+                OnPropertyChanged(nameof(HasSecondaryFrameOffset));
+                UpdateCompareBadges(CurrentFrame);
+            }
+        }
+    }
+
+    public bool HasSecondaryFrameOffset => _secondaryFrameOffset != 0;
+
+    public double SubpixelOffsetX
+    {
+        get => _subpixelOffsetX;
+        set
+        {
+            var clamped = Math.Round(Math.Clamp(value, -64.0, 64.0), 3);
+            if (SetProperty(ref _subpixelOffsetX, clamped))
+            {
+                OnPropertyChanged(nameof(HasSubpixelOffset));
+                OnPropertyChanged(nameof(AlignButtonLabel));
+        OnPropertyChanged(nameof(CanRunAutoAlign));
+        OnPropertyChanged(nameof(CanStartWorstScan));
+                OnPropertyChanged(nameof(SecondaryRenderOptions));
+            }
+        }
+    }
+
+    public double SubpixelOffsetY
+    {
+        get => _subpixelOffsetY;
+        set
+        {
+            var clamped = Math.Round(Math.Clamp(value, -64.0, 64.0), 3);
+            if (SetProperty(ref _subpixelOffsetY, clamped))
+            {
+                OnPropertyChanged(nameof(HasSubpixelOffset));
+                OnPropertyChanged(nameof(AlignButtonLabel));
+        OnPropertyChanged(nameof(CanRunAutoAlign));
+        OnPropertyChanged(nameof(CanStartWorstScan));
+                OnPropertyChanged(nameof(SecondaryRenderOptions));
+            }
+        }
+    }
+
+    public bool HasSubpixelOffset => Math.Abs(_subpixelOffsetX) >= 0.0005 || Math.Abs(_subpixelOffsetY) >= 0.0005;
+
+    public string AlignButtonLabel => Texts.VapourSynthPreviewAlignFlyoutButton(_secondaryFrameOffset, _subpixelOffsetX, _subpixelOffsetY);
+
+    public int TemporalSearchRadius
+    {
+        get => _temporalSearchRadius;
+        set
+        {
+            var normalized = Math.Clamp(value, 16, 1200);
+            if (SetProperty(ref _temporalSearchRadius, normalized))
+            {
+                _selectedTemporalSearchRadiusOption = TemporalSearchRadii.FirstOrDefault(o => o.Value == normalized.ToString())
+                    ?? TemporalSearchRadii.FirstOrDefault();
+                OnPropertyChanged(nameof(SelectedTemporalSearchRadiusOption));
+        WorstSkipOptions.Clear();
+        WorstSkipOptions.Add(new StringChoiceOption("10", "10 min"));
+        WorstSkipOptions.Add(new StringChoiceOption("5", "5 min"));
+        WorstSkipOptions.Add(new StringChoiceOption("2", "2 min"));
+        WorstSkipOptions.Add(new StringChoiceOption("0", "0 min"));
+        _selectedWorstSkipOption = WorstSkipOptions.FirstOrDefault(o => o.Value == ((int)_worstSkipMinutes).ToString()) ?? WorstSkipOptions[0];
+        OnPropertyChanged(nameof(SelectedWorstSkipOption));
+
+        WorstSampleOptions.Clear();
+        WorstSampleOptions.Add(new StringChoiceOption("40", "40f"));
+        WorstSampleOptions.Add(new StringChoiceOption("80", "80f"));
+        WorstSampleOptions.Add(new StringChoiceOption("150", "150f"));
+        _selectedWorstSampleOption = WorstSampleOptions.FirstOrDefault(o => o.Value == _worstSampleCount.ToString()) ?? WorstSampleOptions[1];
+        OnPropertyChanged(nameof(SelectedWorstSampleOption));
+
+        WorstMetricOptions.Clear();
+        WorstMetricOptions.Add(new StringChoiceOption("xpsnr", "XPSNR"));
+        WorstMetricOptions.Add(new StringChoiceOption("ssimulacra2", "SSIMULACRA2"));
+        WorstMetricOptions.Add(new StringChoiceOption("psnr", "PSNR"));
+        _selectedWorstMetricOption = WorstMetricOptions.FirstOrDefault(o => o.Value == _worstMetric) ?? WorstMetricOptions[0];
+        OnPropertyChanged(nameof(SelectedWorstMetricOption));
+            }
+        }
+    }
+
+    public StringChoiceOption? SelectedTemporalSearchRadiusOption
+    {
+        get => _selectedTemporalSearchRadiusOption;
+        set
+        {
+            if (value is not null && int.TryParse(value.Value, out var radius))
+            {
+                TemporalSearchRadius = radius;
+            }
+        }
+    }
+
+    public bool IsAutoAlignBusy
+    {
+        get => _isAutoAlignBusy;
+        set
+        {
+            if (SetProperty(ref _isAutoAlignBusy, value))
+            {
+                OnPropertyChanged(nameof(CanRunAutoAlign));
+        OnPropertyChanged(nameof(CanStartWorstScan));
+            }
+        }
+    }
+
+    public bool CanRunAutoAlign => !_isAutoAlignBusy && IsCompareModeActive;
+
+    public string AlignStatusText
+    {
+        get => _alignStatusText;
+        set
+        {
+            if (SetProperty(ref _alignStatusText, value))
+            {
+                OnPropertyChanged(nameof(AlignStatusVisibility));
+            }
+        }
+    }
+
+    public Visibility AlignStatusVisibility => string.IsNullOrWhiteSpace(_alignStatusText) ? Visibility.Collapsed : Visibility.Visible;
+
+    public bool IsPipetteEnabled
+    {
+        get => _isPipetteEnabled;
+        set
+        {
+            if (SetProperty(ref _isPipetteEnabled, value))
+            {
+                if (!value)
+                {
+                    IsPipetteLocked = false;
+                }
+                OnPropertyChanged(nameof(PipetteOverlayVisibility));
+                OnPropertyChanged(nameof(PipetteDetailVisibility));
+            }
+        }
+    }
+
+    public bool IsPipetteLocked
+    {
+        get => _isPipetteLocked;
+        set => SetProperty(ref _isPipetteLocked, value);
+    }
+
+    public string PipetteReadoutText
+    {
+        get => _pipetteReadoutText;
+        set
+        {
+            if (SetProperty(ref _pipetteReadoutText, value))
+            {
+                OnPropertyChanged(nameof(PipetteOverlayVisibility));
+            }
+        }
+    }
+
+    public string PipetteDetailText
+    {
+        get => _pipetteDetailText;
+        set
+        {
+            if (SetProperty(ref _pipetteDetailText, value))
+            {
+                OnPropertyChanged(nameof(PipetteDetailVisibility));
+            }
+        }
+    }
+
+    public Visibility PipetteOverlayVisibility => _isPipetteEnabled && !string.IsNullOrWhiteSpace(_pipetteReadoutText)
+        ? Visibility.Visible
+        : Visibility.Collapsed;
+
+    public Visibility PipetteDetailVisibility => _isPipetteEnabled && !string.IsNullOrWhiteSpace(_pipetteDetailText)
+        ? Visibility.Visible
+        : Visibility.Collapsed;
+
+    public string ActiveInspectorTab
+    {
+        get => _activeInspectorTab;
+        set
+        {
+            var normalized = value?.Trim().ToLowerInvariant() switch
+            {
+                "scopes" => "scopes",
+                "basket" => "basket",
+                "worst" => "worst",
+                "scenes" => "scenes",
+                _ => "props"
+            };
+            if (SetProperty(ref _activeInspectorTab, normalized))
+            {
+                OnPropertyChanged(nameof(IsPropsTabActive));
+                OnPropertyChanged(nameof(IsScopesTabActive));
+                OnPropertyChanged(nameof(IsBasketTabActive));
+                OnPropertyChanged(nameof(IsWorstTabActive));
+                OnPropertyChanged(nameof(IsScenesTabActive));
+                OnPropertyChanged(nameof(InspectorPropsVisibility));
+                OnPropertyChanged(nameof(InspectorScopesVisibility));
+                OnPropertyChanged(nameof(InspectorBasketVisibility));
+                OnPropertyChanged(nameof(InspectorWorstVisibility));
+                OnPropertyChanged(nameof(InspectorScenesVisibility));
+            }
+        }
+    }
+
+    public bool IsPropsTabActive => string.Equals(_activeInspectorTab, "props", StringComparison.OrdinalIgnoreCase);
+
+    public bool IsScopesTabActive => string.Equals(_activeInspectorTab, "scopes", StringComparison.OrdinalIgnoreCase);
+
+    public bool IsBasketTabActive => string.Equals(_activeInspectorTab, "basket", StringComparison.OrdinalIgnoreCase);
+
+    public bool IsWorstTabActive => string.Equals(_activeInspectorTab, "worst", StringComparison.OrdinalIgnoreCase);
+
+    public bool IsScenesTabActive => string.Equals(_activeInspectorTab, "scenes", StringComparison.OrdinalIgnoreCase);
+
+    public Visibility InspectorPropsVisibility => IsPropsTabActive ? Visibility.Visible : Visibility.Collapsed;
+
+    public Visibility InspectorScopesVisibility => IsScopesTabActive ? Visibility.Visible : Visibility.Collapsed;
+
+    public Visibility InspectorBasketVisibility => IsBasketTabActive ? Visibility.Visible : Visibility.Collapsed;
+
+    public Visibility InspectorWorstVisibility => IsWorstTabActive ? Visibility.Visible : Visibility.Collapsed;
+
+    public Visibility InspectorScenesVisibility => IsScenesTabActive ? Visibility.Visible : Visibility.Collapsed;
+
+    public bool IsWorstScanBusy
+    {
+        get => _isWorstScanBusy;
+        set
+        {
+            if (SetProperty(ref _isWorstScanBusy, value))
+            {
+                OnPropertyChanged(nameof(CanStartWorstScan));
+            }
+        }
+    }
+
+    public bool CanStartWorstScan => !_isWorstScanBusy && CanCompareOutputs;
+
+    public bool HasWorstScanResults => WorstFrameResults.Count > 0;
+
+    public Visibility WorstResultsEmptyVisibility => WorstFrameResults.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
+
+    public string WorstScanStatusText
+    {
+        get => _worstScanStatusText;
+        set
+        {
+            if (SetProperty(ref _worstScanStatusText, value))
+            {
+                OnPropertyChanged(nameof(WorstScanStatusVisibility));
+            }
+        }
+    }
+
+    public Visibility WorstScanStatusVisibility => string.IsNullOrWhiteSpace(_worstScanStatusText) ? Visibility.Collapsed : Visibility.Visible;
+
+    public double WorstSkipMinutes
+    {
+        get => _worstSkipMinutes;
+        set => SetProperty(ref _worstSkipMinutes, Math.Clamp(value, 0.0, 60.0));
+    }
+
+    public StringChoiceOption? SelectedWorstSkipOption
+    {
+        get => _selectedWorstSkipOption;
+        set
+        {
+            if (SetProperty(ref _selectedWorstSkipOption, value) && value is not null && double.TryParse(value.Value, out var mins))
+            {
+                WorstSkipMinutes = mins;
+            }
+        }
+    }
+
+    public int WorstSampleCount
+    {
+        get => _worstSampleCount;
+        set => SetProperty(ref _worstSampleCount, Math.Clamp(value, 10, 300));
+    }
+
+    public StringChoiceOption? SelectedWorstSampleOption
+    {
+        get => _selectedWorstSampleOption;
+        set
+        {
+            if (SetProperty(ref _selectedWorstSampleOption, value) && value is not null && int.TryParse(value.Value, out var cnt))
+            {
+                WorstSampleCount = cnt;
+            }
+        }
+    }
+
+    public string WorstMetric
+    {
+        get => _worstMetric;
+        set => SetProperty(ref _worstMetric, string.IsNullOrWhiteSpace(value) ? "xpsnr" : value);
+    }
+
+    public StringChoiceOption? SelectedWorstMetricOption
+    {
+        get => _selectedWorstMetricOption;
+        set
+        {
+            if (SetProperty(ref _selectedWorstMetricOption, value) && value is not null)
+            {
+                WorstMetric = value.Value;
+            }
+        }
+    }
+
+    public void NotifyWorstScanResultsChanged()
+    {
+        OnPropertyChanged(nameof(HasWorstScanResults));
+        OnPropertyChanged(nameof(WorstResultsEmptyVisibility));
+    }
+
+    public int? PendingSceneStartFrame
+    {
+        get => _pendingSceneStartFrame;
+        set
+        {
+            if (SetProperty(ref _pendingSceneStartFrame, value))
+            {
+                OnPropertyChanged(nameof(PendingSceneInText));
+                OnPropertyChanged(nameof(PendingSceneInVisibility));
+            }
+        }
+    }
+
+    public string PendingSceneInText => _pendingSceneStartFrame is int s
+        ? Texts.VapourSynthPreviewScenePendingInText(s)
+        : string.Empty;
+
+    public Visibility PendingSceneInVisibility => _pendingSceneStartFrame.HasValue ? Visibility.Visible : Visibility.Collapsed;
+
+    public bool HasSceneRanges => SceneRanges.Count > 0;
+
+    public Visibility ScenesEmptyVisibility => SceneRanges.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
+
+    public void NotifySceneRangesChanged()
+    {
+        OnPropertyChanged(nameof(HasSceneRanges));
+        OnPropertyChanged(nameof(ScenesEmptyVisibility));
+    }
+
+    public bool IsExportBusy
+    {
+        get => _isExportBusy;
+        set
+        {
+            if (SetProperty(ref _isExportBusy, value))
+            {
+                OnPropertyChanged(nameof(CanExportBasket));
+            }
+        }
+    }
+
+    public bool CanExportBasket => !_isExportBusy && BookmarkedFrames.Count > 0 && Outputs.Count > 0;
+
+    public Visibility BasketEmptyVisibility => BookmarkedFrames.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
+
+    public string BasketModeHintText => BookmarkedFrames.Count == 0
+        ? string.Empty
+        : Texts.VapourSynthPreviewBasketModeHint(BookmarkedFrames.Count);
+
+    public string BasketStatusText
+    {
+        get => _basketStatusText;
+        set
+        {
+            if (SetProperty(ref _basketStatusText, value))
+            {
+                OnPropertyChanged(nameof(BasketStatusVisibility));
+            }
+        }
+    }
+
+    public Visibility BasketStatusVisibility => string.IsNullOrWhiteSpace(_basketStatusText) ? Visibility.Collapsed : Visibility.Visible;
+
+    public void NotifyBasketChanged()
+    {
+        OnPropertyChanged(nameof(CanExportBasket));
+        OnPropertyChanged(nameof(BasketEmptyVisibility));
+        OnPropertyChanged(nameof(BasketModeHintText));
+    }
+
+    public string SelectedScopeMode
+    {
+        get => _selectedScopeMode;
+        set
+        {
+            var normalized = value?.Trim().ToLowerInvariant() switch
+            {
+                "waveform" => "waveform",
+                "vectorscope" => "vectorscope",
+                _ => "histogram"
+            };
+            SetProperty(ref _selectedScopeMode, normalized);
+        }
+    }
+
+    public bool ScopeUseSecondary
+    {
+        get => _scopeUseSecondary;
+        set => SetProperty(ref _scopeUseSecondary, value);
+    }
+
+    public int FlickerIntervalMs
+    {
+        get => _flickerIntervalMs;
+        set
+        {
+            var normalized = Math.Clamp(value, 100, 5000);
+            if (SetProperty(ref _flickerIntervalMs, normalized))
+            {
+                _selectedFlickerIntervalOption = FlickerIntervals.FirstOrDefault(option => option.Milliseconds == normalized)
+                    ?? FlickerIntervals.FirstOrDefault();
+                OnPropertyChanged(nameof(SelectedFlickerIntervalOption));
+            }
+        }
+    }
+
+    public PreviewFlickerIntervalOption? SelectedFlickerIntervalOption
+    {
+        get => _selectedFlickerIntervalOption;
+        set
+        {
+            if (value is null) return;
+            FlickerIntervalMs = value.Milliseconds;
+        }
+    }
+
+    public bool IsShowingSecondaryInFlip
+    {
+        get => _isShowingSecondaryInFlip;
+        set
+        {
+            if (SetProperty(ref _isShowingSecondaryInFlip, value))
+            {
+                OnPropertyChanged(nameof(ActiveFlipBadgeText));
+                OnPropertyChanged(nameof(ActiveFlipBadgeVisibility));
+            }
+        }
+    }
+
+    public bool IsTemporaryFlipToB
+    {
+        get => _isTemporaryFlipToB;
+        set
+        {
+            if (SetProperty(ref _isTemporaryFlipToB, value))
+            {
+                OnPropertyChanged(nameof(ActiveFlipBadgeText));
+                OnPropertyChanged(nameof(ActiveFlipBadgeVisibility));
+            }
+        }
+    }
+
+    public PreviewPlaneMode PlaneMode
+    {
+        get => _planeMode;
+        set => SetProperty(ref _planeMode, value);
+    }
+
+    public bool ToneMapHdr
+    {
+        get => _toneMapHdr;
+        set
+        {
+            if (SetProperty(ref _toneMapHdr, value))
+            {
+                OnPropertyChanged(nameof(HdrBannerVisibility));
+            }
+        }
+    }
+
+    public double ToneMapTargetNits
+    {
+        get => _toneMapTargetNits;
+        set => SetProperty(ref _toneMapTargetNits, Math.Clamp(value, 50.0, 1000.0));
+    }
+
+    public bool SeparateFields
+    {
+        get => _separateFields;
+        set => SetProperty(ref _separateFields, value);
+    }
+
+    public bool FftSpectrum
+    {
+        get => _fftSpectrum;
+        set => SetProperty(ref _fftSpectrum, value);
+    }
+
+    public PreviewRenderOptions CurrentRenderOptions => new(
+        _planeMode,
+        _toneMapHdr,
+        _toneMapTargetNits,
+        _separateFields,
+        _fftSpectrum);
+
+    public PreviewRenderOptions SecondaryRenderOptions => new(
+        _planeMode,
+        _toneMapHdr,
+        _toneMapTargetNits,
+        _separateFields,
+        _fftSpectrum,
+        _subpixelOffsetX,
+        _subpixelOffsetY);
+
+    public bool IsHdrDetected
+    {
+        get => _isHdrDetected;
+        private set
+        {
+            if (SetProperty(ref _isHdrDetected, value))
+            {
+                OnPropertyChanged(nameof(HdrBannerVisibility));
+                OnPropertyChanged(nameof(HdrBannerText));
+            }
+        }
+    }
+
+    public string? HdrTransferName
+    {
+        get => _hdrTransferName;
+        private set
+        {
+            if (SetProperty(ref _hdrTransferName, value))
+            {
+                OnPropertyChanged(nameof(HdrBannerText));
+            }
+        }
+    }
+
+    public bool IsHdrBannerDismissed
+    {
+        get => _isHdrBannerDismissed;
+        set
+        {
+            if (SetProperty(ref _isHdrBannerDismissed, value))
+            {
+                OnPropertyChanged(nameof(HdrBannerVisibility));
+            }
+        }
+    }
+
+    public Visibility HdrBannerVisibility => _isHdrDetected && !_toneMapHdr && !_isHdrBannerDismissed
+        ? Visibility.Visible
+        : Visibility.Collapsed;
+
+    public string HdrBannerText => Texts.VapourSynthPreviewHdrBannerMessage(_hdrTransferName);
+
     public PreviewDifferenceGain DifferenceGain
     {
         get => _differenceGain;
@@ -492,17 +1143,29 @@ public sealed class VapourSynthPreviewWindowViewModel : ObservableObject
 
     public bool IsDifferenceMode => CanCompareOutputs && _compareMode == PreviewCompareMode.Difference;
 
+    public bool IsFlickerMode => CanCompareOutputs && _compareMode == PreviewCompareMode.Flicker;
+
     public Visibility CompareBarVisibility => IsCompareModeActive ? Visibility.Visible : Visibility.Collapsed;
 
     public Visibility SingleViewportVisibility => IsSideBySideMode ? Visibility.Collapsed : Visibility.Visible;
 
     public Visibility SideBySideViewportVisibility => IsSideBySideMode ? Visibility.Visible : Visibility.Collapsed;
 
-    public Visibility WipeOverlayVisibility => IsWipeMode ? Visibility.Visible : Visibility.Collapsed;
+    public Visibility WipeOverlayVisibility => IsWipeMode && !_isTemporaryFlipToB ? Visibility.Visible : Visibility.Collapsed;
 
     public Visibility DifferenceGainVisibility => IsDifferenceMode ? Visibility.Visible : Visibility.Collapsed;
 
-    public Visibility SizeAlignmentVisibility => (IsWipeMode || IsDifferenceMode) && HasCompareDimensionMismatch
+    public Visibility FlickerControlsVisibility => IsFlickerMode ? Visibility.Visible : Visibility.Collapsed;
+
+    public Visibility ActiveFlipBadgeVisibility => IsCompareModeActive && (IsFlickerMode || _isTemporaryFlipToB)
+        ? Visibility.Visible
+        : Visibility.Collapsed;
+
+    public string ActiveFlipBadgeText => (_isTemporaryFlipToB || (IsFlickerMode && _isShowingSecondaryInFlip))
+        ? CompareOutputBBadgeText
+        : CompareOutputABadgeText;
+
+    public Visibility SizeAlignmentVisibility => (IsWipeMode || IsDifferenceMode || IsFlickerMode) && HasCompareDimensionMismatch
         ? Visibility.Visible
         : Visibility.Collapsed;
 
@@ -594,6 +1257,49 @@ public sealed class VapourSynthPreviewWindowViewModel : ObservableObject
 
     public bool HasChapters => Chapters.Count > 0;
 
+    public bool HasVsAlign
+    {
+        get => _hasVsAlign;
+        private set => SetProperty(ref _hasVsAlign, value);
+    }
+
+    public bool HasVmafCambi
+    {
+        get => _hasVmafCambi;
+        private set => SetProperty(ref _hasVmafCambi, value);
+    }
+
+    public bool HasNativeRes
+    {
+        get => _hasNativeRes;
+        private set => SetProperty(ref _hasNativeRes, value);
+    }
+
+    public void ApplySessionCapabilities(bool hasVsAlign, bool hasVmafCambi, bool hasNativeRes)
+    {
+        HasVsAlign = hasVsAlign;
+        HasVmafCambi = hasVmafCambi;
+        HasNativeRes = hasNativeRes;
+        RebuildWorstMetricOptions();
+    }
+
+    private void RebuildWorstMetricOptions()
+    {
+        var previousMetric = _selectedWorstMetricOption?.Value ?? _worstMetric;
+        WorstMetricOptions.Clear();
+        WorstMetricOptions.Add(new StringChoiceOption("xpsnr", "XPSNR"));
+        WorstMetricOptions.Add(new StringChoiceOption("ssimulacra2", "SSIMULACRA2"));
+        WorstMetricOptions.Add(new StringChoiceOption("psnr", "PSNR"));
+        if (_hasVmafCambi)
+        {
+            WorstMetricOptions.Add(new StringChoiceOption("cambi", "CAMBI"));
+        }
+
+        _selectedWorstMetricOption = WorstMetricOptions.FirstOrDefault(o => o.Value == previousMetric) ?? WorstMetricOptions[0];
+        _worstMetric = _selectedWorstMetricOption.Value;
+        OnPropertyChanged(nameof(SelectedWorstMetricOption));
+    }
+
     public void ApplyLanguage(AppLanguage language)
     {
         if (Texts.Language == language)
@@ -669,6 +1375,15 @@ public sealed class VapourSynthPreviewWindowViewModel : ObservableObject
         FpsText = "-";
         FrameTypeText = "-";
         CompareInfoText = string.Empty;
+        _isHdrBannerDismissed = false;
+        var hdrOutput = Outputs.FirstOrDefault(static item => item.Info.IsHdr);
+        IsHdrDetected = hdrOutput is not null;
+        HdrTransferName = hdrOutput?.Info.HdrTransferName;
+        OnPropertyChanged(nameof(HdrBannerVisibility));
+        OnPropertyChanged(nameof(HdrBannerText));
+        OnPropertyChanged(nameof(AlignButtonLabel));
+        OnPropertyChanged(nameof(CanRunAutoAlign));
+        OnPropertyChanged(nameof(CanStartWorstScan));
         _sourceFrameWidth = 0;
         _sourceFrameHeight = 0;
         _secondaryFrameWidth = 0;
@@ -716,6 +1431,13 @@ public sealed class VapourSynthPreviewWindowViewModel : ObservableObject
     {
         CurrentFrame = frameData.FrameNumber;
         ApplyOutputMetadata(outputInfo, resolutionText);
+        if (!IsHdrDetected && (outputInfo.IsHdr || PreviewRenderOptions.IsHdrTransferProperties(frameData.Properties)))
+        {
+            var transfer = outputInfo.HdrTransferName
+                ?? (frameData.Properties.FirstOrDefault(static p => p.Key == "_Transfer")?.Value switch { "16" => "PQ", "18" => "HLG", _ => null });
+            HdrTransferName = transfer;
+            IsHdrDetected = true;
+        }
         CurrentTimeText = FormatTimestamp(frameData.FrameNumber, outputInfo.FpsNumerator, outputInfo.FpsDenominator);
         FrameTypeText = string.IsNullOrWhiteSpace(frameData.FrameType) ? "-" : frameData.FrameType;
 
@@ -853,8 +1575,49 @@ public sealed class VapourSynthPreviewWindowViewModel : ObservableObject
         CompareModes.Add(new PreviewCompareModeOption(PreviewCompareMode.Wipe, Texts.VapourSynthPreviewCompareModeLabel(PreviewCompareMode.Wipe)));
         CompareModes.Add(new PreviewCompareModeOption(PreviewCompareMode.SideBySide, Texts.VapourSynthPreviewCompareModeLabel(PreviewCompareMode.SideBySide)));
         CompareModes.Add(new PreviewCompareModeOption(PreviewCompareMode.Difference, Texts.VapourSynthPreviewCompareModeLabel(PreviewCompareMode.Difference)));
+        CompareModes.Add(new PreviewCompareModeOption(PreviewCompareMode.Flicker, Texts.VapourSynthPreviewCompareModeLabel(PreviewCompareMode.Flicker)));
         _selectedCompareModeOption = CompareModes.FirstOrDefault(option => option.Mode == _compareMode) ?? CompareModes[0];
         OnPropertyChanged(nameof(SelectedCompareModeOption));
+
+        DifferenceStyles.Clear();
+        DifferenceStyles.Add(new PreviewDifferenceStyleOption(PreviewDifferenceStyle.Absolute, Texts.VapourSynthPreviewCompareDiffStyleLabel(PreviewDifferenceStyle.Absolute)));
+        DifferenceStyles.Add(new PreviewDifferenceStyleOption(PreviewDifferenceStyle.Heatmap, Texts.VapourSynthPreviewCompareDiffStyleLabel(PreviewDifferenceStyle.Heatmap)));
+        DifferenceStyles.Add(new PreviewDifferenceStyleOption(PreviewDifferenceStyle.Signed, Texts.VapourSynthPreviewCompareDiffStyleLabel(PreviewDifferenceStyle.Signed)));
+        _selectedDifferenceStyleOption = DifferenceStyles.FirstOrDefault(option => option.Style == _differenceStyle) ?? DifferenceStyles[0];
+        OnPropertyChanged(nameof(SelectedDifferenceStyleOption));
+
+        FlickerIntervals.Clear();
+        FlickerIntervals.Add(new PreviewFlickerIntervalOption(300, Texts.VapourSynthPreviewFlickerIntervalLabel(300)));
+        FlickerIntervals.Add(new PreviewFlickerIntervalOption(500, Texts.VapourSynthPreviewFlickerIntervalLabel(500)));
+        FlickerIntervals.Add(new PreviewFlickerIntervalOption(1000, Texts.VapourSynthPreviewFlickerIntervalLabel(1000)));
+        _selectedFlickerIntervalOption = FlickerIntervals.FirstOrDefault(option => option.Milliseconds == _flickerIntervalMs) ?? FlickerIntervals[1];
+        TemporalSearchRadii.Clear();
+        TemporalSearchRadii.Add(new StringChoiceOption("120", "±120f"));
+        TemporalSearchRadii.Add(new StringChoiceOption("300", "±300f"));
+        TemporalSearchRadii.Add(new StringChoiceOption("600", "±600f"));
+        _selectedTemporalSearchRadiusOption = TemporalSearchRadii.FirstOrDefault(o => o.Value == _temporalSearchRadius.ToString()) ?? TemporalSearchRadii[0];
+        OnPropertyChanged(nameof(SelectedTemporalSearchRadiusOption));
+        WorstSkipOptions.Clear();
+        WorstSkipOptions.Add(new StringChoiceOption("10", "10 min"));
+        WorstSkipOptions.Add(new StringChoiceOption("5", "5 min"));
+        WorstSkipOptions.Add(new StringChoiceOption("2", "2 min"));
+        WorstSkipOptions.Add(new StringChoiceOption("0", "0 min"));
+        _selectedWorstSkipOption = WorstSkipOptions.FirstOrDefault(o => o.Value == ((int)_worstSkipMinutes).ToString()) ?? WorstSkipOptions[0];
+        OnPropertyChanged(nameof(SelectedWorstSkipOption));
+
+        WorstSampleOptions.Clear();
+        WorstSampleOptions.Add(new StringChoiceOption("40", "40f"));
+        WorstSampleOptions.Add(new StringChoiceOption("80", "80f"));
+        WorstSampleOptions.Add(new StringChoiceOption("150", "150f"));
+        _selectedWorstSampleOption = WorstSampleOptions.FirstOrDefault(o => o.Value == _worstSampleCount.ToString()) ?? WorstSampleOptions[1];
+        OnPropertyChanged(nameof(SelectedWorstSampleOption));
+
+        RebuildWorstMetricOptions();
+        OnPropertyChanged(nameof(SelectedFlickerIntervalOption));
+        OnPropertyChanged(nameof(AlignButtonLabel));
+        OnPropertyChanged(nameof(CanRunAutoAlign));
+        OnPropertyChanged(nameof(CanStartWorstScan));
+        OnPropertyChanged(nameof(HdrBannerText));
 
         DifferenceGains.Clear();
         DifferenceGains.Add(new PreviewDifferenceGainOption(PreviewDifferenceGain.X1, Texts.VapourSynthPreviewCompareDiffGainLabel(PreviewDifferenceGain.X1)));
@@ -896,12 +1659,19 @@ public sealed class VapourSynthPreviewWindowViewModel : ObservableObject
         OnPropertyChanged(nameof(IsWipeMode));
         OnPropertyChanged(nameof(IsSideBySideMode));
         OnPropertyChanged(nameof(IsDifferenceMode));
+        OnPropertyChanged(nameof(IsFlickerMode));
         OnPropertyChanged(nameof(CompareBarVisibility));
         OnPropertyChanged(nameof(SingleViewportVisibility));
         OnPropertyChanged(nameof(SideBySideViewportVisibility));
         OnPropertyChanged(nameof(WipeOverlayVisibility));
         OnPropertyChanged(nameof(DifferenceGainVisibility));
+        OnPropertyChanged(nameof(FlickerControlsVisibility));
+        OnPropertyChanged(nameof(ActiveFlipBadgeVisibility));
+        OnPropertyChanged(nameof(ActiveFlipBadgeText));
         OnPropertyChanged(nameof(SizeAlignmentVisibility));
+        OnPropertyChanged(nameof(AlignButtonLabel));
+        OnPropertyChanged(nameof(CanRunAutoAlign));
+        OnPropertyChanged(nameof(CanStartWorstScan));
         OnPropertyChanged(nameof(CompareButtonTooltip));
     }
 
@@ -920,12 +1690,14 @@ public sealed class VapourSynthPreviewWindowViewModel : ObservableObject
         if (_selectedSecondaryOutput is not null)
         {
             var frameSuffix = secondaryFrame.HasValue ? $" · #{secondaryFrame.Value}" : string.Empty;
-            CompareOutputBBadgeText = $"B · {_selectedSecondaryOutput.Label}{frameSuffix}";
+            var offsetSuffix = _secondaryFrameOffset != 0 ? $" ({(_secondaryFrameOffset > 0 ? "+" : string.Empty)}{_secondaryFrameOffset}f)" : string.Empty;
+            CompareOutputBBadgeText = $"B · {_selectedSecondaryOutput.Label}{frameSuffix}{offsetSuffix}";
         }
         else
         {
             CompareOutputBBadgeText = "B";
         }
+        OnPropertyChanged(nameof(ActiveFlipBadgeText));
     }
 
     private string FormatTimestamp(int frameNumber, int fpsNumerator, int fpsDenominator)
@@ -974,7 +1746,7 @@ public sealed class VapourSynthPreviewWindowViewModel : ObservableObject
             return;
         }
 
-        var useAlignedCanvas = (IsWipeMode || IsDifferenceMode)
+        var useAlignedCanvas = (IsWipeMode || IsDifferenceMode || IsFlickerMode)
             && _secondaryFrameWidth > 0
             && _secondaryFrameHeight > 0;
         var primaryCanvasWidth = useAlignedCanvas
@@ -1085,8 +1857,16 @@ public sealed record PreviewCompareModeOption(
     PreviewCompareMode Mode,
     string Label);
 
+public sealed record PreviewDifferenceStyleOption(
+    PreviewDifferenceStyle Style,
+    string Label);
+
 public sealed record PreviewDifferenceGainOption(
     PreviewDifferenceGain Gain,
+    string Label);
+
+public sealed record PreviewFlickerIntervalOption(
+    int Milliseconds,
     string Label);
 
 public sealed record PreviewCompareSizeAlignmentOption(
@@ -1096,4 +1876,21 @@ public sealed record PreviewCompareSizeAlignmentOption(
 public sealed record VapourSynthPreviewChapterOption(
     TimeSpan Timecode,
     string Title,
+    string Label);
+
+public sealed record PreviewBasketFrameItem(
+    int FrameNumber,
+    string Timecode,
+    string Label);
+
+public sealed record PreviewWorstFrameRowItem(
+    int FrameNumber,
+    int SecondaryFrameNumber,
+    double Score,
+    string ScoreLabel,
+    string Timecode);
+
+public sealed record PreviewSceneRangeItem(
+    int StartFrame,
+    int EndFrame,
     string Label);

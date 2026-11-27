@@ -354,12 +354,15 @@ function mapMarkerSeverity(severity) {
     }
 }
 
+let latestDiagnostics = [];
+
 function applyDiagnostics(payload) {
     if (!editorModel || typeof monaco === "undefined") {
         return;
     }
 
     const diagnostics = normalizeArray(payload?.diagnostics);
+    latestDiagnostics = diagnostics;
     const markers = diagnostics.map((diagnostic) => ({
         severity: mapMarkerSeverity(diagnostic.severity),
         code: diagnostic.code ?? "",
@@ -633,6 +636,14 @@ async function executeCommand(command) {
         case "suggest":
             editorInstance.focus();
             await runAction("editor.action.triggerSuggest");
+            break;
+        case "rename":
+            editorInstance.focus();
+            await runAction("editor.action.rename");
+            break;
+        case "quickFix":
+            editorInstance.focus();
+            await runAction("editor.action.quickFix");
             break;
         case "focus":
             focusEditor();
@@ -961,6 +972,116 @@ async function providePythonCompletions(model, position, context, cancellationTo
     };
 }
 
+function collectSafePythonIdentifierEdits(model, oldName, newName) {
+    const edits = [];
+    if (!oldName || !newName || oldName === newName || !/^[A-Za-z_][A-Za-z0-9_]*$/.test(newName)) {
+        return edits;
+    }
+
+    const lineCount = model.getLineCount();
+    let tripleQuote = null;
+
+    for (let lineNum = 1; lineNum <= lineCount; lineNum++) {
+        const line = model.getLineContent(lineNum);
+        let i = 0;
+        let activeQuote = null;
+
+        while (i < line.length) {
+            if (tripleQuote) {
+                if (line.startsWith(tripleQuote, i)) {
+                    tripleQuote = null;
+                    i += 3;
+                } else {
+                    i++;
+                }
+                continue;
+            }
+
+            const ch = line[i];
+            if (activeQuote) {
+                if (ch === "\\") {
+                    i += 2;
+                    continue;
+                }
+                if (ch === activeQuote) {
+                    activeQuote = null;
+                }
+                i++;
+                continue;
+            }
+
+            if (ch === "#") {
+                break;
+            }
+
+            if (line.startsWith('"""', i) || line.startsWith("'''", i)) {
+                tripleQuote = line.slice(i, i + 3);
+                i += 3;
+                continue;
+            }
+
+            if (ch === '"' || ch === "'") {
+                activeQuote = ch;
+                i++;
+                continue;
+            }
+
+            if (/[A-Za-z_]/.test(ch)) {
+                let start = i;
+                while (i < line.length && /[A-Za-z0-9_]/.test(line[i])) {
+                    i++;
+                }
+                const ident = line.slice(start, i);
+                if (ident === oldName) {
+                    const prevNonWs = line.slice(0, start).trimEnd();
+                    const isMemberAccess = prevNonWs.endsWith(".");
+                    if (!isMemberAccess) {
+                        edits.push({
+                            resource: model.uri,
+                            versionId: model.getVersionId(),
+                            textEdit: {
+                                range: new monaco.Range(lineNum, start + 1, lineNum, i + 1),
+                                text: newName
+                            }
+                        });
+                    }
+                }
+                continue;
+            }
+
+            i++;
+        }
+    }
+
+    return edits;
+}
+
+function applySmartDocumentEdit(payload) {
+    if (!editorInstance || !editorModel || typeof monaco === "undefined") {
+        return false;
+    }
+
+    const nextText = typeof payload?.text === "string" ? payload.text : null;
+    if (nextText === null) {
+        return false;
+    }
+
+    const revealLine = Math.max(1, Number(payload?.revealLine ?? 1));
+    editorInstance.pushUndoStop();
+    editorInstance.executeEdits("flowencode-smart-edit", [{
+        range: editorModel.getFullModelRange(),
+        text: nextText,
+        forceMoveMarkers: true
+    }]);
+    editorInstance.pushUndoStop();
+
+    const clampedLine = Math.min(revealLine, editorModel.getLineCount());
+    editorInstance.setPosition({ lineNumber: clampedLine, column: 1 });
+    editorInstance.revealLineInCenterIfOutsideViewport(clampedLine);
+    queueBufferBroadcast();
+    return true;
+}
+
 function registerLanguageProviders() {
     monaco.languages.registerCompletionItemProvider("python", {
         triggerCharacters: ["."],
@@ -969,6 +1090,80 @@ function registerLanguageProviders() {
         }
     });
 
+    monaco.languages.registerCodeActionProvider("python", {
+        provideCodeActions(model, range) {
+            const actions = [];
+            for (const diag of latestDiagnostics) {
+                const hasReplace = Boolean(diag.suggestedReplacement);
+                const hasInsert = Boolean(diag.quickFixInsertText);
+                if (!hasReplace && !hasInsert) {
+                    continue;
+                }
+                const diagRange = new monaco.Range(
+                    Math.max(1, diag.startLine ?? 1),
+                    Math.max(1, diag.startColumn ?? 1),
+                    Math.max(1, diag.endLine ?? diag.startLine ?? 1),
+                    Math.max(1, diag.endColumn ?? diag.startColumn ?? 1));
+                if (!monaco.Range.areIntersectingOrTouching(range, diagRange)) {
+                    continue;
+                }
+
+                const editRange = hasInsert
+                    ? (() => {
+                        const targetLine = Math.max(1, Math.min(Number(diag.quickFixInsertLine ?? 1), model.getLineCount() + 1));
+                        if (targetLine > model.getLineCount()) {
+                            const lastLine = model.getLineCount();
+                            const lastCol = model.getLineMaxColumn(lastLine);
+                            return new monaco.Range(lastLine, lastCol, lastLine, lastCol);
+                        }
+                        return new monaco.Range(targetLine, 1, targetLine, 1);
+                    })()
+                    : diagRange;
+                const editText = hasInsert
+                    ? (Number(diag.quickFixInsertLine ?? 1) > model.getLineCount() ? "\n" + diag.quickFixInsertText : diag.quickFixInsertText)
+                    : diag.suggestedReplacement;
+
+                actions.push({
+                    title: diag.quickFixTitle || (hasInsert ? "Insert import" : ("Replace with '" + diag.suggestedReplacement + "'")),
+                    kind: "quickfix",
+                    isPreferred: true,
+                    edit: {
+                        edits: [{
+                            resource: model.uri,
+                            versionId: model.getVersionId(),
+                            textEdit: {
+                                range: editRange,
+                                text: editText
+                            }
+                        }]
+                    }
+                });
+            }
+            return { actions, dispose() {} };
+        }
+    });
+
+    monaco.languages.registerRenameProvider("python", {
+        resolveRenameLocation(model, position) {
+            const word = model.getWordAtPosition(position);
+            if (!word || !/^[A-Za-z_][A-Za-z0-9_]*$/.test(word.word)) {
+                return { rejectReason: "Cannot rename this token." };
+            }
+            return {
+                range: new monaco.Range(position.lineNumber, word.startColumn, position.lineNumber, word.endColumn),
+                text: word.word
+            };
+        },
+        provideRenameEdits(model, position, newName) {
+            const word = model.getWordAtPosition(position);
+            if (!word) {
+                return { edits: [] };
+            }
+            return {
+                edits: collectSafePythonIdentifierEdits(model, word.word, newName)
+            };
+        }
+    });
 }
 
 function createEditor() {
@@ -1074,6 +1269,7 @@ window.MonacoEnvironment = {
 window.vsWorkspaceHost = {
     applyHostTheme,
     applyDiagnostics,
+    applySmartDocumentEdit,
     captureStateJson,
     executeCommand,
     insertSnippet,

@@ -12,7 +12,8 @@ public enum DragDropPayloadType
     Video,
     Audio,
     BluRayFolder,
-    DemuxMkv
+    DemuxMkv,
+    CompareVideos
 }
 
 public sealed class AppLaunchActivation

@@ -140,7 +140,9 @@ public sealed class VapourSynthPreviewService : IVapourSynthPreviewService
                     output.FpsNumerator,
                     output.FpsDenominator,
                     string.IsNullOrWhiteSpace(output.FormatName) ? "Unknown" : output.FormatName,
-                    output.BitsPerSample))
+                    output.BitsPerSample,
+                    output.IsHdr,
+                    string.IsNullOrWhiteSpace(output.HdrTransferName) ? null : output.HdrTransferName))
                 .OrderBy(static output => output.Index)
                 .ToArray()
                 ?? [];
@@ -152,7 +154,11 @@ public sealed class VapourSynthPreviewService : IVapourSynthPreviewService
 
             _frameTransportSession = _frameTransportFactory.CreateSession(GetMaximumFrameByteSize(outputs));
             Volatile.Write(ref _activeSessionState, 1);
-            return new VapourSynthPreviewSessionInfo(outputs);
+            return new VapourSynthPreviewSessionInfo(
+                outputs,
+                response.HasVsAlign,
+                response.HasVmafCambi,
+                response.HasNativeRes);
         }
         catch (Exception)
         {
@@ -165,9 +171,17 @@ public sealed class VapourSynthPreviewService : IVapourSynthPreviewService
         }
     }
 
+    public Task<VapourSynthPreviewFrameData> RenderFrameAsync(
+        int outputIndex,
+        int frameNumber,
+        byte[]? reusablePixelBuffer = null,
+        CancellationToken cancellationToken = default) =>
+        RenderFrameAsync(outputIndex, frameNumber, null, reusablePixelBuffer, cancellationToken);
+
     public async Task<VapourSynthPreviewFrameData> RenderFrameAsync(
         int outputIndex,
         int frameNumber,
+        PreviewRenderOptions? renderOptions,
         byte[]? reusablePixelBuffer = null,
         CancellationToken cancellationToken = default)
     {
@@ -195,6 +209,7 @@ public sealed class VapourSynthPreviewService : IVapourSynthPreviewService
             var requestId = Interlocked.Increment(ref _commandCounter);
             var transportDescriptor = _frameTransportSession.Descriptor;
             var helperRenderStopwatch = Stopwatch.StartNew();
+            var effectiveOptions = renderOptions ?? PreviewRenderOptions.Default;
             var command = new FrameCommandDto(
                 "renderFrame",
                 requestId,
@@ -202,7 +217,14 @@ public sealed class VapourSynthPreviewService : IVapourSynthPreviewService
                 frameNumber,
                 transportDescriptor.Kind,
                 transportDescriptor.SharedMemoryName,
-                transportDescriptor.CapacityBytes);
+                transportDescriptor.CapacityBytes,
+                effectiveOptions.IsDefault ? null : effectiveOptions.ToPlaneModeWireValue(),
+                effectiveOptions.ToneMapHdr ? true : null,
+                effectiveOptions.ToneMapHdr ? effectiveOptions.ToneMapTargetNits : null,
+                effectiveOptions.SeparateFields ? true : null,
+                effectiveOptions.FftSpectrum ? true : null,
+                Math.Abs(effectiveOptions.SubpixelOffsetX) >= 0.0001 ? effectiveOptions.SubpixelOffsetX : null,
+                Math.Abs(effectiveOptions.SubpixelOffsetY) >= 0.0001 ? effectiveOptions.SubpixelOffsetY : null);
             var commandJson = JsonSerializer.Serialize(command, JsonOptions);
             await _hostSession.WriteLineAsync(commandJson, cancellationToken).ConfigureAwait(false);
 
@@ -258,6 +280,337 @@ public sealed class VapourSynthPreviewService : IVapourSynthPreviewService
         finally
         {
             _stateLock.Release();
+        }
+    }
+
+    public async Task<PreviewTemporalAlignmentResult> AutoAlignTemporalAsync(
+        int outputIndexA,
+        int outputIndexB,
+        int anchorFrameA,
+        int baseFrameB,
+        int initialOffset = 0,
+        int searchRadius = 120,
+        bool verifyMultiAnchor = true,
+        CancellationToken cancellationToken = default)
+    {
+        await _stateLock.WaitAsync(cancellationToken).ConfigureAwait(false);
+        try
+        {
+            ThrowIfDisposed();
+            EnsureActiveHost();
+            var requestId = Interlocked.Increment(ref _commandCounter);
+            var command = new TemporalAlignCommandDto(
+                "autoAlignTemporal",
+                requestId,
+                outputIndexA,
+                outputIndexB,
+                anchorFrameA,
+                baseFrameB,
+                initialOffset,
+                searchRadius,
+                verifyMultiAnchor);
+            await _hostSession!.WriteLineAsync(JsonSerializer.Serialize(command, JsonOptions), cancellationToken).ConfigureAwait(false);
+            var response = await ReadResponseAsync(cancellationToken).ConfigureAwait(false);
+            if (!string.Equals(response.Type, "temporalAlignment", StringComparison.Ordinal))
+            {
+                throw new InvalidOperationException(GetResponseErrorMessage(response)
+                    ?? "Preview helper failed to compute temporal alignment.");
+            }
+
+            if (response.RequestId != requestId)
+            {
+                throw new InvalidOperationException("Preview helper returned a mismatched temporal alignment response.");
+            }
+
+            return new PreviewTemporalAlignmentResult(
+                response.FrameOffset,
+                response.Confidence,
+                response.HasDrift,
+                response.DriftSummary,
+                response.ElapsedMs);
+        }
+        finally
+        {
+            _stateLock.Release();
+        }
+    }
+
+    public async Task<PreviewSpatialAlignmentResult> AutoAlignSpatialAsync(
+        int outputIndexA,
+        int outputIndexB,
+        int frameNumberA,
+        int frameNumberB,
+        CancellationToken cancellationToken = default)
+    {
+        await _stateLock.WaitAsync(cancellationToken).ConfigureAwait(false);
+        try
+        {
+            ThrowIfDisposed();
+            EnsureActiveHost();
+            var requestId = Interlocked.Increment(ref _commandCounter);
+            var command = new SpatialAlignCommandDto(
+                "autoAlignSpatial",
+                requestId,
+                outputIndexA,
+                outputIndexB,
+                frameNumberA,
+                frameNumberB);
+            await _hostSession!.WriteLineAsync(JsonSerializer.Serialize(command, JsonOptions), cancellationToken).ConfigureAwait(false);
+            var response = await ReadResponseAsync(cancellationToken).ConfigureAwait(false);
+            if (!string.Equals(response.Type, "spatialAlignment", StringComparison.Ordinal))
+            {
+                throw new InvalidOperationException(GetResponseErrorMessage(response)
+                    ?? "Preview helper failed to compute spatial alignment.");
+            }
+
+            if (response.RequestId != requestId)
+            {
+                throw new InvalidOperationException("Preview helper returned a mismatched spatial alignment response.");
+            }
+
+            return new PreviewSpatialAlignmentResult(
+                response.OffsetX,
+                response.OffsetY,
+                response.Confidence,
+                response.ElapsedMs);
+        }
+        finally
+        {
+            _stateLock.Release();
+        }
+    }
+
+    public async Task<PreviewPixelSampleResult> SamplePixelAsync(
+        int outputIndex,
+        int frameNumber,
+        int x,
+        int y,
+        CancellationToken cancellationToken = default)
+    {
+        await _stateLock.WaitAsync(cancellationToken).ConfigureAwait(false);
+        try
+        {
+            ThrowIfDisposed();
+            EnsureActiveHost();
+            var requestId = Interlocked.Increment(ref _commandCounter);
+            var command = new SamplePixelCommandDto(
+                "samplePixel",
+                requestId,
+                outputIndex,
+                frameNumber,
+                x,
+                y);
+            await _hostSession!.WriteLineAsync(JsonSerializer.Serialize(command, JsonOptions), cancellationToken).ConfigureAwait(false);
+            var response = await ReadResponseAsync(cancellationToken).ConfigureAwait(false);
+            if (!string.Equals(response.Type, "pixelSample", StringComparison.Ordinal))
+            {
+                throw new InvalidOperationException(GetResponseErrorMessage(response)
+                    ?? "Preview helper failed to sample pixel.");
+            }
+
+            if (response.RequestId != requestId)
+            {
+                throw new InvalidOperationException("Preview helper returned a mismatched pixel sample response.");
+            }
+
+            return new PreviewPixelSampleResult(
+                response.X,
+                response.Y,
+                string.IsNullOrWhiteSpace(response.ColorFamily) ? "UNKNOWN" : response.ColorFamily,
+                response.BitsPerSample,
+                string.IsNullOrWhiteSpace(response.Plane0Name) ? "P0" : response.Plane0Name,
+                response.Plane0Raw,
+                response.Plane0Normalized,
+                response.Plane1Name,
+                response.Plane1Raw,
+                response.Plane1Normalized,
+                response.Plane2Name,
+                response.Plane2Raw,
+                response.Plane2Normalized);
+        }
+        finally
+        {
+            _stateLock.Release();
+        }
+    }
+
+    public async Task<PreviewExportFramesResult> ExportFramesAsync(
+        IReadOnlyList<PreviewExportFrameRequestItem> items,
+        PreviewRenderOptions? renderOptions = null,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(items);
+        if (items.Count == 0)
+        {
+            return new PreviewExportFramesResult(0, 0, "none");
+        }
+
+        await _stateLock.WaitAsync(cancellationToken).ConfigureAwait(false);
+        try
+        {
+            ThrowIfDisposed();
+            EnsureActiveHost();
+            var requestId = Interlocked.Increment(ref _commandCounter);
+            var opts = renderOptions ?? PreviewRenderOptions.Default;
+            var command = new ExportFramesCommandDto(
+                "exportFrames",
+                requestId,
+                items.Select(static i => new ExportFrameItemDto(
+                    i.OutputIndex,
+                    i.TargetFrameNumber,
+                    i.FilePath,
+                    i.SubpixelOffsetX,
+                    i.SubpixelOffsetY)).ToArray(),
+                opts.ToPlaneModeWireValue(),
+                opts.ToneMapHdr,
+                opts.ToneMapTargetNits,
+                opts.SeparateFields);
+            await _hostSession!.WriteLineAsync(JsonSerializer.Serialize(command, JsonOptions), cancellationToken).ConfigureAwait(false);
+            var response = await ReadResponseAsync(cancellationToken).ConfigureAwait(false);
+            if (!string.Equals(response.Type, "exportFrames", StringComparison.Ordinal))
+            {
+                throw new InvalidOperationException(GetResponseErrorMessage(response)
+                    ?? "Preview helper failed to export frames.");
+            }
+
+            if (response.RequestId != requestId)
+            {
+                throw new InvalidOperationException("Preview helper returned a mismatched export response.");
+            }
+
+            return new PreviewExportFramesResult(
+                response.ExportedCount,
+                response.ElapsedMs,
+                string.IsNullOrWhiteSpace(response.EncoderUsed) ? "png" : response.EncoderUsed);
+        }
+        finally
+        {
+            _stateLock.Release();
+        }
+    }
+
+    public async Task<PreviewWorstFrameScanResult> ScanWorstFramesAsync(
+        int outputIndexA,
+        int outputIndexB,
+        IReadOnlyList<int> sampleFramesA,
+        IReadOnlyList<int> sampleFramesB,
+        string metric = "xpsnr",
+        int topN = 15,
+        double subpixelOffsetX = 0.0,
+        double subpixelOffsetY = 0.0,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(sampleFramesA);
+        ArgumentNullException.ThrowIfNull(sampleFramesB);
+        await _stateLock.WaitAsync(cancellationToken).ConfigureAwait(false);
+        try
+        {
+            ThrowIfDisposed();
+            EnsureActiveHost();
+            var requestId = Interlocked.Increment(ref _commandCounter);
+            var command = new ScanWorstFramesCommandDto(
+                "scanWorstFrames",
+                requestId,
+                outputIndexA,
+                outputIndexB,
+                sampleFramesA.ToArray(),
+                sampleFramesB.ToArray(),
+                string.IsNullOrWhiteSpace(metric) ? "xpsnr" : metric,
+                Math.Clamp(topN, 1, 50),
+                subpixelOffsetX,
+                subpixelOffsetY);
+            await _hostSession!.WriteLineAsync(JsonSerializer.Serialize(command, JsonOptions), cancellationToken).ConfigureAwait(false);
+            var response = await ReadResponseAsync(cancellationToken).ConfigureAwait(false);
+            if (!string.Equals(response.Type, "worstFrames", StringComparison.Ordinal))
+            {
+                throw new InvalidOperationException(GetResponseErrorMessage(response)
+                    ?? "Preview helper failed to scan worst frames.");
+            }
+
+            if (response.RequestId != requestId)
+            {
+                throw new InvalidOperationException("Preview helper returned a mismatched worst-frame response.");
+            }
+
+            var entries = response.WorstFrames?
+                .Select(static item => new PreviewWorstFrameEntry(
+                    item.FrameNumber,
+                    item.SecondaryFrameNumber,
+                    item.Score,
+                    item.FrameType))
+                .ToArray()
+                ?? [];
+
+            return new PreviewWorstFrameScanResult(
+                string.IsNullOrWhiteSpace(response.MetricUsed) ? metric : response.MetricUsed,
+                string.IsNullOrWhiteSpace(response.BackendUsed) ? "cpu" : response.BackendUsed,
+                response.SampledCount,
+                response.MedianScore,
+                response.P10Score,
+                response.MinScore,
+                response.ElapsedMs,
+                entries);
+        }
+        finally
+        {
+            _stateLock.Release();
+        }
+    }
+
+    public async Task<PreviewAutoCropResult> AutoDetectCropAsync(
+        int outputIndex,
+        int sampleCount = 12,
+        CancellationToken cancellationToken = default)
+    {
+        await _stateLock.WaitAsync(cancellationToken).ConfigureAwait(false);
+        try
+        {
+            ThrowIfDisposed();
+            EnsureActiveHost();
+            var requestId = Interlocked.Increment(ref _commandCounter);
+            var command = new AutoCropCommandDto(
+                "autoDetectCrop",
+                requestId,
+                outputIndex,
+                Math.Clamp(sampleCount, 3, 30));
+            await _hostSession!.WriteLineAsync(JsonSerializer.Serialize(command, JsonOptions), cancellationToken).ConfigureAwait(false);
+            var response = await ReadResponseAsync(cancellationToken).ConfigureAwait(false);
+            if (!string.Equals(response.Type, "autoCrop", StringComparison.Ordinal))
+            {
+                throw new InvalidOperationException(GetResponseErrorMessage(response)
+                    ?? "Preview helper failed to detect crop bounds.");
+            }
+
+            if (response.RequestId != requestId)
+            {
+                throw new InvalidOperationException("Preview helper returned a mismatched auto-crop response.");
+            }
+
+            return new PreviewAutoCropResult(
+                response.CropLeft,
+                response.CropTop,
+                response.CropRight,
+                response.CropBottom,
+                response.SampledCount,
+                response.ElapsedMs);
+        }
+        finally
+        {
+            _stateLock.Release();
+        }
+    }
+
+    private void EnsureActiveHost()
+    {
+        if (_hostSession is null || string.IsNullOrWhiteSpace(_activeSessionPath))
+        {
+            throw new InvalidOperationException("Preview session is not open.");
+        }
+
+        if (_hostSession.HasExited)
+        {
+            throw new InvalidOperationException(BuildHostFailureMessage(
+                "Preview helper exited unexpectedly."));
         }
     }
 
@@ -613,7 +966,75 @@ public sealed class VapourSynthPreviewService : IVapourSynthPreviewService
         int FrameNumber,
         string TransportKind,
         string SharedMemoryName,
-        int SharedMemoryCapacity);
+        int SharedMemoryCapacity,
+        string? PlaneMode = null,
+        bool? ToneMapHdr = null,
+        double? ToneMapTargetNits = null,
+        bool? SeparateFields = null,
+        bool? FftSpectrum = null,
+        double? SubpixelOffsetX = null,
+        double? SubpixelOffsetY = null);
+
+    private sealed record TemporalAlignCommandDto(
+        string Command,
+        int RequestId,
+        int OutputIndexA,
+        int OutputIndexB,
+        int AnchorFrameA,
+        int BaseFrameB,
+        int InitialOffset,
+        int SearchRadius,
+        bool VerifyMultiAnchor);
+
+    private sealed record SpatialAlignCommandDto(
+        string Command,
+        int RequestId,
+        int OutputIndexA,
+        int OutputIndexB,
+        int FrameNumberA,
+        int FrameNumberB);
+
+    private sealed record SamplePixelCommandDto(
+        string Command,
+        int RequestId,
+        int OutputIndex,
+        int FrameNumber,
+        int X,
+        int Y);
+
+    private sealed record ExportFrameItemDto(
+        int OutputIndex,
+        int TargetFrameNumber,
+        string FilePath,
+        double SubpixelOffsetX,
+        double SubpixelOffsetY);
+
+    private sealed record ExportFramesCommandDto(
+        string Command,
+        int RequestId,
+        ExportFrameItemDto[] Items,
+        string PlaneMode,
+        bool ToneMapHdr,
+        double ToneMapTargetNits,
+        bool SeparateFields);
+
+    private sealed record ScanWorstFramesCommandDto(
+        string Command,
+        int RequestId,
+        int OutputIndexA,
+        int OutputIndexB,
+        int[] SampleFramesA,
+        int[] SampleFramesB,
+        string Metric,
+        int TopN,
+        double SubpixelOffsetX,
+        double SubpixelOffsetY);
+
+    private sealed record AutoCropCommandDto(
+        string Command,
+        int RequestId,
+        int OutputIndex,
+        int SampleCount);
 
     private sealed record CloseCommandDto(string Command);
 
@@ -644,6 +1065,89 @@ public sealed class VapourSynthPreviewService : IVapourSynthPreviewService
         public List<HostOutputDto>? Outputs { get; set; }
 
         public List<HostPropertyDto>? Properties { get; set; }
+
+        public bool HasVsAlign { get; set; }
+
+        public bool HasVmafCambi { get; set; }
+
+        public bool HasNativeRes { get; set; }
+
+        public int FrameOffset { get; set; }
+
+        public double Confidence { get; set; }
+
+        public bool HasDrift { get; set; }
+
+        public string? DriftSummary { get; set; }
+
+        public double ElapsedMs { get; set; }
+
+        public double OffsetX { get; set; }
+
+        public double OffsetY { get; set; }
+
+        public int X { get; set; }
+
+        public int Y { get; set; }
+
+        public string? ColorFamily { get; set; }
+
+        public int BitsPerSample { get; set; }
+
+        public string? Plane0Name { get; set; }
+
+        public double Plane0Raw { get; set; }
+
+        public double Plane0Normalized { get; set; }
+
+        public string? Plane1Name { get; set; }
+
+        public double? Plane1Raw { get; set; }
+
+        public double? Plane1Normalized { get; set; }
+
+        public string? Plane2Name { get; set; }
+
+        public double? Plane2Raw { get; set; }
+
+        public double? Plane2Normalized { get; set; }
+
+        public int ExportedCount { get; set; }
+
+        public string? EncoderUsed { get; set; }
+
+        public string? MetricUsed { get; set; }
+
+        public string? BackendUsed { get; set; }
+
+        public int SampledCount { get; set; }
+
+        public double MedianScore { get; set; }
+
+        public double P10Score { get; set; }
+
+        public double MinScore { get; set; }
+
+        public List<HostWorstFrameDto>? WorstFrames { get; set; }
+
+        public int CropLeft { get; set; }
+
+        public int CropTop { get; set; }
+
+        public int CropRight { get; set; }
+
+        public int CropBottom { get; set; }
+    }
+
+    private sealed class HostWorstFrameDto
+    {
+        public int FrameNumber { get; set; }
+
+        public int SecondaryFrameNumber { get; set; }
+
+        public double Score { get; set; }
+
+        public string? FrameType { get; set; }
     }
 
     private sealed class HostOutputDto
@@ -665,6 +1169,10 @@ public sealed class VapourSynthPreviewService : IVapourSynthPreviewService
         public string? FormatName { get; set; }
 
         public int BitsPerSample { get; set; }
+
+        public bool IsHdr { get; set; }
+
+        public string? HdrTransferName { get; set; }
     }
 
     private sealed class HostPropertyDto

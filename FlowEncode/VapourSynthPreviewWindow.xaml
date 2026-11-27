@@ -4,11 +4,15 @@
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
     xmlns:local="using:FlowEncode"
+    xmlns:canvas="using:Microsoft.Graphics.Canvas.UI.Xaml"
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
     mc:Ignorable="d">
     <Grid
         x:Name="RootLayout"
-        Background="{ThemeResource WindowBackgroundBrush}">
+        AllowDrop="True"
+        Background="{ThemeResource WindowBackgroundBrush}"
+        DragOver="RootLayout_DragOver"
+        Drop="RootLayout_Drop">
         <Grid.RowDefinitions>
             <RowDefinition Height="*" />
             <RowDefinition Height="Auto" />
@@ -243,6 +247,80 @@
                         </Border>
                     </Grid>
                 </Grid>
+
+                <Border
+                    x:Name="ActiveFlipBadge"
+                    HorizontalAlignment="Left"
+                    VerticalAlignment="Top"
+                    Margin="10"
+                    Padding="10,4"
+                    Background="#CC121212"
+                    BorderBrush="#66FFFFFF"
+                    BorderThickness="1"
+                    CornerRadius="4"
+                    IsHitTestVisible="False"
+                    Visibility="{Binding ActiveFlipBadgeVisibility}">
+                    <TextBlock
+                        FontSize="12"
+                        FontWeight="SemiBold"
+                        Foreground="White"
+                        Text="{Binding ActiveFlipBadgeText}" />
+                </Border>
+
+                <Border
+                    x:Name="HdrToneMapBanner"
+                    HorizontalAlignment="Center"
+                    VerticalAlignment="Top"
+                    Margin="12,10,12,0"
+                    Padding="12,6"
+                    Background="#E61E1E1E"
+                    BorderBrush="#55FFFFFF"
+                    BorderThickness="1"
+                    CornerRadius="6"
+                    Visibility="{Binding HdrBannerVisibility}">
+                    <StackPanel Orientation="Horizontal" Spacing="10" VerticalAlignment="Center">
+                        <TextBlock
+                            FontSize="12"
+                            Foreground="White"
+                            Text="{Binding HdrBannerText}"
+                            VerticalAlignment="Center" />
+                        <Button
+                            x:Name="EnableHdrToneMapBannerButton"
+                            Click="EnableHdrToneMapBannerButton_Click"
+                            Padding="10,3"
+                            Content="{Binding Texts.VapourSynthPreviewHdrBannerEnableButton}"
+                            VerticalAlignment="Center" />
+                        <Button
+                            x:Name="DismissHdrToneMapBannerButton"
+                            Click="DismissHdrToneMapBannerButton_Click"
+                            Padding="8,3"
+                            Background="Transparent"
+                            BorderThickness="0"
+                            Foreground="#CCFFFFFF"
+                            Content="{Binding Texts.VapourSynthPreviewHdrBannerDismissButton}"
+                            VerticalAlignment="Center" />
+                    </StackPanel>
+                </Border>
+
+                <Border
+                    x:Name="PipetteOverlayBorder"
+                    HorizontalAlignment="Left"
+                    VerticalAlignment="Bottom"
+                    Margin="10"
+                    Padding="10,6"
+                    Background="#D8121418"
+                    BorderBrush="#66FFFFFF"
+                    BorderThickness="1"
+                    CornerRadius="6"
+                    IsHitTestVisible="False"
+                    Visibility="{Binding PipetteOverlayVisibility}">
+                    <TextBlock
+                        FontFamily="{StaticResource AppMonoFont}"
+                        FontSize="12"
+                        Foreground="White"
+                        Text="{Binding PipetteReadoutText}"
+                        TextWrapping="Wrap" />
+                </Border>
             </Grid>
 
             <Border
@@ -254,29 +332,544 @@
                 BorderThickness="{StaticResource AppCardBorderThickness}"
                 CornerRadius="{StaticResource AppCardCornerRadius}"
                 Visibility="Collapsed">
-                <Grid RowSpacing="10">
+                <Grid RowSpacing="8">
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto" />
                         <RowDefinition Height="*" />
                     </Grid.RowDefinitions>
 
-                    <TextBlock
-                        FontFamily="{StaticResource AppDisplayFont}"
-                        FontSize="{StaticResource AppBodyLargeFontSize}"
-                        FontWeight="SemiBold"
-                        Text="{Binding Texts.VapourSynthPreviewFramePropsPaneTitle}" />
+                    <Grid ColumnSpacing="3">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+                        <ToggleButton
+                            x:Name="InspectorPropsTabButton"
+                            Click="InspectorPropsTabButton_Click"
+                            Content="{Binding Texts.VapourSynthPreviewInspectorTabProps}"
+                            FontSize="12"
+                            HorizontalAlignment="Stretch"
+                            IsChecked="{Binding IsPropsTabActive, Mode=OneWay}"
+                            Padding="2,4" />
+                        <ToggleButton
+                            x:Name="InspectorScopesTabButton"
+                            Grid.Column="1"
+                            Click="InspectorScopesTabButton_Click"
+                            Content="{Binding Texts.VapourSynthPreviewInspectorTabScopes}"
+                            FontSize="12"
+                            HorizontalAlignment="Stretch"
+                            IsChecked="{Binding IsScopesTabActive, Mode=OneWay}"
+                            Padding="2,4" />
+                        <ToggleButton
+                            x:Name="InspectorBasketTabButton"
+                            Grid.Column="2"
+                            Click="InspectorBasketTabButton_Click"
+                            Content="{Binding Texts.VapourSynthPreviewInspectorTabBasket}"
+                            FontSize="12"
+                            HorizontalAlignment="Stretch"
+                            IsChecked="{Binding IsBasketTabActive, Mode=OneWay}"
+                            Padding="2,4" />
+                        <ToggleButton
+                            x:Name="InspectorWorstTabButton"
+                            Grid.Column="3"
+                            Click="InspectorWorstTabButton_Click"
+                            Content="{Binding Texts.VapourSynthPreviewInspectorTabWorst}"
+                            FontSize="12"
+                            HorizontalAlignment="Stretch"
+                            IsChecked="{Binding IsWorstTabActive, Mode=OneWay}"
+                            Padding="2,4" />
+                        <ToggleButton
+                            x:Name="InspectorScenesTabButton"
+                            Grid.Column="4"
+                            Click="InspectorScenesTabButton_Click"
+                            Content="{Binding Texts.VapourSynthPreviewInspectorTabScenes}"
+                            FontSize="12"
+                            HorizontalAlignment="Stretch"
+                            IsChecked="{Binding IsScenesTabActive, Mode=OneWay}"
+                            Padding="2,4" />
+                    </Grid>
 
-                    <TextBox
+                    <Grid
                         Grid.Row="1"
-                        AcceptsReturn="True"
-                        Background="Transparent"
-                        BorderThickness="0"
-                        FontFamily="{StaticResource AppMonoFont}"
-                        IsReadOnly="True"
-                        ScrollViewer.HorizontalScrollBarVisibility="Auto"
-                        ScrollViewer.VerticalScrollBarVisibility="Auto"
-                        Text="{Binding FramePropsText}"
-                        TextWrapping="NoWrap" />
+                        RowSpacing="8"
+                        Visibility="{Binding InspectorPropsVisibility}">
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="*" />
+                        </Grid.RowDefinitions>
+
+                        <Border
+                            Padding="8,6"
+                            Background="{ThemeResource CardAltBrush}"
+                            BorderBrush="{ThemeResource CardBorderBrush}"
+                            BorderThickness="1"
+                            CornerRadius="4"
+                            Visibility="{Binding PipetteDetailVisibility}">
+                            <TextBlock
+                                FontFamily="{StaticResource AppMonoFont}"
+                                FontSize="11.5"
+                                IsTextSelectionEnabled="True"
+                                Text="{Binding PipetteDetailText}"
+                                TextWrapping="Wrap" />
+                        </Border>
+
+                        <TextBox
+                            Grid.Row="1"
+                            AcceptsReturn="True"
+                            Background="Transparent"
+                            BorderThickness="0"
+                            FontFamily="{StaticResource AppMonoFont}"
+                            IsReadOnly="True"
+                            ScrollViewer.HorizontalScrollBarVisibility="Auto"
+                            ScrollViewer.VerticalScrollBarVisibility="Auto"
+                            Text="{Binding FramePropsText}"
+                            TextWrapping="NoWrap" />
+                    </Grid>
+
+                    <Grid
+                        Grid.Row="1"
+                        RowSpacing="8"
+                        Visibility="{Binding InspectorScopesVisibility}">
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="220" />
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="*" />
+                        </Grid.RowDefinitions>
+
+                        <Grid ColumnSpacing="4">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+                            <Button
+                                x:Name="ScopeHistogramButton"
+                                Click="ScopeModeButton_Click"
+                                Content="{Binding Texts.VapourSynthPreviewScopeHistogram}"
+                                HorizontalAlignment="Stretch"
+                                Padding="4,4"
+                                Tag="histogram" />
+                            <Button
+                                x:Name="ScopeWaveformButton"
+                                Grid.Column="1"
+                                Click="ScopeModeButton_Click"
+                                Content="{Binding Texts.VapourSynthPreviewScopeWaveform}"
+                                HorizontalAlignment="Stretch"
+                                Padding="4,4"
+                                Tag="waveform" />
+                            <Button
+                                x:Name="ScopeVectorscopeButton"
+                                Grid.Column="2"
+                                Click="ScopeModeButton_Click"
+                                Content="{Binding Texts.VapourSynthPreviewScopeVectorscope}"
+                                HorizontalAlignment="Stretch"
+                                Padding="4,4"
+                                Tag="vectorscope" />
+                        </Grid>
+
+                        <Grid
+                            Grid.Row="1"
+                            ColumnSpacing="4"
+                            Visibility="{Binding CompareBarVisibility}">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+                            <ToggleButton
+                                x:Name="ScopeSourceAButton"
+                                Click="ScopeSourceButton_Click"
+                                Content="{Binding Texts.VapourSynthPreviewScopeSourceA}"
+                                HorizontalAlignment="Stretch"
+                                IsChecked="True"
+                                Padding="4,3"
+                                Tag="A" />
+                            <ToggleButton
+                                x:Name="ScopeSourceBButton"
+                                Grid.Column="1"
+                                Click="ScopeSourceButton_Click"
+                                Content="{Binding Texts.VapourSynthPreviewScopeSourceB}"
+                                HorizontalAlignment="Stretch"
+                                IsChecked="False"
+                                Padding="4,3"
+                                Tag="B" />
+                        </Grid>
+
+                        <Border
+                            Grid.Row="2"
+                            BorderBrush="{ThemeResource CardBorderBrush}"
+                            BorderThickness="1"
+                            CornerRadius="6"
+                            Background="#FF101216">
+                            <canvas:CanvasControl
+                                x:Name="ScopeCanvas"
+                                Draw="ScopeCanvas_Draw" />
+                        </Border>
+
+                        <TextBlock
+                            Grid.Row="3"
+                            FontSize="11.5"
+                            Foreground="{ThemeResource SubtleTextBrush}"
+                            Text="{Binding Texts.VapourSynthPreviewScopeHint}"
+                            TextWrapping="Wrap" />
+                    </Grid>
+
+                    <Grid
+                        Grid.Row="1"
+                        RowSpacing="8"
+                        Visibility="{Binding InspectorBasketVisibility}">
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="*" />
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                        </Grid.RowDefinitions>
+
+                        <Grid ColumnSpacing="4">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <Button
+                                x:Name="BasketAddCurrentButton"
+                                Click="BasketAddCurrentButton_Click"
+                                Content="{Binding Texts.VapourSynthPreviewBasketAddCurrentButton}"
+                                HorizontalAlignment="Stretch"
+                                Padding="6,4" />
+                            <Button
+                                x:Name="BasketSampleFramesButton"
+                                Grid.Column="1"
+                                Click="BasketSampleFramesButton_Click"
+                                Content="{Binding Texts.VapourSynthPreviewBasketSampleButton}"
+                                HorizontalAlignment="Stretch"
+                                Padding="6,4" />
+                            <Button
+                                x:Name="BasketClearButton"
+                                Grid.Column="2"
+                                Click="BasketClearButton_Click"
+                                Content="{Binding Texts.VapourSynthPreviewBasketClearButton}"
+                                IsEnabled="{Binding CanExportBasket}"
+                                Padding="8,4" />
+                        </Grid>
+
+                        <Grid Grid.Row="1">
+                            <ListView
+                                x:Name="BasketFramesListView"
+                                IsItemClickEnabled="True"
+                                ItemClick="BasketFramesListView_ItemClick"
+                                ItemsSource="{Binding BookmarkedFrames}"
+                                SelectionMode="None">
+                                <ListView.ItemTemplate>
+                                    <DataTemplate>
+                                        <Grid ColumnSpacing="6" Padding="2,4">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*" />
+                                                <ColumnDefinition Width="Auto" />
+                                            </Grid.ColumnDefinitions>
+                                            <StackPanel VerticalAlignment="Center">
+                                                <TextBlock FontFamily="{StaticResource AppMonoFont}" FontSize="12" Text="{Binding Label}" TextTrimming="CharacterEllipsis" />
+                                                <TextBlock FontSize="11" Foreground="{ThemeResource SubtleTextBrush}" Text="{Binding Timecode}" />
+                                            </StackPanel>
+                                            <Button
+                                                Grid.Column="1"
+                                                Click="BasketRemoveItemButton_Click"
+                                                Content="×"
+                                                Padding="6,2"
+                                                Tag="{Binding FrameNumber}"
+                                                VerticalAlignment="Center" />
+                                        </Grid>
+                                    </DataTemplate>
+                                </ListView.ItemTemplate>
+                            </ListView>
+                            <TextBlock
+                                HorizontalAlignment="Center"
+                                VerticalAlignment="Center"
+                                FontSize="12"
+                                Foreground="{ThemeResource SubtleTextBrush}"
+                                Padding="8"
+                                Text="{Binding Texts.VapourSynthPreviewBasketEmptyHint}"
+                                TextAlignment="Center"
+                                TextWrapping="Wrap"
+                                Visibility="{Binding BasketEmptyVisibility}" />
+                        </Grid>
+
+                        <TextBlock
+                            Grid.Row="2"
+                            FontSize="11.5"
+                            Foreground="{ThemeResource SubtleTextBrush}"
+                            Text="{Binding BasketModeHintText}"
+                            TextWrapping="Wrap" />
+
+                        <StackPanel Grid.Row="3" Spacing="6">
+                            <Button
+                                x:Name="ExportOfflineHtmlButton"
+                                Click="ExportOfflineHtmlButton_Click"
+                                Content="{Binding Texts.VapourSynthPreviewExportHtmlButton}"
+                                HorizontalAlignment="Stretch"
+                                IsEnabled="{Binding CanExportBasket}" />
+                            <Button
+                                x:Name="UploadSlowPicsButton"
+                                Click="UploadSlowPicsButton_Click"
+                                Content="{Binding Texts.VapourSynthPreviewUploadSlowPicsButton}"
+                                HorizontalAlignment="Stretch"
+                                IsEnabled="{Binding CanExportBasket}" />
+                        </StackPanel>
+
+                        <TextBlock
+                            Grid.Row="4"
+                            FontSize="11.5"
+                            Foreground="{ThemeResource SubtleTextBrush}"
+                            IsTextSelectionEnabled="True"
+                            Text="{Binding BasketStatusText}"
+                            TextWrapping="Wrap"
+                            Visibility="{Binding BasketStatusVisibility}" />
+                    </Grid>
+
+                    <Grid
+                        Grid.Row="1"
+                        RowSpacing="8"
+                        Visibility="{Binding InspectorWorstVisibility}">
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="*" />
+                            <RowDefinition Height="Auto" />
+                        </Grid.RowDefinitions>
+
+                        <Grid ColumnSpacing="4">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+                            <ComboBox
+                                x:Name="WorstSkipComboBox"
+                                DisplayMemberPath="Label"
+                                Header="{Binding Texts.VapourSynthPreviewWorstSkipHeader}"
+                                HorizontalAlignment="Stretch"
+                                ItemsSource="{Binding WorstSkipOptions}"
+                                SelectedItem="{Binding SelectedWorstSkipOption, Mode=TwoWay}" />
+                            <ComboBox
+                                x:Name="WorstSampleComboBox"
+                                Grid.Column="1"
+                                DisplayMemberPath="Label"
+                                Header="{Binding Texts.VapourSynthPreviewWorstSamplesHeader}"
+                                HorizontalAlignment="Stretch"
+                                ItemsSource="{Binding WorstSampleOptions}"
+                                SelectedItem="{Binding SelectedWorstSampleOption, Mode=TwoWay}" />
+                            <ComboBox
+                                x:Name="WorstMetricComboBox"
+                                Grid.Column="2"
+                                DisplayMemberPath="Label"
+                                Header="{Binding Texts.VapourSynthPreviewWorstMetricHeader}"
+                                HorizontalAlignment="Stretch"
+                                ItemsSource="{Binding WorstMetricOptions}"
+                                SelectedItem="{Binding SelectedWorstMetricOption, Mode=TwoWay}" />
+                        </Grid>
+
+                        <Button
+                            x:Name="StartWorstScanButton"
+                            Grid.Row="1"
+                            Click="StartWorstScanButton_Click"
+                            Content="{Binding Texts.VapourSynthPreviewWorstStartButton}"
+                            HorizontalAlignment="Stretch"
+                            IsEnabled="{Binding CanStartWorstScan}" />
+
+                        <TextBlock
+                            Grid.Row="2"
+                            FontSize="11.5"
+                            Foreground="{ThemeResource SubtleTextBrush}"
+                            Text="{Binding WorstScanStatusText}"
+                            TextWrapping="Wrap"
+                            Visibility="{Binding WorstScanStatusVisibility}" />
+
+                        <Grid Grid.Row="3">
+                            <ListView
+                                x:Name="WorstFramesListView"
+                                IsItemClickEnabled="True"
+                                ItemClick="WorstFramesListView_ItemClick"
+                                ItemsSource="{Binding WorstFrameResults}"
+                                SelectionMode="None">
+                                <ListView.ItemTemplate>
+                                    <DataTemplate>
+                                        <Grid ColumnSpacing="8" Padding="2,4">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*" />
+                                                <ColumnDefinition Width="Auto" />
+                                            </Grid.ColumnDefinitions>
+                                            <StackPanel>
+                                                <TextBlock FontFamily="{StaticResource AppMonoFont}" FontSize="12" Text="{Binding Timecode}" />
+                                                <TextBlock FontSize="11" Foreground="{ThemeResource SubtleTextBrush}" Text="{Binding FrameNumber}" />
+                                            </StackPanel>
+                                            <TextBlock
+                                                Grid.Column="1"
+                                                FontFamily="{StaticResource AppMonoFont}"
+                                                FontSize="12"
+                                                FontWeight="SemiBold"
+                                                Text="{Binding ScoreLabel}"
+                                                VerticalAlignment="Center" />
+                                        </Grid>
+                                    </DataTemplate>
+                                </ListView.ItemTemplate>
+                            </ListView>
+                            <TextBlock
+                                HorizontalAlignment="Center"
+                                VerticalAlignment="Center"
+                                FontSize="12"
+                                Foreground="{ThemeResource SubtleTextBrush}"
+                                Padding="8"
+                                Text="{Binding Texts.VapourSynthPreviewWorstIdleHint}"
+                                TextAlignment="Center"
+                                TextWrapping="Wrap"
+                                Visibility="{Binding WorstResultsEmptyVisibility}" />
+                        </Grid>
+
+                        <Button
+                            x:Name="SendWorstToBasketButton"
+                            Grid.Row="4"
+                            Click="SendWorstToBasketButton_Click"
+                            Content="{Binding Texts.VapourSynthPreviewWorstSendToBasketButton}"
+                            HorizontalAlignment="Stretch"
+                            IsEnabled="{Binding HasWorstScanResults}" />
+                    </Grid>
+
+                    <Grid
+                        Grid.Row="1"
+                        RowSpacing="8"
+                        Visibility="{Binding InspectorScenesVisibility}">
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="*" />
+                            <RowDefinition Height="Auto" />
+                        </Grid.RowDefinitions>
+
+                        <Grid ColumnSpacing="4">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <Button
+                                x:Name="SceneMarkInButton"
+                                Click="SceneMarkInButton_Click"
+                                Content="{Binding Texts.VapourSynthPreviewSceneMarkInButton}"
+                                HorizontalAlignment="Stretch"
+                                Padding="6,4" />
+                            <Button
+                                x:Name="SceneMarkOutButton"
+                                Grid.Column="1"
+                                Click="SceneMarkOutButton_Click"
+                                Content="{Binding Texts.VapourSynthPreviewSceneMarkOutButton}"
+                                HorizontalAlignment="Stretch"
+                                Padding="6,4" />
+                            <Button
+                                x:Name="SceneClearButton"
+                                Grid.Column="2"
+                                Click="SceneClearButton_Click"
+                                Content="{Binding Texts.VapourSynthPreviewBasketClearButton}"
+                                IsEnabled="{Binding HasSceneRanges}"
+                                Padding="8,4" />
+                        </Grid>
+
+                        <TextBlock
+                            Grid.Row="1"
+                            FontSize="11.5"
+                            Foreground="{ThemeResource SubtleTextBrush}"
+                            Text="{Binding PendingSceneInText}"
+                            TextWrapping="Wrap"
+                            Visibility="{Binding PendingSceneInVisibility}" />
+
+                        <Grid Grid.Row="2">
+                            <ListView
+                                x:Name="SceneRangesListView"
+                                IsItemClickEnabled="True"
+                                ItemClick="SceneRangesListView_ItemClick"
+                                ItemsSource="{Binding SceneRanges}"
+                                SelectionMode="None">
+                                <ListView.ItemTemplate>
+                                    <DataTemplate>
+                                        <Grid ColumnSpacing="6" Padding="2,4">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*" />
+                                                <ColumnDefinition Width="Auto" />
+                                            </Grid.ColumnDefinitions>
+                                            <TextBlock
+                                                FontFamily="{StaticResource AppMonoFont}"
+                                                FontSize="12"
+                                                Text="{Binding Label}"
+                                                VerticalAlignment="Center" />
+                                            <Button
+                                                Grid.Column="1"
+                                                Click="SceneRemoveRangeButton_Click"
+                                                Content="×"
+                                                Padding="6,2"
+                                                Tag="{Binding}"
+                                                VerticalAlignment="Center" />
+                                        </Grid>
+                                    </DataTemplate>
+                                </ListView.ItemTemplate>
+                            </ListView>
+                            <TextBlock
+                                HorizontalAlignment="Center"
+                                VerticalAlignment="Center"
+                                FontSize="12"
+                                Foreground="{ThemeResource SubtleTextBrush}"
+                                Padding="8"
+                                Text="{Binding Texts.VapourSynthPreviewSceneEmptyHint}"
+                                TextAlignment="Center"
+                                TextWrapping="Wrap"
+                                Visibility="{Binding ScenesEmptyVisibility}" />
+                        </Grid>
+
+                        <StackPanel Grid.Row="3" Spacing="6">
+                            <Grid ColumnSpacing="6">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+                                <Button
+                                    x:Name="InsertReplaceRangesButton"
+                                    Click="InsertReplaceRangesButton_Click"
+                                    Content="{Binding Texts.VapourSynthPreviewInsertReplaceRangesButton}"
+                                    HorizontalAlignment="Stretch"
+                                    IsEnabled="{Binding HasSceneRanges}" />
+                                <Button
+                                    x:Name="CopyReplaceRangesButton"
+                                    Grid.Column="1"
+                                    Click="CopyReplaceRangesButton_Click"
+                                    Content="{Binding Texts.VapourSynthPreviewSceneCopyReplaceRangesButton}"
+                                    HorizontalAlignment="Stretch"
+                                    IsEnabled="{Binding HasSceneRanges}" />
+                            </Grid>
+                            <Grid ColumnSpacing="6">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+                                <Button
+                                    x:Name="CopyEncoderZonesButton"
+                                    Click="CopyEncoderZonesButton_Click"
+                                    Content="{Binding Texts.VapourSynthPreviewSceneCopyZonesButton}"
+                                    HorizontalAlignment="Stretch"
+                                    IsEnabled="{Binding HasSceneRanges}" />
+                                <Button
+                                    x:Name="CopyAv1anZonesButton"
+                                    Grid.Column="1"
+                                    Click="CopyAv1anZonesButton_Click"
+                                    Content="{Binding Texts.VapourSynthPreviewSceneCopyAv1anZonesButton}"
+                                    HorizontalAlignment="Stretch"
+                                    IsEnabled="{Binding HasSceneRanges}" />
+                            </Grid>
+                        </StackPanel>
+                    </Grid>
                 </Grid>
             </Border>
         </Grid>
@@ -378,6 +971,16 @@
                     Spacing="6"
                     VerticalAlignment="Center"
                     Visibility="{Binding DifferenceGainVisibility}">
+                    <TextBlock VerticalAlignment="Center" Text="{Binding Texts.VapourSynthPreviewCompareDiffStyleHeader}" />
+                    <ComboBox
+                        x:Name="DifferenceStyleComboBox"
+                        AutomationProperties.Name="{Binding Texts.VapourSynthPreviewCompareDiffStyleHeader}"
+                        DisplayMemberPath="Label"
+                        ItemsSource="{Binding DifferenceStyles}"
+                        SelectedItem="{Binding SelectedDifferenceStyleOption, Mode=TwoWay}"
+                        SelectionChanged="DifferenceStyleComboBox_SelectionChanged"
+                        VerticalAlignment="Center"
+                        Width="102" />
                     <TextBlock VerticalAlignment="Center" Text="{Binding Texts.VapourSynthPreviewCompareDiffGainHeader}" />
                     <ComboBox
                         x:Name="DifferenceGainComboBox"
@@ -387,26 +990,192 @@
                         SelectedItem="{Binding SelectedDifferenceGainOption, Mode=TwoWay}"
                         SelectionChanged="DifferenceGainComboBox_SelectionChanged"
                         VerticalAlignment="Center"
-                        Width="92" />
+                        Width="84" />
                 </StackPanel>
 
                 <StackPanel
-                    Grid.Column="9"
+                    Grid.Column="8"
                     Orientation="Horizontal"
                     Spacing="6"
                     VerticalAlignment="Center"
-                    Visibility="{Binding SizeAlignmentVisibility}">
-                    <TextBlock VerticalAlignment="Center" Text="{Binding Texts.VapourSynthPreviewCompareSizeAlignmentHeader}" />
+                    Visibility="{Binding FlickerControlsVisibility}">
+                    <TextBlock VerticalAlignment="Center" Text="{Binding Texts.VapourSynthPreviewFlickerIntervalHeader}" />
                     <ComboBox
-                        x:Name="CompareSizeAlignmentComboBox"
-                        AutomationProperties.Name="{Binding Texts.VapourSynthPreviewCompareSizeAlignmentHeader}"
+                        x:Name="FlickerIntervalComboBox"
+                        AutomationProperties.Name="{Binding Texts.VapourSynthPreviewFlickerIntervalHeader}"
                         DisplayMemberPath="Label"
-                        ItemsSource="{Binding SizeAlignments}"
-                        SelectedItem="{Binding SelectedSizeAlignmentOption, Mode=TwoWay}"
-                        SelectionChanged="CompareSizeAlignmentComboBox_SelectionChanged"
+                        ItemsSource="{Binding FlickerIntervals}"
+                        SelectedItem="{Binding SelectedFlickerIntervalOption, Mode=TwoWay}"
+                        SelectionChanged="FlickerIntervalComboBox_SelectionChanged"
                         VerticalAlignment="Center"
-                        Width="112" />
+                        Width="84" />
                 </StackPanel>
+
+                <DropDownButton
+                    x:Name="CompareAlignButton"
+                    Grid.Column="9"
+                    AutomationProperties.Name="{Binding Texts.VapourSynthPreviewCompareSizeAlignmentHeader}"
+                    Content="{Binding AlignButtonLabel}"
+                    Padding="10,4"
+                    VerticalAlignment="Center">
+                    <DropDownButton.Flyout>
+                        <Flyout Placement="Top">
+                            <StackPanel Width="304" Spacing="10">
+                                <StackPanel Spacing="4">
+                                    <TextBlock FontWeight="SemiBold" Text="{Binding Texts.VapourSynthPreviewFrameOffsetHeader}" />
+                                    <Grid ColumnSpacing="6">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="Auto" />
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="Auto" />
+                                            <ColumnDefinition Width="Auto" />
+                                        </Grid.ColumnDefinitions>
+                                        <Button
+                                            x:Name="DecrementFrameOffsetButton"
+                                            Click="DecrementFrameOffsetButton_Click"
+                                            Content="-1"
+                                            Padding="8,4" />
+                                        <NumberBox
+                                            x:Name="SecondaryFrameOffsetBox"
+                                            Grid.Column="1"
+                                            AcceptsExpression="False"
+                                            AutomationProperties.Name="{Binding Texts.VapourSynthPreviewFrameOffsetHeader}"
+                                            Maximum="100000"
+                                            Minimum="-100000"
+                                            SmallChange="1"
+                                            SpinButtonPlacementMode="Hidden"
+                                            Value="{Binding SecondaryFrameOffset, Mode=TwoWay}"
+                                            ValueChanged="SecondaryFrameOffsetBox_ValueChanged" />
+                                        <Button
+                                            x:Name="IncrementFrameOffsetButton"
+                                            Grid.Column="2"
+                                            Click="IncrementFrameOffsetButton_Click"
+                                            Content="+1"
+                                            Padding="8,4" />
+                                        <Button
+                                            x:Name="ResetFrameOffsetButton"
+                                            Grid.Column="3"
+                                            Click="ResetFrameOffsetButton_Click"
+                                            Content="{Binding Texts.VapourSynthPreviewResetOffsetButton}"
+                                            IsEnabled="{Binding HasSecondaryFrameOffset}"
+                                            Padding="8,4" />
+                                    </Grid>
+                                    <Grid ColumnSpacing="6">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="96" />
+                                            <ColumnDefinition Width="*" />
+                                        </Grid.ColumnDefinitions>
+                                        <ComboBox
+                                            x:Name="TemporalSearchRadiusComboBox"
+                                            AutomationProperties.Name="{Binding Texts.VapourSynthPreviewSearchRadiusHeader}"
+                                            DisplayMemberPath="Label"
+                                            HorizontalAlignment="Stretch"
+                                            ItemsSource="{Binding TemporalSearchRadii}"
+                                            SelectedItem="{Binding SelectedTemporalSearchRadiusOption, Mode=TwoWay}" />
+                                        <Button
+                                            x:Name="AutoTemporalAlignButton"
+                                            Grid.Column="1"
+                                            Click="AutoTemporalAlignButton_Click"
+                                            Content="{Binding Texts.VapourSynthPreviewAutoTemporalAlignButton}"
+                                            HorizontalAlignment="Stretch"
+                                            IsEnabled="{Binding CanRunAutoAlign}" />
+                                    </Grid>
+                                    <TextBlock
+                                        FontSize="11"
+                                        Foreground="{ThemeResource SubtleTextBrush}"
+                                        Text="{Binding Texts.VapourSynthPreviewFrameOffsetHint}"
+                                        TextWrapping="Wrap" />
+                                </StackPanel>
+
+                                <StackPanel Spacing="4">
+                                    <TextBlock FontWeight="SemiBold" Text="{Binding Texts.VapourSynthPreviewSubpixelOffsetHeader}" />
+                                    <Grid ColumnSpacing="6">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="Auto" />
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="Auto" />
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="Auto" />
+                                        </Grid.ColumnDefinitions>
+                                        <TextBlock VerticalAlignment="Center" Text="X" />
+                                        <NumberBox
+                                            x:Name="SubpixelOffsetXBox"
+                                            Grid.Column="1"
+                                            AcceptsExpression="False"
+                                            LargeChange="0.5"
+                                            Maximum="64"
+                                            Minimum="-64"
+                                            SmallChange="0.05"
+                                            SpinButtonPlacementMode="Hidden"
+                                            Value="{Binding SubpixelOffsetX, Mode=TwoWay}"
+                                            ValueChanged="SubpixelOffsetBox_ValueChanged" />
+                                        <TextBlock Grid.Column="2" VerticalAlignment="Center" Text="Y" />
+                                        <NumberBox
+                                            x:Name="SubpixelOffsetYBox"
+                                            Grid.Column="3"
+                                            AcceptsExpression="False"
+                                            LargeChange="0.5"
+                                            Maximum="64"
+                                            Minimum="-64"
+                                            SmallChange="0.05"
+                                            SpinButtonPlacementMode="Hidden"
+                                            Value="{Binding SubpixelOffsetY, Mode=TwoWay}"
+                                            ValueChanged="SubpixelOffsetBox_ValueChanged" />
+                                        <Button
+                                            x:Name="ResetSubpixelOffsetButton"
+                                            Grid.Column="4"
+                                            Click="ResetSubpixelOffsetButton_Click"
+                                            Content="{Binding Texts.VapourSynthPreviewResetOffsetButton}"
+                                            IsEnabled="{Binding HasSubpixelOffset}"
+                                            Padding="8,4" />
+                                    </Grid>
+                                    <Button
+                                        x:Name="AutoSpatialAlignButton"
+                                        Click="AutoSpatialAlignButton_Click"
+                                        Content="{Binding Texts.VapourSynthPreviewAutoSpatialAlignButton}"
+                                        HorizontalAlignment="Stretch"
+                                        IsEnabled="{Binding CanRunAutoAlign}" />
+                                </StackPanel>
+
+                                <TextBlock
+                                    FontSize="11.5"
+                                    Foreground="{ThemeResource SubtleTextBrush}"
+                                    Text="{Binding AlignStatusText}"
+                                    TextWrapping="Wrap"
+                                    Visibility="{Binding AlignStatusVisibility}" />
+
+                                <StackPanel Spacing="4" Visibility="{Binding SizeAlignmentVisibility}">
+                                    <TextBlock FontWeight="SemiBold" Text="{Binding Texts.VapourSynthPreviewCompareSizeAlignmentHeader}" />
+                                    <ComboBox
+                                        x:Name="CompareSizeAlignmentComboBox"
+                                        AutomationProperties.Name="{Binding Texts.VapourSynthPreviewCompareSizeAlignmentHeader}"
+                                        DisplayMemberPath="Label"
+                                        HorizontalAlignment="Stretch"
+                                        ItemsSource="{Binding SizeAlignments}"
+                                        SelectedItem="{Binding SelectedSizeAlignmentOption, Mode=TwoWay}"
+                                        SelectionChanged="CompareSizeAlignmentComboBox_SelectionChanged" />
+                                </StackPanel>
+                                <Grid ColumnSpacing="6">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="*" />
+                                    </Grid.ColumnDefinitions>
+                                    <Button
+                                        x:Name="InsertAlignSnippetButton"
+                                        Click="InsertAlignSnippetButton_Click"
+                                        HorizontalAlignment="Stretch"
+                                        Content="{Binding Texts.VapourSynthPreviewInsertToEditorButton}" />
+                                    <Button
+                                        x:Name="CopyAlignSnippetButton"
+                                        Grid.Column="1"
+                                        Click="CopyAlignSnippetButton_Click"
+                                        HorizontalAlignment="Stretch"
+                                        Content="{Binding Texts.VapourSynthPreviewCopyAlignSnippetButton}" />
+                                </Grid>
+                            </StackPanel>
+                        </Flyout>
+                    </DropDownButton.Flyout>
+                </DropDownButton>
 
                 <TextBlock
                     Grid.Column="10"
@@ -533,19 +1302,34 @@
                     SpinButtonPlacementMode="Hidden"
                     ValueChanged="CropZoomBox_ValueChanged"
                     VerticalAlignment="Center" />
-                <Button
-                    x:Name="CopyCropCommandButton"
-                    Grid.Column="16"
-                    AutomationProperties.Name="{Binding Texts.VapourSynthPreviewCopyCropCommandButton}"
-                    Click="CopyCropCommandButton_Click"
-                    Padding="10,4"
-                    ToolTipService.ToolTip="{Binding Texts.VapourSynthPreviewCopyCropCommandButton}"
-                    VerticalAlignment="Center">
-                    <StackPanel Orientation="Horizontal" Spacing="6">
-                        <SymbolIcon Symbol="Copy" />
-                        <TextBlock Text="{Binding Texts.VapourSynthPreviewCopyCropCommandButton}" />
-                    </StackPanel>
-                </Button>
+                <StackPanel Grid.Column="16" Orientation="Horizontal" Spacing="4" VerticalAlignment="Center">
+                    <Button
+                        x:Name="AutoCropButton"
+                        Click="AutoCropButton_Click"
+                        Content="{Binding Texts.VapourSynthPreviewAutoCropButton}"
+                        Padding="8,4" />
+                    <Button
+                        x:Name="CopyCropCommandButton"
+                        AutomationProperties.Name="{Binding Texts.VapourSynthPreviewCopyCropCommandButton}"
+                        Click="CopyCropCommandButton_Click"
+                        Padding="8,4"
+                        ToolTipService.ToolTip="{Binding Texts.VapourSynthPreviewCopyCropCommandButton}">
+                        <StackPanel Orientation="Horizontal" Spacing="4">
+                            <SymbolIcon Symbol="Copy" />
+                            <TextBlock Text="{Binding Texts.VapourSynthPreviewCopyCropCommandButton}" />
+                        </StackPanel>
+                    </Button>
+                    <Button
+                        x:Name="InsertCropToEditorButton"
+                        Click="InsertCropToEditorButton_Click"
+                        Content="{Binding Texts.VapourSynthPreviewInsertToEditorButton}"
+                        Padding="8,4" />
+                    <Button
+                        x:Name="CopyCropBbmodButton"
+                        Click="CopyCropBbmodButton_Click"
+                        Content="{Binding Texts.VapourSynthPreviewCopyCropBbmodButton}"
+                        Padding="8,4" />
+                </StackPanel>
 
                 <TextBlock
                     Grid.Column="18"
@@ -704,33 +1488,69 @@
                                 <SymbolIcon Symbol="Refresh" />
                             </AppBarButton.Icon>
                         </AppBarButton>
-                        <AppBarButton
-                            x:Name="SaveAllOutputsButton"
-                            Click="SaveAllOutputsButton_Click"
-                            Label="{Binding Texts.VapourSynthPreviewSaveAllFramesButton}"
-                            ToolTipService.ToolTip="{Binding Texts.VapourSynthPreviewSaveAllFramesButton}">
-                            <AppBarButton.Icon>
-                                <SymbolIcon Symbol="Save" />
-                            </AppBarButton.Icon>
-                        </AppBarButton>
-                        <AppBarButton
-                            x:Name="SaveSnapshotButton"
-                            Click="SaveSnapshotButton_Click"
-                            Label="{Binding Texts.VapourSynthPreviewSaveFrameButton}"
-                            ToolTipService.ToolTip="{Binding Texts.VapourSynthPreviewSaveFrameButton}">
-                            <AppBarButton.Icon>
+                        <AppBarElementContainer VerticalAlignment="Center">
+                            <SplitButton
+                                x:Name="SaveSnapshotButton"
+                                AutomationProperties.Name="{Binding Texts.VapourSynthPreviewSaveFrameButton}"
+                                Click="SaveSnapshotButton_Click"
+                                Padding="8,4"
+                                ToolTipService.ToolTip="{Binding Texts.VapourSynthPreviewExportMenuTooltip}">
                                 <SymbolIcon Symbol="SaveLocal" />
-                            </AppBarButton.Icon>
-                        </AppBarButton>
-                        <AppBarButton
-                            x:Name="CopyFrameButton"
-                            Click="CopyFrameButton_Click"
-                            Label="{Binding Texts.VapourSynthPreviewCopyFrameButton}"
-                            ToolTipService.ToolTip="{Binding Texts.VapourSynthPreviewCopyFrameButton}">
-                            <AppBarButton.Icon>
-                                <SymbolIcon Symbol="Copy" />
-                            </AppBarButton.Icon>
-                        </AppBarButton>
+                                <SplitButton.Flyout>
+                                    <MenuFlyout>
+                                        <MenuFlyoutItem
+                                            Click="SaveSnapshotMenuItem_Click"
+                                            Text="{Binding Texts.VapourSynthPreviewSaveFrameButton}">
+                                            <MenuFlyoutItem.Icon>
+                                                <SymbolIcon Symbol="SaveLocal" />
+                                            </MenuFlyoutItem.Icon>
+                                        </MenuFlyoutItem>
+                                        <MenuFlyoutItem
+                                            x:Name="CopyFrameButton"
+                                            Click="CopyFrameButton_Click"
+                                            Text="{Binding Texts.VapourSynthPreviewCopyFrameButton}">
+                                            <MenuFlyoutItem.Icon>
+                                                <SymbolIcon Symbol="Copy" />
+                                            </MenuFlyoutItem.Icon>
+                                        </MenuFlyoutItem>
+                                        <MenuFlyoutSeparator />
+                                        <MenuFlyoutItem
+                                            x:Name="SaveAllOutputsButton"
+                                            Click="SaveAllOutputsButton_Click"
+                                            Text="{Binding Texts.VapourSynthPreviewSaveAllFramesButton}">
+                                            <MenuFlyoutItem.Icon>
+                                                <SymbolIcon Symbol="Save" />
+                                            </MenuFlyoutItem.Icon>
+                                        </MenuFlyoutItem>
+                                        <MenuFlyoutSeparator />
+                                        <MenuFlyoutItem
+                                            Click="BasketAddCurrentButton_Click"
+                                            Text="{Binding Texts.VapourSynthPreviewBookmarkFrameMenu}">
+                                            <MenuFlyoutItem.Icon>
+                                                <SymbolIcon Symbol="Add" />
+                                            </MenuFlyoutItem.Icon>
+                                        </MenuFlyoutItem>
+                                        <MenuFlyoutItem
+                                            Click="OpenBasketDrawerMenuItem_Click"
+                                            Text="{Binding Texts.VapourSynthPreviewOpenBasketMenu}">
+                                            <MenuFlyoutItem.Icon>
+                                                <SymbolIcon Symbol="Share" />
+                                            </MenuFlyoutItem.Icon>
+                                        </MenuFlyoutItem>
+                                    </MenuFlyout>
+                                </SplitButton.Flyout>
+                            </SplitButton>
+                        </AppBarElementContainer>
+                        <AppBarToggleButton
+                            x:Name="PipetteToggleButton"
+                            Checked="PipetteToggleButton_Checked"
+                            Label="{Binding Texts.VapourSynthPreviewPipetteButton}"
+                            ToolTipService.ToolTip="{Binding Texts.VapourSynthPreviewPipetteHint}"
+                            Unchecked="PipetteToggleButton_Unchecked">
+                            <AppBarToggleButton.Icon>
+                                <FontIcon Glyph="&#xEF3C;" />
+                            </AppBarToggleButton.Icon>
+                        </AppBarToggleButton>
                         <AppBarToggleButton
                             x:Name="CropToggleButton"
                             Checked="CropToggleButton_Checked"
@@ -744,8 +1564,8 @@
                         <AppBarToggleButton
                             x:Name="FramePropsToggleButton"
                             Checked="FramePropsToggleButton_Checked"
-                            Label="{Binding Texts.VapourSynthPreviewFramePropsButton}"
-                            ToolTipService.ToolTip="{Binding Texts.VapourSynthPreviewFramePropsButton}"
+                            Label="{Binding Texts.VapourSynthPreviewInspectorButton}"
+                            ToolTipService.ToolTip="{Binding Texts.VapourSynthPreviewInspectorButton}"
                             Unchecked="FramePropsToggleButton_Unchecked">
                             <AppBarToggleButton.Icon>
                                 <SymbolIcon Symbol="List" />

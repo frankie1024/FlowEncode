@@ -18,7 +18,10 @@ internal enum PreviewDisplayFilter
     Chroma,
     Solar1,
     Solar2,
-    Residual
+    Residual,
+    ShadowBoost,
+    LegalRangeAlert,
+    EdgeHighlight
 }
 
 internal static class PreviewDisplayFilters
@@ -26,6 +29,8 @@ internal static class PreviewDisplayFilters
     private const int SideBySideSnapshotGap = 4;
     private static readonly SolarTables SolarOnce = new(1);
     private static readonly SolarTables SolarTwice = new(2);
+    private static readonly LegalRangeTables LegalRangeLut = new();
+    private static readonly HeatmapTables TurboHeatmapLut = new();
 
     public static void Draw(
         CanvasDrawingSession drawingSession,
@@ -54,7 +59,8 @@ internal static class PreviewDisplayFilters
         PreviewCompareSizeAlignment sizeAlignment,
         CanvasImageInterpolation interpolation,
         IReadOnlyList<VapourSynthPreviewFrameProperty>? propertiesA,
-        IReadOnlyList<VapourSynthPreviewFrameProperty>? propertiesB)
+        IReadOnlyList<VapourSynthPreviewFrameProperty>? propertiesB,
+        PreviewDifferenceStyle differenceStyle = PreviewDifferenceStyle.Absolute)
     {
         var widthA = Math.Max(1, (int)bitmapA.SizeInPixels.Width);
         var heightA = Math.Max(1, (int)bitmapA.SizeInPixels.Height);
@@ -71,15 +77,27 @@ internal static class PreviewDisplayFilters
             var filteredB = CreateFilteredImage(bitmapB, filter, propertiesB, disposables);
             var alignedB = PlaceImageInRect(filteredB, widthB, heightB, layout.RectB, interpolation, disposables);
 
-            var difference = new BlendEffect
+            ICanvasImage output;
+            if (differenceStyle == PreviewDifferenceStyle.Signed)
             {
-                Background = alignedA,
-                Foreground = alignedB,
-                Mode = BlendEffectMode.Difference
-            };
-            disposables.Add(difference);
+                output = CreateSignedDifferenceImage(alignedA, alignedB, gain, disposables);
+            }
+            else
+            {
+                var difference = new BlendEffect
+                {
+                    Background = alignedA,
+                    Foreground = alignedB,
+                    Mode = BlendEffectMode.Difference
+                };
+                disposables.Add(difference);
 
-            var output = ApplyDifferenceGain(difference, gain, disposables);
+                var gained = ApplyDifferenceGain(difference, gain, disposables);
+                output = differenceStyle == PreviewDifferenceStyle.Heatmap
+                    ? CreateHeatmapImage(gained, disposables)
+                    : gained;
+            }
+
             drawingSession.DrawImage(output);
         }
         finally
@@ -99,7 +117,8 @@ internal static class PreviewDisplayFilters
         double splitRatio,
         CanvasImageInterpolation interpolation,
         IReadOnlyList<VapourSynthPreviewFrameProperty>? propertiesA,
-        IReadOnlyList<VapourSynthPreviewFrameProperty>? propertiesB)
+        IReadOnlyList<VapourSynthPreviewFrameProperty>? propertiesB,
+        PreviewDifferenceStyle differenceStyle = PreviewDifferenceStyle.Absolute)
     {
         var widthA = Math.Max(1, (int)bitmapA.SizeInPixels.Width);
         var heightA = Math.Max(1, (int)bitmapA.SizeInPixels.Height);
@@ -162,7 +181,8 @@ internal static class PreviewDisplayFilters
                         sizeAlignment,
                         interpolation,
                         propertiesA,
-                        propertiesB);
+                        propertiesB,
+                        differenceStyle);
                 }
                 else
                 {
@@ -245,6 +265,12 @@ internal static class PreviewDisplayFilters
                 return solarEffect;
             case PreviewDisplayFilter.Residual:
                 return CreateResidualImage(source, disposables);
+            case PreviewDisplayFilter.ShadowBoost:
+                return CreateShadowBoostImage(source, disposables);
+            case PreviewDisplayFilter.LegalRangeAlert:
+                return CreateLegalRangeAlertImage(source, properties, disposables);
+            case PreviewDisplayFilter.EdgeHighlight:
+                return CreateEdgeHighlightImage(source, disposables);
             default:
                 return source;
         }
@@ -387,6 +413,164 @@ internal static class PreviewDisplayFilters
         return boosted;
     }
 
+    private static ICanvasImage CreateShadowBoostImage(ICanvasImage source, List<IDisposable> disposables)
+    {
+        var boosted = new GammaTransferEffect
+        {
+            Source = source,
+            RedExponent = 0.38f,
+            GreenExponent = 0.38f,
+            BlueExponent = 0.38f,
+            AlphaDisable = true
+        };
+        disposables.Add(boosted);
+        return boosted;
+    }
+
+    private static ICanvasImage CreateLegalRangeAlertImage(
+        ICanvasImage source,
+        IReadOnlyList<VapourSynthPreviewFrameProperty>? properties,
+        List<IDisposable> disposables)
+    {
+        var luma = new ColorMatrixEffect
+        {
+            Source = source,
+            ColorMatrix = CreateChannelMatrix(PreviewDisplayFilter.Luma, properties),
+            ClampOutput = true
+        };
+        disposables.Add(luma);
+
+        var alert = new TableTransferEffect
+        {
+            Source = luma,
+            RedTable = LegalRangeLut.Red,
+            GreenTable = LegalRangeLut.Green,
+            BlueTable = LegalRangeLut.Blue,
+            AlphaDisable = true
+        };
+        disposables.Add(alert);
+        return alert;
+    }
+
+    private static ICanvasImage CreateEdgeHighlightImage(ICanvasImage source, List<IDisposable> disposables)
+    {
+        var positiveLaplacian = new ConvolveMatrixEffect
+        {
+            Source = source,
+            KernelWidth = 3,
+            KernelHeight = 3,
+            KernelMatrix =
+            [
+                -1f, -1f, -1f,
+                -1f,  8f, -1f,
+                -1f, -1f, -1f
+            ],
+            Divisor = 2f,
+            Offset = 0f,
+            BorderMode = EffectBorderMode.Hard,
+            PreserveAlpha = true
+        };
+        disposables.Add(positiveLaplacian);
+
+        var negativeLaplacian = new ConvolveMatrixEffect
+        {
+            Source = source,
+            KernelWidth = 3,
+            KernelHeight = 3,
+            KernelMatrix =
+            [
+                 1f,  1f,  1f,
+                 1f, -8f,  1f,
+                 1f,  1f,  1f
+            ],
+            Divisor = 2f,
+            Offset = 0f,
+            BorderMode = EffectBorderMode.Hard,
+            PreserveAlpha = true
+        };
+        disposables.Add(negativeLaplacian);
+
+        var combined = new ArithmeticCompositeEffect
+        {
+            Source1 = positiveLaplacian,
+            Source2 = negativeLaplacian,
+            MultiplyAmount = 0f,
+            Source1Amount = 1f,
+            Source2Amount = 1f,
+            Offset = 0f,
+            ClampOutput = true
+        };
+        disposables.Add(combined);
+
+        var boosted = new GammaTransferEffect
+        {
+            Source = combined,
+            RedExponent = 0.55f,
+            GreenExponent = 0.55f,
+            BlueExponent = 0.55f,
+            AlphaDisable = true
+        };
+        disposables.Add(boosted);
+        return boosted;
+    }
+
+    private static ICanvasImage CreateSignedDifferenceImage(
+        ICanvasImage alignedA,
+        ICanvasImage alignedB,
+        PreviewDifferenceGain gain,
+        List<IDisposable> disposables)
+    {
+        var factor = gain switch
+        {
+            PreviewDifferenceGain.X4 => 4f,
+            PreviewDifferenceGain.X16 => 16f,
+            PreviewDifferenceGain.Boost => 6f,
+            _ => 1f
+        };
+
+        var signed = new ArithmeticCompositeEffect
+        {
+            Source1 = alignedB,
+            Source2 = alignedA,
+            MultiplyAmount = 0f,
+            Source1Amount = factor,
+            Source2Amount = -factor,
+            Offset = 0.5f,
+            ClampOutput = true
+        };
+        disposables.Add(signed);
+        return signed;
+    }
+
+    private static ICanvasImage CreateHeatmapImage(ICanvasImage gainedDifference, List<IDisposable> disposables)
+    {
+        // Convert difference magnitude to grayscale intensity, then map through Turbo heatmap LUT.
+        var intensity = new ColorMatrixEffect
+        {
+            Source = gainedDifference,
+            ColorMatrix = new Matrix5x4
+            {
+                M11 = 0.3334f, M12 = 0.3334f, M13 = 0.3334f,
+                M21 = 0.3334f, M22 = 0.3334f, M23 = 0.3334f,
+                M31 = 0.3334f, M32 = 0.3334f, M33 = 0.3334f,
+                M44 = 1f
+            },
+            ClampOutput = true
+        };
+        disposables.Add(intensity);
+
+        var heatmap = new TableTransferEffect
+        {
+            Source = intensity,
+            RedTable = TurboHeatmapLut.Red,
+            GreenTable = TurboHeatmapLut.Green,
+            BlueTable = TurboHeatmapLut.Blue,
+            AlphaDisable = true
+        };
+        disposables.Add(heatmap);
+        return heatmap;
+    }
+
     private static void DisposeAll(List<IDisposable> disposables)
     {
         for (var i = disposables.Count - 1; i >= 0; i--)
@@ -421,6 +605,81 @@ internal static class PreviewDisplayFilters
             }
 
             return table;
+        }
+    }
+
+    private sealed class LegalRangeTables
+    {
+        public float[] Red { get; } = new float[256];
+        public float[] Green { get; } = new float[256];
+        public float[] Blue { get; } = new float[256];
+
+        public LegalRangeTables()
+        {
+            for (var i = 0; i < 256; i++)
+            {
+                if (i < 16)
+                {
+                    // Below legal black (16): vivid cyan-blue alert.
+                    Red[i] = 0.0f;
+                    Green[i] = 0.72f;
+                    Blue[i] = 1.0f;
+                }
+                else if (i > 235)
+                {
+                    // Above legal white (235): vivid red alert.
+                    Red[i] = 1.0f;
+                    Green[i] = 0.16f;
+                    Blue[i] = 0.16f;
+                }
+                else
+                {
+                    // In-range reference grayscale attenuated slightly so alerts stand out.
+                    var gray = (float)((i - 16) / 219.0 * 0.62 + 0.10);
+                    Red[i] = gray;
+                    Green[i] = gray;
+                    Blue[i] = gray;
+                }
+            }
+        }
+    }
+
+    private sealed class HeatmapTables
+    {
+        public float[] Red { get; } = new float[256];
+        public float[] Green { get; } = new float[256];
+        public float[] Blue { get; } = new float[256];
+
+        public HeatmapTables()
+        {
+            // Compact perceptual heatmap gradient: Black -> Deep Blue -> Cyan -> Green -> Yellow -> Red -> White.
+            ReadOnlySpan<(double Pos, double R, double G, double B)> stops =
+            [
+                (0.00, 0.00, 0.00, 0.00),
+                (0.04, 0.09, 0.05, 0.30),
+                (0.20, 0.12, 0.36, 0.86),
+                (0.42, 0.06, 0.78, 0.66),
+                (0.66, 0.94, 0.88, 0.12),
+                (0.86, 0.96, 0.24, 0.08),
+                (1.00, 1.00, 0.96, 0.92)
+            ];
+
+            for (var i = 0; i < 256; i++)
+            {
+                var t = i / 255.0;
+                var seg = 0;
+                while (seg < stops.Length - 2 && t > stops[seg + 1].Pos)
+                {
+                    seg++;
+                }
+
+                var a = stops[seg];
+                var b = stops[seg + 1];
+                var local = b.Pos > a.Pos ? Math.Clamp((t - a.Pos) / (b.Pos - a.Pos), 0.0, 1.0) : 0.0;
+                Red[i] = (float)(a.R + (b.R - a.R) * local);
+                Green[i] = (float)(a.G + (b.G - a.G) * local);
+                Blue[i] = (float)(a.B + (b.B - a.B) * local);
+            }
         }
     }
 }

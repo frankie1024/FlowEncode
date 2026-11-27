@@ -29,8 +29,9 @@ public sealed class PreviewCompareStateTests
         Assert.AreEqual(PreviewCompareMode.Wipe, PreviewCompareCoordinator.CycleMode(PreviewCompareMode.Single, 2));
         Assert.AreEqual(PreviewCompareMode.SideBySide, PreviewCompareCoordinator.CycleMode(PreviewCompareMode.Wipe, 2));
         Assert.AreEqual(PreviewCompareMode.Difference, PreviewCompareCoordinator.CycleMode(PreviewCompareMode.SideBySide, 2));
-        Assert.AreEqual(PreviewCompareMode.Single, PreviewCompareCoordinator.CycleMode(PreviewCompareMode.Difference, 2));
-        Assert.AreEqual(PreviewCompareMode.Difference, PreviewCompareCoordinator.CycleMode(PreviewCompareMode.Single, 2, reverse: true));
+        Assert.AreEqual(PreviewCompareMode.Flicker, PreviewCompareCoordinator.CycleMode(PreviewCompareMode.Difference, 2));
+        Assert.AreEqual(PreviewCompareMode.Single, PreviewCompareCoordinator.CycleMode(PreviewCompareMode.Flicker, 2));
+        Assert.AreEqual(PreviewCompareMode.Flicker, PreviewCompareCoordinator.CycleMode(PreviewCompareMode.Single, 2, reverse: true));
         Assert.AreEqual(PreviewCompareMode.Single, PreviewCompareCoordinator.CycleMode(PreviewCompareMode.Single, 1));
     }
 
@@ -191,5 +192,62 @@ public sealed class PreviewCompareStateTests
         Assert.AreEqual(138, layout.RectB.Y, 0.001);
         Assert.AreEqual(1920, layout.RectB.Width, 0.001);
         Assert.AreEqual(804, layout.RectB.Height, 0.001);
+    }
+
+    [TestMethod]
+    public void ResolveSecondaryFrameNumber_AppliesFrameOffsetAndClamps()
+    {
+        var outputA = CreateOutput(0, totalFrames: 240, fpsNum: 24, fpsDen: 1);
+        var outputB = CreateOutput(1, totalFrames: 240, fpsNum: 24, fpsDen: 1);
+
+        Assert.AreEqual(
+            36,
+            PreviewCompareCoordinator.ResolveSecondaryFrameNumber(outputA, outputB, 24, "frame", isTimelineTimeMode: false, secondaryFrameOffset: 12));
+        Assert.AreEqual(
+            0,
+            PreviewCompareCoordinator.ResolveSecondaryFrameNumber(outputA, outputB, 5, "frame", isTimelineTimeMode: false, secondaryFrameOffset: -20));
+        Assert.AreEqual(
+            239,
+            PreviewCompareCoordinator.ResolveSecondaryFrameNumber(outputA, outputB, 230, "frame", isTimelineTimeMode: false, secondaryFrameOffset: 50));
+    }
+
+    [TestMethod]
+    public void FormatAlignmentScriptSnippet_GeneratesTrimPadAndSubpixelLines()
+    {
+        Assert.AreEqual(
+            "clip_b = clip_b[12:]",
+            PreviewCompareCoordinator.FormatAlignmentScriptSnippet(12));
+        Assert.AreEqual(
+            "clip_b = clip_b[0] * 3 + clip_b",
+            PreviewCompareCoordinator.FormatAlignmentScriptSnippet(-3));
+        var combined = PreviewCompareCoordinator.FormatAlignmentScriptSnippet(5, subpixelOffsetX: 0.25, subpixelOffsetY: -0.5);
+        StringAssert.Contains(combined, "clip_b = clip_b[5:]");
+        StringAssert.Contains(combined, "src_left=0.25, src_top=-0.5");
+    }
+
+    [TestMethod]
+    public void PreviewRenderOptions_DetectsHdrTransferProperties()
+    {
+        Assert.IsTrue(PreviewRenderOptions.IsHdrTransferProperties([new VapourSynthPreviewFrameProperty("_Transfer", "16")]));
+        Assert.IsTrue(PreviewRenderOptions.IsHdrTransferProperties([new VapourSynthPreviewFrameProperty("_Transfer", "18")]));
+        Assert.IsFalse(PreviewRenderOptions.IsHdrTransferProperties([new VapourSynthPreviewFrameProperty("_Transfer", "1")]));
+        Assert.IsFalse(PreviewRenderOptions.IsHdrTransferProperties([]));
+    }
+
+    [TestMethod]
+    public void PreviewCompareScriptBuilder_BuildsTwoSourceCompareScript()
+    {
+        var script = PreviewCompareScriptBuilder.BuildTwoSourceCompareScript(
+            @"C:\videos\source.mkv",
+            @"C:\videos\encode.mkv",
+            "source.mkv",
+            "encode.mkv");
+
+        StringAssert.Contains(script, "clip_a.set_output(0)");
+        StringAssert.Contains(script, "clip_b.set_output(1)");
+        StringAssert.Contains(script, "LWLibavSource");
+        StringAssert.Contains(script, "ffms2");
+        StringAssert.Contains(script, @"C:\\videos\\source.mkv");
+        StringAssert.Contains(script, @"C:\\videos\\encode.mkv");
     }
 }

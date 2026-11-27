@@ -71,7 +71,11 @@ public sealed record VapourSynthScriptDiagnostic(
     int EndLine,
     int EndColumn,
     string Source,
-    string? RelatedText);
+    string? RelatedText,
+    string? QuickFixTitle = null,
+    string? SuggestedReplacement = null,
+    int? QuickFixInsertLine = null,
+    string? QuickFixInsertText = null);
 
 public sealed record VapourSynthTextDocumentContext(
     string? FilePath,

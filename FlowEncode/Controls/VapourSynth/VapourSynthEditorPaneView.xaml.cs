@@ -255,6 +255,23 @@ public sealed partial class VapourSynthEditorPaneView : UserControl, IDisposable
         return JsonSerializer.Deserialize<bool>(resultJson);
     }
 
+    public async Task<bool> ApplySmartDocumentEditAsync(string updatedText, int revealLine)
+    {
+        if (!IsEditorReady)
+        {
+            return false;
+        }
+
+        var payload = JsonSerializer.Serialize(new
+        {
+            text = updatedText,
+            revealLine = Math.Max(1, revealLine)
+        });
+
+        var resultJson = await EditorWebView.ExecuteScriptAsync($"window.vsWorkspaceHost.applySmartDocumentEdit({payload});");
+        return JsonSerializer.Deserialize<bool>(resultJson);
+    }
+
     public async Task<bool> InsertSnippetAsync(string snippet, bool onNewLine)
     {
         if (!IsEditorReady)

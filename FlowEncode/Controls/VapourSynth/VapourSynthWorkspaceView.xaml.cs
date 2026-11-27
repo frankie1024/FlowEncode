@@ -695,6 +695,143 @@ public sealed partial class VapourSynthWorkspaceView : UserControl, IDisposable
         await RunUiActionAsync(() => ExecuteEditorCommandAsync("goto"));
     }
 
+    private async void SmartInsertBitdepth16_Click(object sender, RoutedEventArgs e)
+    {
+        await RunUiActionAsync(() => ApplySmartEditorRewriteAsync(script =>
+            VapourSynthSmartScriptEditor.ApplyFilterTemplate(
+                script,
+                outputIndex: 0,
+                expressionTemplateWithPlaceholder: "core.fmtc.bitdepth({var}, bits=16)",
+                derivedVariableName: "src16")));
+    }
+
+    private async void SmartInsertBitdepth10_Click(object sender, RoutedEventArgs e)
+    {
+        await RunUiActionAsync(() => ApplySmartEditorRewriteAsync(script =>
+            VapourSynthSmartScriptEditor.ApplyFilterTemplate(
+                script,
+                outputIndex: 0,
+                expressionTemplateWithPlaceholder: "core.fmtc.bitdepth({var}, bits=10, dmode=3)",
+                derivedVariableName: "out10")));
+    }
+
+    private async void SmartInsertBitdepth8_Click(object sender, RoutedEventArgs e)
+    {
+        await RunUiActionAsync(() => ApplySmartEditorRewriteAsync(script =>
+            VapourSynthSmartScriptEditor.ApplyFilterTemplate(
+                script,
+                outputIndex: 0,
+                expressionTemplateWithPlaceholder: "core.fmtc.bitdepth({var}, bits=8, dmode=3)",
+                derivedVariableName: "out8")));
+    }
+
+    private async void SmartInsertPlaceboDeband_Click(object sender, RoutedEventArgs e)
+    {
+        await RunUiActionAsync(() => ApplySmartEditorRewriteAsync(script =>
+            VapourSynthSmartScriptEditor.ApplyFilterTemplate(
+                script,
+                outputIndex: 0,
+                expressionTemplateWithPlaceholder: "core.placebo.Deband({var}, iterations=1, threshold=4.0, radius=16.0, grain=6.0)")));
+    }
+
+    private async void SmartInsertNeoF3kdb_Click(object sender, RoutedEventArgs e)
+    {
+        await RunUiActionAsync(() => ApplySmartEditorRewriteAsync(script =>
+            VapourSynthSmartScriptEditor.ApplyFilterTemplate(
+                script,
+                outputIndex: 0,
+                expressionTemplateWithPlaceholder: "core.neo_f3kdb.Deband({var}, range=15, y=48, cb=36, cr=36, grainy=24, grainc=0)")));
+    }
+
+    private async void SmartInsertBbmod_Click(object sender, RoutedEventArgs e)
+    {
+        await RunUiActionAsync(() => ApplySmartEditorRewriteAsync(script =>
+            VapourSynthSmartScriptEditor.ApplyFilterTemplate(
+                script,
+                outputIndex: 0,
+                expressionTemplateWithPlaceholder: "{alias}.bbmod({var}, top=2, bottom=2, left=2, right=2, thresh=32, blur=20)",
+                importModule: "awsmfunc",
+                importAlias: "awf")));
+    }
+
+    private async void SmartInsertFrameInfo_Click(object sender, RoutedEventArgs e)
+    {
+        await RunUiActionAsync(() => ApplySmartEditorRewriteAsync(script =>
+            VapourSynthSmartScriptEditor.ApplyFilterTemplate(
+                script,
+                outputIndex: 0,
+                expressionTemplateWithPlaceholder: "{alias}.FrameInfo({var}, title=\"Clip\")",
+                importModule: "awsmfunc",
+                importAlias: "awf")));
+    }
+
+    private async void SmartInsertDftTest_Click(object sender, RoutedEventArgs e)
+    {
+        await RunUiActionAsync(() => ApplySmartEditorRewriteAsync(script =>
+            VapourSynthSmartScriptEditor.ApplyFilterTemplate(
+                script,
+                outputIndex: 0,
+                expressionTemplateWithPlaceholder: "core.dfttest.DFTTest({var}, sigma=2.0)")));
+    }
+
+    private async void SmartRenameSymbol_Click(object sender, RoutedEventArgs e)
+    {
+        await RunUiActionAsync(() => ExecuteEditorCommandAsync("rename"));
+    }
+
+    private async void SmartQuickFix_Click(object sender, RoutedEventArgs e)
+    {
+        await RunUiActionAsync(() => ExecuteEditorCommandAsync("quickFix"));
+    }
+
+    public async Task InsertDroppedVideoSourceAsync(string videoFilePath)
+    {
+        if (string.IsNullOrWhiteSpace(videoFilePath))
+        {
+            return;
+        }
+
+        await RunUiActionAsync(async () =>
+        {
+            await EnsureWorkspaceInitializedAsync();
+            var result = await ApplySmartEditorRewriteAsync(script =>
+                VapourSynthSmartScriptEditor.ApplyVideoSourceLoader(script, videoFilePath));
+            if (result is not null)
+            {
+                var fileName = Path.GetFileName(videoFilePath);
+                ViewModel.SetWorkspaceStatus(texts => texts.VapourSynthDroppedVideoInsertedStatus(result.ResolvedVariableName, fileName));
+            }
+        });
+    }
+
+    private async Task<SmartScriptEditResult?> ApplySmartEditorRewriteAsync(Func<string, SmartScriptEditResult> rewriter)
+    {
+        if (!TryGetActiveEditorContext(out var pane, out var tab) || !IsPaneBoundToTab(pane, tab))
+        {
+            return null;
+        }
+
+        await CaptureEditorStateAsync(pane);
+        var currentText = tab.CurrentContent ?? string.Empty;
+        var editResult = rewriter(currentText);
+        if (string.Equals(editResult.UpdatedScript, currentText, StringComparison.Ordinal))
+        {
+            return editResult;
+        }
+
+        var applied = await pane.ApplySmartDocumentEditAsync(editResult.UpdatedScript, editResult.TargetLineNumber);
+        if (!applied)
+        {
+            return null;
+        }
+
+        await CaptureEditorStateAsync(pane);
+        ScheduleDiagnostics(pane);
+        await pane.FocusEditorAsync();
+        ViewModel.SetWorkspaceStatus(tab, texts => texts.VapourSynthSmartEditAppliedStatus(editResult.ResolvedVariableName, editResult.TargetLineNumber));
+        return editResult;
+    }
+
     private async Task StartNewDocumentAsync()
     {
         await StartNewDocumentAsync(GetActiveEditorPane());
@@ -873,6 +1010,38 @@ public sealed partial class VapourSynthWorkspaceView : UserControl, IDisposable
         _previewLogTab = previewTab;
         var request = CreatePreviewOpenRequest(previewTab, out var displayName);
         var previewWindow = GetOrCreatePreviewWindow();
+        previewWindow.SmartEditScriptAsync = async rewriter =>
+        {
+            if (_isDisposed || !ViewModel.Tabs.Contains(previewTab))
+            {
+                return null;
+            }
+
+            var targetPane = ReferenceEquals(LeftEditorPane.ConfirmedBinding?.TabId, previewTab.Id)
+                || string.Equals(LeftEditorPane.ConfirmedBinding?.TabId, previewTab.Id, StringComparison.Ordinal)
+                ? LeftEditorPane
+                : (string.Equals(RightEditorPane.ConfirmedBinding?.TabId, previewTab.Id, StringComparison.Ordinal)
+                    ? RightEditorPane
+                    : pane);
+
+            await CaptureEditorStateAsync(targetPane);
+            var currentText = previewTab.CurrentContent ?? string.Empty;
+            var editResult = rewriter(currentText);
+            if (string.Equals(editResult.UpdatedScript, currentText, StringComparison.Ordinal))
+            {
+                return editResult;
+            }
+
+            var applied = await targetPane.ApplySmartDocumentEditAsync(editResult.UpdatedScript, editResult.TargetLineNumber);
+            if (applied)
+            {
+                await CaptureEditorStateAsync(targetPane);
+                ScheduleDiagnostics(targetPane);
+                return editResult;
+            }
+
+            return null;
+        };
 
         var mainWindowViewModel = App.GetService<MainWindow>().ViewModel;
         var opened = await previewWindow.OpenOrRefreshAsync(
@@ -888,6 +1057,40 @@ public sealed partial class VapourSynthWorkspaceView : UserControl, IDisposable
 
         ViewModel.SetWorkspaceStatus(previewTab, static texts => texts.VapourSynthPreviewEvaluationFailedStatus);
         await FocusEditorIfStillBoundAsync(pane, previewTab);
+    }
+
+    public async Task<bool> OpenQuickComparePreviewAsync(
+        string sourceAPath,
+        string sourceBPath,
+        string? labelA = null,
+        string? labelB = null)
+    {
+        if (string.IsNullOrWhiteSpace(sourceAPath) || string.IsNullOrWhiteSpace(sourceBPath))
+        {
+            return false;
+        }
+
+        var fullA = Path.GetFullPath(sourceAPath);
+        var fullB = Path.GetFullPath(sourceBPath);
+        var nameA = string.IsNullOrWhiteSpace(labelA) ? Path.GetFileName(fullA) : labelA.Trim();
+        var nameB = string.IsNullOrWhiteSpace(labelB) ? Path.GetFileName(fullB) : labelB.Trim();
+        var scriptContent = PreviewCompareScriptBuilder.BuildTwoSourceCompareScript(fullA, fullB, nameA, nameB);
+        var workingDirectory = Path.GetDirectoryName(fullB) ?? Path.GetDirectoryName(fullA) ?? Environment.CurrentDirectory;
+        var mainWindow = App.GetService<MainWindow>();
+        var displayName = mainWindow.ViewModel.Texts.VapourSynthPreviewQuickCompareTitle(nameA, nameB);
+        var request = new VapourSynthPreviewOpenRequest(
+            null,
+            displayName,
+            scriptContent,
+            workingDirectory);
+
+        var previewWindow = GetOrCreatePreviewWindow();
+        previewWindow.SmartEditScriptAsync = null;
+        return await previewWindow.OpenOrRefreshAsync(
+            request,
+            mainWindow.ViewModel.SettingsModule.CurrentLanguagePreference,
+            mainWindow.ViewModel.SettingsModule.CurrentThemePreference,
+            initialCompareMode: PreviewCompareMode.Wipe);
     }
 
     public void UpdatePreviewPresentation(AppLanguage language, AppThemePreference themePreference)

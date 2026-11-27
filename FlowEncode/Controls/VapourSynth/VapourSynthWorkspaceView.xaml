@@ -78,6 +78,47 @@
                         <SymbolIcon Symbol="Forward" />
                     </AppBarButton.Icon>
                 </AppBarButton>
+                <AppBarButton x:Name="SmartInsertButton" Label="{Binding Texts.VapourSynthSmartInsertButton}">
+                    <AppBarButton.Icon>
+                        <SymbolIcon Symbol="Add" />
+                    </AppBarButton.Icon>
+                    <AppBarButton.Flyout>
+                        <MenuFlyout>
+                            <MenuFlyoutItem
+                                Click="SmartInsertBitdepth16_Click"
+                                Text="{Binding Texts.VapourSynthSmartBitdepth16Item}" />
+                            <MenuFlyoutItem
+                                Click="SmartInsertBitdepth10_Click"
+                                Text="{Binding Texts.VapourSynthSmartBitdepth10Item}" />
+                            <MenuFlyoutItem
+                                Click="SmartInsertBitdepth8_Click"
+                                Text="{Binding Texts.VapourSynthSmartBitdepth8Item}" />
+                            <MenuFlyoutSeparator />
+                            <MenuFlyoutItem
+                                Click="SmartInsertPlaceboDeband_Click"
+                                Text="{Binding Texts.VapourSynthSmartPlaceboDebandItem}" />
+                            <MenuFlyoutItem
+                                Click="SmartInsertNeoF3kdb_Click"
+                                Text="{Binding Texts.VapourSynthSmartNeoF3kdbItem}" />
+                            <MenuFlyoutItem
+                                Click="SmartInsertBbmod_Click"
+                                Text="{Binding Texts.VapourSynthSmartBbmodItem}" />
+                            <MenuFlyoutItem
+                                Click="SmartInsertFrameInfo_Click"
+                                Text="{Binding Texts.VapourSynthSmartFrameInfoItem}" />
+                            <MenuFlyoutItem
+                                Click="SmartInsertDftTest_Click"
+                                Text="{Binding Texts.VapourSynthSmartDftTestItem}" />
+                            <MenuFlyoutSeparator />
+                            <MenuFlyoutItem
+                                Click="SmartRenameSymbol_Click"
+                                Text="{Binding Texts.VapourSynthSmartRenameSymbolItem}" />
+                            <MenuFlyoutItem
+                                Click="SmartQuickFix_Click"
+                                Text="{Binding Texts.VapourSynthSmartQuickFixItem}" />
+                        </MenuFlyout>
+                    </AppBarButton.Flyout>
+                </AppBarButton>
                 <AppBarSeparator />
                 <AppBarButton x:Name="EncodeButton" Click="EncodeButton_Click" IsEnabled="{Binding CanRunScriptAction}" Foreground="{ThemeResource AccentTextFillColorPrimaryBrush}" Label="{Binding Texts.VapourSynthEncodeButton}">
                     <AppBarButton.Icon>

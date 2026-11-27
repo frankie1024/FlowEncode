@@ -452,7 +452,15 @@ public sealed partial class MainWindow : Window, ISettingsViewHost, IShellNaviga
 
             var storageItems = await e.DataView.GetStorageItemsAsync();
 
-            var firstFile = storageItems.OfType<StorageFile>().FirstOrDefault();
+            var droppedFiles = storageItems.OfType<StorageFile>().ToList();
+            if (droppedFiles.Count == 2 && IsQuickCompareFilePair(droppedFiles[0].Path, droppedFiles[1].Path))
+            {
+                e.AcceptedOperation = DataPackageOperation.Copy;
+                await OpenQuickComparePreviewAsync(droppedFiles[0].Path, droppedFiles[1].Path);
+                return;
+            }
+
+            var firstFile = droppedFiles.FirstOrDefault();
             if (firstFile is not null)
             {
                 e.AcceptedOperation = DataPackageOperation.Copy;
@@ -471,7 +479,15 @@ public sealed partial class MainWindow : Window, ISettingsViewHost, IShellNaviga
                         await HandleExternalVapourSynthOpenAsync(firstFile.Path);
                         break;
                     case DragDropPayloadType.Video:
-                        NavigateToEncodingPage(firstFile.Path);
+                        if (string.Equals(_activeShellSectionTag, MainShellSections.VapourSynthWorkspace, StringComparison.Ordinal)
+                            && VapourSynthWorkspacePanel is not null)
+                        {
+                            await VapourSynthWorkspacePanel.InsertDroppedVideoSourceAsync(firstFile.Path);
+                        }
+                        else
+                        {
+                            NavigateToEncodingPage(firstFile.Path);
+                        }
                         break;
                     case DragDropPayloadType.Audio:
                         NavigateToAudioProcessingPage(firstFile.Path);
@@ -509,6 +525,35 @@ public sealed partial class MainWindow : Window, ISettingsViewHost, IShellNaviga
         {
             VapourSynthWorkspacePanel.UpdateEditorPresentation(sender.ActualTheme);
         }
+    }
+
+    public async Task OpenQuickComparePreviewAsync(
+        string sourceAPath,
+        string sourceBPath,
+        string? labelA = null,
+        string? labelB = null)
+    {
+        try
+        {
+            EnsureShellSectionControl(MainShellSections.VapourSynthWorkspace);
+            if (VapourSynthWorkspacePanel is not null)
+            {
+                await VapourSynthWorkspacePanel.OpenQuickComparePreviewAsync(sourceAPath, sourceBPath, labelA, labelB);
+            }
+        }
+        catch (Exception ex)
+        {
+            await ReportNonFatalWindowExceptionAsync("Failed to open quick compare preview", ViewModel.Texts.ErrorSelectionFailedTitle, ex);
+        }
+    }
+
+    private static bool IsQuickCompareFilePair(string pathA, string pathB)
+    {
+        var typeA = AppLaunchActivation.ClassifyFilePath(pathA);
+        var typeB = AppLaunchActivation.ClassifyFilePath(pathB);
+        var validA = typeA is DragDropPayloadType.Video or DragDropPayloadType.Script;
+        var validB = typeB is DragDropPayloadType.Video or DragDropPayloadType.Script;
+        return validA && validB && (typeA == DragDropPayloadType.Video || typeB == DragDropPayloadType.Video);
     }
 
     public async Task HandleExternalVapourSynthOpenAsync(string filePath)
@@ -1251,9 +1296,17 @@ public sealed partial class MainWindow : Window, ISettingsViewHost, IShellNaviga
         {
             var storageItems = await dataView.GetStorageItemsAsync().AsTask();
 
-            var firstFile = storageItems
+            var droppedFiles = storageItems
                 .OfType<StorageFile>()
-                .FirstOrDefault();
+                .ToList();
+            if (droppedFiles.Count == 2 && IsQuickCompareFilePair(droppedFiles[0].Path, droppedFiles[1].Path))
+            {
+                _activeDragDataView = dataView;
+                _activeDragPayloadType = DragDropPayloadType.CompareVideos;
+                return DragDropPayloadType.CompareVideos;
+            }
+
+            var firstFile = droppedFiles.FirstOrDefault();
             if (firstFile is not null)
             {
                 var fileType = string.Equals(_activeShellSectionTag, MainShellSections.BluRayDemux, StringComparison.Ordinal)
@@ -1376,6 +1429,7 @@ public sealed partial class MainWindow : Window, ISettingsViewHost, IShellNaviga
             DragDropPayloadType.Audio => (texts.DragDropAudioOverlayTitle, texts.DragDropAudioOverlayHint),
             DragDropPayloadType.BluRayFolder => (texts.DragDropBluRayOverlayTitle, texts.DragDropBluRayOverlayHint),
             DragDropPayloadType.DemuxMkv => (texts.DragDropDemuxMkvOverlayTitle, texts.DragDropDemuxMkvOverlayHint),
+            DragDropPayloadType.CompareVideos => (texts.DragDropCompareVideoOverlayTitle, texts.DragDropCompareVideoOverlayHint),
             _ => (texts.DragDropScriptOverlayTitle, texts.DragDropScriptOverlayHint)
         };
         SetDragDropOverlayVisible(true);
