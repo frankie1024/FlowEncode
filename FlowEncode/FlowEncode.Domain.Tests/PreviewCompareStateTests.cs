@@ -245,6 +245,9 @@ public sealed class PreviewCompareStateTests
 
         StringAssert.Contains(script, "clip_a.set_output(0)");
         StringAssert.Contains(script, "clip_b.set_output(1)");
+        StringAssert.Contains(script, "__flowencode_output_names__");
+        StringAssert.Contains(script, "0: \"source.mkv\"");
+        StringAssert.Contains(script, "1: \"encode.mkv\"");
         StringAssert.Contains(script, "LWLibavSource");
         StringAssert.Contains(script, "ffms2");
         StringAssert.Contains(script, @"C:\\videos\\source.mkv");

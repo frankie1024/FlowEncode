@@ -106,7 +106,8 @@ public static partial class VapourSynthSmartScriptEditor
         int heightOrBottom)
     {
         var lines = SplitLines(script ?? string.Empty, out var newline);
-        var target = ResolveOutputTarget(script ?? string.Empty, outputIndex);
+        var addedImport = EnsureVapourSynthRuntime(lines, needsCore: true, needsVs: false, out _);
+        var target = ResolveOutputTarget(string.Join(newline, lines), outputIndex);
         var varName = target.VariableName;
         var statement = isAbsolute
             ? $"{varName} = core.std.CropAbs({varName}, width={widthOrRight}, height={heightOrBottom}, left={left}, top={top})"
@@ -129,17 +130,23 @@ public static partial class VapourSynthSmartScriptEditor
                     i + 1,
                     varName,
                     UpdatedInPlace: true,
-                    AddedImport: false);
+                    AddedImport: addedImport);
             }
         }
 
+        addedImport |= EnsureBaseClipIfMissing(lines, ref target, out var appendOutputAfterInsert);
         var insertAt = InsertBeforeOutput(lines, target.SetOutputLineIndex, [statement]);
+        if (appendOutputAfterInsert)
+        {
+            lines.Insert(insertAt + 1, $"{varName}.set_output()");
+        }
+
         return new SmartScriptEditResult(
             string.Join(newline, lines),
             insertAt + 1,
             varName,
             UpdatedInPlace: false,
-            AddedImport: false);
+            AddedImport: addedImport);
     }
 
     public static SmartScriptEditResult ApplyCropAndBbmod(
@@ -151,18 +158,25 @@ public static partial class VapourSynthSmartScriptEditor
         int bottom)
     {
         var lines = SplitLines(script ?? string.Empty, out var newline);
-        var addedImport = EnsureImportModule(lines, "awsmfunc", "awf", out var alias);
+        var needsCrop = left > 0 || top > 0 || right > 0 || bottom > 0;
+        var addedImport = EnsureVapourSynthRuntime(lines, needsCore: needsCrop, needsVs: false, out _);
+        addedImport |= EnsureImportModule(lines, "awsmfunc", "awf", out var alias);
         var target = ResolveOutputTarget(string.Join(newline, lines), outputIndex);
+        addedImport |= EnsureBaseClipIfMissing(lines, ref target, out var appendOutputAfterInsert);
         var varName = target.VariableName;
 
         var statements = new List<string>();
-        if (left > 0 || top > 0 || right > 0 || bottom > 0)
+        if (needsCrop)
         {
             statements.Add($"{varName} = core.std.CropRel({varName}, left={left}, right={right}, top={top}, bottom={bottom})");
         }
 
         statements.Add($"{varName} = {alias}.bbmod({varName}, top=2, bottom=2, left=2, right=2, thresh=32, blur=20)");
         var insertAt = InsertBeforeOutput(lines, target.SetOutputLineIndex, statements);
+        if (appendOutputAfterInsert)
+        {
+            lines.Insert(insertAt + statements.Count, $"{varName}.set_output()");
+        }
 
         return new SmartScriptEditResult(
             string.Join(newline, lines),
@@ -205,13 +219,19 @@ public static partial class VapourSynthSmartScriptEditor
             return new SmartScriptEditResult(script ?? string.Empty, Math.Max(1, target.SetOutputLineIndex), varName, false, false);
         }
 
+        var addedImport = EnsureBaseClipIfMissing(lines, ref target, out var appendOutputAfterInsert);
         var insertAt = InsertBeforeOutput(lines, target.SetOutputLineIndex, statements);
+        if (appendOutputAfterInsert)
+        {
+            lines.Insert(insertAt + statements.Count, $"{varName}.set_output()");
+        }
+
         return new SmartScriptEditResult(
             string.Join(newline, lines),
             insertAt + 1,
             varName,
             UpdatedInPlace: false,
-            AddedImport: false);
+            AddedImport: addedImport);
     }
 
     public static SmartScriptEditResult ApplyReplaceRanges(
@@ -221,12 +241,63 @@ public static partial class VapourSynthSmartScriptEditor
         string filteredVariable = "flt")
     {
         var lines = SplitLines(script ?? string.Empty, out var newline);
-        var addedImport = EnsureFromImportSymbol(lines, "vstools", "replace_ranges");
+        var addedImport = EnsureFromImportSymbol(lines, "vstools", "replace_ranges", out var resolvedFunc);
         var target = ResolveOutputTarget(string.Join(newline, lines), outputIndex);
+        addedImport |= EnsureBaseClipIfMissing(lines, ref target, out var appendOutputAfterInsert);
         var varName = target.VariableName;
 
-        var statement = PreviewSceningFormatter.FormatReplaceRanges(ranges, varName, filteredVariable);
-        var insertAt = InsertBeforeOutput(lines, target.SetOutputLineIndex, [statement]);
+        var statements = new List<string>(2);
+        if (!IsVariableDefinedBefore(lines, filteredVariable, target.SetOutputLineIndex))
+        {
+            statements.Add($"{filteredVariable} = {varName}  # 在此替换为目标滤镜处理后的画面");
+        }
+
+        var formatted = PreviewSceningFormatter.FormatReplaceRanges(ranges, varName, filteredVariable);
+        if (!string.Equals(resolvedFunc, "replace_ranges", StringComparison.Ordinal))
+        {
+            formatted = formatted.Replace("= replace_ranges(", $"= {resolvedFunc}(", StringComparison.Ordinal);
+        }
+
+        statements.Add(formatted);
+        var insertAt = InsertBeforeOutput(lines, target.SetOutputLineIndex, statements);
+        if (appendOutputAfterInsert)
+        {
+            lines.Insert(insertAt + statements.Count, $"{varName}.set_output()");
+        }
+
+        return new SmartScriptEditResult(
+            string.Join(newline, lines),
+            insertAt + 1,
+            varName,
+            UpdatedInPlace: false,
+            AddedImport: addedImport);
+    }
+
+    public static SmartScriptEditResult ApplyMaskedMerge(
+        string script,
+        int outputIndex,
+        string filteredVariable = "flt")
+    {
+        var lines = SplitLines(script ?? string.Empty, out var newline);
+        var addedImport = EnsureVapourSynthRuntime(lines, needsCore: true, needsVs: false, out _);
+        var target = ResolveOutputTarget(string.Join(newline, lines), outputIndex);
+        addedImport |= EnsureBaseClipIfMissing(lines, ref target, out var appendOutputAfterInsert);
+        var varName = target.VariableName;
+
+        var statements = new List<string>(3);
+        if (!IsVariableDefinedBefore(lines, filteredVariable, target.SetOutputLineIndex))
+        {
+            statements.Add($"{filteredVariable} = {varName}  # 在此替换为目标滤镜处理后的画面");
+        }
+
+        statements.Add($"mask = {varName}.std.Prewitt().std.Maximum()");
+        statements.Add($"{varName} = core.std.MaskedMerge({filteredVariable}, {varName}, mask)");
+        var insertAt = InsertBeforeOutput(lines, target.SetOutputLineIndex, statements);
+        if (appendOutputAfterInsert)
+        {
+            lines.Insert(insertAt + statements.Count, $"{varName}.set_output()");
+        }
+
         return new SmartScriptEditResult(
             string.Join(newline, lines),
             insertAt + 1,
@@ -241,33 +312,11 @@ public static partial class VapourSynthSmartScriptEditor
         string newVariableName,
         string expressionTemplateWithPlaceholder)
     {
-        var lines = SplitLines(script ?? string.Empty, out var newline);
-        var target = ResolveOutputTarget(script ?? string.Empty, outputIndex);
-        var oldVar = target.VariableName;
-        var expr = expressionTemplateWithPlaceholder.Replace("{var}", oldVar, StringComparison.Ordinal);
-        var statement = $"{newVariableName} = {expr}";
-
-        var insertAt = InsertBeforeOutput(lines, target.SetOutputLineIndex, [statement]);
-        if (target.FoundSetOutput)
-        {
-            var newOutputLineIndex = target.SetOutputLineIndex + 1;
-            if (newOutputLineIndex < lines.Count)
-            {
-                var line = lines[newOutputLineIndex];
-                var match = SetOutputMethodRegex.Match(line);
-                if (match.Success && string.Equals(match.Groups["var"].Value, oldVar, StringComparison.Ordinal))
-                {
-                    lines[newOutputLineIndex] = $"{match.Groups["indent"].Value}{newVariableName}.set_output({match.Groups["args"].Value})";
-                }
-            }
-        }
-
-        return new SmartScriptEditResult(
-            string.Join(newline, lines),
-            insertAt + 1,
-            newVariableName,
-            UpdatedInPlace: false,
-            AddedImport: false);
+        return ApplyFilterTemplate(
+            script,
+            outputIndex,
+            expressionTemplateWithPlaceholder,
+            derivedVariableName: newVariableName);
     }
 
     public static SmartScriptEditResult ApplyFilterTemplate(
@@ -283,34 +332,149 @@ public static partial class VapourSynthSmartScriptEditor
         var lines = SplitLines(script ?? string.Empty, out var newline);
         var addedImport = false;
         var resolvedAlias = importAlias ?? importModule ?? string.Empty;
+        var resolvedSymbol = fromSymbol ?? string.Empty;
 
-        if (!string.IsNullOrWhiteSpace(importModule))
+        var needsCore = expressionTemplateWithPlaceholder.Contains("core.", StringComparison.Ordinal);
+        var needsVs = expressionTemplateWithPlaceholder.Contains("vs.", StringComparison.Ordinal)
+            || string.Equals(importModule, "vapoursynth", StringComparison.Ordinal);
+        addedImport |= EnsureVapourSynthRuntime(lines, needsCore, needsVs, out var vsAlias);
+
+        if (!string.IsNullOrWhiteSpace(importModule) && !string.Equals(importModule, "vapoursynth", StringComparison.Ordinal))
         {
-            addedImport = EnsureImportModule(
+            addedImport |= EnsureImportModule(
                 lines,
                 importModule,
                 string.IsNullOrWhiteSpace(importAlias) ? importModule : importAlias,
                 out resolvedAlias);
         }
+        else if (string.Equals(importModule, "vapoursynth", StringComparison.Ordinal))
+        {
+            resolvedAlias = vsAlias;
+        }
         else if (!string.IsNullOrWhiteSpace(fromModule) && !string.IsNullOrWhiteSpace(fromSymbol))
         {
-            addedImport = EnsureFromImportSymbol(lines, fromModule, fromSymbol);
+            addedImport |= EnsureFromImportSymbol(lines, fromModule, fromSymbol, out resolvedSymbol);
         }
 
-        var currentText = string.Join(newline, lines);
-        var target = ResolveOutputTarget(currentText, outputIndex);
+        var target = ResolveOutputTarget(string.Join(newline, lines), outputIndex);
+        addedImport |= EnsureBaseClipIfMissing(lines, ref target, out var appendOutputAfterInsert);
         var oldVar = target.VariableName;
         var targetVar = string.IsNullOrWhiteSpace(derivedVariableName) ? oldVar : derivedVariableName.Trim();
 
         var expr = expressionTemplateWithPlaceholder
             .Replace("{var}", oldVar, StringComparison.Ordinal)
-            .Replace("{alias}", resolvedAlias, StringComparison.Ordinal);
+            .Replace("{alias}", resolvedAlias, StringComparison.Ordinal)
+            .Replace("{symbol}", resolvedSymbol, StringComparison.Ordinal);
+        if (!string.IsNullOrEmpty(vsAlias) && !string.Equals(vsAlias, "vs", StringComparison.Ordinal))
+        {
+            expr = Regex.Replace(expr, @"\bvs\.", $"{vsAlias}.");
+        }
+        if (!string.IsNullOrWhiteSpace(fromSymbol) && !string.IsNullOrWhiteSpace(resolvedSymbol)
+            && !string.Equals(fromSymbol, resolvedSymbol, StringComparison.Ordinal))
+        {
+            expr = Regex.Replace(expr, $@"\b{Regex.Escape(fromSymbol)}\b", resolvedSymbol);
+        }
+
         var statement = $"{targetVar} = {expr}";
 
         var insertAt = InsertBeforeOutput(lines, target.SetOutputLineIndex, [statement]);
-        if (target.FoundSetOutput && !string.Equals(targetVar, oldVar, StringComparison.Ordinal))
+        if (appendOutputAfterInsert)
+        {
+            lines.Insert(insertAt + 1, $"{targetVar}.set_output()");
+        }
+        else if (target.FoundSetOutput && !string.Equals(targetVar, oldVar, StringComparison.Ordinal))
         {
             var newOutputLineIndex = target.SetOutputLineIndex + 1;
+            if (newOutputLineIndex < lines.Count)
+            {
+                var line = lines[newOutputLineIndex];
+                var match = SetOutputMethodRegex.Match(line);
+                if (match.Success && string.Equals(match.Groups["var"].Value, oldVar, StringComparison.Ordinal))
+                {
+                    lines[newOutputLineIndex] = $"{match.Groups["indent"].Value}{targetVar}.set_output({match.Groups["args"].Value})";
+                }
+            }
+        }
+
+        return new SmartScriptEditResult(
+            string.Join(newline, lines),
+            insertAt + 1,
+            targetVar,
+            UpdatedInPlace: false,
+            AddedImport: addedImport);
+    }
+
+    public static SmartScriptEditResult ApplyMultiLineFilterTemplate(
+        string script,
+        int outputIndex,
+        IReadOnlyList<string> statementTemplatesWithPlaceholders,
+        string? importModule = null,
+        string? importAlias = null,
+        string? fromModule = null,
+        string? fromSymbol = null,
+        string? derivedVariableName = null)
+    {
+        var lines = SplitLines(script ?? string.Empty, out var newline);
+        var addedImport = false;
+        var resolvedAlias = importAlias ?? importModule ?? string.Empty;
+        var resolvedSymbol = fromSymbol ?? string.Empty;
+
+        var needsCore = statementTemplatesWithPlaceholders.Any(static s => s.Contains("core.", StringComparison.Ordinal));
+        var needsVs = statementTemplatesWithPlaceholders.Any(static s => s.Contains("vs.", StringComparison.Ordinal))
+            || string.Equals(importModule, "vapoursynth", StringComparison.Ordinal);
+        addedImport |= EnsureVapourSynthRuntime(lines, needsCore, needsVs, out var vsAlias);
+
+        if (!string.IsNullOrWhiteSpace(importModule) && !string.Equals(importModule, "vapoursynth", StringComparison.Ordinal))
+        {
+            addedImport |= EnsureImportModule(
+                lines,
+                importModule,
+                string.IsNullOrWhiteSpace(importAlias) ? importModule : importAlias,
+                out resolvedAlias);
+        }
+        else if (string.Equals(importModule, "vapoursynth", StringComparison.Ordinal))
+        {
+            resolvedAlias = vsAlias;
+        }
+        else if (!string.IsNullOrWhiteSpace(fromModule) && !string.IsNullOrWhiteSpace(fromSymbol))
+        {
+            addedImport |= EnsureFromImportSymbol(lines, fromModule, fromSymbol, out resolvedSymbol);
+        }
+
+        var target = ResolveOutputTarget(string.Join(newline, lines), outputIndex);
+        addedImport |= EnsureBaseClipIfMissing(lines, ref target, out var appendOutputAfterInsert);
+        var oldVar = target.VariableName;
+        var targetVar = string.IsNullOrWhiteSpace(derivedVariableName) ? oldVar : derivedVariableName.Trim();
+
+        var statements = statementTemplatesWithPlaceholders
+            .Select(template =>
+            {
+                var expanded = template
+                    .Replace("{var}", oldVar, StringComparison.Ordinal)
+                    .Replace("{target}", targetVar, StringComparison.Ordinal)
+                    .Replace("{alias}", resolvedAlias, StringComparison.Ordinal)
+                    .Replace("{symbol}", resolvedSymbol, StringComparison.Ordinal);
+                if (!string.IsNullOrEmpty(vsAlias) && !string.Equals(vsAlias, "vs", StringComparison.Ordinal))
+                {
+                    expanded = Regex.Replace(expanded, @"\bvs\.", $"{vsAlias}.");
+                }
+                if (!string.IsNullOrWhiteSpace(fromSymbol) && !string.IsNullOrWhiteSpace(resolvedSymbol)
+                    && !string.Equals(fromSymbol, resolvedSymbol, StringComparison.Ordinal))
+                {
+                    expanded = Regex.Replace(expanded, $@"\b{Regex.Escape(fromSymbol)}\b", resolvedSymbol);
+                }
+                return expanded;
+            })
+            .ToList();
+
+        var insertAt = InsertBeforeOutput(lines, target.SetOutputLineIndex, statements);
+        if (appendOutputAfterInsert)
+        {
+            lines.Insert(insertAt + statements.Count, $"{targetVar}.set_output()");
+        }
+        else if (target.FoundSetOutput && !string.Equals(targetVar, oldVar, StringComparison.Ordinal))
+        {
+            var newOutputLineIndex = target.SetOutputLineIndex + statements.Count;
             if (newOutputLineIndex < lines.Count)
             {
                 var line = lines[newOutputLineIndex];
@@ -362,14 +526,7 @@ public static partial class VapourSynthSmartScriptEditor
                 AddedImport: true);
         }
 
-        var addedImport = EnsureImportModule(lines, "vapoursynth", "vs", out var vsAlias);
-        var hasCore = lines.Any(static l => Regex.IsMatch(l, @"^[ \t]*core\s*="));
-        if (!hasCore)
-        {
-            var insertCoreAt = FindAfterLastImportIndex(lines);
-            lines.Insert(insertCoreAt, $"core = {vsAlias}.core");
-            addedImport = true;
-        }
+        var addedImport = EnsureVapourSynthRuntime(lines, needsCore: true, needsVs: true, out _);
 
         var assignedVars = new HashSet<string>(StringComparer.Ordinal);
         var hasSetOutput = false;
@@ -433,68 +590,6 @@ public static partial class VapourSynthSmartScriptEditor
             string.Join(newline, lines),
             targetLineIdx + 1,
             varName,
-            UpdatedInPlace: false,
-            AddedImport: addedImport);
-    }
-
-    public static SmartScriptEditResult ApplyMultiLineFilterTemplate(
-        string script,
-        int outputIndex,
-        IReadOnlyList<string> statementTemplatesWithPlaceholders,
-        string? importModule = null,
-        string? importAlias = null,
-        string? fromModule = null,
-        string? fromSymbol = null,
-        string? derivedVariableName = null)
-    {
-        var lines = SplitLines(script ?? string.Empty, out var newline);
-        var addedImport = false;
-        var resolvedAlias = importAlias ?? importModule ?? string.Empty;
-
-        if (!string.IsNullOrWhiteSpace(importModule))
-        {
-            addedImport = EnsureImportModule(
-                lines,
-                importModule,
-                string.IsNullOrWhiteSpace(importAlias) ? importModule : importAlias,
-                out resolvedAlias);
-        }
-        else if (!string.IsNullOrWhiteSpace(fromModule) && !string.IsNullOrWhiteSpace(fromSymbol))
-        {
-            addedImport = EnsureFromImportSymbol(lines, fromModule, fromSymbol);
-        }
-
-        var currentText = string.Join(newline, lines);
-        var target = ResolveOutputTarget(currentText, outputIndex);
-        var oldVar = target.VariableName;
-        var targetVar = string.IsNullOrWhiteSpace(derivedVariableName) ? oldVar : derivedVariableName.Trim();
-
-        var statements = statementTemplatesWithPlaceholders
-            .Select(template => template
-                .Replace("{var}", oldVar, StringComparison.Ordinal)
-                .Replace("{target}", targetVar, StringComparison.Ordinal)
-                .Replace("{alias}", resolvedAlias, StringComparison.Ordinal))
-            .ToList();
-
-        var insertAt = InsertBeforeOutput(lines, target.SetOutputLineIndex, statements);
-        if (target.FoundSetOutput && !string.Equals(targetVar, oldVar, StringComparison.Ordinal))
-        {
-            var newOutputLineIndex = target.SetOutputLineIndex + statements.Count;
-            if (newOutputLineIndex < lines.Count)
-            {
-                var line = lines[newOutputLineIndex];
-                var match = SetOutputMethodRegex.Match(line);
-                if (match.Success && string.Equals(match.Groups["var"].Value, oldVar, StringComparison.Ordinal))
-                {
-                    lines[newOutputLineIndex] = $"{match.Groups["indent"].Value}{targetVar}.set_output({match.Groups["args"].Value})";
-                }
-            }
-        }
-
-        return new SmartScriptEditResult(
-            string.Join(newline, lines),
-            insertAt + 1,
-            targetVar,
             UpdatedInPlace: false,
             AddedImport: addedImport);
     }
@@ -640,6 +735,125 @@ public static partial class VapourSynthSmartScriptEditor
             AddedImport: false);
     }
 
+    private static bool EnsureVapourSynthRuntime(
+        List<string> lines,
+        bool needsCore,
+        bool needsVs,
+        out string vsAlias)
+    {
+        vsAlias = "vs";
+        if (!needsCore && !needsVs)
+        {
+            return false;
+        }
+
+        var added = false;
+        if (lines.Count == 1 && string.IsNullOrWhiteSpace(lines[0]))
+        {
+            lines.Clear();
+        }
+
+        var hasCore = lines.Any(static l =>
+            Regex.IsMatch(l, @"^[ \t]*core\s*=")
+            || Regex.IsMatch(l, @"^[ \t]*from\s+vapoursynth\s+import\b.*\bcore\b"));
+
+        var hasVsImport = false;
+        for (var i = 0; i < lines.Count; i++)
+        {
+            var m = ImportModuleAliasRegex.Match(lines[i]);
+            if (m.Success && string.Equals(m.Groups["mod"].Value, "vapoursynth", StringComparison.Ordinal))
+            {
+                vsAlias = m.Groups["alias"].Success ? m.Groups["alias"].Value : "vapoursynth";
+                hasVsImport = true;
+                break;
+            }
+        }
+
+        if (needsVs || (needsCore && !hasCore))
+        {
+            if (!hasVsImport)
+            {
+                added |= EnsureImportModule(lines, "vapoursynth", "vs", out vsAlias);
+            }
+        }
+
+        if (needsCore && !hasCore)
+        {
+            var insertAt = FindAfterLastImportIndex(lines);
+            lines.Insert(insertAt, $"core = {vsAlias}.core");
+            added = true;
+        }
+
+        return added;
+    }
+
+    private static bool EnsureBaseClipIfMissing(
+        List<string> lines,
+        ref SmartScriptOutputTarget target,
+        out bool appendOutputAfterInsert)
+    {
+        appendOutputAfterInsert = false;
+        if (IsVariableDefinedBefore(lines, target.VariableName, target.SetOutputLineIndex))
+        {
+            return false;
+        }
+
+        // Script has no clip variable defined yet (e.g. blank tab or imports-only tab): scaffold a valid runnable clip.
+        var countBefore = lines.Count;
+        if (lines.Count == 1 && string.IsNullOrWhiteSpace(lines[0]))
+        {
+            lines.Clear();
+            countBefore = 0;
+        }
+
+        var added = EnsureVapourSynthRuntime(lines, needsCore: true, needsVs: true, out var vsAlias);
+
+        var insertAt = FindAfterLastImportIndex(lines);
+        while (insertAt < lines.Count && Regex.IsMatch(lines[insertAt], @"^[ \t]*core\s*="))
+        {
+            insertAt++;
+        }
+
+        if (insertAt > 0 && (insertAt >= lines.Count || !string.IsNullOrWhiteSpace(lines[insertAt - 1])))
+        {
+            lines.Insert(insertAt, string.Empty);
+            insertAt++;
+        }
+
+        lines.Insert(insertAt, $"{target.VariableName} = core.std.BlankClip(width=1920, height=1080, format={vsAlias}.YUV420P8)  # 替换为视频源，例如 core.lsmas.LWLibavSource(r\"...\")");
+        var delta = lines.Count - countBefore;
+        target = target with
+        {
+            SetOutputLineIndex = target.FoundSetOutput ? target.SetOutputLineIndex + delta : insertAt + 1
+        };
+        if (!target.FoundSetOutput)
+        {
+            appendOutputAfterInsert = true;
+        }
+
+        return added || true;
+    }
+
+    private static bool IsVariableDefinedBefore(List<string> lines, string variableName, int limitLineIndex)
+    {
+        if (string.IsNullOrWhiteSpace(variableName))
+        {
+            return false;
+        }
+
+        var maxIdx = Math.Min(limitLineIndex, lines.Count);
+        for (var i = 0; i < maxIdx; i++)
+        {
+            var match = AssignmentRegex.Match(lines[i]);
+            if (match.Success && string.Equals(match.Groups["var"].Value, variableName, StringComparison.Ordinal))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
     private static int FindStatementEndLineIndex(List<string> lines, int startLineIdx)
     {
         var depth = 0;
@@ -750,8 +964,13 @@ public static partial class VapourSynthSmartScriptEditor
         return true;
     }
 
-    private static bool EnsureFromImportSymbol(List<string> lines, string moduleName, string symbolName)
+    private static bool EnsureFromImportSymbol(
+        List<string> lines,
+        string moduleName,
+        string symbolName,
+        out string resolvedSymbol)
     {
+        resolvedSymbol = symbolName;
         var lastImportLine = -1;
         for (var i = 0; i < lines.Count; i++)
         {
@@ -762,9 +981,20 @@ public static partial class VapourSynthSmartScriptEditor
             }
 
             var fromMatch = FromImportRegex.Match(lines[i]);
-            if (fromMatch.Success && Regex.IsMatch(fromMatch.Groups["names"].Value, $@"\b{Regex.Escape(symbolName)}\b"))
+            if (fromMatch.Success)
             {
-                return false;
+                var namesPart = fromMatch.Groups["names"].Value;
+                foreach (var entry in namesPart.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+                {
+                    var aliasMatch = Regex.Match(entry, @"^(?<orig>[A-Za-z_][A-Za-z0-9_]*)(?:\s+as\s+(?<alias>[A-Za-z_][A-Za-z0-9_]*))?$");
+                    if (aliasMatch.Success && string.Equals(aliasMatch.Groups["orig"].Value, symbolName, StringComparison.Ordinal))
+                    {
+                        resolvedSymbol = aliasMatch.Groups["alias"].Success
+                            ? aliasMatch.Groups["alias"].Value
+                            : symbolName;
+                        return false;
+                    }
+                }
             }
         }
 

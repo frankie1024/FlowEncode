@@ -165,6 +165,7 @@ public sealed partial class VapourSynthPreviewWindow : Window
         BuildCompareModeMenu();
         _playbackTimer.Tick += PlaybackTimer_Tick;
         _flickerTimer.Tick += FlickerTimer_Tick;
+        _tabHoldFlickerTimer.Tick += TabHoldFlickerTimer_Tick;
         _statusCommitTimer.Tick += StatusCommitTimer_Tick;
         Activated += VapourSynthPreviewWindow_Activated;
         Closed += VapourSynthPreviewWindow_Closed;
@@ -176,6 +177,8 @@ public sealed partial class VapourSynthPreviewWindow : Window
         PreviewImageHost.SizeChanged += PreviewImageHost_SizeChanged;
         LeftCompareImageHost.SizeChanged += PreviewImageHost_SizeChanged;
         RightCompareImageHost.SizeChanged += PreviewImageHost_SizeChanged;
+        RootLayout.AddHandler(UIElement.PreviewKeyDownEvent, new KeyEventHandler(RootLayout_PreviewKeyDown), true);
+        RootLayout.AddHandler(UIElement.PreviewKeyUpEvent, new KeyEventHandler(RootLayout_PreviewKeyUp), true);
         RootLayout.AddHandler(UIElement.KeyDownEvent, new KeyEventHandler(RootLayout_KeyDown), true);
         RootLayout.AddHandler(UIElement.KeyUpEvent, new KeyEventHandler(RootLayout_KeyUp), true);
         Title = ViewModel.WindowTitle;
@@ -183,6 +186,7 @@ public sealed partial class VapourSynthPreviewWindow : Window
 
     private DispatcherTimer _playbackTimer { get; } = new();
     private DispatcherTimer _flickerTimer { get; } = new() { Interval = TimeSpan.FromMilliseconds(500) };
+    private DispatcherTimer _tabHoldFlickerTimer { get; } = new() { Interval = TimeSpan.FromMilliseconds(200) };
     private DispatcherTimer _statusCommitTimer { get; } = new()
     {
         Interval = TimeSpan.FromMilliseconds(180)
@@ -1046,7 +1050,7 @@ public sealed partial class VapourSynthPreviewWindow : Window
             ZoomRatioBox.Value = Math.Round(ViewModel.ZoomRatio * 100);
             ZoomRatioBox.Visibility = ViewModel.CustomZoomVisibility;
             FramePropsPanel.Visibility = ViewModel.IsFramePropsVisible ? Visibility.Visible : Visibility.Collapsed;
-            PropsColumn.Width = ViewModel.IsFramePropsVisible ? new GridLength(324) : new GridLength(0);
+            UpdateInspectorColumnWidth();
             FramePropsToggleButton.IsChecked = ViewModel.IsFramePropsVisible;
             CropToggleButton.IsChecked = ViewModel.IsCropPanelVisible;
             TimelineModeComboBox.SelectedItem = ViewModel.SelectedTimelineMode;
@@ -1258,7 +1262,7 @@ public sealed partial class VapourSynthPreviewWindow : Window
     private bool TryGetActiveSnapshotPixels(out byte[] pixels, out int width, out int height)
     {
         if (ViewModel.IsCompareModeActive
-            && (ViewModel.IsTemporaryFlipToB || (ViewModel.IsFlickerMode && ViewModel.IsShowingSecondaryInFlip))
+            && ViewModel.IsActiveFlipShowingB
             && _secondaryDisplayedFramePixels is not null
             && _secondaryDisplayedFrameWidth > 0
             && _secondaryDisplayedFrameHeight > 0)
@@ -2319,6 +2323,7 @@ public sealed partial class VapourSynthPreviewWindow : Window
 
                 _isClosed = true;
                 _flickerTimer.Stop();
+                _tabHoldFlickerTimer.Stop();
                 _pipetteSampleCts?.Cancel();
                 _pipetteSampleCts?.Dispose();
                 _pipetteSampleCts = null;
@@ -4469,8 +4474,9 @@ public sealed partial class VapourSynthPreviewWindow : Window
 
     private void UpdateCompareVisualPresentation()
     {
-        var showingBFull = ViewModel.IsCompareModeActive
-            && (ViewModel.IsTemporaryFlipToB || (ViewModel.IsFlickerMode && ViewModel.IsShowingSecondaryInFlip));
+        var isFullFlipActive = ViewModel.IsCompareModeActive
+            && (ViewModel.IsTemporaryFlipToB || ViewModel.IsFlickerMode);
+        var showingBFull = isFullFlipActive && ViewModel.IsShowingSecondaryInFlip;
         var isWipeActive = ViewModel.IsWipeMode && !ViewModel.IsTemporaryFlipToB;
         var isDiffActive = ViewModel.IsDifferenceMode && !ViewModel.IsTemporaryFlipToB;
 
@@ -4721,14 +4727,53 @@ public sealed partial class VapourSynthPreviewWindow : Window
         }
     }
 
-    private void SetTemporaryFlipToB(bool flipToB)
+    private void TabHoldFlickerTimer_Tick(object? sender, object e)
     {
-        if (ViewModel.IsTemporaryFlipToB == flipToB)
+        if (_isClosed || !ViewModel.IsCompareModeActive || !ViewModel.IsTemporaryFlipToB || !IsKeyPressed(VirtualKey.Tab))
+        {
+            StopTabHoldFlip();
+            return;
+        }
+
+        ViewModel.IsShowingSecondaryInFlip = !ViewModel.IsShowingSecondaryInFlip;
+        UpdateCompareVisualPresentation();
+    }
+
+    private void StartTabHoldFlip()
+    {
+        if (_isClosed || !ViewModel.IsCompareModeActive)
         {
             return;
         }
 
-        ViewModel.IsTemporaryFlipToB = flipToB;
+        if (ViewModel.IsTemporaryFlipToB)
+        {
+            return;
+        }
+
+        ViewModel.IsShowingSecondaryInFlip = true;
+        ViewModel.IsTemporaryFlipToB = true;
+        SyncFlickerTimer();
+        UpdateCompareVisualPresentation();
+        UpdatePreviewImageVisualSize();
+        UpdateWipeClipAndOverlay();
+        _tabHoldFlickerTimer.Start();
+    }
+
+    private void StopTabHoldFlip()
+    {
+        _tabHoldFlickerTimer.Stop();
+        if (!ViewModel.IsTemporaryFlipToB)
+        {
+            return;
+        }
+
+        ViewModel.IsTemporaryFlipToB = false;
+        if (!ViewModel.IsFlickerMode)
+        {
+            ViewModel.IsShowingSecondaryInFlip = false;
+        }
+
         SyncFlickerTimer();
         UpdateCompareVisualPresentation();
         UpdatePreviewImageVisualSize();
@@ -4739,7 +4784,7 @@ public sealed partial class VapourSynthPreviewWindow : Window
     {
         if (args.WindowActivationState == WindowActivationState.Deactivated && ViewModel.IsTemporaryFlipToB)
         {
-            SetTemporaryFlipToB(false);
+            StopTabHoldFlip();
         }
     }
 
@@ -4963,6 +5008,25 @@ public sealed partial class VapourSynthPreviewWindow : Window
         RequestPreviewFocus();
     }
 
+    private void UpdateInspectorColumnWidth()
+    {
+        if (!ViewModel.IsFramePropsVisible)
+        {
+            PropsColumn.Width = new GridLength(0);
+            return;
+        }
+
+        if (ViewModel.IsScopesTabActive)
+        {
+            var windowWidth = RootLayout.ActualWidth > 0 ? RootLayout.ActualWidth : 1280;
+            var scopeWidth = Math.Clamp(Math.Round(windowWidth * 0.36), 460, 680);
+            PropsColumn.Width = new GridLength(scopeWidth);
+            return;
+        }
+
+        PropsColumn.Width = new GridLength(340);
+    }
+
     private void SetActiveInspectorTab(string tab)
     {
         ViewModel.ActiveInspectorTab = tab;
@@ -4971,6 +5035,7 @@ public sealed partial class VapourSynthPreviewWindow : Window
         InspectorBasketTabButton.IsChecked = ViewModel.IsBasketTabActive;
         InspectorWorstTabButton.IsChecked = ViewModel.IsWorstTabActive;
         InspectorScenesTabButton.IsChecked = ViewModel.IsScenesTabActive;
+        UpdateInspectorColumnWidth();
         if (ViewModel.IsScopesTabActive)
         {
             InvalidateScopeCanvasIfVisible();
@@ -4999,7 +5064,9 @@ public sealed partial class VapourSynthPreviewWindow : Window
                 }
 
                 EnsureSecondaryOutputSelection(_selectedOutputInfo);
-                if (_secondaryOutputInfo is null)
+                var effectiveSecondary = _secondaryOutputInfo
+                    ?? (string.Equals(ViewModel.WorstMetric, "cambi", StringComparison.OrdinalIgnoreCase) ? _selectedOutputInfo : null);
+                if (effectiveSecondary is null)
                 {
                     return;
                 }
@@ -5023,13 +5090,15 @@ public sealed partial class VapourSynthPreviewWindow : Window
                     }
 
                     var framesB = plan.SampleFrames
-                        .Select(f => PreviewCompareCoordinator.ResolveSecondaryFrameNumber(
-                            _selectedOutputInfo,
-                            _secondaryOutputInfo,
-                            f,
-                            ViewModel.SelectedOutputSyncMode?.Value,
-                            ViewModel.IsTimelineTimeMode,
-                            ViewModel.SecondaryFrameOffset))
+                        .Select(f => ReferenceEquals(effectiveSecondary, _selectedOutputInfo)
+                            ? f
+                            : PreviewCompareCoordinator.ResolveSecondaryFrameNumber(
+                                _selectedOutputInfo,
+                                effectiveSecondary,
+                                f,
+                                ViewModel.SelectedOutputSyncMode?.Value,
+                                ViewModel.IsTimelineTimeMode,
+                                ViewModel.SecondaryFrameOffset))
                         .ToArray();
 
                     var scanningMsg = ViewModel.Texts.VapourSynthPreviewWorstScanningStatus(
@@ -5041,7 +5110,7 @@ public sealed partial class VapourSynthPreviewWindow : Window
 
                     var result = await _previewService.ScanWorstFramesAsync(
                         _selectedOutputInfo.Index,
-                        _secondaryOutputInfo.Index,
+                        effectiveSecondary.Index,
                         plan.SampleFrames,
                         framesB,
                         ViewModel.WorstMetric,
@@ -5834,6 +5903,70 @@ public sealed partial class VapourSynthPreviewWindow : Window
         }
     }
 
+    private async void PickCompareVideoForWorstButton_Click(object sender, RoutedEventArgs e)
+    {
+        await RunWindowEventHandlerAsync(
+            nameof(PickCompareVideoForWorstButton_Click),
+            async () =>
+            {
+                var picked = WindowInteractionHelper.PickOpenFilePath(
+                    WindowNative.GetWindowHandle(this),
+                    ViewModel.Texts.VapourSynthPreviewPickCompareVideoTitle,
+                    _currentRequest?.SourceFilePath ?? _currentRequest?.WorkingDirectory ?? string.Empty,
+                    new NativeFileDialogHelper.FileDialogFilter("Video & VapourSynth", "*.mkv;*.mp4;*.mov;*.m2ts;*.ts;*.avi;*.webm;*.flv;*.y4m;*.vpy;*.py"));
+                if (string.IsNullOrWhiteSpace(picked))
+                {
+                    return;
+                }
+
+                await OpenQuickCompareAgainstCurrentAsync(picked);
+            });
+    }
+
+    private async Task OpenQuickCompareAgainstCurrentAsync(string sourceBPath)
+    {
+        var fullB = Path.GetFullPath(sourceBPath);
+        var labelB = Path.GetFileName(fullB);
+        string sourceAPath;
+        string labelA;
+
+        if (!string.IsNullOrWhiteSpace(_currentRequest?.SourceFilePath) && File.Exists(_currentRequest.SourceFilePath))
+        {
+            sourceAPath = Path.GetFullPath(_currentRequest.SourceFilePath);
+            labelA = Path.GetFileName(sourceAPath);
+        }
+        else if (!string.IsNullOrWhiteSpace(_currentRequest?.Content))
+        {
+            var tempDir = Path.Combine(_appPaths.DataRootPath, "vapoursynth-preview");
+            Directory.CreateDirectory(tempDir);
+            sourceAPath = Path.Combine(tempDir, "drop-compare-source.vpy");
+            await File.WriteAllTextAsync(sourceAPath, _currentRequest.Content, new System.Text.UTF8Encoding(false));
+            labelA = string.IsNullOrWhiteSpace(_currentRequest.DisplayName) ? "Current" : _currentRequest.DisplayName;
+        }
+        else
+        {
+            SetStatusText(ViewModel.Texts.VapourSynthPreviewDropCompareUnsupportedStatus);
+            return;
+        }
+
+        SetStatusText(ViewModel.Texts.VapourSynthPreviewDropCompareLoadingStatus(labelA, labelB));
+        var compareScript = PreviewCompareScriptBuilder.BuildTwoSourceCompareScript(sourceAPath, fullB, labelA, labelB);
+        var workingDir = Path.GetDirectoryName(fullB) ?? Path.GetDirectoryName(sourceAPath) ?? AppContext.BaseDirectory;
+        var displayName = ViewModel.Texts.VapourSynthPreviewQuickCompareTitle(labelA, labelB);
+        var compareRequest = new VapourSynthPreviewOpenRequest(null, displayName, compareScript, workingDir);
+        SmartEditScriptAsync = null;
+        await OpenOrRefreshAsync(
+            compareRequest,
+            _lastLanguage,
+            _lastThemePreference,
+            initialCompareMode: PreviewCompareMode.Wipe);
+    }
+
+    private void ScopeCanvas_SizeChanged(object sender, SizeChangedEventArgs e)
+    {
+        InvalidateScopeCanvasIfVisible();
+    }
+
     private void ScopeCanvas_Draw(Microsoft.Graphics.Canvas.UI.Xaml.CanvasControl sender, Microsoft.Graphics.Canvas.UI.Xaml.CanvasDrawEventArgs args)
     {
         if (!ViewModel.IsFramePropsVisible || !ViewModel.IsScopesTabActive)
@@ -5858,10 +5991,12 @@ public sealed partial class VapourSynthPreviewWindow : Window
             _ => PreviewScopeKind.Histogram
         };
 
+        var canvasWidth = sender.Size.Width > 0 ? (float)sender.Size.Width : (float)sender.ActualWidth;
+        var canvasHeight = sender.Size.Height > 0 ? (float)sender.Size.Height : (float)sender.ActualHeight;
         PreviewScopesRenderer.Render(
             args.DrawingSession,
-            (float)sender.ActualWidth,
-            (float)sender.ActualHeight,
+            canvasWidth,
+            canvasHeight,
             kind,
             pixels,
             frameW,
@@ -6794,6 +6929,47 @@ public sealed partial class VapourSynthPreviewWindow : Window
         }
     }
 
+    private bool IsTextInputFocusedForTab()
+    {
+        var focusedElement = FocusManager.GetFocusedElement(RootLayout.XamlRoot);
+        return focusedElement is TextBox
+            or PasswordBox
+            or RichEditBox
+            or NumberBox
+            or ComboBox { IsDropDownOpen: true };
+    }
+
+    private void RootLayout_PreviewKeyDown(object sender, KeyRoutedEventArgs e)
+    {
+        if (e.Key != VirtualKey.Tab
+            || IsControlKeyPressed()
+            || IsKeyPressed(VirtualKey.Menu)
+            || IsKeyPressed(VirtualKey.Shift))
+        {
+            return;
+        }
+
+        if (!ViewModel.IsCompareModeActive || IsTextInputFocusedForTab())
+        {
+            return;
+        }
+
+        e.Handled = true;
+        if (!ViewModel.IsTemporaryFlipToB)
+        {
+            StartTabHoldFlip();
+        }
+    }
+
+    private void RootLayout_PreviewKeyUp(object sender, KeyRoutedEventArgs e)
+    {
+        if (e.Key == VirtualKey.Tab && ViewModel.IsTemporaryFlipToB)
+        {
+            e.Handled = true;
+            StopTabHoldFlip();
+        }
+    }
+
     private async void RootLayout_KeyDown(object sender, KeyRoutedEventArgs e)
     {
         await RunWindowEventHandlerAsync(
@@ -6862,10 +7038,7 @@ public sealed partial class VapourSynthPreviewWindow : Window
                     if (ViewModel.IsCompareModeActive)
                     {
                         e.Handled = true;
-                        if (!e.KeyStatus.WasKeyDown)
-                        {
-                            SetTemporaryFlipToB(true);
-                        }
+                        StartTabHoldFlip();
                         return;
                     }
                 }
@@ -6992,7 +7165,7 @@ public sealed partial class VapourSynthPreviewWindow : Window
         if (e.Key == VirtualKey.Tab && ViewModel.IsTemporaryFlipToB)
         {
             e.Handled = true;
-            SetTemporaryFlipToB(false);
+            StopTabHoldFlip();
             return;
         }
 

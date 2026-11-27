@@ -562,9 +562,11 @@ public sealed class AppText
     public string VapourSynthPreviewWorstMetricHeader => Pick("指标", "Metric");
     public string VapourSynthPreviewWorstStartButton => Pick("开始片中抽样检测", "Run Mid-Clip Scan");
     public string VapourSynthPreviewWorstSendToBasketButton => Pick("加入对比篮", "Send to Basket");
-    public string VapourSynthPreviewWorstIdleHint => Pick(
-        "默认不自动运行。点击后跳过片头片尾各 10 分钟（短片自动改跳首尾 10%），仅对片中抽样帧算分，点击结果可直接跳帧复核。",
-        "Runs only on demand. Skips 10 min from start/end (10% on short clips), scores sampled mid-clip frames, and jumps on click.");
+    public string VapourSynthPreviewWorstNeedsCompareHint => Pick(
+        "当前仅有 1 路输出，对比检错需要至少 2 路输出（A/B）。可启用第 2 个 set_output，或选择对比视频。",
+        "Only 1 output is active. Comparison scan needs 2 outputs (A/B) — enable a second set_output or pick a video to compare.");
+    public string VapourSynthPreviewPickCompareVideoButton => Pick("选择对比视频…", "Pick Video to Compare...");
+    public string VapourSynthPreviewPickCompareVideoTitle => Pick("选择要对比的视频或脚本", "Select Video or Script to Compare");
     public string VapourSynthPreviewWorstScanningStatus(int sampleCount, double appliedSkipMinutes, bool adjusted) => IsChinese
         ? (adjusted
             ? $"正在片中抽样检测 {sampleCount} 帧（短片已自动调整为跳过首尾各 {appliedSkipMinutes:0.#} 分钟）…"
@@ -930,6 +932,9 @@ public sealed class AppText
     public string JobMenuRestart => Pick("重启任务", "Restart Job");
     public string JobMenuDelete => Pick("删除任务", "Delete Job");
     public string JobMenuCompareWithSource => Pick("与源文件对比", "Compare with Source");
+    public string CompareSourceOutputLabel(string fileName) => Pick($"源 · {fileName}", $"Source · {fileName}");
+    public string CompareEncodedOutputLabel(string fileName) => Pick($"成片 · {fileName}", $"Encode · {fileName}");
+    public string VapourSynthPreviewFrameInfoHudToggle => Pick("帧信息", "FrameInfo");
     public string QueueEnterSelectionModeButton => Pick("批量选择", "Batch Select");
     public string QueueExitSelectionModeButton => Pick("完成", "Done");
     public string QueueSelectAllButton => Pick("全选", "Select All");

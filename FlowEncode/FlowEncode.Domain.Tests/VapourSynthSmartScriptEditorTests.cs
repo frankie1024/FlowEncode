@@ -255,4 +255,106 @@ public sealed class VapourSynthSmartScriptEditorTests
         StringAssert.Contains(stub, "    resize: _BoundPlugin_resize");
         StringAssert.Contains(stub, "    resize: _Plugin_resize");
     }
+
+    [TestMethod]
+    public void ApplyReplaceRangesAndMaskedMerge_AutoDefineFltWhenMissingAndReuseWhenPresent()
+    {
+        var scriptNoFlt = """
+            import vapoursynth as vs
+            core = vs.core
+            sample10 = core.lsmas.LWLibavSource("a.mkv")
+            sample10.set_output(0)
+            """;
+
+        var r1 = VapourSynthSmartScriptEditor.ApplyReplaceRanges(
+            scriptNoFlt,
+            outputIndex: 0,
+            [new PreviewSceneRange(733, 1979)]);
+        StringAssert.Contains(r1.UpdatedScript, "from vstools import replace_ranges");
+        StringAssert.Contains(r1.UpdatedScript, "flt = sample10");
+        StringAssert.Contains(r1.UpdatedScript, "sample10 = replace_ranges(sample10, flt, [(733, 1979)])");
+        Assert.IsTrue(r1.UpdatedScript.IndexOf("flt = sample10") < r1.UpdatedScript.IndexOf("replace_ranges(sample10"));
+
+        var m1 = VapourSynthSmartScriptEditor.ApplyMaskedMerge(scriptNoFlt, outputIndex: 0);
+        StringAssert.Contains(m1.UpdatedScript, "flt = sample10");
+        StringAssert.Contains(m1.UpdatedScript, "core.std.MaskedMerge(flt, sample10, mask)");
+
+        var scriptWithFlt = """
+            import vapoursynth as vs
+            core = vs.core
+            sample10 = core.lsmas.LWLibavSource("a.mkv")
+            flt = core.placebo.Deband(sample10)
+            sample10.set_output(0)
+            """;
+
+        var r2 = VapourSynthSmartScriptEditor.ApplyReplaceRanges(
+            scriptWithFlt,
+            outputIndex: 0,
+            [new PreviewSceneRange(10, 20)]);
+        Assert.IsFalse(r2.UpdatedScript.Contains("flt = sample10"));
+        StringAssert.Contains(r2.UpdatedScript, "sample10 = replace_ranges(sample10, flt, [(10, 20)])");
+    }
+
+    [TestMethod]
+    public void SmartInsert_EnsuresRuntimeImportsBaseClipAndReusesCustomAliases()
+    {
+        // 1. Blank script -> auto-adds vs, core, BlankClip, filter, and set_output()
+        var fromEmpty = VapourSynthSmartScriptEditor.ApplyFilterTemplate(
+            string.Empty,
+            outputIndex: 0,
+            expressionTemplateWithPlaceholder: "core.placebo.Deband({var}, threshold=4.0)");
+        Assert.IsTrue(fromEmpty.AddedImport);
+        StringAssert.Contains(fromEmpty.UpdatedScript, "import vapoursynth as vs");
+        StringAssert.Contains(fromEmpty.UpdatedScript, "core = vs.core");
+        StringAssert.Contains(fromEmpty.UpdatedScript, "clip = core.std.BlankClip(");
+        StringAssert.Contains(fromEmpty.UpdatedScript, "clip = core.placebo.Deband(clip, threshold=4.0)");
+        StringAssert.Contains(fromEmpty.UpdatedScript, "clip.set_output()");
+
+        // 2. Custom vs alias and missing core -> reuses 'v' and inserts 'core = v.core'
+        var customVs = """
+            import vapoursynth as v
+            src = v.core.lsmas.LWLibavSource("a.mkv")
+            src.set_output()
+            """;
+        var hdr = VapourSynthSmartScriptEditor.ApplyFilterTemplate(
+            customVs,
+            outputIndex: 0,
+            expressionTemplateWithPlaceholder: "core.placebo.Tonemap({var}.resize.Spline36(format=vs.YUV444P16))");
+        Assert.IsTrue(hdr.AddedImport);
+        StringAssert.Contains(hdr.UpdatedScript, "core = v.core");
+        StringAssert.Contains(hdr.UpdatedScript, "format=v.YUV444P16");
+        Assert.IsFalse(hdr.UpdatedScript.Contains("import vapoursynth as vs"));
+
+        // 3. Aliased from-import (replace_ranges as rfs) -> reuses alias without duplicating import
+        var aliasedRfs = """
+            import vapoursynth as vs
+            from vstools import replace_ranges as rfs
+            core = vs.core
+            src = core.lsmas.LWLibavSource("a.mkv")
+            src.set_output()
+            """;
+        var rfsResult = VapourSynthSmartScriptEditor.ApplyReplaceRanges(
+            aliasedRfs,
+            outputIndex: 0,
+            [new PreviewSceneRange(10, 20)]);
+        Assert.IsFalse(rfsResult.AddedImport);
+        StringAssert.Contains(rfsResult.UpdatedScript, "flt = src");
+        StringAssert.Contains(rfsResult.UpdatedScript, "src = rfs(src, flt, [(10, 20)])");
+
+        // 4. Script with only set_output() and no clip assignment -> scaffolds BlankClip and inserts filter BEFORE set_output()
+        var onlyOutput = """
+            import vapoursynth as vs
+            core = vs.core
+
+            clip.set_output()
+            """;
+        var withClip = VapourSynthSmartScriptEditor.ApplyFilterTemplate(
+            onlyOutput,
+            outputIndex: 0,
+            expressionTemplateWithPlaceholder: "core.placebo.Deband({var}, threshold=4.0)");
+        StringAssert.Contains(withClip.UpdatedScript, "clip = core.std.BlankClip(");
+        StringAssert.Contains(withClip.UpdatedScript, "clip = core.placebo.Deband(clip, threshold=4.0)");
+        Assert.IsTrue(withClip.UpdatedScript.IndexOf("BlankClip") < withClip.UpdatedScript.IndexOf("Deband"));
+        Assert.IsTrue(withClip.UpdatedScript.IndexOf("Deband") < withClip.UpdatedScript.IndexOf("clip.set_output()"));
+    }
 }

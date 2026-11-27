@@ -93,6 +93,11 @@ public sealed class VapourSynthPreviewWindowViewModel : ObservableObject
     private string _compareInfoText = string.Empty;
     private string _compareOutputABadgeText = string.Empty;
     private string _compareOutputBBadgeText = string.Empty;
+    private bool _showFrameInfoHud = true;
+    private string? _lastPrimaryFrameType;
+    private string? _lastSecondaryFrameType;
+    private int? _lastPrimaryFrameNumber;
+    private int? _lastSecondaryFrameNumber;
     private bool _hasCompareDimensionMismatch;
     private VapourSynthPreviewOutputOption? _selectedOutput;
     private VapourSynthPreviewOutputOption? _selectedSecondaryOutput;
@@ -714,11 +719,17 @@ public sealed class VapourSynthPreviewWindowViewModel : ObservableObject
         }
     }
 
-    public bool CanStartWorstScan => !_isWorstScanBusy && CanCompareOutputs;
+    private bool IsSingleOutputCambiSelected =>
+        Outputs.Count >= 1 && string.Equals(_worstMetric, "cambi", StringComparison.OrdinalIgnoreCase);
+
+    public bool CanStartWorstScan => !_isWorstScanBusy && (CanCompareOutputs || IsSingleOutputCambiSelected);
+
+    public Visibility WorstNeedsCompareVisibility =>
+        !CanCompareOutputs && !IsSingleOutputCambiSelected && WorstFrameResults.Count == 0
+            ? Visibility.Visible
+            : Visibility.Collapsed;
 
     public bool HasWorstScanResults => WorstFrameResults.Count > 0;
-
-    public Visibility WorstResultsEmptyVisibility => WorstFrameResults.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
 
     public string WorstScanStatusText
     {
@@ -773,7 +784,14 @@ public sealed class VapourSynthPreviewWindowViewModel : ObservableObject
     public string WorstMetric
     {
         get => _worstMetric;
-        set => SetProperty(ref _worstMetric, string.IsNullOrWhiteSpace(value) ? "xpsnr" : value);
+        set
+        {
+            if (SetProperty(ref _worstMetric, string.IsNullOrWhiteSpace(value) ? "xpsnr" : value))
+            {
+                OnPropertyChanged(nameof(CanStartWorstScan));
+                OnPropertyChanged(nameof(WorstNeedsCompareVisibility));
+            }
+        }
     }
 
     public StringChoiceOption? SelectedWorstMetricOption
@@ -791,7 +809,7 @@ public sealed class VapourSynthPreviewWindowViewModel : ObservableObject
     public void NotifyWorstScanResultsChanged()
     {
         OnPropertyChanged(nameof(HasWorstScanResults));
-        OnPropertyChanged(nameof(WorstResultsEmptyVisibility));
+        OnPropertyChanged(nameof(WorstNeedsCompareVisibility));
     }
 
     public int? PendingSceneStartFrame
@@ -917,6 +935,8 @@ public sealed class VapourSynthPreviewWindowViewModel : ObservableObject
         {
             if (SetProperty(ref _isShowingSecondaryInFlip, value))
             {
+                OnPropertyChanged(nameof(IsActiveFlipShowingB));
+                OnPropertyChanged(nameof(ActiveFlipBadgeBorderBrush));
                 OnPropertyChanged(nameof(ActiveFlipBadgeText));
                 OnPropertyChanged(nameof(ActiveFlipBadgeVisibility));
             }
@@ -930,6 +950,12 @@ public sealed class VapourSynthPreviewWindowViewModel : ObservableObject
         {
             if (SetProperty(ref _isTemporaryFlipToB, value))
             {
+                OnPropertyChanged(nameof(SingleViewportVisibility));
+                OnPropertyChanged(nameof(SideBySideViewportVisibility));
+                OnPropertyChanged(nameof(WipeOverlayVisibility));
+                OnPropertyChanged(nameof(CompareHudVisibility));
+                OnPropertyChanged(nameof(IsActiveFlipShowingB));
+                OnPropertyChanged(nameof(ActiveFlipBadgeBorderBrush));
                 OnPropertyChanged(nameof(ActiveFlipBadgeText));
                 OnPropertyChanged(nameof(ActiveFlipBadgeVisibility));
             }
@@ -1147,9 +1173,9 @@ public sealed class VapourSynthPreviewWindowViewModel : ObservableObject
 
     public Visibility CompareBarVisibility => IsCompareModeActive ? Visibility.Visible : Visibility.Collapsed;
 
-    public Visibility SingleViewportVisibility => IsSideBySideMode ? Visibility.Collapsed : Visibility.Visible;
+    public Visibility SingleViewportVisibility => IsSideBySideMode && !_isTemporaryFlipToB ? Visibility.Collapsed : Visibility.Visible;
 
-    public Visibility SideBySideViewportVisibility => IsSideBySideMode ? Visibility.Visible : Visibility.Collapsed;
+    public Visibility SideBySideViewportVisibility => IsSideBySideMode && !_isTemporaryFlipToB ? Visibility.Visible : Visibility.Collapsed;
 
     public Visibility WipeOverlayVisibility => IsWipeMode && !_isTemporaryFlipToB ? Visibility.Visible : Visibility.Collapsed;
 
@@ -1157,11 +1183,35 @@ public sealed class VapourSynthPreviewWindowViewModel : ObservableObject
 
     public Visibility FlickerControlsVisibility => IsFlickerMode ? Visibility.Visible : Visibility.Collapsed;
 
-    public Visibility ActiveFlipBadgeVisibility => IsCompareModeActive && (IsFlickerMode || _isTemporaryFlipToB)
+    public bool ShowFrameInfoHud
+    {
+        get => _showFrameInfoHud;
+        set
+        {
+            if (SetProperty(ref _showFrameInfoHud, value))
+            {
+                OnPropertyChanged(nameof(CompareHudVisibility));
+                OnPropertyChanged(nameof(ActiveFlipBadgeVisibility));
+            }
+        }
+    }
+
+    public Visibility CompareHudVisibility => _showFrameInfoHud && IsCompareModeActive && !_isTemporaryFlipToB
         ? Visibility.Visible
         : Visibility.Collapsed;
 
-    public string ActiveFlipBadgeText => (_isTemporaryFlipToB || (IsFlickerMode && _isShowingSecondaryInFlip))
+    public bool IsActiveFlipShowingB => (IsFlickerMode || _isTemporaryFlipToB) && _isShowingSecondaryInFlip;
+
+    public Microsoft.UI.Xaml.Media.SolidColorBrush ActiveFlipBadgeBorderBrush => new(
+        IsActiveFlipShowingB
+            ? Windows.UI.Color.FromArgb(255, 255, 183, 77)
+            : Windows.UI.Color.FromArgb(255, 79, 195, 247));
+
+    public Visibility ActiveFlipBadgeVisibility => _showFrameInfoHud && IsCompareModeActive && (IsFlickerMode || _isTemporaryFlipToB)
+        ? Visibility.Visible
+        : Visibility.Collapsed;
+
+    public string ActiveFlipBadgeText => IsActiveFlipShowingB
         ? CompareOutputBBadgeText
         : CompareOutputABadgeText;
 
@@ -1336,6 +1386,10 @@ public sealed class VapourSynthPreviewWindowViewModel : ObservableObject
             : documentName;
         WindowTitle = Texts.VapourSynthPreviewWindowTitle(WindowTitleDocumentName);
         StatusText = statusText;
+        _lastPrimaryFrameNumber = null;
+        _lastPrimaryFrameType = null;
+        _lastSecondaryFrameNumber = null;
+        _lastSecondaryFrameType = null;
 
         Outputs.Clear();
         foreach (var output in outputs.OrderBy(static item => item.Index))
@@ -1475,6 +1529,10 @@ public sealed class VapourSynthPreviewWindowViewModel : ObservableObject
 
         _sourceFrameWidth = displayWidth;
         _sourceFrameHeight = displayHeight;
+        _lastPrimaryFrameNumber = frameData.FrameNumber;
+        _lastPrimaryFrameType = frameData.FrameType;
+        _lastSecondaryFrameNumber = secondaryFrameData?.FrameNumber;
+        _lastSecondaryFrameType = secondaryFrameData?.FrameType;
         UpdateCompareBadges(frameData.FrameNumber, secondaryFrameData?.FrameNumber);
         RecomputeImageLayout();
         RaiseTimelinePropertyChanges();
@@ -1666,38 +1724,74 @@ public sealed class VapourSynthPreviewWindowViewModel : ObservableObject
         OnPropertyChanged(nameof(WipeOverlayVisibility));
         OnPropertyChanged(nameof(DifferenceGainVisibility));
         OnPropertyChanged(nameof(FlickerControlsVisibility));
+        OnPropertyChanged(nameof(CompareHudVisibility));
+        OnPropertyChanged(nameof(IsActiveFlipShowingB));
+        OnPropertyChanged(nameof(ActiveFlipBadgeBorderBrush));
         OnPropertyChanged(nameof(ActiveFlipBadgeVisibility));
         OnPropertyChanged(nameof(ActiveFlipBadgeText));
         OnPropertyChanged(nameof(SizeAlignmentVisibility));
         OnPropertyChanged(nameof(AlignButtonLabel));
         OnPropertyChanged(nameof(CanRunAutoAlign));
         OnPropertyChanged(nameof(CanStartWorstScan));
+        OnPropertyChanged(nameof(WorstNeedsCompareVisibility));
         OnPropertyChanged(nameof(CompareButtonTooltip));
     }
 
     private void UpdateCompareBadges(int? primaryFrame = null, int? secondaryFrame = null)
     {
-        if (_selectedOutput is not null)
+        var frameA = primaryFrame ?? _lastPrimaryFrameNumber;
+        var frameB = secondaryFrame ?? _lastSecondaryFrameNumber;
+        CompareOutputABadgeText = BuildFrameInfoHudText("A", _selectedOutput, frameA, _lastPrimaryFrameType, frameOffset: 0);
+        CompareOutputBBadgeText = BuildFrameInfoHudText("B", _selectedSecondaryOutput, frameB, _lastSecondaryFrameType, _secondaryFrameOffset);
+        OnPropertyChanged(nameof(ActiveFlipBadgeText));
+        OnPropertyChanged(nameof(ActiveFlipBadgeBorderBrush));
+    }
+
+    private string BuildFrameInfoHudText(
+        string slotTag,
+        VapourSynthPreviewOutputOption? option,
+        int? frameNumber,
+        string? frameType,
+        int frameOffset)
+    {
+        if (option is null)
         {
-            var frameSuffix = primaryFrame.HasValue ? $" · #{primaryFrame.Value}" : string.Empty;
-            CompareOutputABadgeText = $"A · {_selectedOutput.Label}{frameSuffix}";
-        }
-        else
-        {
-            CompareOutputABadgeText = "A";
+            return slotTag;
         }
 
-        if (_selectedSecondaryOutput is not null)
+        var info = option.Info;
+        var title = $"{slotTag} · {option.Label}";
+        var resolvedFrame = frameNumber ?? CurrentFrame;
+        var timeText = FormatTimestamp(resolvedFrame, info.FpsNumerator, info.FpsDenominator);
+        var typePart = !string.IsNullOrWhiteSpace(frameType) && frameType != "-"
+            ? $" · {frameType}"
+            : string.Empty;
+        var offsetPart = frameOffset != 0
+            ? $" ({(frameOffset > 0 ? "+" : string.Empty)}{frameOffset}f)"
+            : string.Empty;
+        var line2 = info.TotalFrames > 0
+            ? $"#{resolvedFrame} / {info.TotalFrames} ({timeText}){typePart}{offsetPart}"
+            : $"#{resolvedFrame} ({timeText}){typePart}{offsetPart}";
+
+        var metaParts = new List<string>(3);
+        if (info.Width > 0 && info.Height > 0)
         {
-            var frameSuffix = secondaryFrame.HasValue ? $" · #{secondaryFrame.Value}" : string.Empty;
-            var offsetSuffix = _secondaryFrameOffset != 0 ? $" ({(_secondaryFrameOffset > 0 ? "+" : string.Empty)}{_secondaryFrameOffset}f)" : string.Empty;
-            CompareOutputBBadgeText = $"B · {_selectedSecondaryOutput.Label}{frameSuffix}{offsetSuffix}";
+            metaParts.Add($"{info.Width}×{info.Height}");
         }
-        else
+
+        if (!string.IsNullOrWhiteSpace(info.FormatName) && !string.Equals(info.FormatName, "Unknown", StringComparison.OrdinalIgnoreCase))
         {
-            CompareOutputBBadgeText = "B";
+            metaParts.Add(info.BitsPerSample > 0 ? $"{info.FormatName} ({info.BitsPerSample}b)" : info.FormatName);
         }
-        OnPropertyChanged(nameof(ActiveFlipBadgeText));
+
+        if (info.FpsNumerator > 0 && info.FpsDenominator > 0)
+        {
+            metaParts.Add($"{info.FpsNumerator / (double)info.FpsDenominator:0.###} fps");
+        }
+
+        return metaParts.Count > 0
+            ? $"{title}\n{line2}\n{string.Join(" · ", metaParts)}"
+            : $"{title}\n{line2}";
     }
 
     private string FormatTimestamp(int frameNumber, int fpsNumerator, int fpsDenominator)

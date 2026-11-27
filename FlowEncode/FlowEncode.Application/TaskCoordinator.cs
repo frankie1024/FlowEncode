@@ -221,17 +221,141 @@ public sealed class TaskCoordinator
     private void EnsureOutputAvailable(TaskWorkload request)
     {
         var output = Canonical(request.OutputPath);
+        var requestedClaim = OutputClaim.From(request);
         foreach (var entry in _entries.Values.Where(e => IsActive(e.Snapshot.State)))
         {
-            var other = Canonical(entry.Workload.OutputPath);
-            if (string.Equals(output, other, StringComparison.OrdinalIgnoreCase)
-                || request.OutputIsDirectory && IsChild(other, output) || entry.Workload.OutputIsDirectory && IsChild(output, other))
+            if (requestedClaim.Overlaps(OutputClaim.From(entry.Workload)))
                 throw new InvalidOperationException("Another task already owns this output: " + entry.Snapshot.TaskId);
         }
         if (request.OutputIsDirectory ? File.Exists(output) : Directory.Exists(output))
             throw new IOException("The output path is occupied. Choose another output path.");
         if (request.ProducesMedia && !request.OverwriteOutput && !request.OutputIsDirectory && File.Exists(output))
             throw new IOException("The output already exists. Choose another output or explicitly enable overwrite.");
+    }
+
+    private sealed class OutputClaim
+    {
+        private static readonly OutputClaim EmptyClaim = new(null, null, null);
+        private static readonly HashSet<string> AllDeewExtensions = new(
+            DeewOutputNaming.OutputExtensions.Select(static ext => "." + ext),
+            StringComparer.OrdinalIgnoreCase);
+
+        private readonly HashSet<string>? _files;
+        private readonly string? _directory;
+        private readonly HashSet<string>? _directoryExtensions;
+
+        private OutputClaim(HashSet<string>? files, string? directory, HashSet<string>? directoryExtensions)
+        {
+            _files = files;
+            _directory = directory;
+            _directoryExtensions = directoryExtensions;
+        }
+
+        private bool IsEmpty => _files is null && _directory is null;
+
+        public static OutputClaim From(TaskWorkload workload)
+        {
+            if (workload.Kind == TaskKind.Audio && workload.Audio!.Mode == AudioProcessingMode.Ddp)
+            {
+                if (!workload.ProducesMedia)
+                    return EmptyClaim;
+
+                return new OutputClaim(
+                    files: null,
+                    directory: Canonical(workload.OutputPath),
+                    directoryExtensions: GetDeewExtensions(workload.Audio.Deew));
+            }
+
+            if (workload.Kind == TaskKind.BluRay)
+            {
+                var bluray = workload.BluRay!;
+                var files = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                foreach (var selection in bluray.Selections)
+                {
+                    if (string.IsNullOrWhiteSpace(selection.OutputPath))
+                        continue;
+
+                    var targetPath = bluray.Backend == BluRayDemuxBackend.Eac3To
+                        ? Path.Combine(bluray.OutputDirectory, Path.GetFileName(selection.OutputPath))
+                        : Path.IsPathFullyQualified(selection.OutputPath)
+                            ? selection.OutputPath
+                            : Path.Combine(bluray.OutputDirectory, selection.OutputPath);
+                    files.Add(Canonical(targetPath));
+                }
+
+                return files.Count > 0
+                    ? new OutputClaim(files, directory: null, directoryExtensions: null)
+                    : new OutputClaim(files: null, directory: Canonical(workload.OutputPath), directoryExtensions: null);
+            }
+
+            return new OutputClaim(
+                files: new HashSet<string>(StringComparer.OrdinalIgnoreCase) { Canonical(workload.OutputPath) },
+                directory: null,
+                directoryExtensions: null);
+        }
+
+        public bool Overlaps(OutputClaim other)
+        {
+            if (IsEmpty || other.IsEmpty)
+                return false;
+
+            if (_files is not null && other._files is not null)
+                return _files.Overlaps(other._files);
+
+            if (_files is not null && other._directory is not null)
+                return FilesOverlapDirectory(_files, other._directory, other._directoryExtensions);
+
+            if (_directory is not null && other._files is not null)
+                return FilesOverlapDirectory(other._files, _directory, _directoryExtensions);
+
+            if (_directory is not null && other._directory is not null)
+            {
+                var dirsOverlap = string.Equals(_directory, other._directory, StringComparison.OrdinalIgnoreCase)
+                    || IsChild(_directory, other._directory)
+                    || IsChild(other._directory, _directory);
+                if (!dirsOverlap)
+                    return false;
+
+                if (_directoryExtensions is null || other._directoryExtensions is null)
+                    return true;
+
+                return _directoryExtensions.Overlaps(other._directoryExtensions);
+            }
+
+            return false;
+        }
+
+        private static bool FilesOverlapDirectory(HashSet<string> files, string directory, HashSet<string>? allowedExtensions)
+        {
+            foreach (var file in files)
+            {
+                if (!string.Equals(file, directory, StringComparison.OrdinalIgnoreCase) && !IsChild(file, directory))
+                    continue;
+
+                if (allowedExtensions is null)
+                    return true;
+
+                var ext = Path.GetExtension(file);
+                if (!string.IsNullOrEmpty(ext) && allowedExtensions.Contains(ext))
+                    return true;
+            }
+
+            return false;
+        }
+
+        private static HashSet<string> GetDeewExtensions(DeewOptions? rawOptions)
+        {
+            var format = (rawOptions?.Format ?? "ddp").Trim().ToLowerInvariant();
+            return format switch
+            {
+                "dd" => new HashSet<string>(StringComparer.OrdinalIgnoreCase) { ".ac3" },
+                "ddp" or "ddp-atmos" => new HashSet<string>(StringComparer.OrdinalIgnoreCase) { ".ec3", ".eb3" },
+                "thd" or "thd-atmos" => new HashSet<string>(StringComparer.OrdinalIgnoreCase) { ".thd" },
+                "ac4" or "ac4-atmos" or "ac4-ims" => new HashSet<string>(StringComparer.OrdinalIgnoreCase) { ".ac4" },
+                "aac" => new HashSet<string>(StringComparer.OrdinalIgnoreCase) { ".aac" },
+                _ => AllDeewExtensions
+            };
+        }
     }
 
     private static void ValidateExecutionInput(TaskWorkload request)

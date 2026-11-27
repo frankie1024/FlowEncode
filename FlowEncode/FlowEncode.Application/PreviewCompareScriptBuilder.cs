@@ -80,6 +80,10 @@ public static class PreviewCompareScriptBuilder
         sb.AppendLine();
         sb.AppendLine($"clip_a = _flowencode_load_source({ToPythonStringLiteral(fullA)})");
         sb.AppendLine($"clip_b = _flowencode_load_source({ToPythonStringLiteral(fullB)})");
+        sb.AppendLine("__flowencode_output_names__ = {");
+        sb.AppendLine($"    0: {ToPythonStringLiteral(displayA)},");
+        sb.AppendLine($"    1: {ToPythonStringLiteral(displayB)},");
+        sb.AppendLine("}");
         sb.AppendLine("vs.clear_outputs()");
         sb.AppendLine("clip_a.set_output(0)");
         sb.AppendLine("clip_b.set_output(1)");

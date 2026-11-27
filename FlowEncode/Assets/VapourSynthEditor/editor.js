@@ -882,6 +882,10 @@ const NON_CLIP_VARIABLES = new Set(["core", "vs", "os", "sys", "math", "Path", "
 function collectModelClipVariables(model) {
     const vars = new Set();
     const importedNames = new Set();
+    const importedModules = new Map(); // moduleName -> alias
+    const importedSymbols = new Map(); // originalSymbol -> alias
+    let hasCore = false;
+    let lastImportLine = 0;
     let outputVar = "";
     let lastAssignedVar = "";
     const lineCount = model.getLineCount();
@@ -895,17 +899,36 @@ function collectModelClipVariables(model) {
 
         const importMatch = /^import\s+([A-Za-z_][A-Za-z0-9_\.]*)(?:\s+as\s+([A-Za-z_][A-Za-z0-9_]*))?/.exec(trimmed);
         if (importMatch) {
-            importedNames.add(importMatch[2] || importMatch[1].split(".")[0]);
+            const mod = importMatch[1];
+            const alias = importMatch[2] || mod.split(".")[0];
+            importedNames.add(alias);
+            importedModules.set(mod, alias);
+            lastImportLine = lineNum;
             continue;
         }
 
-        const fromMatch = /^from\s+[A-Za-z_][A-Za-z0-9_\.]*\s+import\s+(.+)$/.exec(trimmed);
+        const fromMatch = /^from\s+([A-Za-z_][A-Za-z0-9_\.]*)\s+import\s+(.+)$/.exec(trimmed);
         if (fromMatch) {
-            for (const part of fromMatch[1].split(",")) {
-                const alias = /\bas\s+([A-Za-z_][A-Za-z0-9_]*)/.exec(part);
-                const sym = alias ? alias[1] : part.trim().split(/\s+/)[0];
-                if (sym) importedNames.add(sym);
+            const mod = fromMatch[1];
+            lastImportLine = lineNum;
+            for (const part of fromMatch[2].split(",")) {
+                const entry = part.trim();
+                const aliasMatch = /^([A-Za-z_][A-Za-z0-9_]*)(?:\s+as\s+([A-Za-z_][A-Za-z0-9_]*))?/.exec(entry);
+                if (aliasMatch) {
+                    const orig = aliasMatch[1];
+                    const alias = aliasMatch[2] || orig;
+                    importedNames.add(alias);
+                    importedSymbols.set(orig, alias);
+                    if (mod === "vapoursynth" && alias === "core") {
+                        hasCore = true;
+                    }
+                }
             }
+            continue;
+        }
+
+        if (/^core\s*=/.test(trimmed)) {
+            hasCore = true;
             continue;
         }
 
@@ -926,6 +949,10 @@ function collectModelClipVariables(model) {
     return {
         vars,
         importedNames,
+        importedModules,
+        importedSymbols,
+        hasCore,
+        lastImportLine,
         activeVar: outputVar || lastAssignedVar || "clip"
     };
 }
@@ -1286,6 +1313,17 @@ function createEncodingSnippets(model, position, range, clipInfo) {
     const v = clipInfo.activeVar || "clip";
     const hasNs = (ns) => languageFeatureIndex.namespaceMap.has(ns);
     const hasPkg = (pkg) => languageFeatureIndex.installedPackages.has(pkg);
+    const vsAlias = clipInfo.importedModules?.get("vapoursynth") || "vs";
+    const hasVsImport = clipInfo.importedModules?.has("vapoursynth") === true;
+    const awfAlias = clipInfo.importedModules?.get("awsmfunc") || "awf";
+    const hafAlias = clipInfo.importedModules?.get("havsfunc") || "haf";
+    const rfsAlias = clipInfo.importedSymbols?.get("replace_ranges") || "replace_ranges";
+    const bm3dAlias = clipInfo.importedSymbols?.get("BM3D") || "BM3D";
+    const basedAaAlias = clipInfo.importedSymbols?.get("based_aa") || "based_aa";
+    const fineDehaloAlias = clipInfo.importedSymbols?.get("fine_dehalo") || "fine_dehalo";
+    const placeboDebandAlias = clipInfo.importedSymbols?.get("Placebo") || "Placebo";
+    const needsBaseClip = clipInfo.vars.size === 0;
+    const baseClipStub = `${v} = core.std.BlankClip(width=1920, height=1080, format=${vsAlias}.YUV420P8)\n`;
 
     const defs = [
         {
@@ -1299,6 +1337,7 @@ function createEncodingSnippets(model, position, range, clipInfo) {
             detail: "源加载: lsmas.LWLibavSource",
             ready: hasNs("lsmas"),
             req: "lsmas",
+            needsCore: true,
             body: `\${1:src} = core.lsmas.LWLibavSource(r"\${2:source.mkv}")`
         },
         {
@@ -1306,6 +1345,7 @@ function createEncodingSnippets(model, position, range, clipInfo) {
             detail: "源加载: ffms2.Source",
             ready: hasNs("ffms2"),
             req: "ffms2",
+            needsCore: true,
             body: `\${1:src} = core.ffms2.Source(r"\${2:source.mkv}")`
         },
         {
@@ -1313,6 +1353,7 @@ function createEncodingSnippets(model, position, range, clipInfo) {
             detail: "源加载: bs.VideoSource (BestSource)",
             ready: hasNs("bs"),
             req: "bestsource",
+            needsCore: true,
             body: `\${1:src} = core.bs.VideoSource(r"\${2:source.mkv}")`
         },
         {
@@ -1320,6 +1361,8 @@ function createEncodingSnippets(model, position, range, clipInfo) {
             detail: "升位至 16-bit (fmtc.bitdepth)",
             ready: hasNs("fmtc"),
             req: "fmtc",
+            needsCore: true,
+            usesActiveVar: true,
             body: `\${1:src16} = core.fmtc.bitdepth(${v}, bits=16)`
         },
         {
@@ -1327,6 +1370,8 @@ function createEncodingSnippets(model, position, range, clipInfo) {
             detail: "降位至 10-bit 误差扩散抖动 (fmtc.bitdepth)",
             ready: hasNs("fmtc"),
             req: "fmtc",
+            needsCore: true,
+            usesActiveVar: true,
             body: `\${1:out10} = core.fmtc.bitdepth(${v}, bits=10, dmode=\${2:3})`
         },
         {
@@ -1334,12 +1379,15 @@ function createEncodingSnippets(model, position, range, clipInfo) {
             detail: "降位至 8-bit 误差扩散抖动 (fmtc.bitdepth)",
             ready: hasNs("fmtc"),
             req: "fmtc",
+            needsCore: true,
+            usesActiveVar: true,
             body: `\${1:out8} = core.fmtc.bitdepth(${v}, bits=8, dmode=\${2:3})`
         },
         {
             label: "setprops",
             detail: "设置 BT.709 色彩帧属性 (std.SetFrameProps)",
             ready: hasNs("std"),
+            usesActiveVar: true,
             body: `${v} = ${v}.std.SetFrameProps(_Matrix=\${1:1}, _Transfer=\${2:1}, _Primaries=\${3:1}, _ColorRange=\${4:1})`
         },
         {
@@ -1347,20 +1395,36 @@ function createEncodingSnippets(model, position, range, clipInfo) {
             detail: "HDR 转 SDR 映射 (placebo.Tonemap)",
             ready: hasNs("placebo"),
             req: "placebo",
-            body: `${v} = core.placebo.Tonemap(${v}.resize.Spline36(format=vs.YUV444P16), src_csp=\${1:2}, dst_csp=0, target_peak=\${2:203.0}, tone_mapping_function=3)`
+            needsCore: true,
+            needsVs: true,
+            usesActiveVar: true,
+            body: `${v} = core.placebo.Tonemap(${v}.resize.Spline36(format=${vsAlias}.YUV444P16), src_csp=\${1:2}, dst_csp=0, target_peak=\${2:203.0}, tone_mapping_function=3)`
         },
         {
             label: "deband",
             detail: "去色带: placebo.Deband",
             ready: hasNs("placebo"),
             req: "placebo",
+            needsCore: true,
+            usesActiveVar: true,
             body: `${v} = core.placebo.Deband(${v}, iterations=\${1:1}, threshold=\${2:4.0}, radius=\${3:16.0}, grain=\${4:6.0})`
+        },
+        {
+            label: "vsdeband",
+            detail: "去色带: vsdeband.Placebo",
+            ready: hasPkg("vsdeband"),
+            req: "vsdeband",
+            fromImport: ["vsdeband", "Placebo"],
+            usesActiveVar: true,
+            body: `${v} = ${placeboDebandAlias}.deband(${v}, thr=\${1:2.0}, radius=\${2:16}, grain=\${3:4})`
         },
         {
             label: "f3kdb",
             detail: "去色带: neo_f3kdb.Deband",
             ready: hasNs("neo_f3kdb"),
             req: "neo_f3kdb",
+            needsCore: true,
+            usesActiveVar: true,
             body: `${v} = core.neo_f3kdb.Deband(${v}, range=\${1:15}, y=\${2:48}, cb=\${3:36}, cr=\${4:36}, grainy=\${5:24}, grainc=0)`
         },
         {
@@ -1368,6 +1432,8 @@ function createEncodingSnippets(model, position, range, clipInfo) {
             detail: "降噪: dfttest.DFTTest",
             ready: hasNs("dfttest"),
             req: "dfttest",
+            needsCore: true,
+            usesActiveVar: true,
             body: `${v} = core.dfttest.DFTTest(${v}, sigma=\${1:2.0})`
         },
         {
@@ -1375,8 +1441,11 @@ function createEncodingSnippets(model, position, range, clipInfo) {
             detail: "降噪: vsdenoise.BM3D / bm3dcuda",
             ready: hasPkg("vsdenoise") || hasNs("bm3dcuda") || hasNs("bm3d"),
             req: "vsdenoise / bm3d",
+            needsCore: !hasPkg("vsdenoise"),
+            fromImport: hasPkg("vsdenoise") ? ["vsdenoise", "BM3D"] : null,
+            usesActiveVar: true,
             body: hasPkg("vsdenoise")
-                ? `from vsdenoise import BM3D\n${v} = BM3D.denoise(${v}, sigma=\${1:1.5}, tr=\${2:2})`
+                ? `${v} = ${bm3dAlias}.denoise(${v}, sigma=\${1:1.5}, tr=\${2:2})`
                 : `${v} = core.bm3dcuda.BM3D(${v}, sigma=[\${1:1.5}, 0, 0], radius=\${2:2})`
         },
         {
@@ -1384,29 +1453,38 @@ function createEncodingSnippets(model, position, range, clipInfo) {
             detail: "边线修复: awsmfunc.bbmod",
             ready: hasPkg("awsmfunc"),
             req: "awsmfunc",
-            body: `${v} = awf.bbmod(${v}, top=\${1:2}, bottom=\${2:2}, left=\${3:2}, right=\${4:2}, thresh=\${5:32}, blur=\${6:20})`
+            moduleImport: ["awsmfunc", "awf"],
+            usesActiveVar: true,
+            body: `${v} = ${awfAlias}.bbmod(${v}, top=\${1:2}, bottom=\${2:2}, left=\${3:2}, right=\${4:2}, thresh=\${5:32}, blur=\${6:20})`
         },
         {
             label: "aa",
             detail: "抗锯齿: vsaa.based_aa",
             ready: hasPkg("vsaa") || hasPkg("vsjetpack"),
             req: "vsaa / vsjetpack",
-            body: `from vsaa import based_aa\n${v} = based_aa(${v}, rfactor=\${1:2.0})`
+            fromImport: ["vsaa", "based_aa"],
+            usesActiveVar: true,
+            body: `${v} = ${basedAaAlias}(${v}, rfactor=\${1:2.0})`
         },
         {
             label: "dehalo",
             detail: "去光晕: vsdehalo / havsfunc.FineDehalo",
             ready: hasPkg("vsdehalo") || hasPkg("havsfunc"),
             req: "vsdehalo / havsfunc",
+            fromImport: hasPkg("vsdehalo") ? ["vsdehalo", "fine_dehalo"] : null,
+            moduleImport: !hasPkg("vsdehalo") ? ["havsfunc", "haf"] : null,
+            usesActiveVar: true,
             body: hasPkg("vsdehalo")
-                ? `from vsdehalo import fine_dehalo\n${v} = fine_dehalo(${v}, rx=\${1:2.0}, ry=\${2:2.0})`
-                : `import havsfunc as haf\n${v} = haf.FineDehalo(${v}, rx=\${1:2.0}, ry=\${2:2.0})`
+                ? `${v} = ${fineDehaloAlias}(${v}, rx=\${1:2.0}, ry=\${2:2.0})`
+                : `${v} = ${hafAlias}.FineDehalo(${v}, rx=\${1:2.0}, ry=\${2:2.0})`
         },
         {
             label: "descale",
             detail: "逆缩放: descale.Debicubic",
             ready: hasNs("descale"),
             req: "descale",
+            needsCore: true,
+            usesActiveVar: true,
             body: `${v} = core.descale.Debicubic(${v}, width=\${1:1280}, height=\${2:720}, b=\${3:0.0}, c=\${4:0.5})`
         },
         {
@@ -1414,58 +1492,112 @@ function createEncodingSnippets(model, position, range, clipInfo) {
             detail: "反交错: havsfunc.QTGMC",
             ready: hasPkg("havsfunc"),
             req: "havsfunc",
-            body: `import havsfunc as haf\n${v} = haf.QTGMC(${v}, Preset="\${1:Slow}", TFF=\${2:True}, FPSDivisor=\${3:2})`
+            moduleImport: ["havsfunc", "haf"],
+            usesActiveVar: true,
+            body: `${v} = ${hafAlias}.QTGMC(${v}, Preset="\${1:Slow}", TFF=\${2:True}, FPSDivisor=\${3:2})`
         },
         {
             label: "ivtc",
             detail: "反胶片过带: vivtc.VFM + VDecimate",
             ready: hasNs("vivtc"),
             req: "vivtc",
+            needsCore: true,
+            usesActiveVar: true,
             body: `${v} = core.vivtc.VFM(${v}, order=\${1:1})\n${v} = core.vivtc.VDecimate(${v})`
         },
         {
             label: "edgemask",
             detail: "边缘遮罩合并: std.MaskedMerge",
             ready: hasNs("std"),
-            body: `mask = ${v}.std.Prewitt().std.Maximum()\n${v} = core.std.MaskedMerge(\${1:flt}, ${v}, mask)`
+            needsCore: true,
+            usesActiveVar: true,
+            body: clipInfo.vars.has("flt")
+                ? `mask = ${v}.std.Prewitt().std.Maximum()\n${v} = core.std.MaskedMerge(\${1:flt}, ${v}, mask)`
+                : `flt = ${v}  # 替换为滤镜处理\nmask = ${v}.std.Prewitt().std.Maximum()\n${v} = core.std.MaskedMerge(\${1:flt}, ${v}, mask)`
         },
         {
             label: "rfs",
             detail: "帧区间局部替换: vstools.replace_ranges",
             ready: hasPkg("vstools") || hasPkg("vsjetpack"),
             req: "vstools / vsjetpack",
-            body: `${v} = replace_ranges(${v}, \${1:flt}, [(\${2:0}, \${3:100})])`
+            fromImport: ["vstools", "replace_ranges"],
+            usesActiveVar: true,
+            body: clipInfo.vars.has("flt")
+                ? `${v} = ${rfsAlias}(${v}, \${1:flt}, [(\${2:0}, \${3:100})])`
+                : `flt = ${v}  # 替换为滤镜处理\n${v} = ${rfsAlias}(${v}, \${1:flt}, [(\${2:0}, \${3:100})])`
         },
         {
             label: "frameinfo",
             detail: "帧信息叠加: awsmfunc.FrameInfo",
             ready: hasPkg("awsmfunc"),
             req: "awsmfunc",
-            body: `${v} = awf.FrameInfo(${v}, title="\${1:Clip}")`
+            moduleImport: ["awsmfunc", "awf"],
+            usesActiveVar: true,
+            body: `${v} = ${awfAlias}.FrameInfo(${v}, title="\${1:Clip}")`
         },
         {
             label: "vscmp",
             detail: "双路输出对比骨架 (Output 0 vs Output 1)",
             ready: true,
-            body: `\${1:src}.set_output(0)\n\${2:flt}.set_output(1)`
+            usesActiveVar: true,
+            body: clipInfo.vars.has("flt")
+                ? `\${1:${v}}.set_output(0)\n\${2:flt}.set_output(1)`
+                : `flt = ${v}  # 替换为对比处理画面\n\${1:${v}}.set_output(0)\n\${2:flt}.set_output(1)`
         }
     ];
 
     const prefix = getWordRange(position);
     const typed = model.getValueInRange(prefix).toLowerCase();
+    const importInsertLine = clipInfo.lastImportLine > 0 ? clipInfo.lastImportLine + 1 : 1;
 
     return defs
         .filter((d) => typed.length === 0 || d.label.toLowerCase().startsWith(typed))
-        .map((d) => ({
-            label: d.label,
-            kind: monaco.languages.CompletionItemKind.Snippet,
-            detail: d.ready ? `${d.detail} ✓` : `${d.detail} [缺少 ${d.req}]`,
-            documentation: d.body.replace(/\$\{[0-9]+:([^}]*)\}/g, "$1").replace(/\$\{[0-9]+\}/g, ""),
-            insertText: d.body,
-            insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
-            sortText: `${d.ready ? "2" : "8"}-${d.label}`,
-            range
-        }));
+        .map((d) => {
+            const missingHeaderLines = [];
+            const needsRuntime = Boolean(d.needsCore || d.needsVs || (d.usesActiveVar && needsBaseClip));
+            if (needsRuntime && !hasVsImport && (d.needsVs || !clipInfo.hasCore || (d.usesActiveVar && needsBaseClip))) {
+                missingHeaderLines.push("import vapoursynth as vs");
+            }
+            if (d.moduleImport && !clipInfo.importedModules?.has(d.moduleImport[0])) {
+                missingHeaderLines.push(`import ${d.moduleImport[0]} as ${d.moduleImport[1]}`);
+            }
+            if (d.fromImport && !clipInfo.importedSymbols?.has(d.fromImport[1])) {
+                missingHeaderLines.push(`from ${d.fromImport[0]} import ${d.fromImport[1]}`);
+            }
+            if ((d.needsCore || (d.usesActiveVar && needsBaseClip)) && !clipInfo.hasCore) {
+                missingHeaderLines.push(`core = ${vsAlias}.core`);
+            }
+
+            let insertText = d.usesActiveVar && needsBaseClip ? (baseClipStub + d.body) : d.body;
+            let additionalTextEdits = undefined;
+
+            if (missingHeaderLines.length > 0) {
+                const headerBlock = missingHeaderLines.join("\n") + "\n";
+                if (importInsertLine < position.lineNumber) {
+                    additionalTextEdits = [{
+                        range: new monaco.Range(importInsertLine, 1, importInsertLine, 1),
+                        text: headerBlock
+                    }];
+                } else {
+                    insertText = headerBlock + insertText;
+                }
+            }
+
+            const item = {
+                label: d.label,
+                kind: monaco.languages.CompletionItemKind.Snippet,
+                detail: d.ready ? `${d.detail} ✓` : `${d.detail} [缺少 ${d.req}]`,
+                documentation: insertText.replace(/\$\{[0-9]+:([^}]*)\}/g, "$1").replace(/\$\{[0-9]+\}/g, ""),
+                insertText,
+                insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
+                sortText: `${d.ready ? "2" : "8"}-${d.label}`,
+                range
+            };
+            if (additionalTextEdits) {
+                item.additionalTextEdits = additionalTextEdits;
+            }
+            return item;
+        });
 }
 
 function buildMemberDocumentation(member) {

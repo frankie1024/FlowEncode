@@ -218,9 +218,43 @@ public sealed class SharedTaskCoordinatorTests
     public void DirectoryClaims_BlockOverlappingManualAndAiOutputs()
     {
         using var root = new TestRoot(); var tasks = new TaskCoordinator(new Settings());
-        var request = root.Audio() with { Audio = root.Audio().Audio! with { Mode = AudioProcessingMode.Ddp, OutputPath = Path.Combine(root.Path, "result") } };
-        tasks.Reserve(request);
-        Assert.ThrowsExactly<InvalidOperationException>(() => tasks.Reserve(root.Video(Path.Combine(root.Path, "result", "movie.264")), TaskOrigin.Mcp));
+        var resultDir = Path.Combine(root.Path, "result");
+        var ddpRequest = root.Audio() with { Audio = root.Audio().Audio! with { Mode = AudioProcessingMode.Ddp, OutputPath = resultDir } };
+        tasks.Reserve(ddpRequest);
+
+        // Same directory with overlapping DEEW DDP extension (.ec3) or another DEEW DDP task must be blocked.
+        var conflictingFile = root.Audio() with { Audio = root.Audio().Audio! with { Mode = AudioProcessingMode.Eac3To, OutputPath = Path.Combine(resultDir, "track.ec3") } };
+        Assert.ThrowsExactly<InvalidOperationException>(() => tasks.Reserve(conflictingFile, TaskOrigin.Mcp));
+
+        var secondDdp = root.Audio() with { Audio = root.Audio().Audio! with { Mode = AudioProcessingMode.Ddp, OutputPath = resultDir } };
+        Assert.ThrowsExactly<InvalidOperationException>(() => tasks.Reserve(secondDdp, TaskOrigin.Mcp));
+    }
+
+    [TestMethod]
+    public void SameDirectory_NonOverlappingVideoAndDeewAudioTasks_AreAllowed()
+    {
+        using var root = new TestRoot(); var tasks = new TaskCoordinator(new Settings());
+        var projectDir = Path.Combine(root.Path, "project");
+        Directory.CreateDirectory(projectDir);
+
+        // Video encode writing movie.265 into projectDir does NOT conflict with DEEW audio in projectDir.
+        var video = root.Video(Path.Combine(projectDir, "movie.265"));
+        tasks.Reserve(video);
+
+        var deewDdp = root.Audio() with { Audio = root.Audio().Audio! with { Mode = AudioProcessingMode.Ddp, OutputPath = projectDir, Deew = new DeewOptions(Format: "ddp") } };
+        var ddpReceipt = tasks.Reserve(deewDdp);
+        Assert.AreEqual(deewDdp.TaskId, ddpReceipt.TaskId);
+
+        // A different DEEW format (TrueHD -> .thd) and a measure-only DEEW task in the same directory also do not collide.
+        var deewThd = root.Audio() with { Audio = root.Audio().Audio! with { Mode = AudioProcessingMode.Ddp, OutputPath = projectDir, Deew = new DeewOptions(Format: "thd") } };
+        Assert.AreEqual(deewThd.TaskId, tasks.Reserve(deewThd).TaskId);
+
+        var deewMeasure = root.Audio() with { Audio = root.Audio().Audio! with { Mode = AudioProcessingMode.Ddp, OutputPath = projectDir, Deew = new DeewOptions(MeasureOnly: true) } };
+        Assert.AreEqual(deewMeasure.TaskId, tasks.Reserve(deewMeasure).TaskId);
+
+        // Conversely, starting another video encode (different filename) while DEEW is active in the same folder is allowed.
+        var video2 = root.Video(Path.Combine(projectDir, "movie_av1.ivf"));
+        Assert.AreEqual(video2.TaskId, tasks.Reserve(video2).TaskId);
     }
 
     [TestMethod]

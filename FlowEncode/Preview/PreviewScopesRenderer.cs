@@ -2,6 +2,7 @@ using System;
 using System.Numerics;
 using Microsoft.Graphics.Canvas;
 using Microsoft.Graphics.Canvas.Geometry;
+using Microsoft.Graphics.Canvas.Text;
 using Windows.UI;
 
 namespace FlowEncode;
@@ -15,6 +16,12 @@ internal enum PreviewScopeKind
 
 internal static class PreviewScopesRenderer
 {
+    private static readonly CanvasTextFormat AxisLabelFormat = new()
+    {
+        FontSize = 11f,
+        FontFamily = "Cascadia Code, Consolas, Segoe UI"
+    };
+
     public static void Render(
         CanvasDrawingSession session,
         float width,
@@ -62,9 +69,9 @@ internal static class PreviewScopesRenderer
         var histB = new int[256];
         var histY = new int[256];
 
-        // Subsample so even 4K frames compute in < 2ms.
-        var stepX = Math.Max(1, frameWidth / 320);
-        var stepY = Math.Max(1, frameHeight / 180);
+        // Subsample so even 4K frames compute in < 3ms.
+        var stepX = Math.Max(1, frameWidth / 400);
+        var stepY = Math.Max(1, frameHeight / 225);
 
         for (var y = 0; y < frameHeight; y += stepY)
         {
@@ -93,29 +100,42 @@ internal static class PreviewScopesRenderer
             peak = Math.Max(peak, histB[i]);
         }
 
-        var padX = 8f;
-        var padY = 8f;
-        var plotW = Math.Max(1f, width - padX * 2f);
-        var plotH = Math.Max(1f, height - padY * 2f);
+        var padLeft = 14f;
+        var padRight = 14f;
+        var padTop = 14f;
+        var padBottom = 24f;
+        var plotW = Math.Max(1f, width - padLeft - padRight);
+        var plotH = Math.Max(1f, height - padTop - padBottom);
 
-        // Legal range guide lines (16 & 235)
-        var x16 = padX + (16f / 255f) * plotW;
-        var x235 = padX + (235f / 255f) * plotW;
-        var guideColor = Color.FromArgb(72, 255, 255, 255);
-        session.DrawLine(x16, padY, x16, padY + plotH, guideColor, 1f);
-        session.DrawLine(x235, padY, x235, padY + plotH, guideColor, 1f);
-
-        // Horizontal grid lines
+        // Background frame and horizontal grid lines
+        session.DrawRectangle(padLeft, padTop, plotW, plotH, Color.FromArgb(45, 255, 255, 255), 1f);
         for (var g = 1; g <= 3; g++)
         {
-            var gy = padY + plotH * (g / 4f);
-            session.DrawLine(padX, gy, padX + plotW, gy, Color.FromArgb(35, 255, 255, 255), 1f);
+            var gy = padTop + plotH * (g / 4f);
+            session.DrawLine(padLeft, gy, padLeft + plotW, gy, Color.FromArgb(32, 255, 255, 255), 1f);
         }
 
-        DrawHistogramCurve(session, histB, peak, padX, padY, plotW, plotH, Color.FromArgb(140, 80, 155, 255), fill: false);
-        DrawHistogramCurve(session, histG, peak, padX, padY, plotW, plotH, Color.FromArgb(140, 80, 225, 130), fill: false);
-        DrawHistogramCurve(session, histR, peak, padX, padY, plotW, plotH, Color.FromArgb(140, 255, 95, 95), fill: false);
-        DrawHistogramCurve(session, histY, peak, padX, padY, plotW, plotH, Color.FromArgb(170, 235, 240, 248), fill: true);
+        // Legal range (16 & 235) and midpoint (128) guides
+        var x16 = padLeft + (16f / 255f) * plotW;
+        var x128 = padLeft + (128f / 255f) * plotW;
+        var x235 = padLeft + (235f / 255f) * plotW;
+        session.DrawLine(x16, padTop, x16, padTop + plotH, Color.FromArgb(110, 90, 185, 255), 1f);
+        session.DrawLine(x128, padTop, x128, padTop + plotH, Color.FromArgb(40, 255, 255, 255), 1f);
+        session.DrawLine(x235, padTop, x235, padTop + plotH, Color.FromArgb(110, 255, 105, 105), 1f);
+
+        DrawHistogramCurve(session, histB, peak, padLeft, padTop, plotW, plotH, Color.FromArgb(170, 80, 160, 255), fill: false);
+        DrawHistogramCurve(session, histG, peak, padLeft, padTop, plotW, plotH, Color.FromArgb(170, 80, 230, 135), fill: false);
+        DrawHistogramCurve(session, histR, peak, padLeft, padTop, plotW, plotH, Color.FromArgb(170, 255, 95, 95), fill: false);
+        DrawHistogramCurve(session, histY, peak, padLeft, padTop, plotW, plotH, Color.FromArgb(205, 240, 244, 250), fill: true);
+
+        // Bottom scale labels
+        var labelY = padTop + plotH + 4f;
+        var labelColor = Color.FromArgb(165, 210, 220, 235);
+        session.DrawText("0", padLeft, labelY, labelColor, AxisLabelFormat);
+        session.DrawText("16", x16 + 2f, labelY, Color.FromArgb(190, 110, 195, 255), AxisLabelFormat);
+        session.DrawText("128", x128 - 10f, labelY, labelColor, AxisLabelFormat);
+        session.DrawText("235", x235 - 24f, labelY, Color.FromArgb(190, 255, 125, 125), AxisLabelFormat);
+        session.DrawText("255", padLeft + plotW - 22f, labelY, labelColor, AxisLabelFormat);
     }
 
     private static void DrawHistogramCurve(
@@ -145,14 +165,14 @@ internal static class PreviewScopesRenderer
             builder.AddLine(padX + plotW, bottomY);
             builder.EndFigure(CanvasFigureLoop.Closed);
             using var geometry = CanvasGeometry.CreatePath(builder);
-            session.FillGeometry(geometry, Color.FromArgb(52, color.R, color.G, color.B));
-            session.DrawGeometry(geometry, color, 1.15f);
+            session.FillGeometry(geometry, Color.FromArgb(58, color.R, color.G, color.B));
+            session.DrawGeometry(geometry, color, 1.5f);
         }
         else
         {
             builder.EndFigure(CanvasFigureLoop.Open);
             using var geometry = CanvasGeometry.CreatePath(builder);
-            session.DrawGeometry(geometry, color, 1.1f);
+            session.DrawGeometry(geometry, color, 1.35f);
         }
     }
 
@@ -164,16 +184,18 @@ internal static class PreviewScopesRenderer
         int frameWidth,
         int frameHeight)
     {
-        var padX = 8f;
-        var padY = 8f;
-        var plotW = Math.Max(1f, width - padX * 2f);
-        var plotH = Math.Max(1f, height - padY * 2f);
+        var padLeft = 32f;
+        var padRight = 12f;
+        var padTop = 14f;
+        var padBottom = 14f;
+        var plotW = Math.Max(1f, width - padLeft - padRight);
+        var plotH = Math.Max(1f, height - padTop - padBottom);
 
-        const int cols = 160;
-        const int rows = 128;
+        const int cols = 240;
+        const int rows = 180;
         var density = new int[cols * rows];
         var stepX = Math.Max(1, frameWidth / cols);
-        var stepY = Math.Max(1, frameHeight / 180);
+        var stepY = Math.Max(1, frameHeight / 240);
         var maxDensity = 1;
 
         for (var y = 0; y < frameHeight; y += stepY)
@@ -194,19 +216,28 @@ internal static class PreviewScopesRenderer
             }
         }
 
-        // Legal range horizontal guides (16 and 235)
-        var y16 = padY + plotH * (1f - 16f / 255f);
-        var y235 = padY + plotH * (1f - 235f / 255f);
-        session.DrawLine(padX, y16, padX + plotW, y16, Color.FromArgb(90, 90, 185, 255), 1f);
-        session.DrawLine(padX, y235, padX + plotW, y235, Color.FromArgb(90, 255, 105, 105), 1f);
+        // Border and horizontal grid lines
+        session.DrawRectangle(padLeft, padTop, plotW, plotH, Color.FromArgb(45, 255, 255, 255), 1f);
+        var y16 = padTop + plotH * (1f - 16f / 255f);
+        var y128 = padTop + plotH * (1f - 128f / 255f);
+        var y235 = padTop + plotH * (1f - 235f / 255f);
+        session.DrawLine(padLeft, y16, padLeft + plotW, y16, Color.FromArgb(115, 90, 185, 255), 1f);
+        session.DrawLine(padLeft, y128, padLeft + plotW, y128, Color.FromArgb(40, 255, 255, 255), 1f);
+        session.DrawLine(padLeft, y235, padLeft + plotW, y235, Color.FromArgb(115, 255, 105, 105), 1f);
 
-        var cellW = Math.Max(1.2f, plotW / cols);
-        var cellH = Math.Max(1.2f, plotH / rows);
+        session.DrawText("255", 4f, padTop - 4f, Color.FromArgb(150, 200, 210, 225), AxisLabelFormat);
+        session.DrawText("235", 4f, y235 - 7f, Color.FromArgb(190, 255, 125, 125), AxisLabelFormat);
+        session.DrawText("128", 4f, y128 - 7f, Color.FromArgb(145, 200, 210, 225), AxisLabelFormat);
+        session.DrawText("16", 8f, y16 - 7f, Color.FromArgb(190, 110, 195, 255), AxisLabelFormat);
+        session.DrawText("0", 12f, padTop + plotH - 10f, Color.FromArgb(150, 200, 210, 225), AxisLabelFormat);
+
+        var cellW = Math.Max(1.6f, plotW / cols);
+        var cellH = Math.Max(1.6f, plotH / rows);
         var logMax = Math.Log(1.0 + maxDensity);
 
         for (var ry = 0; ry < rows; ry++)
         {
-            var drawY = padY + plotH - ((ry + 1) / (float)rows) * plotH;
+            var drawY = padTop + plotH - ((ry + 1) / (float)rows) * plotH;
             var rowBase = ry * cols;
             for (var cx = 0; cx < cols; cx++)
             {
@@ -216,10 +247,10 @@ internal static class PreviewScopesRenderer
                     continue;
                 }
 
-                var intensity = Math.Clamp(Math.Log(1.0 + count) / logMax, 0.15, 1.0);
-                var alpha = (byte)(intensity * 235);
-                var drawX = padX + (cx / (float)cols) * plotW;
-                session.FillRectangle(drawX, drawY, cellW, cellH, Color.FromArgb(alpha, 120, 230, 175));
+                var intensity = Math.Clamp(Math.Log(1.0 + count) / logMax, 0.22, 1.0);
+                var alpha = (byte)(intensity * 245);
+                var drawX = padLeft + (cx / (float)cols) * plotW;
+                session.FillRectangle(drawX, drawY, cellW, cellH, Color.FromArgb(alpha, 110, 238, 175));
             }
         }
     }
@@ -234,22 +265,31 @@ internal static class PreviewScopesRenderer
     {
         var centerX = width / 2f;
         var centerY = height / 2f;
-        var radius = Math.Max(12f, Math.Min(width, height) / 2f - 12f);
+        var radius = Math.Max(16f, Math.Min(width, height) / 2f - 18f);
 
         // Outer graticule and axes
-        var gridColor = Color.FromArgb(65, 255, 255, 255);
-        session.DrawCircle(centerX, centerY, radius, gridColor, 1f);
-        session.DrawCircle(centerX, centerY, radius * 0.5f, Color.FromArgb(35, 255, 255, 255), 1f);
+        var gridColor = Color.FromArgb(75, 255, 255, 255);
+        session.DrawCircle(centerX, centerY, radius, gridColor, 1.2f);
+        session.DrawCircle(centerX, centerY, radius * 0.75f, Color.FromArgb(38, 255, 255, 255), 1f);
+        session.DrawCircle(centerX, centerY, radius * 0.5f, Color.FromArgb(38, 255, 255, 255), 1f);
         session.DrawLine(centerX - radius, centerY, centerX + radius, centerY, gridColor, 1f);
         session.DrawLine(centerX, centerY - radius, centerX, centerY + radius, gridColor, 1f);
 
-        const int grid = 128;
+        // BT.709 75% color bar target markers (R, Mg, B, Cy, G, Yl)
+        DrawVectorTarget(session, centerX, centerY, radius, -0.1146, 0.5000, "R", Color.FromArgb(200, 255, 95, 95));
+        DrawVectorTarget(session, centerX, centerY, radius, 0.3854, 0.4542, "Mg", Color.FromArgb(200, 240, 110, 255));
+        DrawVectorTarget(session, centerX, centerY, radius, 0.5000, -0.0458, "B", Color.FromArgb(200, 95, 165, 255));
+        DrawVectorTarget(session, centerX, centerY, radius, 0.1146, -0.5000, "Cy", Color.FromArgb(200, 85, 235, 245));
+        DrawVectorTarget(session, centerX, centerY, radius, -0.3854, -0.4542, "G", Color.FromArgb(200, 90, 235, 130));
+        DrawVectorTarget(session, centerX, centerY, radius, -0.5000, 0.0458, "Yl", Color.FromArgb(200, 250, 230, 85));
+
+        const int grid = 160;
         var density = new int[grid * grid];
         var sumR = new int[grid * grid];
         var sumG = new int[grid * grid];
         var sumB = new int[grid * grid];
-        var stepX = Math.Max(1, frameWidth / 240);
-        var stepY = Math.Max(1, frameHeight / 160);
+        var stepX = Math.Max(1, frameWidth / 300);
+        var stepY = Math.Max(1, frameHeight / 200);
         var maxDensity = 1;
 
         for (var y = 0; y < frameHeight; y += stepY)
@@ -284,7 +324,7 @@ internal static class PreviewScopesRenderer
         }
 
         var logMax = Math.Log(1.0 + maxDensity);
-        var dotSize = Math.Max(1.5f, (radius * 2f) / grid);
+        var dotSize = Math.Max(2.0f, (radius * 2f) / grid);
         for (var gy = 0; gy < grid; gy++)
         {
             var rowBase = gy * grid;
@@ -300,34 +340,28 @@ internal static class PreviewScopesRenderer
 
                 var px = centerX + (((gx / (float)(grid - 1)) - 0.5f) * 2f) * radius;
                 var intensity = Math.Clamp(Math.Log(1.0 + count) / logMax, 0.25, 1.0);
-                var avgR = (byte)Math.Clamp(sumR[idx] / count + 40, 0, 255);
-                var avgG = (byte)Math.Clamp(sumG[idx] / count + 40, 0, 255);
-                var avgB = (byte)Math.Clamp(sumB[idx] / count + 40, 0, 255);
-                session.FillRectangle(px - dotSize / 2f, py - dotSize / 2f, dotSize, dotSize,
-                    Color.FromArgb((byte)(intensity * 235), avgR, avgG, avgB));
+                var alpha = (byte)(intensity * 245);
+                var avgR = (byte)Math.Clamp(sumR[idx] / count + 45, 75, 255);
+                var avgG = (byte)Math.Clamp(sumG[idx] / count + 45, 75, 255);
+                var avgB = (byte)Math.Clamp(sumB[idx] / count + 45, 75, 255);
+                session.FillRectangle(px - dotSize / 2f, py - dotSize / 2f, dotSize, dotSize, Color.FromArgb(alpha, avgR, avgG, avgB));
             }
         }
-
-        // Primary 75% saturation target markers (R, Mg, B, Cy, G, Yl)
-        DrawChromaTarget(session, centerX, centerY, radius, -0.1146, 0.5000, Color.FromArgb(190, 255, 85, 85));
-        DrawChromaTarget(session, centerX, centerY, radius, 0.3854, 0.4542, Color.FromArgb(190, 255, 95, 220));
-        DrawChromaTarget(session, centerX, centerY, radius, 0.5000, -0.0458, Color.FromArgb(190, 95, 155, 255));
-        DrawChromaTarget(session, centerX, centerY, radius, 0.1146, -0.5000, Color.FromArgb(190, 85, 235, 245));
-        DrawChromaTarget(session, centerX, centerY, radius, -0.3854, -0.4542, Color.FromArgb(190, 85, 235, 120));
-        DrawChromaTarget(session, centerX, centerY, radius, -0.5000, 0.0458, Color.FromArgb(190, 250, 230, 85));
     }
 
-    private static void DrawChromaTarget(
+    private static void DrawVectorTarget(
         CanvasDrawingSession session,
-        float cx,
-        float cy,
+        float centerX,
+        float centerY,
         float radius,
         double cb,
         double cr,
+        string label,
         Color color)
     {
-        var x = cx + (float)(cb * 1.5 * radius);
-        var y = cy - (float)(cr * 1.5 * radius);
-        session.DrawRectangle(x - 3.5f, y - 3.5f, 7f, 7f, color, 1.2f);
+        var tx = centerX + (float)(cb * 1.5 * radius);
+        var ty = centerY - (float)(cr * 1.5 * radius);
+        session.DrawRectangle(tx - 5f, ty - 5f, 10f, 10f, color, 1.1f);
+        session.DrawText(label, tx + 7f, ty - 7f, color, AxisLabelFormat);
     }
 }

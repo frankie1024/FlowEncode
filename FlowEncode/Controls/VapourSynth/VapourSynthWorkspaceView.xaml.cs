@@ -766,7 +766,12 @@ public sealed partial class VapourSynthWorkspaceView : UserControl, IDisposable
             requiredNamespace: "std"));
         depthSub.Items.Add(MakeFilterItem(
             texts.VapourSynthSmartHdrTonemapItem,
-            s => VapourSynthSmartScriptEditor.ApplyFilterTemplate(s, 0, "core.placebo.Tonemap({var}.resize.Spline36(format=vs.YUV444P16), src_csp=2, dst_csp=0, target_peak=203.0, tone_mapping_function=3)"),
+            s => VapourSynthSmartScriptEditor.ApplyFilterTemplate(
+                s,
+                0,
+                "core.placebo.Tonemap({var}.resize.Spline36(format={alias}.YUV444P16), src_csp=2, dst_csp=0, target_peak=203.0, tone_mapping_function=3)",
+                importModule: "vapoursynth",
+                importAlias: "vs"),
             requiredNamespace: "placebo"));
         SmartInsertMenuFlyout.Items.Add(depthSub);
 
@@ -864,14 +869,11 @@ public sealed partial class VapourSynthWorkspaceView : UserControl, IDisposable
         var maskSub = new MenuFlyoutSubItem { Text = texts.VapourSynthSmartCategoryMaskDebug };
         maskSub.Items.Add(MakeFilterItem(
             texts.VapourSynthSmartMaskedMergeItem,
-            s => VapourSynthSmartScriptEditor.ApplyMultiLineFilterTemplate(
-                s,
-                0,
-                ["mask = {var}.std.Prewitt().std.Maximum()", "{var} = core.std.MaskedMerge(flt, {var}, mask)"]),
+            s => VapourSynthSmartScriptEditor.ApplyMaskedMerge(s, 0),
             requiredNamespace: "std"));
         maskSub.Items.Add(MakeFilterItem(
             texts.VapourSynthSmartReplaceRangesItem,
-            s => VapourSynthSmartScriptEditor.ApplyFilterTemplate(s, 0, "replace_ranges({var}, flt, [(0, 100)])", fromModule: "vstools", fromSymbol: "replace_ranges"),
+            s => VapourSynthSmartScriptEditor.ApplyReplaceRanges(s, 0, [new PreviewSceneRange(0, 100)]),
             requiredPackage: "vstools"));
         maskSub.Items.Add(MakeFilterItem(
             texts.VapourSynthSmartFrameInfoItem,

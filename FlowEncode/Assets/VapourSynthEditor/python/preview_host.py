@@ -309,6 +309,11 @@ class PreviewSession:
 
     def describe_outputs(self):
         descriptions = []
+        custom_names = self.namespace.get("__flowencode_output_names__")
+        if not isinstance(custom_names, dict):
+            custom_names = {}
+        fe_before = self.namespace.get("_fe_before")
+        fe_after = self.namespace.get("_fe_after")
 
         for index, output in self.video_outputs.items():
             clip = output.clip
@@ -324,10 +329,19 @@ class PreviewSession:
             except Exception:
                 pass
 
+            output_name = custom_names.get(int(index)) or custom_names.get(str(index))
+            if not output_name:
+                if fe_before is not None and clip is fe_before:
+                    output_name = "Before"
+                elif fe_after is not None and clip is fe_after:
+                    output_name = "After"
+                else:
+                    output_name = f"Output {index}"
+
             descriptions.append(
                 {
                     "index": int(index),
-                    "name": f"Output {index}",
+                    "name": str(output_name),
                     "width": int(clip.width),
                     "height": int(clip.height),
                     "totalFrames": int(clip.num_frames),

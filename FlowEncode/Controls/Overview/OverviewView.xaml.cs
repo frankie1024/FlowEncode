@@ -926,11 +926,13 @@ public sealed partial class OverviewView : UserControl
             return;
         }
 
-        await App.GetService<MainWindow>().OpenQuickComparePreviewAsync(
+        var mainWindow = App.GetService<MainWindow>();
+        var texts = ViewModel?.Texts ?? mainWindow.ViewModel.Texts;
+        await mainWindow.OpenQuickComparePreviewAsync(
             job.SourcePath,
             job.OutputPath,
-            Path.GetFileName(job.SourcePath),
-            Path.GetFileName(job.OutputPath));
+            texts.CompareSourceOutputLabel(Path.GetFileName(job.SourcePath)),
+            texts.CompareEncodedOutputLabel(Path.GetFileName(job.OutputPath)));
     }
 
     private static MenuFlyoutItem CreateMenuItem(string text, Symbol icon, RoutedEventHandler click, EncodingJobItemViewModel job, bool isEnabled = true)
