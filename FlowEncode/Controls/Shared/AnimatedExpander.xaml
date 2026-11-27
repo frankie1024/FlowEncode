@@ -13,6 +13,11 @@
                         <Setter Target="HeaderBorder.Background" Value="{ThemeResource SubtleFillColorSecondaryBrush}" />
                     </VisualState.Setters>
                 </VisualState>
+                <VisualState x:Name="Pressed">
+                    <VisualState.Setters>
+                        <Setter Target="HeaderBorder.Background" Value="{ThemeResource SubtleFillColorTertiaryBrush}" />
+                    </VisualState.Setters>
+                </VisualState>
             </VisualStateGroup>
         </VisualStateManager.VisualStateGroups>
         <Grid.RowDefinitions>
@@ -22,13 +27,16 @@
 
         <Border
             x:Name="HeaderBorder"
-            Background="Transparent"
+            Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
             BorderBrush="{ThemeResource CardBorderBrush}"
             BorderThickness="{StaticResource AppCardBorderThickness}"
-            CornerRadius="{StaticResource AppControlCornerRadius}"
+            CornerRadius="{StaticResource AppCardCornerRadius}"
             Tapped="HeaderBorder_Tapped"
             PointerEntered="HeaderBorder_PointerEntered"
-            PointerExited="HeaderBorder_PointerExited">
+            PointerExited="HeaderBorder_PointerExited"
+            PointerPressed="HeaderBorder_PointerPressed"
+            PointerReleased="HeaderBorder_PointerReleased"
+            PointerCanceled="HeaderBorder_PointerCanceled">
             <Border.BackgroundTransition>
                 <BrushTransition Duration="0:0:0.12" />
             </Border.BackgroundTransition>
@@ -51,10 +59,12 @@
                     Grid.Column="1"
                     Click="ChevronButton_Click"
                     Style="{StaticResource IconButtonStyle}"
+                    Background="Transparent"
+                    BorderThickness="0"
                     VerticalAlignment="Center">
                     <FontIcon
                         x:Name="ChevronIcon"
-                        FontSize="{StaticResource AppBodyFontSize}"
+                        FontSize="12"
                         Glyph="&#xE70D;" />
                 </Button>
             </Grid>
@@ -64,10 +74,10 @@
             x:Name="ContentBorder"
             Grid.Row="1"
             Margin="0,-1,0,0"
-            Background="Transparent"
+            Background="{ThemeResource CardBackgroundFillColorSecondaryBrush}"
             BorderBrush="{ThemeResource CardBorderBrush}"
             BorderThickness="{StaticResource AppCardBorderThickness}"
-            CornerRadius="0,0,6,6"
+            CornerRadius="0,0,8,8"
             Visibility="Collapsed">
             <Grid
                 x:Name="ContentClipHost"

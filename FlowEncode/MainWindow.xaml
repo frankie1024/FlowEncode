@@ -11,7 +11,7 @@
     Title="FlowEncode"
     mc:Ignorable="d">
     <Window.SystemBackdrop>
-        <MicaBackdrop Kind="BaseAlt" />
+        <MicaBackdrop Kind="Base" />
     </Window.SystemBackdrop>
 
     <Grid x:Name="RootLayout" AllowDrop="True" Background="Transparent" DragOver="RootLayout_DragOver" DragLeave="RootLayout_DragLeave" Drop="RootLayout_Drop">
@@ -55,10 +55,10 @@
         <Grid
             x:Name="DragDropOverlay"
             Grid.Row="1"
-            Background="{ThemeResource AppModalSmokeBrush}"
             Canvas.ZIndex="15"
             IsHitTestVisible="False"
             Visibility="Collapsed">
+            <Border Background="{ThemeResource AppModalSmokeBrush}" />
             <Border
                 shared:UiElevation.Level="E3"
                 shared:UiMotion.AnimateOnVisible="True"

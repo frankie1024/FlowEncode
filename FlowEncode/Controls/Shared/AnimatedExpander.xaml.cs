@@ -44,13 +44,13 @@ public sealed partial class AnimatedExpander : UserControl
         nameof(HeaderPadding),
         typeof(Thickness),
         typeof(AnimatedExpander),
-        new PropertyMetadata(new Thickness(12, 4, 8, 4)));
+        new PropertyMetadata(new Thickness(12, 6, 8, 6)));
 
     public static readonly DependencyProperty ContentMarginProperty = DependencyProperty.Register(
         nameof(ContentMargin),
         typeof(Thickness),
         typeof(AnimatedExpander),
-        new PropertyMetadata(new Thickness(0, 8, 0, 0)));
+        new PropertyMetadata(new Thickness(12, 10, 12, 12)));
 
     public AnimatedExpander()
     {
@@ -125,13 +125,38 @@ public sealed partial class AnimatedExpander : UserControl
         ToggleExpansion();
     }
 
+    private bool _isHeaderPointerOver;
+
     private void HeaderBorder_PointerEntered(object sender, PointerRoutedEventArgs e)
     {
+        _isHeaderPointerOver = true;
         VisualStateManager.GoToState(this, "Hovered", UiMotionPolicy.AreCustomAnimationsEnabled());
     }
 
     private void HeaderBorder_PointerExited(object sender, PointerRoutedEventArgs e)
     {
+        _isHeaderPointerOver = false;
+        VisualStateManager.GoToState(this, "Resting", UiMotionPolicy.AreCustomAnimationsEnabled());
+    }
+
+    private void HeaderBorder_PointerPressed(object sender, PointerRoutedEventArgs e)
+    {
+        if (!ShouldToggleForOriginalSource(e.OriginalSource))
+        {
+            return;
+        }
+
+        VisualStateManager.GoToState(this, "Pressed", UiMotionPolicy.AreCustomAnimationsEnabled());
+    }
+
+    private void HeaderBorder_PointerReleased(object sender, PointerRoutedEventArgs e)
+    {
+        VisualStateManager.GoToState(this, _isHeaderPointerOver ? "Hovered" : "Resting", UiMotionPolicy.AreCustomAnimationsEnabled());
+    }
+
+    private void HeaderBorder_PointerCanceled(object sender, PointerRoutedEventArgs e)
+    {
+        _isHeaderPointerOver = false;
         VisualStateManager.GoToState(this, "Resting", UiMotionPolicy.AreCustomAnimationsEnabled());
     }
 
@@ -431,8 +456,8 @@ public sealed partial class AnimatedExpander : UserControl
     private void UpdateHeaderCornerRadius(bool isExpanded)
     {
         HeaderBorder.CornerRadius = isExpanded
-            ? new CornerRadius(6, 6, 0, 0)
-            : new CornerRadius(6);
+            ? new CornerRadius(8, 8, 0, 0)
+            : new CornerRadius(8);
         UpdateChevronAccessibility(isExpanded);
     }
 

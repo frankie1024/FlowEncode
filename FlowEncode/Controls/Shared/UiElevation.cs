@@ -66,30 +66,37 @@ public static class UiElevation
 
     private static void ApplyElevation(FrameworkElement element, UiElevationLevel level)
     {
-        element.Shadow = ResolveShadow(level);
+        if (level == UiElevationLevel.E0 || UiMotionPolicy.IsHighContrastEnabled())
+        {
+            if (element.Shadow is ThemeShadow existingShadow)
+            {
+                existingShadow.Receivers.Clear();
+            }
+
+            element.Shadow = null;
+            var current = element.Translation;
+            element.Translation = new Vector3(current.X, current.Y, 0f);
+            return;
+        }
+
+        var shadow = element.Shadow as ThemeShadow ?? new ThemeShadow();
+        if (element.Parent is Microsoft.UI.Xaml.Controls.Panel panel)
+        {
+            var elementIndex = panel.Children.IndexOf(element);
+            if (elementIndex > 0 && panel.Children[elementIndex - 1] is UIElement siblingReceiver)
+            {
+                if (shadow.Receivers.Count != 1 || !ReferenceEquals(shadow.Receivers[0], siblingReceiver))
+                {
+                    shadow.Receivers.Clear();
+                    shadow.Receivers.Add(siblingReceiver);
+                }
+            }
+        }
+
+        element.Shadow = shadow;
 
         var translation = element.Translation;
         element.Translation = new Vector3(translation.X, translation.Y, ResolveTranslationZ(element, level));
-    }
-
-    private static Shadow? ResolveShadow(UiElevationLevel level)
-    {
-        var resourceKey = level switch
-        {
-            UiElevationLevel.E1 => "ElevationShadowE1",
-            UiElevationLevel.E2 => "ElevationShadowE2",
-            UiElevationLevel.E3 => "ElevationShadowE3",
-            _ => null
-        };
-
-        if (resourceKey is null
-            || UiMotionPolicy.IsHighContrastEnabled()
-            || Microsoft.UI.Xaml.Application.Current?.Resources.TryGetValue(resourceKey, out var resource) != true)
-        {
-            return null;
-        }
-
-        return resource as Shadow;
     }
 
     private static float ResolveTranslationZ(FrameworkElement element, UiElevationLevel level)

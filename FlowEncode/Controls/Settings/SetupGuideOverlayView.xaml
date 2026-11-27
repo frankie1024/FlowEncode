@@ -10,11 +10,12 @@
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
     mc:Ignorable="d"
     IsTabStop="True">
-        <Grid Background="{ThemeResource AppModalSmokeBrush}">
-        <Grid Padding="{StaticResource AppCardPadding}">
-            <Border
-                x:Name="SetupGuideDialogCard"
-                MaxWidth="1160"
+        <Grid>
+        <Border Background="{ThemeResource AppModalSmokeBrush}" />
+        <Border
+            x:Name="SetupGuideDialogCard"
+            Margin="{StaticResource AppCardPadding}"
+            MaxWidth="1160"
                 Padding="{StaticResource AppDialogPadding}"
                 HorizontalAlignment="Center"
                 VerticalAlignment="Center"
@@ -196,11 +197,9 @@
                         </Grid.ColumnDefinitions>
 
                         <Button
+                            Style="{StaticResource ActionBarSecondaryButtonStyle}"
                             MinWidth="{StaticResource AppLargeCommandMinWidth}"
-                            MinHeight="{StaticResource AppLargeCommandMinHeight}"
-                            Padding="{StaticResource AppLargeCommandPadding}"
                             AutomationProperties.Name="{Binding Texts.SetupGuidePreviousButton}"
-                            FontSize="{StaticResource AppLargeCommandFontSize}"
                             FontWeight="SemiBold"
                             Click="SetupGuidePreviousButton_Click"
                             IsEnabled="{Binding CanMoveSetupGuidePrevious}"
@@ -216,22 +215,20 @@
                             Margin="{StaticResource AppInlineGapM}"
                             VerticalAlignment="Center"
                             FontFamily="{StaticResource AppMonoFont}"
-                            FontSize="{StaticResource AppSectionTitleFontSize}"
+                            FontSize="{StaticResource AppBodyFontSize}"
                             FontWeight="SemiBold"
+                            Foreground="{ThemeResource SubtleTextBrush}"
                             Text="{Binding SetupGuidePositionText}"
                             Visibility="{Binding SetupGuidePositionVisibility}" />
 
                         <Button
                             Grid.Column="2"
+                            Style="{StaticResource AccentActionButtonStyle}"
                             MinWidth="{StaticResource AppLargeCommandMinWidth}"
-                            MinHeight="{StaticResource AppLargeCommandMinHeight}"
-                            Padding="{StaticResource AppLargeCommandPadding}"
                             AutomationProperties.Name="{Binding SetupGuideForwardButtonText}"
-                            FontSize="{StaticResource AppLargeCommandFontSize}"
                             FontWeight="SemiBold"
                             Click="SetupGuideNextButton_Click"
                             IsEnabled="{Binding CanAdvanceOrDismissSetupGuide}"
-                            Style="{StaticResource AccentButtonStyle}"
                             ToolTipService.ToolTip="{Binding SetupGuideForwardButtonText}">
                             <StackPanel Orientation="Horizontal" Spacing="{StaticResource AppCommandIconTextSpacing}">
                                 <TextBlock Text="{Binding SetupGuideForwardButtonText}" />
@@ -241,6 +238,5 @@
                     </Grid>
                 </Grid>
             </Border>
-        </Grid>
     </Grid>
 </UserControl>

@@ -58,6 +58,7 @@ public sealed partial class TaskDiagnosticsPanel : UserControl
         nameof(BodyMaxHeight), typeof(double), typeof(TaskDiagnosticsPanel), new PropertyMetadata(double.PositiveInfinity));
 
     private bool _isLogSelected;
+    private bool _syncingTabSelection;
     private int _copyStatusVersion;
 
     public TaskDiagnosticsPanel()
@@ -153,9 +154,14 @@ public sealed partial class TaskDiagnosticsPanel : UserControl
         panel.SyncTabVisibility();
     }
 
-    private void CommandTabButton_Click(object sender, RoutedEventArgs e)
+    private void DiagnosticsSelectorBar_SelectionChanged(SelectorBar sender, SelectorBarSelectionChangedEventArgs args)
     {
-        _isLogSelected = false;
+        if (_syncingTabSelection || sender.SelectedItem is null)
+        {
+            return;
+        }
+
+        _isLogSelected = ReferenceEquals(sender.SelectedItem, LogTabItem);
         if (IsCollapsible && !IsExpanded)
         {
             IsExpanded = true;
@@ -164,15 +170,12 @@ public sealed partial class TaskDiagnosticsPanel : UserControl
         SyncTabVisibility();
     }
 
-    private void LogTabButton_Click(object sender, RoutedEventArgs e)
+    private void DiagnosticsSelectorBar_Tapped(object sender, Microsoft.UI.Xaml.Input.TappedRoutedEventArgs e)
     {
-        _isLogSelected = true;
         if (IsCollapsible && !IsExpanded)
         {
             IsExpanded = true;
         }
-
-        SyncTabVisibility();
     }
 
     private void CollapseToggleButton_Click(object sender, RoutedEventArgs e)
@@ -182,13 +185,25 @@ public sealed partial class TaskDiagnosticsPanel : UserControl
 
     private void SyncTabVisibility()
     {
-        if (CommandTabButton is null || LogTabButton is null || CommandTextBox is null || LogTextBox is null)
+        if (DiagnosticsSelectorBar is null || CommandTabItem is null || LogTabItem is null || CommandTextBox is null || LogTextBox is null)
         {
             return;
         }
 
-        CommandTabButton.IsChecked = !_isLogSelected;
-        LogTabButton.IsChecked = _isLogSelected;
+        _syncingTabSelection = true;
+        try
+        {
+            var desiredItem = _isLogSelected ? LogTabItem : CommandTabItem;
+            if (!ReferenceEquals(DiagnosticsSelectorBar.SelectedItem, desiredItem))
+            {
+                DiagnosticsSelectorBar.SelectedItem = desiredItem;
+            }
+        }
+        finally
+        {
+            _syncingTabSelection = false;
+        }
+
         CommandTextBox.Visibility = _isLogSelected ? Visibility.Collapsed : Visibility.Visible;
         LogTextBox.Visibility = _isLogSelected ? Visibility.Visible : Visibility.Collapsed;
         SyncEmptyState();

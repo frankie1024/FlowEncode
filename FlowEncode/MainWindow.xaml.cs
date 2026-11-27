@@ -1142,13 +1142,21 @@ public sealed partial class MainWindow : Window, ISettingsViewHost, IShellNaviga
     private void ApplyTitleBarColors(ElementTheme actualTheme)
     {
         var titleBar = AppWindow.TitleBar;
+        var highContrast = IsHighContrast();
         var foregroundColor = ResolveTitleBarForegroundColor(actualTheme);
         var inactiveForegroundColor = ResolveTitleBarInactiveForegroundColor(actualTheme);
 
+        titleBar.PreferredTheme = highContrast
+            ? TitleBarTheme.UseDefaultAppMode
+            : actualTheme == ElementTheme.Light
+                ? TitleBarTheme.Light
+                : TitleBarTheme.Dark;
         titleBar.BackgroundColor = Colors.Transparent;
         titleBar.InactiveBackgroundColor = Colors.Transparent;
         titleBar.ButtonBackgroundColor = Colors.Transparent;
         titleBar.ButtonInactiveBackgroundColor = Colors.Transparent;
+        titleBar.ButtonHoverBackgroundColor = null;
+        titleBar.ButtonPressedBackgroundColor = null;
         titleBar.ForegroundColor = foregroundColor;
         titleBar.InactiveForegroundColor = inactiveForegroundColor;
         titleBar.ButtonForegroundColor = foregroundColor;

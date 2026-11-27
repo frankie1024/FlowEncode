@@ -12,28 +12,28 @@
                 <ResourceDictionary Source="Resources/ThemeResources.xaml" />
             </ResourceDictionary.MergedDictionaries>
 
-            <FontFamily x:Key="AppDisplayFont">Segoe UI Variable Display</FontFamily>
-            <FontFamily x:Key="AppBodyFont">Segoe UI Variable Text</FontFamily>
+            <FontFamily x:Key="AppDisplayFont">XamlAutoFontFamily</FontFamily>
+            <FontFamily x:Key="AppBodyFont">XamlAutoFontFamily</FontFamily>
             <FontFamily x:Key="AppMonoFont">Cascadia Code</FontFamily>
-            <CornerRadius x:Key="AppLargeCornerRadius">12</CornerRadius>
+            <CornerRadius x:Key="AppLargeCornerRadius">8</CornerRadius>
             <CornerRadius x:Key="AppCardCornerRadius">8</CornerRadius>
-            <CornerRadius x:Key="AppControlCornerRadius">6</CornerRadius>
+            <CornerRadius x:Key="AppControlCornerRadius">4</CornerRadius>
             <Thickness x:Key="AppCardBorderThickness">1</Thickness>
-            <Thickness x:Key="AppLargeCommandPadding">28,0</Thickness>
-            <x:Double x:Key="AppLargeCommandMinWidth">180</x:Double>
-            <x:Double x:Key="AppLargeCommandMinHeight">64</x:Double>
-            <x:Double x:Key="AppLargeCommandFontSize">22</x:Double>
-            <x:Double x:Key="AppButtonMinHeight">36</x:Double>
+            <Thickness x:Key="AppLargeCommandPadding">16,0</Thickness>
+            <x:Double x:Key="AppLargeCommandMinWidth">136</x:Double>
+            <x:Double x:Key="AppLargeCommandMinHeight">36</x:Double>
+            <x:Double x:Key="AppLargeCommandFontSize">14</x:Double>
+            <x:Double x:Key="AppButtonMinHeight">32</x:Double>
             <Thickness x:Key="AppButtonPadding">12,0</Thickness>
             <Thickness x:Key="AppAccentButtonPadding">16,0</Thickness>
-            <x:Double x:Key="AppAccentButtonMinHeight">40</x:Double>
-            <x:Double x:Key="AppIconButtonMinWidth">40</x:Double>
-            <x:Double x:Key="AppIconButtonMinHeight">40</x:Double>
-            <Thickness x:Key="AppIconButtonPadding">8</Thickness>
-            <x:Double x:Key="AppCaptionFontSize">13</x:Double>
-            <x:Double x:Key="AppSectionTitleFontSize">22</x:Double>
+            <x:Double x:Key="AppAccentButtonMinHeight">36</x:Double>
+            <x:Double x:Key="AppIconButtonMinWidth">32</x:Double>
+            <x:Double x:Key="AppIconButtonMinHeight">32</x:Double>
+            <Thickness x:Key="AppIconButtonPadding">6</Thickness>
+            <x:Double x:Key="AppCaptionFontSize">12</x:Double>
+            <x:Double x:Key="AppSectionTitleFontSize">20</x:Double>
             <x:Double x:Key="AppSubsectionTitleFontSize">20</x:Double>
-            <x:Double x:Key="AppCardTitleFontSize">20</x:Double>
+            <x:Double x:Key="AppCardTitleFontSize">18</x:Double>
             <x:Double x:Key="AppCommandIconTextSpacing">8</x:Double>
             <x:Double x:Key="AppDisplayFontSizeCompact">28</x:Double>
 
@@ -58,20 +58,12 @@
             <x:Double x:Key="AppTitleLargeFontSize">40</x:Double>
             <x:Double x:Key="AppDisplayFontSize">32</x:Double>
             <x:Double x:Key="AppTitleFontSize">28</x:Double>
-            <x:Double x:Key="AppHeadlineFontSize">22</x:Double>
+            <x:Double x:Key="AppHeadlineFontSize">20</x:Double>
             <x:Double x:Key="AppBodyLargeFontSize">18</x:Double>
             <x:Double x:Key="AppBodyFontSize">14</x:Double>
             <x:Double x:Key="AppSmallFontSize">12</x:Double>
 
-            <!-- Shadow (Fluent Design elevation) -->
-            <!-- Elevation levels: E0 flat, E1 resting cards, E2 hover/active, E3 modal/overlay.
-                 ThemeShadow strength comes from the receiver's Z translation; the per-theme
-                 Z values live in ThemeResources.xaml (ThemeElevationZ_E1..E3). -->
-            <ThemeShadow x:Key="HeroShadow" />
-            <ThemeShadow x:Key="ElevatedShadow" />
-            <ThemeShadow x:Key="ElevationShadowE1" />
-            <ThemeShadow x:Key="ElevationShadowE2" />
-            <ThemeShadow x:Key="ElevationShadowE3" />
+            <!-- Elevation Z translation tokens live in ThemeResources.xaml (ThemeElevationZ_E1..E3). -->
             <x:Double x:Key="ElevationZ_E0">0</x:Double>
 
             <!-- Motion tokens (single source for custom UI animation durations, ms) -->
@@ -95,7 +87,7 @@
                 <Setter Property="HorizontalContentAlignment" Value="Stretch" />
             </Style>
 
-            <Style x:Key="StandardButtonStyle" TargetType="Button">
+            <Style x:Key="StandardButtonStyle" TargetType="Button" BasedOn="{StaticResource DefaultButtonStyle}">
                 <Setter Property="MinHeight" Value="{StaticResource AppButtonMinHeight}" />
                 <Setter Property="Padding" Value="{StaticResource AppButtonPadding}" />
                 <Setter Property="CornerRadius" Value="{StaticResource AppControlCornerRadius}" />
@@ -107,9 +99,15 @@
                 <Setter Property="Padding" Value="{StaticResource AppIconButtonPadding}" />
             </Style>
 
+            <Style x:Key="ActionBarSecondaryButtonStyle" TargetType="Button" BasedOn="{StaticResource StandardButtonStyle}">
+                <Setter Property="MinHeight" Value="{StaticResource AppAccentButtonMinHeight}" />
+                <Setter Property="Padding" Value="{StaticResource AppAccentButtonPadding}" />
+            </Style>
+
             <Style x:Key="AccentActionButtonStyle" TargetType="Button" BasedOn="{StaticResource AccentButtonStyle}">
                 <Setter Property="MinHeight" Value="{StaticResource AppAccentButtonMinHeight}" />
                 <Setter Property="Padding" Value="{StaticResource AppAccentButtonPadding}" />
+                <Setter Property="CornerRadius" Value="{StaticResource AppControlCornerRadius}" />
             </Style>
         </ResourceDictionary>
     </Application.Resources>

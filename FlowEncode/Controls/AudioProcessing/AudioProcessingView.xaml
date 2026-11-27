@@ -311,7 +311,7 @@
                                     </Button>
                                 </shared:TaskActionBar.PrimaryContent>
                                 <shared:TaskActionBar.SecondaryContent>
-                                    <Button x:Name="CancelAudioProcessingButton" Style="{StaticResource StandardButtonStyle}" FontWeight="SemiBold" HorizontalAlignment="Stretch" AutomationProperties.Name="{Binding Texts.AudioProcessingCancelButton}" Click="CancelAudioProcessingButton_Click" IsEnabled="{Binding CanCancelAudioProcessing}" ToolTipService.ToolTip="{Binding Texts.AudioProcessingCancelButton}">
+                                    <Button x:Name="CancelAudioProcessingButton" Style="{StaticResource ActionBarSecondaryButtonStyle}" FontWeight="SemiBold" HorizontalAlignment="Stretch" AutomationProperties.Name="{Binding Texts.AudioProcessingCancelButton}" Click="CancelAudioProcessingButton_Click" IsEnabled="{Binding CanCancelAudioProcessing}" ToolTipService.ToolTip="{Binding Texts.AudioProcessingCancelButton}">
                                         <StackPanel Orientation="Horizontal" Spacing="{StaticResource AppCommandIconTextSpacing}">
                                             <SymbolIcon Symbol="Cancel" />
                                             <TextBlock Text="{Binding Texts.AudioProcessingCancelButton}" />
@@ -319,7 +319,7 @@
                                     </Button>
                                 </shared:TaskActionBar.SecondaryContent>
                                 <shared:TaskActionBar.TertiaryContent>
-                                    <Button x:Name="DeleteAudioProcessingButton" Style="{StaticResource StandardButtonStyle}" FontWeight="SemiBold" HorizontalAlignment="Stretch" AutomationProperties.Name="{Binding Texts.AudioProcessingDeleteButton}" Click="DeleteAudioProcessingButton_Click" IsEnabled="{Binding CanClearAudioProcessingTask}" ToolTipService.ToolTip="{Binding Texts.AudioProcessingDeleteButton}">
+                                    <Button x:Name="DeleteAudioProcessingButton" Style="{StaticResource ActionBarSecondaryButtonStyle}" FontWeight="SemiBold" HorizontalAlignment="Stretch" AutomationProperties.Name="{Binding Texts.AudioProcessingDeleteButton}" Click="DeleteAudioProcessingButton_Click" IsEnabled="{Binding CanClearAudioProcessingTask}" ToolTipService.ToolTip="{Binding Texts.AudioProcessingDeleteButton}">
                                         <StackPanel Orientation="Horizontal" Spacing="{StaticResource AppCommandIconTextSpacing}">
                                             <SymbolIcon Symbol="Delete" />
                                             <TextBlock Text="{Binding Texts.AudioProcessingDeleteButton}" />

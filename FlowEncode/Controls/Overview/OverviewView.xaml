@@ -454,7 +454,7 @@
                                 <shared:TaskActionBar.PrimaryContent>
                                     <Button
                                         x:Name="QueueOnlyButton"
-                                        Style="{StaticResource StandardButtonStyle}"
+                                        Style="{StaticResource ActionBarSecondaryButtonStyle}"
                                         FontWeight="SemiBold"
                                         HorizontalAlignment="Stretch"
                                         AutomationProperties.Name="{Binding Texts.QueueButton}"
@@ -678,8 +678,13 @@
                                         DragItemsStarting="JobsList_DragItemsStarting"
                                         DragItemsCompleted="JobsList_DragItemsCompleted"
                                         ContextRequested="JobsList_ContextRequested"
-                                        SelectionChanged="JobsList_SelectionChanged"
-                                        shared:UiMotion.AnimateListEntrance="True">
+                                        SelectionChanged="JobsList_SelectionChanged">
+                                        <ListView.ItemContainerTransitions>
+                                            <TransitionCollection>
+                                                <AddDeleteThemeTransition />
+                                                <ReorderThemeTransition />
+                                            </TransitionCollection>
+                                        </ListView.ItemContainerTransitions>
                                         <ListView.ItemTemplate>
                                             <DataTemplate x:DataType="vm:EncodingJobItemViewModel">
                                                 <Grid>

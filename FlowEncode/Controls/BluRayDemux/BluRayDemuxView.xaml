@@ -190,7 +190,7 @@
                                 </Button>
                             </shared:TaskActionBar.PrimaryContent>
                             <shared:TaskActionBar.SecondaryContent>
-                                <Button x:Name="CancelBluRayDemuxButton" Style="{StaticResource StandardButtonStyle}" FontWeight="SemiBold" HorizontalAlignment="Stretch" AutomationProperties.Name="{Binding Texts.BluRayDemuxCancelButton}" Click="CancelBluRayDemuxButton_Click" IsEnabled="{Binding CanCancelBluRayDemux}" ToolTipService.ToolTip="{Binding Texts.BluRayDemuxCancelButton}">
+                                <Button x:Name="CancelBluRayDemuxButton" Style="{StaticResource ActionBarSecondaryButtonStyle}" FontWeight="SemiBold" HorizontalAlignment="Stretch" AutomationProperties.Name="{Binding Texts.BluRayDemuxCancelButton}" Click="CancelBluRayDemuxButton_Click" IsEnabled="{Binding CanCancelBluRayDemux}" ToolTipService.ToolTip="{Binding Texts.BluRayDemuxCancelButton}">
                                     <StackPanel Orientation="Horizontal" Spacing="{StaticResource AppCommandIconTextSpacing}">
                                         <SymbolIcon Symbol="Cancel" />
                                         <TextBlock Text="{Binding Texts.BluRayDemuxCancelButton}" />
@@ -198,7 +198,7 @@
                                 </Button>
                             </shared:TaskActionBar.SecondaryContent>
                             <shared:TaskActionBar.TertiaryContent>
-                                <Button x:Name="ClearBluRayDemuxButton" Style="{StaticResource StandardButtonStyle}" FontWeight="SemiBold" HorizontalAlignment="Stretch" AutomationProperties.Name="{Binding Texts.BluRayDemuxClearButton}" Click="ClearBluRayDemuxButton_Click" IsEnabled="{Binding CanClearBluRayDemuxTask}" ToolTipService.ToolTip="{Binding Texts.BluRayDemuxClearButton}">
+                                <Button x:Name="ClearBluRayDemuxButton" Style="{StaticResource ActionBarSecondaryButtonStyle}" FontWeight="SemiBold" HorizontalAlignment="Stretch" AutomationProperties.Name="{Binding Texts.BluRayDemuxClearButton}" Click="ClearBluRayDemuxButton_Click" IsEnabled="{Binding CanClearBluRayDemuxTask}" ToolTipService.ToolTip="{Binding Texts.BluRayDemuxClearButton}">
                                     <StackPanel Orientation="Horizontal" Spacing="{StaticResource AppCommandIconTextSpacing}">
                                         <SymbolIcon Symbol="Delete" />
                                         <TextBlock Text="{Binding Texts.BluRayDemuxClearButton}" />

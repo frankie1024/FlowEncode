@@ -77,37 +77,40 @@
                         <Border x:Name="SettingsWorkspacePanel" Grid.Column="2" Padding="{StaticResource AppInsetPanelPadding}" Background="{ThemeResource CardAltBrush}" CornerRadius="{StaticResource AppCardCornerRadius}">
                             <StackPanel Spacing="{StaticResource AppSpacingM}">
                                 <TextBlock FontFamily="{StaticResource AppDisplayFont}" FontSize="{StaticResource AppCardTitleFontSize}" FontWeight="SemiBold" Text="{Binding Texts.SettingsWorkspaceAndMcpTitle}" />
-                                <StackPanel Spacing="6">
+                                <StackPanel Spacing="{StaticResource AppSpacingXS}">
                                     <TextBlock Text="{Binding Texts.WorkspaceDirectoryHeader}" />
-                                    <Grid>
-                                        <TextBox x:Name="WorkspaceRootPathTextBox" AutomationProperties.Name="{Binding Texts.WorkspaceDirectoryHeader}" IsReadOnly="True" Text="{Binding WorkspaceRootPath, Mode=TwoWay}" ToolTipService.ToolTip="{Binding WorkspaceRootPath}" Padding="10,5,78,5" MinHeight="36" />
-                                        <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center" Margin="0,0,4,0" Spacing="2">
-                                            <Button Width="30" Height="28" MinWidth="0" MinHeight="0" Padding="0" Background="Transparent" BorderThickness="0" AutomationProperties.Name="{Binding Texts.ChooseFolderButton}" ToolTipService.ToolTip="{Binding Texts.ChooseFolderButton}" Click="BrowseWorkspaceFolderButton_Click">
-                                                <SymbolIcon Symbol="Folder" />
-                                            </Button>
-                                            <Button Width="30" Height="28" MinWidth="0" MinHeight="0" Padding="0" Background="Transparent" BorderThickness="0" AutomationProperties.Name="{Binding Texts.OpenWorkspaceFolderButton}" ToolTipService.ToolTip="{Binding Texts.OpenWorkspaceFolderButton}" Tag="{Binding WorkspaceRootPath}" Click="OpenTaggedFolderButton_Click">
-                                                <SymbolIcon Symbol="OpenLocal" />
-                                            </Button>
-                                        </StackPanel>
+                                    <Grid ColumnSpacing="{StaticResource AppSpacingXS}">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="Auto" />
+                                            <ColumnDefinition Width="Auto" />
+                                        </Grid.ColumnDefinitions>
+                                        <TextBox x:Name="WorkspaceRootPathTextBox" AutomationProperties.Name="{Binding Texts.WorkspaceDirectoryHeader}" IsReadOnly="True" Text="{Binding WorkspaceRootPath, Mode=TwoWay}" ToolTipService.ToolTip="{Binding WorkspaceRootPath}" />
+                                        <Button Grid.Column="1" Style="{StaticResource IconButtonStyle}" AutomationProperties.Name="{Binding Texts.ChooseFolderButton}" ToolTipService.ToolTip="{Binding Texts.ChooseFolderButton}" Click="BrowseWorkspaceFolderButton_Click">
+                                            <FontIcon FontSize="14" Glyph="&#xE8B7;" />
+                                        </Button>
+                                        <Button Grid.Column="2" Style="{StaticResource IconButtonStyle}" AutomationProperties.Name="{Binding Texts.OpenWorkspaceFolderButton}" ToolTipService.ToolTip="{Binding Texts.OpenWorkspaceFolderButton}" Tag="{Binding WorkspaceRootPath}" Click="OpenTaggedFolderButton_Click">
+                                            <FontIcon FontSize="14" Glyph="&#xE8A7;" />
+                                        </Button>
                                     </Grid>
                                 </StackPanel>
-                                <Grid ColumnSpacing="8">
+                                <Grid ColumnSpacing="{StaticResource AppSpacingS}">
                                     <Grid.ColumnDefinitions>
                                         <ColumnDefinition Width="*" />
                                         <ColumnDefinition Width="Auto" />
                                     </Grid.ColumnDefinitions>
                                     <ToggleSwitch x:Name="McpAutomationToggle" Header="{Binding Texts.McpEnableHeader}" IsOn="{Binding EnableMcpAutomation, Mode=TwoWay}" OffContent="{Binding Texts.ToggleOffLabel}" OnContent="{Binding Texts.ToggleOnLabel}" Toggled="McpAutomationToggle_Toggled" />
-                                    <Button x:Name="McpHelpButton" Grid.Column="1" Width="32" Height="32" Padding="0" VerticalAlignment="Bottom" Visibility="Collapsed" AutomationProperties.Name="{Binding Texts.McpConnectionHelpHeader}" ToolTipService.ToolTip="{Binding Texts.McpConnectionHelpTooltip}">
-                                        <SymbolIcon Symbol="Help" />
+                                    <Button x:Name="McpHelpButton" Grid.Column="1" Style="{StaticResource IconButtonStyle}" VerticalAlignment="Bottom" Visibility="Collapsed" AutomationProperties.Name="{Binding Texts.McpConnectionHelpHeader}" ToolTipService.ToolTip="{Binding Texts.McpConnectionHelpTooltip}">
+                                        <FontIcon FontSize="14" Glyph="&#xE897;" />
                                         <Button.Flyout>
                                             <Flyout x:Name="McpConnectionFlyout" Opening="McpConnectionFlyout_Opening" Placement="BottomEdgeAlignedRight">
-                                                <StackPanel x:Name="McpHelpContent" Width="420" MaxWidth="420" Spacing="12">
+                                                <StackPanel x:Name="McpHelpContent" Width="420" MaxWidth="420" Spacing="{StaticResource AppSpacingM}">
                                                     <TextBlock FontWeight="SemiBold" Text="{Binding Texts.McpConnectionHelpHeader}" />
                                                     <TextBlock Text="{Binding Texts.McpConnectionHint}" TextWrapping="Wrap" />
-                                                    <TextBox AutomationProperties.Name="{Binding Texts.McpConnectionConfigHeader}" Text="{Binding McpConnectionConfig}" IsReadOnly="True" FontFamily="{StaticResource AppMonoFont}" FontSize="12" TextWrapping="Wrap" MaxHeight="240" ScrollViewer.VerticalScrollBarVisibility="Auto" />
-                                                    <Button x:Name="CopyMcpConfigButton" Click="CopyMcpConfigButton_Click" HorizontalAlignment="Left" AutomationProperties.Name="{Binding Texts.McpCopyConfigButton}">
-                                                        <StackPanel Orientation="Horizontal" Spacing="8">
-                                                            <SymbolIcon Symbol="Copy" />
+                                                    <TextBox AutomationProperties.Name="{Binding Texts.McpConnectionConfigHeader}" Text="{Binding McpConnectionConfig}" IsReadOnly="True" FontFamily="{StaticResource AppMonoFont}" FontSize="{StaticResource AppSmallFontSize}" TextWrapping="Wrap" MaxHeight="240" ScrollViewer.VerticalScrollBarVisibility="Auto" />
+                                                    <Button x:Name="CopyMcpConfigButton" Style="{StaticResource StandardButtonStyle}" Click="CopyMcpConfigButton_Click" HorizontalAlignment="Left" AutomationProperties.Name="{Binding Texts.McpCopyConfigButton}">
+                                                        <StackPanel Orientation="Horizontal" Spacing="{StaticResource AppSpacingS}">
+                                                            <FontIcon FontSize="14" Glyph="&#xE8C8;" />
                                                             <TextBlock x:Name="McpCopyLabel" Text="{Binding Texts.McpCopyConfigButton}" AutomationProperties.LiveSetting="Polite" />
                                                         </StackPanel>
                                                     </Button>
@@ -125,7 +128,7 @@
 
             <Border Padding="{StaticResource AppCardPadding}" Background="{ThemeResource CardBrush}" BorderBrush="{ThemeResource CardBorderBrush}" BorderThickness="{StaticResource AppCardBorderThickness}" CornerRadius="{StaticResource AppLargeCornerRadius}" DataContext="{Binding Dependencies}">
                 <StackPanel Spacing="{StaticResource AppSpacingM}">
-                    <Grid x:Name="SettingsDependencyHeaderGrid" ColumnSpacing="{StaticResource AppSpacingL}" RowSpacing="12">
+                    <Grid x:Name="SettingsDependencyHeaderGrid" ColumnSpacing="{StaticResource AppSpacingL}" RowSpacing="{StaticResource AppSpacingM}">
                         <Grid.RowDefinitions>
                             <RowDefinition Height="Auto" />
                             <RowDefinition Height="Auto" />
@@ -172,7 +175,7 @@
                     <ItemsControl ItemsSource="{Binding SetupGuideCards}" IsEnabled="{Binding CanModifyDependencies}">
                         <ItemsControl.ItemTemplate>
                             <DataTemplate x:DataType="vm:SetupGuideCardViewModel">
-                                <shared:AnimatedExpander Margin="{StaticResource AppBottomSpacingM}" HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch" CollapsedCompleted="SetupGuideCardExpander_CollapsedCompleted" ContentMargin="0" IsExpanded="{Binding IsExpanded, Mode=TwoWay}">
+                                <shared:AnimatedExpander Margin="{StaticResource AppBottomSpacingM}" HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch" CollapsedCompleted="SetupGuideCardExpander_CollapsedCompleted" ContentMargin="12,10,12,0" IsExpanded="{Binding IsExpanded, Mode=TwoWay}">
                                     <shared:AnimatedExpander.HeaderContent>
                                         <Grid ColumnSpacing="{StaticResource AppSpacingM}">
                                             <Grid.ColumnDefinitions>

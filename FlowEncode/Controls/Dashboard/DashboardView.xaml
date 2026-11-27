@@ -49,8 +49,6 @@
             <Setter Property="HorizontalContentAlignment" Value="Stretch" />
             <Setter Property="VerticalContentAlignment" Value="Stretch" />
             <Setter Property="VerticalAlignment" Value="Stretch" />
-            <Setter Property="shared:UiElevation.Level" Value="E1" />
-            <Setter Property="shared:UiElevation.HoverLevel" Value="E2" />
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="Button">
@@ -234,7 +232,7 @@
                 <RowDefinition Height="Auto" />
                 <RowDefinition Height="*" />
             </Grid.RowDefinitions>
-            <Border x:Name="DashboardHeroCard" MinHeight="148" Padding="{StaticResource AppCardPadding}" Background="{ThemeResource HeroBrush}" BorderBrush="{ThemeResource ThemeBorderHeroBrush}" BorderThickness="{StaticResource AppCardBorderThickness}" CornerRadius="{StaticResource AppLargeCornerRadius}" Shadow="{StaticResource HeroShadow}">
+            <Border x:Name="DashboardHeroCard" MinHeight="148" Padding="{StaticResource AppCardPadding}" Background="{ThemeResource HeroBrush}" BorderBrush="{ThemeResource ThemeBorderHeroBrush}" BorderThickness="{StaticResource AppCardBorderThickness}" CornerRadius="{StaticResource AppLargeCornerRadius}">
                 <Grid x:Name="DashboardHeroGrid" ColumnSpacing="{StaticResource AppSpacingL}">
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="*" />

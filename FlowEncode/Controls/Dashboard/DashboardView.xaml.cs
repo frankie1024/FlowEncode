@@ -1,7 +1,6 @@
 using System;
 using System.ComponentModel;
 using System.Linq;
-using System.Numerics;
 using FlowEncode.Controls.Shared;
 using FlowEncode.ViewModels;
 using Microsoft.UI.Xaml;
@@ -12,9 +11,7 @@ namespace FlowEncode.Controls.Dashboard;
 public sealed partial class DashboardView : UserControl
 {
     private const int DashboardCardCount = 6;
-    private const float FallbackHeroElevationZ = 8f;
     private double _lastWidth;
-    private bool _heroElevationThemeHookAttached;
     private DashboardViewModel? _subscribedViewModel;
 
     internal IDashboardViewHost? Host { get; set; }
@@ -32,18 +29,8 @@ public sealed partial class DashboardView : UserControl
 
     private void DashboardView_Loaded(object sender, RoutedEventArgs e)
     {
-        // Re-apply on every load in case the theme changed while this view was detached.
-        ApplyHeroElevation();
         AttachViewModel(DataContext as DashboardViewModel);
         UpdateStatusVisualStates();
-
-        if (_heroElevationThemeHookAttached)
-        {
-            return;
-        }
-
-        _heroElevationThemeHookAttached = true;
-        ActualThemeChanged += (_, _) => ApplyHeroElevation();
     }
 
     private void DashboardView_Unloaded(object sender, RoutedEventArgs e)
@@ -108,18 +95,6 @@ public sealed partial class DashboardView : UserControl
             _ => "Idle"
         };
         VisualStateManager.GoToState(this, prefix + suffix, false);
-    }
-
-    private void ApplyHeroElevation()
-    {
-        var z = UiMotionPolicy.IsHighContrastEnabled() ? 0f : FallbackHeroElevationZ;
-        if (UiTokens.TryGetThemeResource(DashboardHeroCard, "ThemeElevationZ_E1", out var resource)
-            && resource is double resourceZ)
-        {
-            z = (float)resourceZ;
-        }
-
-        DashboardHeroCard.Translation = new Vector3(0f, 0f, z);
     }
 
     public void ApplyLayout(double width, Thickness contentPadding)

@@ -22,42 +22,20 @@
                     <ColumnDefinition Width="Auto" />
                 </Grid.ColumnDefinitions>
 
-                <Border
+                <SelectorBar
+                    x:Name="DiagnosticsSelectorBar"
                     HorizontalAlignment="Left"
-                    Padding="2"
-                    Background="{ThemeResource CardBrush}"
-                    BorderBrush="{ThemeResource CardBorderBrush}"
-                    BorderThickness="{StaticResource AppCardBorderThickness}"
-                    CornerRadius="{StaticResource AppControlCornerRadius}">
-                    <StackPanel Orientation="Horizontal" Spacing="2">
-                        <ToggleButton
-                            x:Name="CommandTabButton"
-                            MinHeight="30"
-                            Padding="10,2"
-                            CornerRadius="4"
-                            BorderThickness="0"
-                            IsChecked="True"
-                            Click="CommandTabButton_Click">
-                            <TextBlock
-                                FontSize="{StaticResource AppCaptionFontSize}"
-                                FontWeight="SemiBold"
-                                Text="{x:Bind CommandTitle, Mode=OneWay}" />
-                        </ToggleButton>
-                        <ToggleButton
-                            x:Name="LogTabButton"
-                            MinHeight="30"
-                            Padding="10,2"
-                            CornerRadius="4"
-                            BorderThickness="0"
-                            IsChecked="False"
-                            Click="LogTabButton_Click">
-                            <TextBlock
-                                FontSize="{StaticResource AppCaptionFontSize}"
-                                FontWeight="SemiBold"
-                                Text="{x:Bind LogTitle, Mode=OneWay}" />
-                        </ToggleButton>
-                    </StackPanel>
-                </Border>
+                    VerticalAlignment="Center"
+                    SelectionChanged="DiagnosticsSelectorBar_SelectionChanged"
+                    Tapped="DiagnosticsSelectorBar_Tapped">
+                    <SelectorBarItem
+                        x:Name="CommandTabItem"
+                        IsSelected="True"
+                        Text="{x:Bind CommandTitle, Mode=OneWay}" />
+                    <SelectorBarItem
+                        x:Name="LogTabItem"
+                        Text="{x:Bind LogTitle, Mode=OneWay}" />
+                </SelectorBar>
 
                 <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="{StaticResource AppSpacingS}" VerticalAlignment="Center">
                     <TextBlock
@@ -70,20 +48,18 @@
                     <Button
                         x:Name="CopyCommandButton"
                         Style="{StaticResource StandardButtonStyle}"
-                        MinHeight="32"
                         Padding="10,0"
                         Click="CopyCommandButton_Click">
                         <StackPanel Orientation="Horizontal" Spacing="{StaticResource AppSpacingXS}">
-                            <SymbolIcon Symbol="Copy" />
+                            <FontIcon FontSize="14" Glyph="&#xE8C8;" />
                             <TextBlock x:Name="CopyCommandLabel" FontSize="{StaticResource AppCaptionFontSize}" />
                         </StackPanel>
                     </Button>
                     <Button
                         x:Name="CollapseToggleButton"
                         Style="{StaticResource IconButtonStyle}"
-                        MinWidth="32"
-                        MinHeight="32"
-                        Padding="6"
+                        Background="Transparent"
+                        BorderThickness="0"
                         Visibility="Collapsed"
                         Click="CollapseToggleButton_Click">
                         <FontIcon x:Name="CollapseChevronIcon" FontSize="12" Glyph="&#xE70D;" />

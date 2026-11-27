@@ -264,7 +264,7 @@
                                     </Button>
                                 </shared:TaskActionBar.PrimaryContent>
                                 <shared:TaskActionBar.SecondaryContent>
-                                    <Button x:Name="CancelAutoCompressionButton" Style="{StaticResource StandardButtonStyle}" FontWeight="SemiBold" HorizontalAlignment="Stretch" AutomationProperties.Name="{Binding Texts.AutoCompressionCancelButton}" Click="CancelAutoCompressionButton_Click" IsEnabled="{Binding CanCancelAutoCompression}" ToolTipService.ToolTip="{Binding Texts.AutoCompressionCancelButton}">
+                                    <Button x:Name="CancelAutoCompressionButton" Style="{StaticResource ActionBarSecondaryButtonStyle}" FontWeight="SemiBold" HorizontalAlignment="Stretch" AutomationProperties.Name="{Binding Texts.AutoCompressionCancelButton}" Click="CancelAutoCompressionButton_Click" IsEnabled="{Binding CanCancelAutoCompression}" ToolTipService.ToolTip="{Binding Texts.AutoCompressionCancelButton}">
                                         <StackPanel Orientation="Horizontal" Spacing="{StaticResource AppCommandIconTextSpacing}">
                                             <SymbolIcon Symbol="Cancel" />
                                             <TextBlock Text="{Binding Texts.AutoCompressionCancelButton}" />
