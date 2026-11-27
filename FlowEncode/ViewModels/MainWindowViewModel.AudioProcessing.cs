@@ -363,8 +363,6 @@ public partial class MainWindowViewModel
 
     internal string AudioProcessingProgressHint => Texts.AudioProcessingProgressIndeterminateHint;
 
-    internal Brush AudioProcessingStatusPanelBorderBrush => ResolveTaskStatusPanelBorderBrush(_audioProcessingDisplayState);
-
     internal TaskPresentationState AudioProcessingPresentationState => _audioProcessingPresentationState;
 
     internal string AudioProcessingSuggestedOutputExtension => GetAudioProcessingSuggestedExtension();
@@ -1694,7 +1692,6 @@ public partial class MainWindowViewModel
             EncodingJobState.Cancelled => TaskPresentationState.Cancelled,
             _ => TaskPresentationState.Idle
         });
-        OnPropertyChanged(nameof(AudioProcessingStatusPanelBorderBrush));
         RaiseDashboardCardActivityPropertyChanges();
     }
 

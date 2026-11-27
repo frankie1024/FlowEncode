@@ -11,6 +11,7 @@ using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
 using FlowEncode.Application;
+using FlowEncode.Controls.Shared;
 using FlowEncode.Domain;
 using FlowEncode.Infrastructure;
 using Microsoft.UI;
@@ -405,7 +406,7 @@ public partial class MainWindowViewModel : CommunityToolkit.Mvvm.ComponentModel.
         ? BluRayDemuxStatusText
         : string.Empty;
 
-    internal Brush DashboardBluRayDemuxStatusBrush => ResolveDashboardStatusBrush(IsDashboardBluRayDemuxActive()
+    internal TaskPresentationState DashboardBluRayDemuxPresentationState => ResolveTaskPresentationState(IsDashboardBluRayDemuxActive()
         ? EncodingJobState.Running
         : _bluRayDemuxDisplayState);
 
@@ -431,7 +432,7 @@ public partial class MainWindowViewModel : CommunityToolkit.Mvvm.ComponentModel.
 
     internal string DashboardOverviewStatusText => GetDashboardOverviewJob()?.StateLabel ?? string.Empty;
 
-    internal Brush DashboardOverviewStatusBrush => ResolveDashboardStatusBrush(GetDashboardOverviewJob()?.State);
+    internal TaskPresentationState DashboardOverviewPresentationState => ResolveTaskPresentationState(GetDashboardOverviewJob()?.State);
 
     internal double DashboardOverviewProgressValue => GetDashboardRunningOverviewJob()?.ProgressValue ?? 0.0;
 
@@ -455,7 +456,7 @@ public partial class MainWindowViewModel : CommunityToolkit.Mvvm.ComponentModel.
             : AudioProcessingStatusText
         : string.Empty;
 
-    internal Brush DashboardAudioProcessingStatusBrush => ResolveDashboardStatusBrush(IsAudioProcessingRunning
+    internal TaskPresentationState DashboardAudioProcessingPresentationState => ResolveTaskPresentationState(IsAudioProcessingRunning
         ? EncodingJobState.Running
         : _audioProcessingDisplayState);
 
@@ -479,7 +480,7 @@ public partial class MainWindowViewModel : CommunityToolkit.Mvvm.ComponentModel.
         ? AutoCompressionStatusText
         : string.Empty;
 
-    internal Brush DashboardAutoCompressionStatusBrush => ResolveDashboardStatusBrush(IsAutoCompressionRunning
+    internal TaskPresentationState DashboardAutoCompressionPresentationState => ResolveTaskPresentationState(IsAutoCompressionRunning
         ? EncodingJobState.Running
         : _autoCompressionDisplayState);
 
@@ -487,15 +488,16 @@ public partial class MainWindowViewModel : CommunityToolkit.Mvvm.ComponentModel.
 
     internal bool DashboardAutoCompressionProgressIsIndeterminate => IsAutoCompressionRunning && AutoCompressionProgressIsIndeterminate;
 
-    private static Brush ResolveDashboardStatusBrush(EncodingJobState? state)
+    private static TaskPresentationState ResolveTaskPresentationState(EncodingJobState? state)
     {
         return state switch
         {
-            EncodingJobState.Failed => ResolveBrush("AppErrorBrush"),
-            EncodingJobState.Cancelled => ResolveBrush("AppNeutralBrush"),
-            EncodingJobState.Completed => ResolveBrush("AppSuccessBrush"),
-            EncodingJobState.Running => ResolveBrush("QueueProgressFillBrush"),
-            _ => ResolveBrush("CardBorderBrush")
+            EncodingJobState.Queued => TaskPresentationState.Queued,
+            EncodingJobState.Running => TaskPresentationState.Running,
+            EncodingJobState.Completed => TaskPresentationState.Completed,
+            EncodingJobState.Failed => TaskPresentationState.Failed,
+            EncodingJobState.Cancelled => TaskPresentationState.Cancelled,
+            _ => TaskPresentationState.Idle
         };
     }
 
@@ -1035,6 +1037,10 @@ public partial class MainWindowViewModel : CommunityToolkit.Mvvm.ComponentModel.
     private bool IsQueueBatchSelectionActive => SelectedQueueJobCount > 1;
 
     internal double SelectedJobProgressValue => IsQueueBatchSelectionActive ? 0.0 : SelectedJob?.ProgressValue ?? 0.0;
+
+    internal TaskPresentationState SelectedJobPresentationState => IsQueueBatchSelectionActive
+        ? TaskPresentationState.Idle
+        : ResolveTaskPresentationState(SelectedJob?.State);
 
     internal double SelectedJobParticleProgress => !IsQueueBatchSelectionActive
         && SelectedJob is { State: EncodingJobState.Running, IsProgressIndeterminate: false } job
@@ -2736,23 +2742,6 @@ public partial class MainWindowViewModel : CommunityToolkit.Mvvm.ComponentModel.
         }
     }
 
-    private static Brush ResolveBrush(string key)
-    {
-        return Microsoft.UI.Xaml.Application.Current.Resources.TryGetValue(key, out var resource) && resource is Brush brush
-            ? brush
-            : new SolidColorBrush(Colors.Transparent);
-    }
-
-    private static Brush ResolveTaskStatusPanelBorderBrush(EncodingJobState? state)
-    {
-        return state switch
-        {
-            EncodingJobState.Failed => ResolveBrush("AppErrorBrush"),
-            EncodingJobState.Cancelled => ResolveBrush("AppNeutralBrush"),
-            _ => ResolveBrush("CardBorderBrush")
-        };
-    }
-
     private void ApplyEnvironmentReadiness(EnvironmentReadinessReport report)
     {
         _environmentReadinessReport = report;
@@ -3564,28 +3553,28 @@ public partial class MainWindowViewModel : CommunityToolkit.Mvvm.ComponentModel.
         OnPropertyChanged(nameof(DashboardBluRayDemuxStatusVisibility));
         OnPropertyChanged(nameof(DashboardBluRayDemuxProgressVisibility));
         OnPropertyChanged(nameof(DashboardBluRayDemuxStatusText));
-        OnPropertyChanged(nameof(DashboardBluRayDemuxStatusBrush));
+        OnPropertyChanged(nameof(DashboardBluRayDemuxPresentationState));
         OnPropertyChanged(nameof(DashboardBluRayDemuxProgressValue));
         OnPropertyChanged(nameof(DashboardBluRayDemuxProgressIsIndeterminate));
         OnPropertyChanged(nameof(DashboardOverviewActivityVisibility));
         OnPropertyChanged(nameof(DashboardOverviewStatusVisibility));
         OnPropertyChanged(nameof(DashboardOverviewProgressVisibility));
         OnPropertyChanged(nameof(DashboardOverviewStatusText));
-        OnPropertyChanged(nameof(DashboardOverviewStatusBrush));
+        OnPropertyChanged(nameof(DashboardOverviewPresentationState));
         OnPropertyChanged(nameof(DashboardOverviewProgressValue));
         OnPropertyChanged(nameof(DashboardOverviewProgressIsIndeterminate));
         OnPropertyChanged(nameof(DashboardAudioProcessingActivityVisibility));
         OnPropertyChanged(nameof(DashboardAudioProcessingStatusVisibility));
         OnPropertyChanged(nameof(DashboardAudioProcessingProgressVisibility));
         OnPropertyChanged(nameof(DashboardAudioProcessingStatusText));
-        OnPropertyChanged(nameof(DashboardAudioProcessingStatusBrush));
+        OnPropertyChanged(nameof(DashboardAudioProcessingPresentationState));
         OnPropertyChanged(nameof(DashboardAudioProcessingProgressValue));
         OnPropertyChanged(nameof(DashboardAudioProcessingProgressIsIndeterminate));
         OnPropertyChanged(nameof(DashboardAutoCompressionActivityVisibility));
         OnPropertyChanged(nameof(DashboardAutoCompressionStatusVisibility));
         OnPropertyChanged(nameof(DashboardAutoCompressionProgressVisibility));
         OnPropertyChanged(nameof(DashboardAutoCompressionStatusText));
-        OnPropertyChanged(nameof(DashboardAutoCompressionStatusBrush));
+        OnPropertyChanged(nameof(DashboardAutoCompressionPresentationState));
         OnPropertyChanged(nameof(DashboardAutoCompressionProgressValue));
         OnPropertyChanged(nameof(DashboardAutoCompressionProgressIsIndeterminate));
     }
@@ -3657,6 +3646,7 @@ public partial class MainWindowViewModel : CommunityToolkit.Mvvm.ComponentModel.
     private void RaiseSelectedJobProgressMetricPropertyChanges()
     {
         OnPropertyChanged(nameof(SelectedJobProgressValue));
+        OnPropertyChanged(nameof(SelectedJobPresentationState));
         OnPropertyChanged(nameof(SelectedJobParticleProgress));
         OnPropertyChanged(nameof(SelectedJobProgressPrimaryText));
         OnPropertyChanged(nameof(SelectedJobProgressSecondaryText));
@@ -3697,6 +3687,10 @@ public partial class MainWindowViewModel : CommunityToolkit.Mvvm.ComponentModel.
                 break;
 
             case nameof(EncodingJobItemViewModel.State):
+                OnPropertyChanged(nameof(SelectedJobPresentationState));
+                OnPropertyChanged(nameof(SelectedJobParticleProgress));
+                break;
+
             case nameof(EncodingJobItemViewModel.IsProgressIndeterminate):
                 OnPropertyChanged(nameof(SelectedJobParticleProgress));
                 break;

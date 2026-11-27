@@ -18,7 +18,7 @@
                 Padding="{StaticResource AppDialogPadding}"
                 HorizontalAlignment="Center"
                 VerticalAlignment="Center"
-                Background="{ThemeResource CardBrush}"
+                Background="{ThemeResource ModalCardBrush}"
                 BorderBrush="{ThemeResource ThemeBorderElevatedBrush}"
                 BorderThickness="{StaticResource AppCardBorderThickness}"
                 CornerRadius="{StaticResource AppLargeCornerRadius}"
@@ -42,13 +42,13 @@
 
                         <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="{StaticResource AppSpacingS}" VerticalAlignment="Top">
                             <ProgressRing Width="24" Height="24" IsActive="True" Visibility="{Binding SetupGuideActionProgressVisibility}" />
-                            <Button AutomationProperties.Name="{Binding SetupGuideRefreshActionText}" Click="RefreshSetupGuideButton_Click" IsEnabled="{Binding CanExecuteSetupGuideRefreshAction}" ToolTipService.ToolTip="{Binding SetupGuideRefreshActionText}">
+                            <Button Style="{StaticResource StandardButtonStyle}" AutomationProperties.Name="{Binding SetupGuideRefreshActionText}" Click="RefreshSetupGuideButton_Click" IsEnabled="{Binding CanExecuteSetupGuideRefreshAction}" ToolTipService.ToolTip="{Binding SetupGuideRefreshActionText}">
                                 <StackPanel Orientation="Horizontal" Spacing="{StaticResource AppCommandIconTextSpacing}">
                                     <SymbolIcon Symbol="Refresh" />
                                     <TextBlock Text="{Binding SetupGuideRefreshActionText}" />
                                 </StackPanel>
                             </Button>
-                            <Button AutomationProperties.Name="{Binding SetupGuideUpdateCheckActionText}" Click="CheckSetupDependencyUpdatesButton_Click" IsEnabled="{Binding CanExecuteSetupGuideUpdateCheckAction}" ToolTipService.ToolTip="{Binding SetupGuideUpdateCheckActionText}">
+                            <Button Style="{StaticResource StandardButtonStyle}" AutomationProperties.Name="{Binding SetupGuideUpdateCheckActionText}" Click="CheckSetupDependencyUpdatesButton_Click" IsEnabled="{Binding CanExecuteSetupGuideUpdateCheckAction}" ToolTipService.ToolTip="{Binding SetupGuideUpdateCheckActionText}">
                                 <StackPanel Orientation="Horizontal" Spacing="{StaticResource AppCommandIconTextSpacing}">
                                     <SymbolIcon Symbol="Find" />
                                     <TextBlock Text="{Binding SetupGuideUpdateCheckActionText}" />
@@ -89,7 +89,7 @@
                                             <ItemsControl ItemsSource="{Binding Items}">
                                                 <ItemsControl.ItemTemplate>
                                                     <DataTemplate x:DataType="vm:SetupGuideDependencyItemViewModel">
-                                                        <Border Margin="{StaticResource AppBottomSpacingM}" Padding="{StaticResource AppInsetPanelPadding}" Background="{ThemeResource CardBrush}" BorderBrush="{ThemeResource CardBorderBrush}" BorderThickness="{StaticResource AppCardBorderThickness}" CornerRadius="{StaticResource AppCardCornerRadius}">
+                                                        <Border Margin="{StaticResource AppBottomSpacingM}" Padding="{StaticResource AppInsetPanelPadding}" Background="{ThemeResource CardAltBrush}" BorderBrush="{ThemeResource CardBorderBrush}" BorderThickness="{StaticResource AppCardBorderThickness}" CornerRadius="{StaticResource AppCardCornerRadius}">
                                                             <Grid RowSpacing="{StaticResource AppSpacingM}">
                                                                 <Grid.RowDefinitions>
                                                                     <RowDefinition Height="Auto" />
@@ -113,7 +113,7 @@
                                                                     </StackPanel>
 
                                                                     <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="{StaticResource AppSpacingS}" HorizontalAlignment="Right" VerticalAlignment="Top">
-                                                                        <Button Content="{Binding MoreActionText}" AutomationProperties.Name="{Binding MoreActionText}" Visibility="{Binding MoreActionsVisibility}" IsEnabled="{Binding AdvancedUpdateEnabled}" Click="MoreDependencyActionsButton_Click" />
+                                                                        <Button Style="{StaticResource StandardButtonStyle}" Content="{Binding MoreActionText}" AutomationProperties.Name="{Binding MoreActionText}" Visibility="{Binding MoreActionsVisibility}" IsEnabled="{Binding AdvancedUpdateEnabled}" Click="MoreDependencyActionsButton_Click" />
                                                                         <Border Background="Transparent" Visibility="{Binding SettingsPrimaryActionVisibility}">
                                                                             <ToolTipService.ToolTip>
                                                                                 <ToolTip MaxWidth="420"><TextBlock Text="{Binding PrimaryActionToolTip}" TextWrapping="Wrap" /></ToolTip>
@@ -125,7 +125,7 @@
                                                                                 </StackPanel>
                                                                             </Button>
                                                                         </Border>
-                                                                        <Button AutomationProperties.Name="{Binding DataContext.Texts.UninstallButton, ElementName=RootView}" Tag="{Binding Kind}" Click="UninstallSetupDependencyButton_Click" IsEnabled="{Binding UninstallActionEnabled}" Visibility="{Binding UninstallVisibility}" ToolTipService.ToolTip="{Binding DataContext.Texts.UninstallTooltip, ElementName=RootView}">
+                                                                        <Button Style="{StaticResource StandardButtonStyle}" AutomationProperties.Name="{Binding DataContext.Texts.UninstallButton, ElementName=RootView}" Tag="{Binding Kind}" Click="UninstallSetupDependencyButton_Click" IsEnabled="{Binding UninstallActionEnabled}" Visibility="{Binding UninstallVisibility}" ToolTipService.ToolTip="{Binding DataContext.Texts.UninstallTooltip, ElementName=RootView}">
                                                                             <StackPanel Orientation="Horizontal" Spacing="{StaticResource AppCommandIconTextSpacing}">
                                                                                 <SymbolIcon Symbol="Delete" />
                                                                                 <TextBlock Text="{Binding DataContext.Texts.UninstallButton, ElementName=RootView}" />

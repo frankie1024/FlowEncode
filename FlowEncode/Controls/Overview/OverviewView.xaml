@@ -10,6 +10,39 @@
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
     mc:Ignorable="d">
     <ScrollViewer x:Name="OverviewScrollViewer" VerticalScrollBarVisibility="Auto">
+        <VisualStateManager.VisualStateGroups>
+            <VisualStateGroup x:Name="SelectedJobProgressStates">
+                <VisualState x:Name="DefaultProgress" />
+                <VisualState x:Name="RunningProgress">
+                    <VisualState.Setters>
+                        <Setter Target="SelectedJobProgressTrack.Background" Value="{ThemeResource TaskProgressRunningTrackBrush}" />
+                        <Setter Target="SelectedJobProgressTrack.BorderBrush" Value="{ThemeResource TaskProgressRunningBorderBrush}" />
+                        <Setter Target="SelectedJobProgressFill.Fill" Value="{ThemeResource TaskProgressRunningFillBrush}" />
+                    </VisualState.Setters>
+                </VisualState>
+                <VisualState x:Name="CompletedProgress">
+                    <VisualState.Setters>
+                        <Setter Target="SelectedJobProgressTrack.Background" Value="{ThemeResource QueueProgressSoftBrush}" />
+                        <Setter Target="SelectedJobProgressTrack.BorderBrush" Value="{ThemeResource QueueProgressFillBrush}" />
+                        <Setter Target="SelectedJobProgressFill.Fill" Value="{ThemeResource QueueProgressAreaBrush}" />
+                    </VisualState.Setters>
+                </VisualState>
+                <VisualState x:Name="FailedProgress">
+                    <VisualState.Setters>
+                        <Setter Target="SelectedJobProgressTrack.Background" Value="{ThemeResource SystemFillColorCriticalBackgroundBrush}" />
+                        <Setter Target="SelectedJobProgressTrack.BorderBrush" Value="{ThemeResource SystemFillColorCriticalBrush}" />
+                        <Setter Target="SelectedJobProgressFill.Fill" Value="{ThemeResource TaskProgressErrorBrush}" />
+                    </VisualState.Setters>
+                </VisualState>
+                <VisualState x:Name="CancelledProgress">
+                    <VisualState.Setters>
+                        <Setter Target="SelectedJobProgressTrack.Background" Value="{ThemeResource SystemFillColorNeutralBackgroundBrush}" />
+                        <Setter Target="SelectedJobProgressTrack.BorderBrush" Value="{ThemeResource SystemFillColorSolidNeutralBrush}" />
+                        <Setter Target="SelectedJobProgressFill.Fill" Value="{ThemeResource TaskProgressCancelledBrush}" />
+                    </VisualState.Setters>
+                </VisualState>
+            </VisualStateGroup>
+        </VisualStateManager.VisualStateGroups>
         <Grid x:Name="OverviewContentStack" Padding="{StaticResource AppPagePadding}">
             <Grid x:Name="OverviewWorkspaceGrid" ColumnSpacing="{StaticResource AppSpacingL}" RowSpacing="{StaticResource AppSpacingL}">
                 <Grid.RowDefinitions>
@@ -50,6 +83,7 @@
                             <Button
                                 x:Name="SourcePathBrowseButton"
                                 Grid.Column="1"
+                                Style="{StaticResource StandardButtonStyle}"
                                 AutomationProperties.Name="{Binding Texts.BrowseButton}"
                                 Click="BrowseSourceButton_Click"
                                 HorizontalAlignment="Right"
@@ -75,6 +109,7 @@
                             <Button
                                 x:Name="OutputPathBrowseButton"
                                 Grid.Column="1"
+                                Style="{StaticResource StandardButtonStyle}"
                                 AutomationProperties.Name="{Binding Texts.ChooseFolderButton}"
                                 Click="BrowseOutputButton_Click"
                                 HorizontalAlignment="Right"
@@ -421,15 +456,14 @@
                                     <TextBlock Foreground="{ThemeResource SubtleTextBrush}" Text="{Binding SelectedJobSourcePreparationText, FallbackValue=''}" TextWrapping="Wrap" Visibility="{Binding SelectedJobSourcePreparationVisibility}" />
                                 </StackPanel>
 
-                                <Border Grid.Row="1" Padding="0" Background="{ThemeResource QueueProgressSoftBrush}" BorderBrush="{ThemeResource QueueProgressFillBrush}" BorderThickness="{StaticResource AppCardBorderThickness}" CornerRadius="{StaticResource AppCardCornerRadius}">
+                                <Border x:Name="SelectedJobProgressTrack" Grid.Row="1" Padding="0" Background="{ThemeResource QueueProgressSoftBrush}" BorderBrush="{ThemeResource QueueProgressFillBrush}" BorderThickness="{StaticResource AppCardBorderThickness}" CornerRadius="{StaticResource AppCardCornerRadius}">
                                     <Grid Height="52">
-                                        <Rectangle RadiusX="8" RadiusY="8" Fill="{ThemeResource QueueProgressAreaBrush}" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" RenderTransformOrigin="0,0.5">
+                                        <Rectangle x:Name="SelectedJobProgressFill" Fill="{ThemeResource QueueProgressAreaBrush}" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" RenderTransformOrigin="0,0.5">
                                             <Rectangle.RenderTransform>
                                                 <ScaleTransform ScaleX="{Binding SelectedJobProgressValue, FallbackValue=0}" />
                                             </Rectangle.RenderTransform>
                                         </Rectangle>
-                                        <Border Margin="1" Background="{ThemeResource AppProgressOverlayBrush}" CornerRadius="{StaticResource AppCardCornerRadius}" />
-                                        <Grid IsHitTestVisible="False" shared:ProgressEffects.IsEnabled="True" shared:ProgressEffects.ParticleProgress="{Binding SelectedJobParticleProgress}" />
+                                        <Grid IsHitTestVisible="False" shared:ProgressEffects.IsEnabled="True" shared:ProgressEffects.ParticleProgress="{Binding SelectedJobParticleProgress}" shared:ProgressEffects.WaterFillTarget="{Binding ElementName=SelectedJobProgressFill}" />
                                         <StackPanel Margin="16,8" HorizontalAlignment="Stretch" VerticalAlignment="Center" Spacing="{StaticResource AppSpacingS}">
                                             <Grid ColumnSpacing="{StaticResource AppSpacingM}">
                                                 <Grid.ColumnDefinitions>

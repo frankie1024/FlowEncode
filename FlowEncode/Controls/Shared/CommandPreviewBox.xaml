@@ -35,6 +35,7 @@
                     <Button
                         x:Name="CopyCommandButton"
                         Grid.Column="1"
+                        Style="{StaticResource StandardButtonStyle}"
                         Click="CopyCommandButton_Click"
                         VerticalAlignment="Center">
                         <StackPanel Orientation="Horizontal" Spacing="{StaticResource AppCommandIconTextSpacing}">

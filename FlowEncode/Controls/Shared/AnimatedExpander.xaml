@@ -51,7 +51,6 @@
                     Grid.Column="1"
                     Click="ChevronButton_Click"
                     Style="{StaticResource IconButtonStyle}"
-                    ToolTipService.ToolTip="Toggle section"
                     VerticalAlignment="Center">
                     <FontIcon
                         x:Name="ChevronIcon"

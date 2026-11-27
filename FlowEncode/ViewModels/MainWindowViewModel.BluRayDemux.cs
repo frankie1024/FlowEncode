@@ -220,7 +220,6 @@ public partial class MainWindowViewModel
     internal string BluRayDemuxProgressPercentText => BluRayDemuxProgressIsIndeterminate && _isBluRayDemuxRunning && BluRayDemuxProgressPercent <= 0 ? "--" : $"{BluRayDemuxProgressPercent:0.#}%";
     internal string BluRayDemuxProgressSecondaryText => !string.IsNullOrWhiteSpace(_bluRayDemuxLastLogLine) ? _bluRayDemuxLastLogLine : BluRayDemuxStatusText;
     internal Visibility BluRayDemuxProgressSecondaryVisibility => string.IsNullOrWhiteSpace(_bluRayDemuxLastLogLine) ? Visibility.Collapsed : Visibility.Visible;
-    internal Brush BluRayDemuxStatusPanelBorderBrush => ResolveTaskStatusPanelBorderBrush(_bluRayDemuxDisplayState);
     internal string BluRayDemuxOutputPreviewText => _isBluRayDemuxInputRefreshPending
         ? Texts.OutputPreviewUpdating
         : BuildOutputPreviewText(TryResolveBluRayOutputPreviewPath());
@@ -551,7 +550,6 @@ public partial class MainWindowViewModel
         OnPropertyChanged(nameof(BluRayDemuxProgressLabel));
         OnPropertyChanged(nameof(BluRayDemuxProgressSecondaryText));
         OnPropertyChanged(nameof(BluRayDemuxProgressSecondaryVisibility));
-        OnPropertyChanged(nameof(BluRayDemuxStatusPanelBorderBrush));
         RaiseDashboardCardActivityPropertyChanges();
 
         BluRayDemuxSourcePath = string.Empty;
@@ -1380,7 +1378,6 @@ public partial class MainWindowViewModel
             EncodingJobState.Cancelled => TaskPresentationState.Cancelled,
             _ => TaskPresentationState.Idle
         });
-        OnPropertyChanged(nameof(BluRayDemuxStatusPanelBorderBrush));
         RaiseDashboardCardActivityPropertyChanges();
     }
 

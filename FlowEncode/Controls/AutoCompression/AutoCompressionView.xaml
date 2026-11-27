@@ -39,7 +39,7 @@
                                 <ColumnDefinition x:Name="AutoSourcePathActionColumn" Width="Auto" />
                             </Grid.ColumnDefinitions>
                             <TextBox x:Name="AutoSourcePathTextBox" Header="{Binding Texts.SourceHeader}" PlaceholderText="{Binding Texts.SourcePlaceholder}" Text="{Binding AutoCompressionSourcePath, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
-                            <Button x:Name="AutoSourceBrowseButton" Grid.Column="1" HorizontalAlignment="Right" VerticalAlignment="Bottom" AutomationProperties.Name="{Binding Texts.BrowseButton}" Click="BrowseAutoSourceButton_Click" ToolTipService.ToolTip="{Binding Texts.BrowseButton}">
+                            <Button x:Name="AutoSourceBrowseButton" Grid.Column="1" Style="{StaticResource StandardButtonStyle}" HorizontalAlignment="Right" VerticalAlignment="Bottom" AutomationProperties.Name="{Binding Texts.BrowseButton}" Click="BrowseAutoSourceButton_Click" ToolTipService.ToolTip="{Binding Texts.BrowseButton}">
                                 <StackPanel Orientation="Horizontal" Spacing="{StaticResource AppCommandIconTextSpacing}">
                                     <SymbolIcon Symbol="OpenFile" />
                                     <TextBlock Text="{Binding Texts.BrowseButton}" />
@@ -57,7 +57,7 @@
                                 <ColumnDefinition x:Name="AutoOutputPathActionColumn" Width="Auto" />
                             </Grid.ColumnDefinitions>
                             <TextBox x:Name="AutoOutputPathTextBox" Header="{Binding Texts.OutputDirectoryHeader}" Text="{Binding AutoCompressionOutputPath, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
-                            <Button x:Name="AutoOutputBrowseButton" Grid.Column="1" HorizontalAlignment="Right" VerticalAlignment="Bottom" AutomationProperties.Name="{Binding Texts.ChooseFolderButton}" Click="BrowseAutoOutputButton_Click" ToolTipService.ToolTip="{Binding Texts.ChooseFolderButton}">
+                            <Button x:Name="AutoOutputBrowseButton" Grid.Column="1" Style="{StaticResource StandardButtonStyle}" HorizontalAlignment="Right" VerticalAlignment="Bottom" AutomationProperties.Name="{Binding Texts.ChooseFolderButton}" Click="BrowseAutoOutputButton_Click" ToolTipService.ToolTip="{Binding Texts.ChooseFolderButton}">
                                 <StackPanel Orientation="Horizontal" Spacing="{StaticResource AppCommandIconTextSpacing}">
                                     <SymbolIcon Symbol="Folder" />
                                     <TextBlock Text="{Binding Texts.ChooseFolderButton}" />

@@ -3,7 +3,6 @@ using System.Threading.Tasks;
 using FlowEncode.Controls.Shared;
 using FlowEncode.Domain;
 using Microsoft.UI.Xaml;
-using Microsoft.UI.Xaml.Media;
 
 namespace FlowEncode.ViewModels;
 
@@ -31,8 +30,6 @@ public sealed class BluRayDemuxTaskViewModel : ModuleViewModelBase
     public bool CanCancelBluRayDemux => Owner.CanCancelBluRayDemux;
 
     public bool CanClearBluRayDemuxTask => Owner.CanClearBluRayDemuxTask;
-
-    public Brush BluRayDemuxStatusPanelBorderBrush => Owner.BluRayDemuxStatusPanelBorderBrush;
 
     public TaskPresentationState BluRayDemuxPresentationState => Owner.BluRayDemuxPresentationState;
 

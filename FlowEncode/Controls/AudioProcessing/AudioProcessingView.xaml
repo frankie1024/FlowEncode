@@ -40,7 +40,7 @@
                                     <ColumnDefinition x:Name="AudioSourcePathActionColumn" Width="Auto" />
                                 </Grid.ColumnDefinitions>
                                 <TextBox x:Name="AudioSourcePathTextBox" Header="{Binding Texts.SourceHeader}" Text="{Binding AudioProcessingSourcePath, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
-                                <Button x:Name="AudioSourceBrowseButton" Grid.Column="1" HorizontalAlignment="Right" VerticalAlignment="Bottom" AutomationProperties.Name="{Binding Texts.BrowseButton}" Click="BrowseAudioSourceButton_Click" ToolTipService.ToolTip="{Binding Texts.BrowseButton}">
+                                <Button x:Name="AudioSourceBrowseButton" Grid.Column="1" Style="{StaticResource StandardButtonStyle}" HorizontalAlignment="Right" VerticalAlignment="Bottom" AutomationProperties.Name="{Binding Texts.BrowseButton}" Click="BrowseAudioSourceButton_Click" ToolTipService.ToolTip="{Binding Texts.BrowseButton}">
                                     <StackPanel Orientation="Horizontal" Spacing="{StaticResource AppCommandIconTextSpacing}">
                                         <SymbolIcon Symbol="OpenFile" />
                                         <TextBlock Text="{Binding Texts.BrowseButton}" />
@@ -59,7 +59,7 @@
                                     <ColumnDefinition x:Name="AudioOutputPathActionColumn" Width="Auto" />
                                 </Grid.ColumnDefinitions>
                                 <TextBox x:Name="AudioOutputPathTextBox" Header="{Binding AudioProcessingOutputHeader}" Text="{Binding AudioProcessingOutputPath, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
-                                <Button x:Name="AudioOutputBrowseButton" Grid.Column="1" HorizontalAlignment="Right" VerticalAlignment="Bottom" AutomationProperties.Name="{Binding AudioProcessingOutputBrowseButtonText}" Click="BrowseAudioOutputButton_Click" ToolTipService.ToolTip="{Binding AudioProcessingOutputBrowseButtonText}">
+                                <Button x:Name="AudioOutputBrowseButton" Grid.Column="1" Style="{StaticResource StandardButtonStyle}" HorizontalAlignment="Right" VerticalAlignment="Bottom" AutomationProperties.Name="{Binding AudioProcessingOutputBrowseButtonText}" Click="BrowseAudioOutputButton_Click" ToolTipService.ToolTip="{Binding AudioProcessingOutputBrowseButtonText}">
                                     <StackPanel Orientation="Horizontal" Spacing="{StaticResource AppCommandIconTextSpacing}">
                                         <SymbolIcon Symbol="Folder" />
                                         <TextBlock Text="{Binding AudioProcessingOutputBrowseButtonText}" />
@@ -69,7 +69,7 @@
                             </Grid>
                         </Grid>
 
-                        <TextBlock Foreground="{ThemeResource SubtleTextBrush}" FontSize="12" Text="{Binding AudioCapabilitySummary}" TextWrapping="Wrap" />
+                        <TextBlock Foreground="{ThemeResource SubtleTextBrush}" FontSize="{StaticResource AppSmallFontSize}" Text="{Binding AudioCapabilitySummary}" TextWrapping="Wrap" />
 
                         <Grid x:Name="AudioProcessingOptionsGrid" ColumnSpacing="{StaticResource AppSpacingM}" RowSpacing="{StaticResource AppSpacingM}">
                             <ComboBox x:Name="AudioWorkflowComboBox" Header="{Binding Texts.AudioWorkflowHeader}" DisplayMemberPath="Label" HorizontalAlignment="Stretch" ItemsSource="{Binding AudioWorkflowOptions}" SelectedItem="{Binding SelectedAudioWorkflow, Mode=TwoWay}" />
@@ -96,35 +96,35 @@
                                         <TextBox Header="{Binding Texts.AudioEac3ToAdditionalArgumentsHeader}" PlaceholderText="{Binding Texts.AudioEac3ToAdditionalArgumentsPlaceholder}" Text="{Binding AudioProcessingAdditionalArguments, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Visibility="{Binding AudioEac3ToOptionsVisibility}" />
                                     </Grid>
 
-                                    <StackPanel Visibility="{Binding AudioDeewOptionsVisibility}" Spacing="8">
-                                        <Grid x:Name="DeewEncodingGrid" ColumnSpacing="12" RowSpacing="8">
+                                    <StackPanel Visibility="{Binding AudioDeewOptionsVisibility}" Spacing="{StaticResource AppSpacingS}">
+                                        <Grid x:Name="DeewEncodingGrid" ColumnSpacing="{StaticResource AppSpacingM}" RowSpacing="{StaticResource AppSpacingS}">
                                             <ComboBox Header="{Binding Texts.DeewBitrateHeader}" ItemsSource="{Binding Deew.BitrateOptions}" SelectedItem="{Binding Deew.Bitrate, Mode=TwoWay}" Visibility="{Binding Deew.BitrateVisibility}" HorizontalAlignment="Stretch" />
                                             <ComboBox Header="{Binding Texts.DeewDownmixHeader}" ItemsSource="{Binding Deew.DownmixOptions}" SelectedItem="{Binding Deew.Downmix, Mode=TwoWay}" Visibility="{Binding Deew.DownmixVisibility}" HorizontalAlignment="Stretch" />
                                             <ComboBox Header="DRC" ItemsSource="{Binding Deew.DrcOptions}" SelectedItem="{Binding Deew.Drc, Mode=TwoWay}" Visibility="{Binding Deew.DrcVisibility}" HorizontalAlignment="Stretch" />
                                         </Grid>
-                                        <Grid x:Name="DeewSignalGrid" ColumnSpacing="12" RowSpacing="8">
+                                        <Grid x:Name="DeewSignalGrid" ColumnSpacing="{StaticResource AppSpacingM}" RowSpacing="{StaticResource AppSpacingS}">
                                             <NumberBox Header="Dialnorm (-31..0)" Minimum="-31" Maximum="0" SmallChange="1" Value="{Binding Deew.Dialnorm, Mode=TwoWay}" Visibility="{Binding Deew.DialnormVisibility}" />
                                             <TextBox Header="{Binding Texts.DeewDelayHeader}" Text="{Binding Deew.Delay, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
                                             <TextBox Header="{Binding Texts.DeewInstancesHeader}" Text="{Binding Deew.Instances, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" PlaceholderText="50%" />
                                             <ComboBox Header="{Binding Texts.DeewPipeModeHeader}" ItemsSource="{Binding Deew.PipeModes}" SelectedItem="{Binding Deew.PipeMode, Mode=TwoWay}" HorizontalAlignment="Stretch" />
                                         </Grid>
-                                        <Grid x:Name="DeewTrueHddGrid" ColumnSpacing="12" RowSpacing="8" Visibility="{Binding Deew.TrueHddOptionsVisibility}">
+                                        <Grid x:Name="DeewTrueHddGrid" ColumnSpacing="{StaticResource AppSpacingM}" RowSpacing="{StaticResource AppSpacingS}" Visibility="{Binding Deew.TrueHddOptionsVisibility}">
                                             <ComboBox Header="{Binding Texts.DeewWarpModeHeader}" ItemsSource="{Binding Deew.WarpModes}" SelectedItem="{Binding Deew.WarpMode, Mode=TwoWay}" Visibility="{Binding Deew.TrueHddOptionsVisibility}" HorizontalAlignment="Stretch" />
                                             <ComboBox Header="{Binding Texts.DeewBedConformHeader}" ItemsSource="{Binding Deew.BedConformOptions}" SelectedItem="{Binding Deew.BedConform, Mode=TwoWay}" Visibility="{Binding Deew.TrueHddOptionsVisibility}" HorizontalAlignment="Stretch" />
                                         </Grid>
-                                        <Grid x:Name="DeewNamingGrid" ColumnSpacing="12" RowSpacing="8" Visibility="{Binding Deew.OutputNamingVisibility}">
+                                        <Grid x:Name="DeewNamingGrid" ColumnSpacing="{StaticResource AppSpacingM}" RowSpacing="{StaticResource AppSpacingS}" Visibility="{Binding Deew.OutputNamingVisibility}">
                                             <TextBox Header="{Binding Texts.DeewOutputNameHeader}" PlaceholderText="{Binding Texts.DeewOutputNamePlaceholder}" Text="{Binding Deew.OutputName, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Visibility="{Binding Deew.OutputNamingVisibility}" />
                                             <TextBox Header="{Binding Texts.DeewOutputTemplateHeader}" PlaceholderText="{Binding Texts.DeewOutputTemplatePlaceholder}" Text="{Binding Deew.OutputTemplate, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Visibility="{Binding Deew.OutputNamingVisibility}" />
                                         </Grid>
-                                        <Grid x:Name="DeewFlagsGrid" ColumnSpacing="16" RowSpacing="0">
-                                            <CheckBox Content="{Binding Texts.DeewLfeHeader}" IsChecked="{Binding Deew.DisableLfe, Mode=TwoWay}" Visibility="{Binding Deew.LfeVisibility}" FontSize="13" />
-                                            <CheckBox Content="{Binding Texts.DeewNoPhaseShiftHeader}" IsChecked="{Binding Deew.NoPhaseShift, Mode=TwoWay}" Visibility="{Binding Deew.NoPhaseShiftVisibility}" FontSize="13" />
-                                            <CheckBox Content="{Binding Texts.DeewKeepTempHeader}" IsChecked="{Binding Deew.KeepTemp, Mode=TwoWay}" FontSize="13" />
-                                            <CheckBox Content="{Binding Texts.DeewKeepLogHeader}" IsChecked="{Binding Deew.KeepLog, Mode=TwoWay}" FontSize="13" />
-                                            <CheckBox Content="{Binding Texts.DeewMeasureOnlyHeader}" IsChecked="{Binding Deew.MeasureOnly, Mode=TwoWay}" Visibility="{Binding Deew.MeasureOnlyVisibility}" FontSize="13" />
+                                        <Grid x:Name="DeewFlagsGrid" ColumnSpacing="{StaticResource AppSpacingL}" RowSpacing="0">
+                                            <CheckBox Content="{Binding Texts.DeewLfeHeader}" IsChecked="{Binding Deew.DisableLfe, Mode=TwoWay}" Visibility="{Binding Deew.LfeVisibility}" FontSize="{StaticResource AppCaptionFontSize}" />
+                                            <CheckBox Content="{Binding Texts.DeewNoPhaseShiftHeader}" IsChecked="{Binding Deew.NoPhaseShift, Mode=TwoWay}" Visibility="{Binding Deew.NoPhaseShiftVisibility}" FontSize="{StaticResource AppCaptionFontSize}" />
+                                            <CheckBox Content="{Binding Texts.DeewKeepTempHeader}" IsChecked="{Binding Deew.KeepTemp, Mode=TwoWay}" FontSize="{StaticResource AppCaptionFontSize}" />
+                                            <CheckBox Content="{Binding Texts.DeewKeepLogHeader}" IsChecked="{Binding Deew.KeepLog, Mode=TwoWay}" FontSize="{StaticResource AppCaptionFontSize}" />
+                                            <CheckBox Content="{Binding Texts.DeewMeasureOnlyHeader}" IsChecked="{Binding Deew.MeasureOnly, Mode=TwoWay}" Visibility="{Binding Deew.MeasureOnlyVisibility}" FontSize="{StaticResource AppCaptionFontSize}" />
                                         </Grid>
-                                        <TextBlock Text="{Binding Deew.EffectiveDescription}" FontSize="12" TextWrapping="Wrap" Foreground="{ThemeResource SubtleTextBrush}" />
-                                        <Grid x:Name="DeewTempGrid" ColumnSpacing="12" RowSpacing="8">
+                                        <TextBlock Text="{Binding Deew.EffectiveDescription}" FontSize="{StaticResource AppSmallFontSize}" TextWrapping="Wrap" Foreground="{ThemeResource SubtleTextBrush}" />
+                                        <Grid x:Name="DeewTempGrid" ColumnSpacing="{StaticResource AppSpacingM}" RowSpacing="{StaticResource AppSpacingS}">
                                             <ComboBox ToolTipService.ToolTip="{Binding Texts.DeewOutputHint}" Header="{Binding Texts.DeewTempHeader}" ItemsSource="{Binding Deew.TempModes}" SelectedIndex="{Binding Deew.TempModeIndex, Mode=TwoWay}" HorizontalAlignment="Stretch" />
                                             <TextBox Header="{Binding Texts.DeewTempRootHeader}" Text="{Binding Deew.CustomTempRoot, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Visibility="{Binding Deew.CustomTempVisibility}" />
                                         </Grid>
@@ -199,12 +199,12 @@
                             </shared:AnimatedExpander.BodyContent>
                         </shared:AnimatedExpander>
                     </Grid>
-                        <StackPanel x:Name="AudioResultsPanel" Grid.Row="3" DataContext="{Binding Status}" Spacing="8" Visibility="Collapsed">
+                        <StackPanel x:Name="AudioResultsPanel" Grid.Row="3" DataContext="{Binding Status}" Spacing="{StaticResource AppSpacingS}" Visibility="Collapsed">
                         <TextBox x:Name="AudioResultPathsTextBox" Header="{Binding Texts.DeewResultHeader}" Text="{Binding AudioResultPaths}" IsReadOnly="True" TextWrapping="Wrap" />
-                        <StackPanel Orientation="Horizontal" Spacing="8">
-                            <Button Content="{Binding Texts.DeewOpenMedia}" Tag="media" IsEnabled="{Binding CanOpenAudioMedia}" Click="OpenAudioArtifact_Click" />
-                            <Button Content="{Binding Texts.DeewOpenLogs}" Tag="logs" IsEnabled="{Binding CanOpenAudioDiagnostics}" Click="OpenAudioArtifact_Click" />
-                            <Button Content="{Binding Texts.DeewOpenRetained}" Tag="retained" IsEnabled="{Binding CanOpenAudioRetained}" Click="OpenAudioArtifact_Click" />
+                        <StackPanel Orientation="Horizontal" Spacing="{StaticResource AppSpacingS}">
+                            <Button Style="{StaticResource StandardButtonStyle}" Content="{Binding Texts.DeewOpenMedia}" Tag="media" IsEnabled="{Binding CanOpenAudioMedia}" Click="OpenAudioArtifact_Click" />
+                            <Button Style="{StaticResource StandardButtonStyle}" Content="{Binding Texts.DeewOpenLogs}" Tag="logs" IsEnabled="{Binding CanOpenAudioDiagnostics}" Click="OpenAudioArtifact_Click" />
+                            <Button Style="{StaticResource StandardButtonStyle}" Content="{Binding Texts.DeewOpenRetained}" Tag="retained" IsEnabled="{Binding CanOpenAudioRetained}" Click="OpenAudioArtifact_Click" />
                         </StackPanel>
                         </StackPanel>
                 </Grid>

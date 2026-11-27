@@ -50,7 +50,7 @@
                                     <ColumnDefinition x:Name="BluRaySourcePathActionColumn" Width="Auto" />
                                 </Grid.ColumnDefinitions>
                                 <TextBox x:Name="BluRaySourcePathTextBox" Header="{Binding Texts.SourceHeader}" Text="{Binding BluRayDemuxSourcePath, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
-                                <Button x:Name="BluRaySourceBrowseButton" Grid.Column="1" HorizontalAlignment="Right" VerticalAlignment="Bottom" AutomationProperties.Name="{Binding Texts.BrowseButton}" Click="BrowseBluRaySourceButton_Click" ToolTipService.ToolTip="{Binding Texts.BrowseButton}">
+                                <Button x:Name="BluRaySourceBrowseButton" Grid.Column="1" Style="{StaticResource StandardButtonStyle}" HorizontalAlignment="Right" VerticalAlignment="Bottom" AutomationProperties.Name="{Binding Texts.BrowseButton}" Click="BrowseBluRaySourceButton_Click" ToolTipService.ToolTip="{Binding Texts.BrowseButton}">
                                     <StackPanel Orientation="Horizontal" Spacing="{StaticResource AppCommandIconTextSpacing}">
                                         <SymbolIcon Symbol="OpenFile" />
                                         <TextBlock Text="{Binding Texts.BrowseButton}" />
@@ -68,7 +68,7 @@
                                     <ColumnDefinition x:Name="BluRayOutputPathActionColumn" Width="Auto" />
                                 </Grid.ColumnDefinitions>
                                 <TextBox x:Name="BluRayOutputPathTextBox" Header="{Binding Texts.OutputDirectoryHeader}" Text="{Binding BluRayDemuxOutputPath, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
-                                <Button x:Name="BluRayOutputBrowseButton" Grid.Column="1" HorizontalAlignment="Right" VerticalAlignment="Bottom" AutomationProperties.Name="{Binding Texts.ChooseFolderButton}" Click="BrowseBluRayOutputButton_Click" ToolTipService.ToolTip="{Binding Texts.ChooseFolderButton}">
+                                <Button x:Name="BluRayOutputBrowseButton" Grid.Column="1" Style="{StaticResource StandardButtonStyle}" HorizontalAlignment="Right" VerticalAlignment="Bottom" AutomationProperties.Name="{Binding Texts.ChooseFolderButton}" Click="BrowseBluRayOutputButton_Click" ToolTipService.ToolTip="{Binding Texts.ChooseFolderButton}">
                                     <StackPanel Orientation="Horizontal" Spacing="{StaticResource AppCommandIconTextSpacing}">
                                         <SymbolIcon Symbol="Folder" />
                                         <TextBlock Text="{Binding Texts.ChooseFolderButton}" />
@@ -142,13 +142,13 @@
                             </Grid.ColumnDefinitions>
                             <TextBlock FontFamily="{StaticResource AppDisplayFont}" FontSize="{StaticResource AppBodyLargeFontSize}" FontWeight="SemiBold" Text="{Binding Texts.BluRayDemuxExportStepTitle}" />
                             <StackPanel x:Name="BluRayTrackSelectionActionsPanel" Grid.Column="1" Orientation="Horizontal" Spacing="{StaticResource AppSpacingS}" HorizontalAlignment="Right" VerticalAlignment="Center">
-                                <Button AutomationProperties.Name="{Binding Texts.BluRaySelectAllTracksButton}" Click="SelectAllBluRayTracksButton_Click" IsEnabled="{Binding CanSelectAllBluRayTracks}" ToolTipService.ToolTip="{Binding Texts.BluRaySelectAllTracksButton}">
+                                <Button Style="{StaticResource StandardButtonStyle}" AutomationProperties.Name="{Binding Texts.BluRaySelectAllTracksButton}" Click="SelectAllBluRayTracksButton_Click" IsEnabled="{Binding CanSelectAllBluRayTracks}" ToolTipService.ToolTip="{Binding Texts.BluRaySelectAllTracksButton}">
                                     <StackPanel Orientation="Horizontal" Spacing="{StaticResource AppCommandIconTextSpacing}">
                                         <SymbolIcon Symbol="Accept" />
                                         <TextBlock Text="{Binding Texts.BluRaySelectAllTracksButton}" />
                                     </StackPanel>
                                 </Button>
-                                <Button AutomationProperties.Name="{Binding Texts.BluRayInvertTracksButton}" Click="InvertBluRayTracksButton_Click" IsEnabled="{Binding CanInvertBluRayTrackSelection}" ToolTipService.ToolTip="{Binding Texts.BluRayInvertTracksButton}">
+                                <Button Style="{StaticResource StandardButtonStyle}" AutomationProperties.Name="{Binding Texts.BluRayInvertTracksButton}" Click="InvertBluRayTracksButton_Click" IsEnabled="{Binding CanInvertBluRayTrackSelection}" ToolTipService.ToolTip="{Binding Texts.BluRayInvertTracksButton}">
                                     <StackPanel Orientation="Horizontal" Spacing="{StaticResource AppCommandIconTextSpacing}">
                                         <SymbolIcon Symbol="Switch" />
                                         <TextBlock Text="{Binding Texts.BluRayInvertTracksButton}" />

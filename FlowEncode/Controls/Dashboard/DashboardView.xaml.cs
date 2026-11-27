@@ -1,7 +1,9 @@
 using System;
+using System.ComponentModel;
 using System.Linq;
 using System.Numerics;
 using FlowEncode.Controls.Shared;
+using FlowEncode.ViewModels;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 
@@ -13,6 +15,7 @@ public sealed partial class DashboardView : UserControl
     private const float FallbackHeroElevationZ = 8f;
     private double _lastWidth;
     private bool _heroElevationThemeHookAttached;
+    private DashboardViewModel? _subscribedViewModel;
 
     internal IDashboardViewHost? Host { get; set; }
 
@@ -22,13 +25,17 @@ public sealed partial class DashboardView : UserControl
         SizeChanged += DashboardView_SizeChanged;
         DashboardScroller.SizeChanged += DashboardScroller_SizeChanged;
         DashboardCardGrid.SizeChanged += (_, _) => UpdateCardDensity();
+        DataContextChanged += DashboardView_DataContextChanged;
         Loaded += DashboardView_Loaded;
+        Unloaded += DashboardView_Unloaded;
     }
 
     private void DashboardView_Loaded(object sender, RoutedEventArgs e)
     {
         // Re-apply on every load in case the theme changed while this view was detached.
         ApplyHeroElevation();
+        AttachViewModel(DataContext as DashboardViewModel);
+        UpdateStatusVisualStates();
 
         if (_heroElevationThemeHookAttached)
         {
@@ -37,6 +44,70 @@ public sealed partial class DashboardView : UserControl
 
         _heroElevationThemeHookAttached = true;
         ActualThemeChanged += (_, _) => ApplyHeroElevation();
+    }
+
+    private void DashboardView_Unloaded(object sender, RoutedEventArgs e)
+    {
+        AttachViewModel(null);
+    }
+
+    private void DashboardView_DataContextChanged(FrameworkElement sender, DataContextChangedEventArgs args)
+    {
+        AttachViewModel(args.NewValue as DashboardViewModel);
+        UpdateStatusVisualStates();
+    }
+
+    private void AttachViewModel(DashboardViewModel? viewModel)
+    {
+        if (ReferenceEquals(_subscribedViewModel, viewModel))
+        {
+            return;
+        }
+
+        if (_subscribedViewModel is not null)
+        {
+            _subscribedViewModel.PropertyChanged -= ViewModel_PropertyChanged;
+        }
+
+        _subscribedViewModel = viewModel;
+        if (_subscribedViewModel is not null)
+        {
+            _subscribedViewModel.PropertyChanged += ViewModel_PropertyChanged;
+        }
+    }
+
+    private void ViewModel_PropertyChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (string.IsNullOrEmpty(e.PropertyName)
+            || e.PropertyName is nameof(DashboardViewModel.DashboardBluRayDemuxPresentationState)
+                or nameof(DashboardViewModel.DashboardOverviewPresentationState)
+                or nameof(DashboardViewModel.DashboardAudioProcessingPresentationState)
+                or nameof(DashboardViewModel.DashboardAutoCompressionPresentationState))
+        {
+            UpdateStatusVisualStates();
+        }
+    }
+
+    private void UpdateStatusVisualStates()
+    {
+        var vm = _subscribedViewModel;
+        ApplyCardStatusState("Demux", vm?.DashboardBluRayDemuxPresentationState ?? TaskPresentationState.Idle);
+        ApplyCardStatusState("Overview", vm?.DashboardOverviewPresentationState ?? TaskPresentationState.Idle);
+        ApplyCardStatusState("Audio", vm?.DashboardAudioProcessingPresentationState ?? TaskPresentationState.Idle);
+        ApplyCardStatusState("Auto", vm?.DashboardAutoCompressionPresentationState ?? TaskPresentationState.Idle);
+    }
+
+    private void ApplyCardStatusState(string prefix, TaskPresentationState state)
+    {
+        var suffix = state switch
+        {
+            TaskPresentationState.Running or TaskPresentationState.Canceling => "Running",
+            TaskPresentationState.Completed => "Completed",
+            TaskPresentationState.Failed => "Failed",
+            TaskPresentationState.Cancelled => "Cancelled",
+            _ => "Idle"
+        };
+        VisualStateManager.GoToState(this, prefix + suffix, false);
     }
 
     private void ApplyHeroElevation()
@@ -169,8 +240,21 @@ public sealed partial class DashboardView : UserControl
             if (iconHost is not null)
             {
                 iconHost.VerticalAlignment = VerticalAlignment.Bottom;
-                var icon = iconHost as Viewbox ?? (iconHost as Grid)?.Children.OfType<Viewbox>().FirstOrDefault();
-                if (icon is not null) icon.Width = icon.Height = 28 * scale;
+                var badge = iconHost as Border ?? (iconHost as Grid)?.Children.OfType<Border>().FirstOrDefault(child => Grid.GetColumn(child) == 0);
+                if (badge is not null)
+                {
+                    badge.Width = badge.Height = 44 * scale;
+                    badge.CornerRadius = new CornerRadius(Math.Round(10 * scale));
+                    if (badge.Child is Viewbox badgeIcon)
+                    {
+                        badgeIcon.Width = badgeIcon.Height = 22 * scale;
+                    }
+                }
+                else
+                {
+                    var icon = iconHost as Viewbox ?? (iconHost as Grid)?.Children.OfType<Viewbox>().FirstOrDefault();
+                    if (icon is not null) icon.Width = icon.Height = 28 * scale;
+                }
             }
             var description = content.Children.OfType<StackPanel>().FirstOrDefault(child => Grid.GetRow(child) == 1);
             if (description is not null)

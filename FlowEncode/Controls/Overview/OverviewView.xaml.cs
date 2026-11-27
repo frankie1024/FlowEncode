@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.ComponentModel;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
@@ -26,6 +27,7 @@ public sealed partial class OverviewView : UserControl
     private bool _hasAppliedLayout;
     private bool _lastStackedWorkspace;
     private bool _compactForms;
+    private OverviewQueueViewModel? _subscribedQueueViewModel;
 
     internal IOverviewViewHost? Host { get; set; }
 
@@ -36,7 +38,9 @@ public sealed partial class OverviewView : UserControl
     public OverviewView()
     {
         InitializeComponent();
+        DataContextChanged += OverviewView_DataContextChanged;
         Loaded += OverviewView_Loaded;
+        Unloaded += OverviewView_Unloaded;
         OverviewScrollViewer.SizeChanged += OverviewScrollViewer_SizeChanged;
         OverviewComposerGrid.SizeChanged += (_, _) => ScheduleOverviewWorkspaceHeightRefresh(_lastStackedWorkspace);
         OverviewAdvancedOptionsPanel.SizeChanged += (_, _) => ScheduleOverviewWorkspaceHeightRefresh(_lastStackedWorkspace);
@@ -162,10 +166,66 @@ public sealed partial class OverviewView : UserControl
         }
 
         _isLoaded = true;
+        AttachQueueViewModel(QueueViewModel);
+        UpdateSelectedJobProgressVisualState();
         if (_hasAppliedLayout)
         {
             ScheduleOverviewWorkspaceHeightRefresh(_lastStackedWorkspace);
         }
+    }
+
+    private void OverviewView_Unloaded(object sender, RoutedEventArgs e)
+    {
+        AttachQueueViewModel(null);
+    }
+
+    private void OverviewView_DataContextChanged(FrameworkElement sender, DataContextChangedEventArgs args)
+    {
+        AttachQueueViewModel((args.NewValue as OverviewViewModel)?.Queue);
+        UpdateSelectedJobProgressVisualState();
+    }
+
+    private void AttachQueueViewModel(OverviewQueueViewModel? queueViewModel)
+    {
+        if (ReferenceEquals(_subscribedQueueViewModel, queueViewModel))
+        {
+            return;
+        }
+
+        if (_subscribedQueueViewModel is not null)
+        {
+            _subscribedQueueViewModel.PropertyChanged -= QueueViewModel_PropertyChanged;
+        }
+
+        _subscribedQueueViewModel = queueViewModel;
+        if (_subscribedQueueViewModel is not null)
+        {
+            _subscribedQueueViewModel.PropertyChanged += QueueViewModel_PropertyChanged;
+        }
+    }
+
+    private void QueueViewModel_PropertyChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (string.IsNullOrEmpty(e.PropertyName)
+            || e.PropertyName is nameof(OverviewQueueViewModel.SelectedJobPresentationState)
+                or nameof(OverviewQueueViewModel.SelectedJob))
+        {
+            UpdateSelectedJobProgressVisualState();
+        }
+    }
+
+    private void UpdateSelectedJobProgressVisualState()
+    {
+        var state = _subscribedQueueViewModel?.SelectedJobPresentationState ?? TaskPresentationState.Idle;
+        var visualState = state switch
+        {
+            TaskPresentationState.Running or TaskPresentationState.Canceling => "RunningProgress",
+            TaskPresentationState.Completed => "CompletedProgress",
+            TaskPresentationState.Failed => "FailedProgress",
+            TaskPresentationState.Cancelled => "CancelledProgress",
+            _ => "DefaultProgress"
+        };
+        VisualStateManager.GoToState(this, visualState, false);
     }
 
     private void OverviewScrollViewer_SizeChanged(object sender, SizeChangedEventArgs e)
@@ -855,10 +915,39 @@ public sealed partial class OverviewView : UserControl
         flyout.Items.Add(new MenuFlyoutSeparator());
         flyout.Items.Add(CreateMenuItem(texts.JobMenuCancel, Symbol.Cancel, AbortJobMenuItem_Click, job, job.CanCancel));
         flyout.Items.Add(new MenuFlyoutSeparator());
+        var canCompareWithSource = job.State == EncodingJobState.Completed
+            && !string.IsNullOrWhiteSpace(job.SourcePath)
+            && !string.IsNullOrWhiteSpace(job.OutputPath)
+            && File.Exists(job.SourcePath)
+            && File.Exists(job.OutputPath);
+        flyout.Items.Add(CreateMenuItem(texts.JobMenuCompareWithSource, Symbol.View, CompareJobWithSourceMenuItem_Click, job, canCompareWithSource));
+        flyout.Items.Add(new MenuFlyoutSeparator());
         flyout.Items.Add(CreateMenuItem(texts.JobMenuRestart, Symbol.Refresh, RestartJobMenuItem_Click, job, job.CanRestart));
         flyout.Items.Add(CreateMenuItem(texts.JobMenuDelete, Symbol.Delete, DeleteJobMenuItem_Click, job, job.CanRemove));
 
         return flyout;
+    }
+
+    private async void CompareJobWithSourceMenuItem_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is not MenuFlyoutItem { CommandParameter: EncodingJobItemViewModel job })
+        {
+            return;
+        }
+
+        if (string.IsNullOrWhiteSpace(job.SourcePath)
+            || string.IsNullOrWhiteSpace(job.OutputPath)
+            || !File.Exists(job.SourcePath)
+            || !File.Exists(job.OutputPath))
+        {
+            return;
+        }
+
+        await App.GetService<MainWindow>().OpenQuickComparePreviewAsync(
+            job.SourcePath,
+            job.OutputPath,
+            Path.GetFileName(job.SourcePath),
+            Path.GetFileName(job.OutputPath));
     }
 
     private static MenuFlyoutItem CreateMenuItem(string text, Symbol icon, RoutedEventHandler click, EncodingJobItemViewModel job, bool isEnabled = true)

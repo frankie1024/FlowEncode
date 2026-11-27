@@ -394,8 +394,6 @@ public partial class MainWindowViewModel
 
     internal string AutoCompressionProgressHint => Texts.AutoCompressionProgressIndeterminateHint;
 
-    internal Brush AutoCompressionStatusPanelBorderBrush => ResolveTaskStatusPanelBorderBrush(_autoCompressionDisplayState);
-
     internal string AutoCompressionSuggestedOutputExtension => "mkv";
 
     internal string AutoCompressionSuggestedOutputFileName
@@ -984,7 +982,6 @@ public partial class MainWindowViewModel
             EncodingJobState.Cancelled => TaskPresentationState.Cancelled,
             _ => TaskPresentationState.Idle
         });
-        OnPropertyChanged(nameof(AutoCompressionStatusPanelBorderBrush));
         RaiseDashboardCardActivityPropertyChanges();
     }
 

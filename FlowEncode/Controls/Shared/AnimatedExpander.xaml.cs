@@ -1,5 +1,8 @@
 using System;
+using System.Globalization;
+using FlowEncode.ViewModels;
 using Microsoft.UI.Xaml;
+using Microsoft.UI.Xaml.Automation;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Controls.Primitives;
 using Microsoft.UI.Xaml.Input;
@@ -52,6 +55,7 @@ public sealed partial class AnimatedExpander : UserControl
     public AnimatedExpander()
     {
         InitializeComponent();
+        DataContextChanged += (_, _) => UpdateChevronAccessibility(IsExpanded);
         Loaded += AnimatedExpander_Loaded;
         Unloaded += AnimatedExpander_Unloaded;
     }
@@ -242,6 +246,7 @@ public sealed partial class AnimatedExpander : UserControl
         ContentClipHost.Height = isExpanded ? double.NaN : 0;
         ContentClipHost.Clip = null;
         UpdateHeaderCornerRadius(isExpanded);
+        UpdateChevronAccessibility(isExpanded);
         _chevronRotateTransform!.Angle = isExpanded ? 180 : 0;
         UpdateContentClip();
     }
@@ -428,5 +433,30 @@ public sealed partial class AnimatedExpander : UserControl
         HeaderBorder.CornerRadius = isExpanded
             ? new CornerRadius(6, 6, 0, 0)
             : new CornerRadius(6);
+        UpdateChevronAccessibility(isExpanded);
+    }
+
+    private void UpdateChevronAccessibility(bool isExpanded)
+    {
+        var isChinese = ResolveIsChinese();
+        var label = isExpanded
+            ? (isChinese ? "折叠" : "Collapse")
+            : (isChinese ? "展开" : "Expand");
+        ToolTipService.SetToolTip(ChevronButton, label);
+        AutomationProperties.SetName(ChevronButton, label);
+    }
+
+    private bool ResolveIsChinese()
+    {
+        if (DataContext is not null)
+        {
+            var textsProperty = DataContext.GetType().GetProperty("Texts");
+            if (textsProperty?.GetValue(DataContext) is AppText texts)
+            {
+                return texts.IsChinese;
+            }
+        }
+
+        return CultureInfo.CurrentUICulture.Name.StartsWith("zh", StringComparison.OrdinalIgnoreCase);
     }
 }

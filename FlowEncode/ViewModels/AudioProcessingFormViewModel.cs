@@ -98,8 +98,6 @@ public sealed class AudioProcessingFormViewModel : ModuleViewModelBase
 
     public Visibility AudioOpusOptionsVisibility => Owner.AudioOpusOptionsVisibility;
 
-    public Brush AudioProcessingStatusPanelBorderBrush => Owner.AudioProcessingStatusPanelBorderBrush;
-
     public string AudioCapabilitySummary => Owner.AudioCapabilitySummary;
 
     public bool CanStartAudioProcessing => Owner.CanStartAudioProcessing;

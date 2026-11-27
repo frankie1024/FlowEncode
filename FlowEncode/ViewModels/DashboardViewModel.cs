@@ -1,5 +1,5 @@
+using FlowEncode.Controls.Shared;
 using Microsoft.UI.Xaml;
-using Microsoft.UI.Xaml.Media;
 
 namespace FlowEncode.ViewModels;
 
@@ -20,7 +20,7 @@ public sealed class DashboardViewModel : ModuleViewModelBase
 
     public string DashboardBluRayDemuxStatusText => Owner.DashboardBluRayDemuxStatusText;
 
-    public Brush DashboardBluRayDemuxStatusBrush => Owner.DashboardBluRayDemuxStatusBrush;
+    public TaskPresentationState DashboardBluRayDemuxPresentationState => Owner.DashboardBluRayDemuxPresentationState;
 
     public double DashboardBluRayDemuxProgressValue => Owner.DashboardBluRayDemuxProgressValue;
 
@@ -34,7 +34,7 @@ public sealed class DashboardViewModel : ModuleViewModelBase
 
     public string DashboardOverviewStatusText => Owner.DashboardOverviewStatusText;
 
-    public Brush DashboardOverviewStatusBrush => Owner.DashboardOverviewStatusBrush;
+    public TaskPresentationState DashboardOverviewPresentationState => Owner.DashboardOverviewPresentationState;
 
     public double DashboardOverviewProgressValue => Owner.DashboardOverviewProgressValue;
 
@@ -48,7 +48,7 @@ public sealed class DashboardViewModel : ModuleViewModelBase
 
     public string DashboardAudioProcessingStatusText => Owner.DashboardAudioProcessingStatusText;
 
-    public Brush DashboardAudioProcessingStatusBrush => Owner.DashboardAudioProcessingStatusBrush;
+    public TaskPresentationState DashboardAudioProcessingPresentationState => Owner.DashboardAudioProcessingPresentationState;
 
     public double DashboardAudioProcessingProgressValue => Owner.DashboardAudioProcessingProgressValue;
 
@@ -62,7 +62,7 @@ public sealed class DashboardViewModel : ModuleViewModelBase
 
     public string DashboardAutoCompressionStatusText => Owner.DashboardAutoCompressionStatusText;
 
-    public Brush DashboardAutoCompressionStatusBrush => Owner.DashboardAutoCompressionStatusBrush;
+    public TaskPresentationState DashboardAutoCompressionPresentationState => Owner.DashboardAutoCompressionPresentationState;
 
     public double DashboardAutoCompressionProgressValue => Owner.DashboardAutoCompressionProgressValue;
 

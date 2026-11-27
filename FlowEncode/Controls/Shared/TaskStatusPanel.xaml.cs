@@ -18,6 +18,7 @@ public sealed partial class TaskStatusPanel : UserControl
     public TaskStatusPanel()
     {
         InitializeComponent();
+        Loaded += (_, _) => UpdatePresentationState();
         UpdatePresentationState();
     }
 
@@ -53,6 +54,8 @@ public sealed partial class TaskStatusPanel : UserControl
     {
         var progressState = PresentationState switch
         {
+            TaskPresentationState.Running or TaskPresentationState.Canceling => "RunningProgress",
+            TaskPresentationState.Completed => "CompletedProgress",
             TaskPresentationState.Failed => "FailedProgress",
             TaskPresentationState.Cancelled => "CancelledProgress",
             _ => "DefaultProgress"
@@ -73,5 +76,4 @@ public sealed partial class TaskStatusPanel : UserControl
             ? Visibility.Visible
             : Visibility.Collapsed;
     }
-
 }

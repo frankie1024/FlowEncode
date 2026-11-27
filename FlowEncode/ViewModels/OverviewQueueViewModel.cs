@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Threading.Tasks;
+using FlowEncode.Controls.Shared;
 using FlowEncode.Domain;
 using Microsoft.UI.Xaml;
 
@@ -60,6 +61,8 @@ public sealed class OverviewQueueViewModel : ModuleViewModelBase
     public string SelectedJobSourcePreparationText => Owner.SelectedJobSourcePreparationText;
 
     public double SelectedJobProgressValue => Owner.SelectedJobProgressValue;
+
+    public TaskPresentationState SelectedJobPresentationState => Owner.SelectedJobPresentationState;
 
     public double SelectedJobParticleProgress => Owner.SelectedJobParticleProgress;
 

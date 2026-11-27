@@ -12,7 +12,7 @@
     <Grid
         x:Name="WorkspaceRoot"
         Margin="{StaticResource AppPagePadding}"
-        Background="{ThemeResource WindowBackgroundBrush}">
+        Background="Transparent">
         <Border
             Background="{ThemeResource CardBrush}"
             BorderBrush="{ThemeResource CardBorderBrush}"
@@ -32,7 +32,7 @@
             <CommandBar
                 x:Name="EditorCommandBar"
                 Padding="10,4,10,4"
-                Background="{ThemeResource CardBrush}"
+                Background="Transparent"
                 DefaultLabelPosition="Right"
                 IsDynamicOverflowEnabled="True"
                 OverflowButtonVisibility="Auto">
@@ -101,7 +101,7 @@
                 x:Name="WorkspaceTabView"
                 Grid.Row="1"
                 Padding="8,0,8,0"
-                Background="{ThemeResource CardBrush}"
+                Background="Transparent"
                 AddTabButtonClick="WorkspaceTabView_AddTabButtonClick"
                 IsAddTabButtonVisible="True"
                 CanReorderTabs="True"
@@ -267,7 +267,7 @@
 
                             <Button
                                 Grid.Column="1"
-                                Padding="12,4"
+                                Style="{StaticResource StandardButtonStyle}"
                                 Click="ClearLogButton_Click"
                                 AutomationProperties.Name="{Binding Texts.VapourSynthClearLogButton}"
                                 ToolTipService.ToolTip="{Binding Texts.VapourSynthClearLogButton}">

@@ -40,7 +40,7 @@
                                 </ListView.ItemContainerTransitions>
                                 <ListView.ItemTemplate>
                                     <DataTemplate x:DataType="vm:TemplateLibraryItemViewModel">
-                                        <Border Margin="{StaticResource AppBottomSpacingM}" Padding="{StaticResource AppInsetPanelPadding}" Background="{ThemeResource CardBackgroundFillColorDefaultBrush}" BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="{StaticResource AppCardBorderThickness}" CornerRadius="{StaticResource AppCardCornerRadius}" shared:UiElevation.Level="E1" shared:UiElevation.HoverLevel="E2">
+                                        <Border Margin="{StaticResource AppBottomSpacingM}" Padding="{StaticResource AppInsetPanelPadding}" Background="{ThemeResource CardAltBrush}" BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="{StaticResource AppCardBorderThickness}" CornerRadius="{StaticResource AppCardCornerRadius}" shared:UiElevation.Level="E1" shared:UiElevation.HoverLevel="E2">
                                             <Grid ColumnSpacing="{StaticResource AppSpacingM}">
                                                 <Grid.ColumnDefinitions>
                                                     <ColumnDefinition Width="*" />
@@ -66,10 +66,10 @@
                                                     <TextBlock Style="{ThemeResource SelectableSecondaryTextBlockStyle}" Text="{Binding MetaText}" TextWrapping="WrapWholeWords" Visibility="{Binding MetaVisibility}" />
                                                 </StackPanel>
                                                 <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="{StaticResource AppSpacingS}" VerticalAlignment="Top">
-                                                    <Button MinWidth="40" Padding="10" VerticalAlignment="Top" AutomationProperties.Name="{Binding PinActionLabel}" CommandParameter="{Binding}" Tag="{Binding TemplateId}" Click="PinTemplateButton_Click" Visibility="{Binding PinVisibility}" ToolTipService.ToolTip="{Binding PinActionLabel}">
+                                                    <Button Style="{StaticResource IconButtonStyle}" VerticalAlignment="Top" AutomationProperties.Name="{Binding PinActionLabel}" CommandParameter="{Binding}" Tag="{Binding TemplateId}" Click="PinTemplateButton_Click" Visibility="{Binding PinVisibility}" ToolTipService.ToolTip="{Binding PinActionLabel}">
                                                         <SymbolIcon Symbol="{Binding PinSymbol}" />
                                                     </Button>
-                                                    <Button MinWidth="40" Padding="10" VerticalAlignment="Top" AutomationProperties.Name="{Binding DeleteActionLabel}" CommandParameter="{Binding}" Tag="{Binding TemplateId}" Click="DeleteTemplateButton_Click" Visibility="{Binding DeleteVisibility}" ToolTipService.ToolTip="{Binding DeleteActionLabel}">
+                                                    <Button Style="{StaticResource IconButtonStyle}" VerticalAlignment="Top" AutomationProperties.Name="{Binding DeleteActionLabel}" CommandParameter="{Binding}" Tag="{Binding TemplateId}" Click="DeleteTemplateButton_Click" Visibility="{Binding DeleteVisibility}" ToolTipService.ToolTip="{Binding DeleteActionLabel}">
                                                         <SymbolIcon Symbol="Delete" />
                                                     </Button>
                                                 </StackPanel>
@@ -83,7 +83,7 @@
                                 <SymbolIcon HorizontalAlignment="Center" Symbol="Add" Foreground="{ThemeResource AppAccentBrush}" />
                                 <TextBlock HorizontalAlignment="Center" FontSize="{StaticResource AppCardTitleFontSize}" FontWeight="SemiBold" Text="{Binding Texts.TemplateEmptyLibraryTitle}" TextAlignment="Center" TextWrapping="WrapWholeWords" />
                                 <TextBlock HorizontalAlignment="Center" Foreground="{ThemeResource SubtleTextBrush}" Text="{Binding Texts.TemplateEmptyLibraryDescription}" TextAlignment="Center" TextWrapping="WrapWholeWords" />
-                                <Button HorizontalAlignment="Center" Click="NewTemplateButton_Click">
+                                <Button Style="{StaticResource StandardButtonStyle}" HorizontalAlignment="Center" Click="NewTemplateButton_Click">
                                     <StackPanel Orientation="Horizontal" Spacing="{StaticResource AppSpacingXS}">
                                         <SymbolIcon Symbol="Add" />
                                         <TextBlock Text="{Binding Texts.NewButton}" />
@@ -94,7 +94,7 @@
                                 <SymbolIcon HorizontalAlignment="Center" Symbol="Find" Foreground="{ThemeResource AppNeutralBrush}" />
                                 <TextBlock HorizontalAlignment="Center" FontSize="{StaticResource AppCardTitleFontSize}" FontWeight="SemiBold" Text="{Binding Texts.TemplateSearchEmptyTitle}" TextAlignment="Center" TextWrapping="WrapWholeWords" />
                                 <TextBlock HorizontalAlignment="Center" Foreground="{ThemeResource SubtleTextBrush}" Text="{Binding Texts.TemplateSearchEmptyDescription}" TextAlignment="Center" TextWrapping="WrapWholeWords" />
-                                <Button HorizontalAlignment="Center" Click="ClearTemplateSearchButton_Click">
+                                <Button Style="{StaticResource StandardButtonStyle}" HorizontalAlignment="Center" Click="ClearTemplateSearchButton_Click">
                                     <StackPanel Orientation="Horizontal" Spacing="{StaticResource AppSpacingXS}">
                                         <SymbolIcon Symbol="Clear" />
                                         <TextBlock Text="{Binding Texts.ClearTemplateSearchButton}" />

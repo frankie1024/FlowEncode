@@ -9,12 +9,22 @@
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
     mc:Ignorable="d">
     <UserControl.Resources>
+        <Style x:Key="DashboardModuleIconBadgeStyle" TargetType="Border">
+            <Setter Property="Width" Value="44" />
+            <Setter Property="Height" Value="44" />
+            <Setter Property="HorizontalAlignment" Value="Left" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+            <Setter Property="CornerRadius" Value="10" />
+            <Setter Property="BorderBrush" Value="{ThemeResource CardBorderBrush}" />
+            <Setter Property="BorderThickness" Value="{StaticResource AppCardBorderThickness}" />
+        </Style>
+
         <Style x:Key="DashboardActivityIndicatorStyle" TargetType="Border">
             <Setter Property="Width" Value="10" />
             <Setter Property="Height" Value="10" />
             <Setter Property="HorizontalAlignment" Value="Right" />
             <Setter Property="VerticalAlignment" Value="Top" />
-            <Setter Property="Background" Value="{ThemeResource AppSuccessBrush}" />
+            <Setter Property="Background" Value="{ThemeResource SystemFillColorSolidNeutralBrush}" />
             <Setter Property="CornerRadius" Value="999" />
         </Style>
 
@@ -31,7 +41,7 @@
         <Style x:Key="DashboardCardButtonStyle" TargetType="Button" BasedOn="{StaticResource DefaultButtonStyle}">
             <Setter Property="Background" Value="{ThemeResource CardBrush}" />
             <Setter Property="Foreground" Value="{ThemeResource TextFillColorPrimaryBrush}" />
-            <Setter Property="BorderBrush" Value="{ThemeResource ThemeBorderElevatedBrush}" />
+            <Setter Property="BorderBrush" Value="{ThemeResource CardBorderBrush}" />
             <Setter Property="BorderThickness" Value="{StaticResource AppCardBorderThickness}" />
             <Setter Property="CornerRadius" Value="{StaticResource AppCardCornerRadius}" />
             <Setter Property="Padding" Value="{StaticResource AppCardPadding}" />
@@ -41,7 +51,6 @@
             <Setter Property="VerticalAlignment" Value="Stretch" />
             <Setter Property="shared:UiElevation.Level" Value="E1" />
             <Setter Property="shared:UiElevation.HoverLevel" Value="E2" />
-            <Setter Property="shared:UiMotion.HoverLiftEnabled" Value="True" />
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="Button">
@@ -61,8 +70,7 @@
                                     <VisualState x:Name="PointerOver">
                                         <VisualState.Setters>
                                             <Setter Target="InteractionOverlay.Background" Value="{ThemeResource SubtleFillColorSecondaryBrush}" />
-                                            <Setter Target="CardRoot.BorderBrush" Value="{ThemeResource ButtonBorderBrushPointerOver}" />
-                                            <Setter Target="CardContent.Foreground" Value="{ThemeResource ButtonForegroundPointerOver}" />
+                                            <Setter Target="CardRoot.BorderBrush" Value="{ThemeResource ThemeBorderElevatedBrush}" />
                                         </VisualState.Setters>
                                         <Storyboard>
                                             <PointerUpThemeAnimation Storyboard.TargetName="CardRoot" />
@@ -71,8 +79,7 @@
                                     <VisualState x:Name="Pressed">
                                         <VisualState.Setters>
                                             <Setter Target="InteractionOverlay.Background" Value="{ThemeResource SubtleFillColorTertiaryBrush}" />
-                                            <Setter Target="CardRoot.BorderBrush" Value="{ThemeResource ButtonBorderBrushPressed}" />
-                                            <Setter Target="CardContent.Foreground" Value="{ThemeResource ButtonForegroundPressed}" />
+                                            <Setter Target="CardRoot.BorderBrush" Value="{ThemeResource ThemeBorderElevatedBrush}" />
                                         </VisualState.Setters>
                                         <Storyboard>
                                             <PointerDownThemeAnimation Storyboard.TargetName="CardRoot" />
@@ -112,6 +119,116 @@
     </UserControl.Resources>
 
     <ScrollViewer x:Name="DashboardScroller" VerticalScrollBarVisibility="Auto">
+        <VisualStateManager.VisualStateGroups>
+            <VisualStateGroup x:Name="DemuxStatusStates">
+                <VisualState x:Name="DemuxIdle" />
+                <VisualState x:Name="DemuxRunning">
+                    <VisualState.Setters>
+                        <Setter Target="DemuxStatusDot.Background" Value="{ThemeResource QueueProgressFillBrush}" />
+                        <Setter Target="DemuxStatusText.Foreground" Value="{ThemeResource QueueProgressFillBrush}" />
+                    </VisualState.Setters>
+                </VisualState>
+                <VisualState x:Name="DemuxCompleted">
+                    <VisualState.Setters>
+                        <Setter Target="DemuxStatusDot.Background" Value="{ThemeResource SystemFillColorSuccessBrush}" />
+                        <Setter Target="DemuxStatusText.Foreground" Value="{ThemeResource SystemFillColorSuccessBrush}" />
+                    </VisualState.Setters>
+                </VisualState>
+                <VisualState x:Name="DemuxFailed">
+                    <VisualState.Setters>
+                        <Setter Target="DemuxStatusDot.Background" Value="{ThemeResource SystemFillColorCriticalBrush}" />
+                        <Setter Target="DemuxStatusText.Foreground" Value="{ThemeResource SystemFillColorCriticalBrush}" />
+                    </VisualState.Setters>
+                </VisualState>
+                <VisualState x:Name="DemuxCancelled">
+                    <VisualState.Setters>
+                        <Setter Target="DemuxStatusDot.Background" Value="{ThemeResource SystemFillColorSolidNeutralBrush}" />
+                        <Setter Target="DemuxStatusText.Foreground" Value="{ThemeResource TextFillColorSecondaryBrush}" />
+                    </VisualState.Setters>
+                </VisualState>
+            </VisualStateGroup>
+            <VisualStateGroup x:Name="OverviewStatusStates">
+                <VisualState x:Name="OverviewIdle" />
+                <VisualState x:Name="OverviewRunning">
+                    <VisualState.Setters>
+                        <Setter Target="OverviewStatusDot.Background" Value="{ThemeResource QueueProgressFillBrush}" />
+                        <Setter Target="OverviewStatusText.Foreground" Value="{ThemeResource QueueProgressFillBrush}" />
+                    </VisualState.Setters>
+                </VisualState>
+                <VisualState x:Name="OverviewCompleted">
+                    <VisualState.Setters>
+                        <Setter Target="OverviewStatusDot.Background" Value="{ThemeResource SystemFillColorSuccessBrush}" />
+                        <Setter Target="OverviewStatusText.Foreground" Value="{ThemeResource SystemFillColorSuccessBrush}" />
+                    </VisualState.Setters>
+                </VisualState>
+                <VisualState x:Name="OverviewFailed">
+                    <VisualState.Setters>
+                        <Setter Target="OverviewStatusDot.Background" Value="{ThemeResource SystemFillColorCriticalBrush}" />
+                        <Setter Target="OverviewStatusText.Foreground" Value="{ThemeResource SystemFillColorCriticalBrush}" />
+                    </VisualState.Setters>
+                </VisualState>
+                <VisualState x:Name="OverviewCancelled">
+                    <VisualState.Setters>
+                        <Setter Target="OverviewStatusDot.Background" Value="{ThemeResource SystemFillColorSolidNeutralBrush}" />
+                        <Setter Target="OverviewStatusText.Foreground" Value="{ThemeResource TextFillColorSecondaryBrush}" />
+                    </VisualState.Setters>
+                </VisualState>
+            </VisualStateGroup>
+            <VisualStateGroup x:Name="AudioStatusStates">
+                <VisualState x:Name="AudioIdle" />
+                <VisualState x:Name="AudioRunning">
+                    <VisualState.Setters>
+                        <Setter Target="AudioStatusDot.Background" Value="{ThemeResource QueueProgressFillBrush}" />
+                        <Setter Target="AudioStatusText.Foreground" Value="{ThemeResource QueueProgressFillBrush}" />
+                    </VisualState.Setters>
+                </VisualState>
+                <VisualState x:Name="AudioCompleted">
+                    <VisualState.Setters>
+                        <Setter Target="AudioStatusDot.Background" Value="{ThemeResource SystemFillColorSuccessBrush}" />
+                        <Setter Target="AudioStatusText.Foreground" Value="{ThemeResource SystemFillColorSuccessBrush}" />
+                    </VisualState.Setters>
+                </VisualState>
+                <VisualState x:Name="AudioFailed">
+                    <VisualState.Setters>
+                        <Setter Target="AudioStatusDot.Background" Value="{ThemeResource SystemFillColorCriticalBrush}" />
+                        <Setter Target="AudioStatusText.Foreground" Value="{ThemeResource SystemFillColorCriticalBrush}" />
+                    </VisualState.Setters>
+                </VisualState>
+                <VisualState x:Name="AudioCancelled">
+                    <VisualState.Setters>
+                        <Setter Target="AudioStatusDot.Background" Value="{ThemeResource SystemFillColorSolidNeutralBrush}" />
+                        <Setter Target="AudioStatusText.Foreground" Value="{ThemeResource TextFillColorSecondaryBrush}" />
+                    </VisualState.Setters>
+                </VisualState>
+            </VisualStateGroup>
+            <VisualStateGroup x:Name="AutoStatusStates">
+                <VisualState x:Name="AutoIdle" />
+                <VisualState x:Name="AutoRunning">
+                    <VisualState.Setters>
+                        <Setter Target="AutoStatusDot.Background" Value="{ThemeResource QueueProgressFillBrush}" />
+                        <Setter Target="AutoStatusText.Foreground" Value="{ThemeResource QueueProgressFillBrush}" />
+                    </VisualState.Setters>
+                </VisualState>
+                <VisualState x:Name="AutoCompleted">
+                    <VisualState.Setters>
+                        <Setter Target="AutoStatusDot.Background" Value="{ThemeResource SystemFillColorSuccessBrush}" />
+                        <Setter Target="AutoStatusText.Foreground" Value="{ThemeResource SystemFillColorSuccessBrush}" />
+                    </VisualState.Setters>
+                </VisualState>
+                <VisualState x:Name="AutoFailed">
+                    <VisualState.Setters>
+                        <Setter Target="AutoStatusDot.Background" Value="{ThemeResource SystemFillColorCriticalBrush}" />
+                        <Setter Target="AutoStatusText.Foreground" Value="{ThemeResource SystemFillColorCriticalBrush}" />
+                    </VisualState.Setters>
+                </VisualState>
+                <VisualState x:Name="AutoCancelled">
+                    <VisualState.Setters>
+                        <Setter Target="AutoStatusDot.Background" Value="{ThemeResource SystemFillColorSolidNeutralBrush}" />
+                        <Setter Target="AutoStatusText.Foreground" Value="{ThemeResource TextFillColorSecondaryBrush}" />
+                    </VisualState.Setters>
+                </VisualState>
+            </VisualStateGroup>
+        </VisualStateManager.VisualStateGroups>
         <Grid x:Name="DashboardContentStack" Padding="{StaticResource AppPagePadding}" RowSpacing="{StaticResource AppSpacingL}">
             <Grid.RowDefinitions>
                 <RowDefinition Height="Auto" />
@@ -167,11 +284,13 @@
                                 <ColumnDefinition Width="*" />
                             </Grid.ColumnDefinitions>
 
-                            <Viewbox Width="28" Height="28" HorizontalAlignment="Left">
-                                <SymbolIcon Symbol="Library" Foreground="{ThemeResource ThemeModuleDemuxBrush}" />
-                            </Viewbox>
+                            <Border Background="{ThemeResource ThemeModuleDemuxSoftBrush}" Style="{StaticResource DashboardModuleIconBadgeStyle}">
+                                <Viewbox Width="22" Height="22" HorizontalAlignment="Center" VerticalAlignment="Center">
+                                    <SymbolIcon Symbol="Library" Foreground="{ThemeResource ThemeModuleDemuxBrush}" />
+                                </Viewbox>
+                            </Border>
 
-                            <Border Grid.Column="1" Background="{Binding DashboardBluRayDemuxStatusBrush}" Style="{StaticResource DashboardActivityIndicatorStyle}" Visibility="{Binding DashboardBluRayDemuxStatusVisibility}" />
+                            <Border x:Name="DemuxStatusDot" Grid.Column="1" Style="{StaticResource DashboardActivityIndicatorStyle}" Visibility="{Binding DashboardBluRayDemuxStatusVisibility}" />
                         </Grid>
 
                         <StackPanel Grid.Row="1" Spacing="{StaticResource AppSpacingS}">
@@ -180,7 +299,7 @@
                         </StackPanel>
 
                         <StackPanel Grid.Row="2" Spacing="{StaticResource AppSpacingXS}">
-                            <TextBlock Foreground="{Binding DashboardBluRayDemuxStatusBrush}" FontSize="{StaticResource AppCaptionFontSize}" FontWeight="SemiBold" Text="{Binding DashboardBluRayDemuxStatusText}" MaxLines="1" TextTrimming="CharacterEllipsis" Visibility="{Binding DashboardBluRayDemuxStatusVisibility}" />
+                            <TextBlock x:Name="DemuxStatusText" Foreground="{ThemeResource TextFillColorSecondaryBrush}" FontSize="{StaticResource AppCaptionFontSize}" FontWeight="SemiBold" Text="{Binding DashboardBluRayDemuxStatusText}" MaxLines="1" TextTrimming="CharacterEllipsis" Visibility="{Binding DashboardBluRayDemuxStatusVisibility}" />
                             <Grid ColumnSpacing="{StaticResource AppSpacingM}">
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition Width="*" />
@@ -191,7 +310,7 @@
                                     IsIndeterminate="{Binding DashboardBluRayDemuxProgressIsIndeterminate}"
                                     Value="{Binding DashboardBluRayDemuxProgressValue}"
                                     Visibility="{Binding DashboardBluRayDemuxProgressVisibility}" />
-                                <SymbolIcon Grid.Column="1" Symbol="Forward" />
+                                <SymbolIcon Grid.Column="1" Foreground="{ThemeResource TextFillColorSecondaryBrush}" Symbol="Forward" />
                             </Grid>
                         </StackPanel>
                     </Grid>
@@ -205,9 +324,11 @@
                             <RowDefinition Height="Auto" />
                         </Grid.RowDefinitions>
 
-                        <Viewbox Width="28" Height="28" HorizontalAlignment="Left">
-                            <SymbolIcon Symbol="Edit" Foreground="{ThemeResource ThemeModuleScriptBrush}" />
-                        </Viewbox>
+                        <Border Background="{ThemeResource ThemeModuleScriptSoftBrush}" Style="{StaticResource DashboardModuleIconBadgeStyle}">
+                            <Viewbox Width="22" Height="22" HorizontalAlignment="Center" VerticalAlignment="Center">
+                                <SymbolIcon Symbol="Edit" Foreground="{ThemeResource ThemeModuleScriptBrush}" />
+                            </Viewbox>
+                        </Border>
 
                         <StackPanel Grid.Row="1" Spacing="{StaticResource AppSpacingS}">
                             <TextBlock FontFamily="{StaticResource AppDisplayFont}" FontSize="{StaticResource AppHeadlineFontSize}" FontWeight="SemiBold" Text="{Binding Texts.NavVapourSynthWorkspace}" TextWrapping="WrapWholeWords" />
@@ -219,7 +340,7 @@
                                 <ColumnDefinition Width="*" />
                                 <ColumnDefinition Width="Auto" />
                             </Grid.ColumnDefinitions>
-                            <SymbolIcon Grid.Column="1" Symbol="Forward" />
+                            <SymbolIcon Grid.Column="1" Foreground="{ThemeResource TextFillColorSecondaryBrush}" Symbol="Forward" />
                         </Grid>
                     </Grid>
                 </Button>
@@ -238,11 +359,13 @@
                                 <ColumnDefinition Width="*" />
                             </Grid.ColumnDefinitions>
 
-                            <Viewbox Width="28" Height="28" HorizontalAlignment="Left">
-                                <SymbolIcon Symbol="Video" Foreground="{ThemeResource ThemeModuleVideoBrush}" />
-                            </Viewbox>
+                            <Border Background="{ThemeResource ThemeModuleVideoSoftBrush}" Style="{StaticResource DashboardModuleIconBadgeStyle}">
+                                <Viewbox Width="22" Height="22" HorizontalAlignment="Center" VerticalAlignment="Center">
+                                    <SymbolIcon Symbol="Video" Foreground="{ThemeResource ThemeModuleVideoBrush}" />
+                                </Viewbox>
+                            </Border>
 
-                            <Border Grid.Column="1" Background="{Binding DashboardOverviewStatusBrush}" Style="{StaticResource DashboardActivityIndicatorStyle}" Visibility="{Binding DashboardOverviewStatusVisibility}" />
+                            <Border x:Name="OverviewStatusDot" Grid.Column="1" Style="{StaticResource DashboardActivityIndicatorStyle}" Visibility="{Binding DashboardOverviewStatusVisibility}" />
                         </Grid>
 
                         <StackPanel Grid.Row="1" Spacing="{StaticResource AppSpacingS}">
@@ -251,7 +374,7 @@
                         </StackPanel>
 
                         <StackPanel Grid.Row="2" Spacing="{StaticResource AppSpacingXS}">
-                            <TextBlock Foreground="{Binding DashboardOverviewStatusBrush}" FontSize="{StaticResource AppCaptionFontSize}" FontWeight="SemiBold" Text="{Binding DashboardOverviewStatusText}" MaxLines="1" TextTrimming="CharacterEllipsis" Visibility="{Binding DashboardOverviewStatusVisibility}" />
+                            <TextBlock x:Name="OverviewStatusText" Foreground="{ThemeResource TextFillColorSecondaryBrush}" FontSize="{StaticResource AppCaptionFontSize}" FontWeight="SemiBold" Text="{Binding DashboardOverviewStatusText}" MaxLines="1" TextTrimming="CharacterEllipsis" Visibility="{Binding DashboardOverviewStatusVisibility}" />
                             <Grid ColumnSpacing="{StaticResource AppSpacingM}">
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition Width="*" />
@@ -262,7 +385,7 @@
                                     IsIndeterminate="{Binding DashboardOverviewProgressIsIndeterminate}"
                                     Value="{Binding DashboardOverviewProgressValue}"
                                     Visibility="{Binding DashboardOverviewProgressVisibility}" />
-                                <SymbolIcon Grid.Column="1" Symbol="Forward" />
+                                <SymbolIcon Grid.Column="1" Foreground="{ThemeResource TextFillColorSecondaryBrush}" Symbol="Forward" />
                             </Grid>
                         </StackPanel>
                     </Grid>
@@ -282,11 +405,13 @@
                                 <ColumnDefinition Width="*" />
                             </Grid.ColumnDefinitions>
 
-                            <Viewbox Width="28" Height="28" HorizontalAlignment="Left">
-                                <SymbolIcon Symbol="Audio" Foreground="{ThemeResource ThemeModuleAudioBrush}" />
-                            </Viewbox>
+                            <Border Background="{ThemeResource ThemeModuleAudioSoftBrush}" Style="{StaticResource DashboardModuleIconBadgeStyle}">
+                                <Viewbox Width="22" Height="22" HorizontalAlignment="Center" VerticalAlignment="Center">
+                                    <SymbolIcon Symbol="Audio" Foreground="{ThemeResource ThemeModuleAudioBrush}" />
+                                </Viewbox>
+                            </Border>
 
-                            <Border Grid.Column="1" Background="{Binding DashboardAudioProcessingStatusBrush}" Style="{StaticResource DashboardActivityIndicatorStyle}" Visibility="{Binding DashboardAudioProcessingStatusVisibility}" />
+                            <Border x:Name="AudioStatusDot" Grid.Column="1" Style="{StaticResource DashboardActivityIndicatorStyle}" Visibility="{Binding DashboardAudioProcessingStatusVisibility}" />
                         </Grid>
 
                         <StackPanel Grid.Row="1" Spacing="{StaticResource AppSpacingS}">
@@ -295,7 +420,7 @@
                         </StackPanel>
 
                         <StackPanel Grid.Row="2" Spacing="{StaticResource AppSpacingXS}">
-                            <TextBlock Foreground="{Binding DashboardAudioProcessingStatusBrush}" FontSize="{StaticResource AppCaptionFontSize}" FontWeight="SemiBold" Text="{Binding DashboardAudioProcessingStatusText}" MaxLines="1" TextTrimming="CharacterEllipsis" Visibility="{Binding DashboardAudioProcessingStatusVisibility}" />
+                            <TextBlock x:Name="AudioStatusText" Foreground="{ThemeResource TextFillColorSecondaryBrush}" FontSize="{StaticResource AppCaptionFontSize}" FontWeight="SemiBold" Text="{Binding DashboardAudioProcessingStatusText}" MaxLines="1" TextTrimming="CharacterEllipsis" Visibility="{Binding DashboardAudioProcessingStatusVisibility}" />
                             <Grid ColumnSpacing="{StaticResource AppSpacingM}">
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition Width="*" />
@@ -306,7 +431,7 @@
                                     IsIndeterminate="{Binding DashboardAudioProcessingProgressIsIndeterminate}"
                                     Value="{Binding DashboardAudioProcessingProgressValue}"
                                     Visibility="{Binding DashboardAudioProcessingProgressVisibility}" />
-                                <SymbolIcon Grid.Column="1" Symbol="Forward" />
+                                <SymbolIcon Grid.Column="1" Foreground="{ThemeResource TextFillColorSecondaryBrush}" Symbol="Forward" />
                             </Grid>
                         </StackPanel>
                     </Grid>
@@ -326,11 +451,13 @@
                                 <ColumnDefinition Width="*" />
                             </Grid.ColumnDefinitions>
 
-                            <Viewbox Width="28" Height="28" HorizontalAlignment="Left">
-                                <SymbolIcon Symbol="Play" Foreground="{ThemeResource ThemeModuleAutoBrush}" />
-                            </Viewbox>
+                            <Border Background="{ThemeResource ThemeModuleAutoSoftBrush}" Style="{StaticResource DashboardModuleIconBadgeStyle}">
+                                <Viewbox Width="22" Height="22" HorizontalAlignment="Center" VerticalAlignment="Center">
+                                    <SymbolIcon Symbol="Play" Foreground="{ThemeResource ThemeModuleAutoBrush}" />
+                                </Viewbox>
+                            </Border>
 
-                            <Border Grid.Column="1" Background="{Binding DashboardAutoCompressionStatusBrush}" Style="{StaticResource DashboardActivityIndicatorStyle}" Visibility="{Binding DashboardAutoCompressionStatusVisibility}" />
+                            <Border x:Name="AutoStatusDot" Grid.Column="1" Style="{StaticResource DashboardActivityIndicatorStyle}" Visibility="{Binding DashboardAutoCompressionStatusVisibility}" />
                         </Grid>
 
                         <StackPanel Grid.Row="1" Spacing="{StaticResource AppSpacingS}">
@@ -339,7 +466,7 @@
                         </StackPanel>
 
                         <StackPanel Grid.Row="2" Spacing="{StaticResource AppSpacingXS}">
-                            <TextBlock Foreground="{Binding DashboardAutoCompressionStatusBrush}" FontSize="{StaticResource AppCaptionFontSize}" FontWeight="SemiBold" Text="{Binding DashboardAutoCompressionStatusText}" MaxLines="1" TextTrimming="CharacterEllipsis" Visibility="{Binding DashboardAutoCompressionStatusVisibility}" />
+                            <TextBlock x:Name="AutoStatusText" Foreground="{ThemeResource TextFillColorSecondaryBrush}" FontSize="{StaticResource AppCaptionFontSize}" FontWeight="SemiBold" Text="{Binding DashboardAutoCompressionStatusText}" MaxLines="1" TextTrimming="CharacterEllipsis" Visibility="{Binding DashboardAutoCompressionStatusVisibility}" />
                             <Grid ColumnSpacing="{StaticResource AppSpacingM}">
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition Width="*" />
@@ -350,7 +477,7 @@
                                     IsIndeterminate="{Binding DashboardAutoCompressionProgressIsIndeterminate}"
                                     Value="{Binding DashboardAutoCompressionProgressValue}"
                                     Visibility="{Binding DashboardAutoCompressionProgressVisibility}" />
-                                <SymbolIcon Grid.Column="1" Symbol="Forward" />
+                                <SymbolIcon Grid.Column="1" Foreground="{ThemeResource TextFillColorSecondaryBrush}" Symbol="Forward" />
                             </Grid>
                         </StackPanel>
                     </Grid>
@@ -364,9 +491,11 @@
                             <RowDefinition Height="Auto" />
                         </Grid.RowDefinitions>
 
-                        <Viewbox Width="28" Height="28" HorizontalAlignment="Left">
-                            <SymbolIcon Symbol="Setting" Foreground="{ThemeResource ThemeModuleToolsBrush}" />
-                        </Viewbox>
+                        <Border Background="{ThemeResource ThemeModuleToolsSoftBrush}" Style="{StaticResource DashboardModuleIconBadgeStyle}">
+                            <Viewbox Width="22" Height="22" HorizontalAlignment="Center" VerticalAlignment="Center">
+                                <SymbolIcon Symbol="Setting" Foreground="{ThemeResource ThemeModuleToolsBrush}" />
+                            </Viewbox>
+                        </Border>
 
                         <StackPanel Grid.Row="1" Spacing="{StaticResource AppSpacingS}">
                             <TextBlock FontFamily="{StaticResource AppDisplayFont}" FontSize="{StaticResource AppHeadlineFontSize}" FontWeight="SemiBold" Text="{Binding Texts.NavSettings}" TextWrapping="WrapWholeWords" />
@@ -378,7 +507,7 @@
                                 <ColumnDefinition Width="*" />
                                 <ColumnDefinition Width="Auto" />
                             </Grid.ColumnDefinitions>
-                            <SymbolIcon Grid.Column="1" Symbol="Forward" />
+                            <SymbolIcon Grid.Column="1" Foreground="{ThemeResource TextFillColorSecondaryBrush}" Symbol="Forward" />
                         </Grid>
                     </Grid>
                 </Button>
