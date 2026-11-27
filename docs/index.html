@@ -162,27 +162,27 @@
         <div class="feature-grid">
           <article>
             <h3>VapourSynth 工作区</h3>
-            <p>编辑 .vpy / .py 脚本，查看诊断信息，预览输出帧，并读取预览日志。</p>
+            <p>内置 .vpy / .py 编辑器，支持链式补全、静态诊断与快速修复、智能滤镜插入及脚本测速；预览窗口提供多路对比、自动切边、自动帧对齐、9 种预览滤镜、示波器、最差帧扫描与对比篮导出。</p>
           </article>
           <article>
             <h3>视频压制队列</h3>
-            <p>配置 x264、x265、SVT-AV1 任务，管理输入输出、编码参数、命令预览和实时日志。</p>
+            <p>配置 x264、x265、SVT-AV1 任务，管理输入输出、编码参数、命令预览、实时日志与队列完成后动作。</p>
+          </article>
+          <article>
+            <h3>音频转码与解复用</h3>
+            <p>支持 deew 5.5.3（配合授权 DEE）、eac3to、FFmpeg 与 opusenc 音频转码，以及 DGDemux 蓝光解复用和 eac3to 蓝光/MKV 轨道与章节提取。</p>
           </article>
           <article>
             <h3>Av1an 目标质量</h3>
-            <p>基于 Av1an 执行目标质量流程，支持 VMAF、探测次数、并行度和编码器附加参数。</p>
+            <p>基于 Av1an 执行目标质量流程，支持 VMAF、SSIMULACRA2、XPSNR 等指标，以及探测参数、并行度和编码器附加参数。</p>
           </article>
           <article>
-            <h3>模板库</h3>
-            <p>保存、导入、导出、置顶和复用 .profile 模板，留存日常使用的稳定压制参数。</p>
+            <h3>模板库与首启引导</h3>
+            <p>保存、导入、导出和置顶 .profile 模板；内置环境引导可检测、安装或更新公开工具链，并支持从解压目录导入工具和一键写入系统 PATH。</p>
           </article>
           <article>
-            <h3>首启环境引导</h3>
-            <p>检测、安装、更新或移除公开支持的运行时、编码器、插件和命令行工具。</p>
-          </article>
-          <article>
-            <h3>本地优先</h3>
-            <p>程序不主动上传源文件、输出文件、模板或本地路径，运行状态保存在本机目录。</p>
+            <h3>本地优先与 MCP</h3>
+            <p>默认全部本地运行，不主动上传源文件、输出文件、模板或本机路径；内置默认关闭的本地 stdio MCP 服务，可供外部 AI 客户端接入统一队列。</p>
           </article>
         </div>
       </section>
@@ -232,9 +232,10 @@
           <span>VapourSynth</span>
           <span>VSPipe</span>
           <span>Avs2PipeMod</span>
-          <span>Python 3.12</span>
+          <span>Python 3.14 / 3.12</span>
           <span>vsrepo</span>
           <span>VMAF</span>
+          <span>MCP</span>
         </div>
       </section>
 

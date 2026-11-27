@@ -11,6 +11,8 @@ FlowEncode's own source code is distributed under `GPL-3.0-only`. That license a
 | Monaco Editor | Bundled editor assets under `FlowEncode/Assets/VapourSynthEditor/vendor/monaco` | MIT |
 | CommunityToolkit.Mvvm | MVVM helpers | MIT |
 | Microsoft.Extensions.Hosting | Application hosting and dependency injection | MIT |
+| Microsoft.Graphics.Win2D | GPU-accelerated preview filters, scopes, and composition rendering | MIT |
+| ModelContextProtocol | Local stdio MCP server SDK (`FlowEncode.Mcp`) | MIT |
 | SharpCompress | Archive handling | MIT |
 | Microsoft.WindowsAppSDK | Windows app framework package/runtime | Microsoft license terms for the package and runtime |
 | Microsoft.Windows.SDK.BuildTools | Windows SDK build tooling | Microsoft license terms |
@@ -22,7 +24,7 @@ FlowEncode's own source code is distributed under `GPL-3.0-only`. That license a
 
 | Component | Role | License / Terms |
 | --- | --- | --- |
-| Python 3.12 | Script runtime | Python Software Foundation License |
+| Python 3.14 (new installs) / Python 3.12 (preserved existing environments) | Script runtime | Python Software Foundation License |
 | VapourSynth / VSPipe | Script runtime and pipe output | LGPL-2.1 |
 | vsrepo | VapourSynth package helper | MIT |
 | awsmfunc | VapourSynth helper package | MIT |
@@ -35,7 +37,7 @@ FlowEncode's own source code is distributed under `GPL-3.0-only`. That license a
 | Av1an | Target-quality encoding orchestration | GPL-3.0 |
 | Avs2PipeMod | `.avs` input bridge | GPL-3.0 |
 
-FlowEncode's setup guide currently supports automatic installation or updates for Python 3.12, VapourSynth / vsrepo related Python packages, the public VapourSynth plugin bundle, awsmfunc, vs-jetpack, FFmpeg / FFprobe, x264, x265, SVT-AV1, and Av1an. Other command-line tools are detected, pinned, or manually imported only.
+FlowEncode's setup guide currently supports automatic installation or updates for Python 3.14 (while keeping working Python 3.12 environments), VapourSynth / vsrepo related Python packages, the public VapourSynth plugin bundle, awsmfunc, vs-jetpack, FFmpeg / FFprobe, x264, x265, SVT-AV1, and Av1an. Other command-line tools are detected, pinned, or manually imported only.
 
 ## Optional User-Supplied Tools
 
@@ -44,7 +46,7 @@ These tools are optional external binaries. FlowEncode may detect them from conf
 | Component | Role | License / Terms |
 | --- | --- | --- |
 | DGDemux | Blu-ray / UHD Blu-ray demux backend | Upstream/distributor terms; user-supplied only |
-| eac3to | Blu-ray demux and audio conversion backend | Upstream/distributor terms; user-supplied only |
+| eac3to | Blu-ray / MKV demux and audio conversion backend | Upstream/distributor terms; user-supplied only |
 | deew | Wrapper used by the DDP workflow | MIT |
 | Dolby Encoding Engine / DEE | Dolby audio encoding backend used by deew | Proprietary Dolby component; user-supplied and separately licensed |
 | Opus Encoder / opusenc | Opus command-line encoder | opus-tools terms; opusenc is covered by the three-clause BSD-style Opus tools license |

@@ -1,4 +1,4 @@
-<div align="center">
+﻿<div align="center">
   <img src="./docs/assets/flowencode-hammer.png" alt="FlowEncode" width="96" height="96">
 
   <h1>FlowEncode</h1>
@@ -14,7 +14,7 @@
 
   <p>
     <img alt="Platform" src="https://img.shields.io/badge/platform-Windows%20x64-0078d4">
-    <img alt="Version" src="https://img.shields.io/badge/version-3.0.6-167a7f">
+    <img alt="Version" src="https://img.shields.io/badge/version-3.1.0-167a7f">
     <img alt="Framework" src="https://img.shields.io/badge/.NET-8.0-512bd4">
     <img alt="UI" src="https://img.shields.io/badge/UI-WinUI%203-0d6efd">
     <img alt="License" src="https://img.shields.io/badge/license-GPL--3.0--only-blue">
@@ -52,7 +52,7 @@ FlowEncode 是 Windows x64 桌面前端，用来组织和调用 `x264`、`x265`�
 | --- | --- |
 | 工作台 | 集中进入各功能页并查看活跃任务；支持把视频、音频、脚本或蓝光目录直接拖入主窗口进入对应流程。 |
 | 蓝光 / MKV 解复用 | 扫描蓝光目录（`DGDemux` / `eac3to`）或包含 `.mkv` 的目录（`eac3to`），选择播放列表与轨道，导出视频、音频、字幕和章节。 |
-| VapourSynth | 内置 `.vpy` / `.py` 脚本编辑器，支持拖放打开、多标签、左右对比与基础诊断；独立预览窗口提供帧属性、缩放、裁剪辅助、章节、截图复制，以及原图、亮度、色度、`Solar ×1`、`Solar ×2` 与残差预览滤镜（`F` / `Shift+F` 切换）。 |
+| VapourSynth | 内置 `.vpy` / `.py` 编辑器，支持拖放打开、多标签、左右对比、链式补全、静态诊断与快速修复、智能滤镜插入及脚本测速；独立预览窗口提供多路对比（卷帘/并排/差值/热力图/闪烁）、自动帧对齐与亚像素对齐、自动切边、最差帧扫描、直方图/波形图/矢量示波器、像素吸管、对比篮导出与 9 种预览滤镜（原图、亮度、色度、`Solar ×1`、`Solar ×2`、残差、暗场提亮、范围越界、边缘高亮，`F` / `Shift+F` 切换）。 |
 | 视频压制 | 配置 `x264`、`x265`、`SVT-AV1` 常规编码任务，支持输入输出管理、HDR 参数导入、实际命令预览复制、任务队列、批量操作、快捷键与实时日志。 |
 | 音频转码 | 调用 `eac3to`、`deew`、`FFmpeg` / `opusenc` 处理音频，支持 FLAC、AC3、DDP、AC4 / `ac4-ims`、AAC、TrueHD、Opus 等输出，支持自定义输出命名与模板、管道模式和响度测量。使用 `deew` 的任务需要 `deew 5.5.3` 或更新版本及用户自备的授权 `Dolby Encoding Engine` / `DEE ≥6.7.0`。 |
 | 自动压制 | 调用 `Av1an` 按目标质量自动压制，根据当前后端能力检测可用质量指标与编码器，支持探测参数、后端附加参数、执行计划与分阶段日志。 |

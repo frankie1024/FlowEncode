@@ -1,6 +1,6 @@
 # FlowEncode MCP / 本地 AI 接入
 
-FlowEncode 3.0 ships a stdio MCP server in `mcp/FlowEncode.Mcp.exe`. The desktop owns all tasks, settings, tools and process lifetimes. Manual and MCP tasks share the same concurrency limit and output claims.
+FlowEncode 3.x ships a stdio MCP server in `mcp/FlowEncode.Mcp.exe`. The desktop owns all tasks, settings, tools and process lifetimes. Manual and MCP tasks share the same concurrency limit and output claims.
 
 ## 接入 / Connect
 

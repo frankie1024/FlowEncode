@@ -1,4 +1,4 @@
-<div align="center">
+﻿<div align="center">
   <img src="./docs/assets/flowencode-hammer.png" alt="FlowEncode" width="96" height="96">
 
   <h1>FlowEncode</h1>
@@ -14,7 +14,7 @@
 
   <p>
     <img alt="Platform" src="https://img.shields.io/badge/platform-Windows%20x64-0078d4">
-    <img alt="Version" src="https://img.shields.io/badge/version-3.0.6-167a7f">
+    <img alt="Version" src="https://img.shields.io/badge/version-3.1.0-167a7f">
     <img alt="Framework" src="https://img.shields.io/badge/.NET-8.0-512bd4">
     <img alt="UI" src="https://img.shields.io/badge/UI-WinUI%203-0d6efd">
     <img alt="License" src="https://img.shields.io/badge/license-GPL--3.0--only-blue">
@@ -52,7 +52,7 @@ It is not a standalone encoder and does not bundle every external tool. Instead,
 | --- | --- |
 | Dashboard | Entry point to all modules with active task status; drop video, audio, script files, or Blu-ray folders onto the main window to route straight into the matching workflow. |
 | Blu-ray / MKV Demux | Scan Blu-ray folders (`DGDemux` / `eac3to`) or folders containing `.mkv` files (`eac3to`), pick playlists and tracks, and export video, audio, subtitles, and chapters. |
-| VapourSynth | Embedded `.vpy` / `.py` editor with drag-and-drop open, multiple tabs, side-by-side comparison, and basic diagnostics. The standalone preview window provides frame properties, zoom, crop helpers, chapters, snapshot save/copy, and Original, Luma, Chroma, `Solar ×1`, `Solar ×2`, and Residual preview filters (`F` / `Shift+F` to cycle). |
+| VapourSynth | Embedded `.vpy` / `.py` editor with drag-and-drop open, multiple tabs, side-by-side comparison, chained completion, static diagnostics with Quick Fixes, smart filter insertion, and script benchmarking. The standalone preview window provides multi-output comparison (wipe, side-by-side, difference, heatmap, flicker), automatic temporal and subpixel alignment, auto-crop, worst-frame scanning, Histogram/Waveform/Vectorscope scopes, a pixel pipette, comparison-basket export, and 9 preview filters (Original, Luma, Chroma, `Solar ×1`, `Solar ×2`, Residual, Shadow Boost, Legal Range Alert, Edge Highlight; `F` / `Shift+F` to cycle). |
 | Video Encode | Configure standard `x264`, `x265`, and `SVT-AV1` jobs with input/output paths, HDR argument import, copyable command previews, job queues, batch controls, keyboard shortcuts, and live logs. |
 | Audio Transcode | Run `eac3to`, `deew`, and `FFmpeg` / `opusenc` for FLAC, AC3, DDP, AC4 / `ac4-ims`, AAC, TrueHD, Opus, and related outputs, with custom output naming and templates, piping controls, and loudness measurement. Tasks using `deew` require `deew 5.5.3` or newer and a user-supplied, properly licensed `Dolby Encoding Engine` / `DEE ≥6.7.0`. |
 | Auto Encode | Run target-quality encoding through `Av1an`, probing available quality metrics and encoders from the active backend, with probing options, extra arguments, execution plans, and staged live logs. |

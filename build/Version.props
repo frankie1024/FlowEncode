@@ -1,7 +1,7 @@
 <Project>
   <PropertyGroup>
-    <FlowEncodeVersion>3.0.6</FlowEncodeVersion>
-    <FlowEncodeVersionInfo>3.0.6.0</FlowEncodeVersionInfo>
+    <FlowEncodeVersion>3.1.0</FlowEncodeVersion>
+    <FlowEncodeVersionInfo>3.1.0.0</FlowEncodeVersionInfo>
   </PropertyGroup>
 
   <PropertyGroup>
