@@ -35,9 +35,22 @@ public static class ToolchainBaseline
             return Regex.IsMatch(installedVersion.Trim(), @"^(?:VapourSynth\s+)?R?79(?:\.0)?(?:\s|$)", RegexOptions.IgnoreCase);
         var expected = Regex.Match(VersionFor(kind), @"\d+(?:\.\d+)+").Value;
         var actual = Regex.Match(installedVersion, @"(?<![\d.])\d+(?:\.\d+)+(?![\d.])");
-        return actual.Success && actual.Value == expected
-            && !Regex.IsMatch(installedVersion[(actual.Index + actual.Length)..], @"^(?:[-~]?(?:dev|rc|alpha|beta|git)|-\d+-g)", RegexOptions.IgnoreCase);
+        if (!actual.Success || actual.Value != expected
+            || Regex.IsMatch(installedVersion[(actual.Index + actual.Length)..], @"^(?:[-~]?(?:dev|rc|alpha|beta|git)|-\d+-g)", RegexOptions.IgnoreCase))
+            return false;
+        return kind != SetupDependencyKind.X265 || SupportsX265EightAndTenBit(installedVersion);
     }
+
+    public static bool SupportsX265EightAndTenBit(string version)
+        => !string.IsNullOrWhiteSpace(version)
+            && ((Regex.IsMatch(version, @"(?<!\d)8-?bit\b", RegexOptions.IgnoreCase)
+                    && Regex.IsMatch(version, @"(?<!\d)10-?bit\b", RegexOptions.IgnoreCase))
+                || Regex.IsMatch(version, @"(?<!\d)8\+10(?:\+12)?-?bit\b", RegexOptions.IgnoreCase));
+
+    public static bool RequiresX265Multilib(string expectedVersion)
+        => !string.IsNullOrWhiteSpace(expectedVersion)
+            && (expectedVersion.Contains("multilib", StringComparison.OrdinalIgnoreCase)
+                || SupportsX265EightAndTenBit(expectedVersion));
 
     public static bool HasBaseline(SetupDependencyKind kind) => VersionFor(kind).Length > 0;
 }

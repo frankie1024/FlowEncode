@@ -1437,6 +1437,16 @@ public sealed class SetupGuideViewModel : ObservableObject, ISetupDependencyModu
                 "The current Python runtime does not satisfy the complete environment requirements. Use automatic install to repair or update it."));
         }
 
+        if (kind == SetupDependencyKind.X265
+            && isInstalled
+            && status.State == ReadinessState.Ready
+            && !ToolchainBaseline.SupportsX265EightAndTenBit(status.InstalledVersion))
+        {
+            warnings.Add(Texts.Pick(
+                "当前 x265 不满足 8+10 位 multilib 要求，修复为推荐版本可同时支持 8 位和 10 位压制。",
+                "The current x265 build does not meet the 8+10-bit multilib requirement. Restore the recommended version to support both 8-bit and 10-bit encoding."));
+        }
+
         if (hasUpdateAvailable && !ToolchainBaseline.HasBaseline(kind) && kind == SetupDependencyKind.VsPluginBundle)
         {
             warnings.Add(Texts.Pick(

@@ -2430,6 +2430,14 @@ public sealed class SetupBootstrapService : ISetupBootstrapService, IDisposable
             return FfmpegReleasePolicy.ReadStableVersion(installedVersion) is not { } installedStable
                 || installedStable != stableTarget;
         }
+        if (kind == SetupDependencyKind.X265
+            && !string.IsNullOrWhiteSpace(installedVersion)
+            && ToolchainBaseline.RequiresX265Multilib(latestVersion)
+            && !ToolchainBaseline.SupportsX265EightAndTenBit(installedVersion))
+        {
+            return true;
+        }
+
         if (kind is SetupDependencyKind.X264 or SetupDependencyKind.X265 or SetupDependencyKind.SvtAv1
             && TryResolveEncoderVersionUpdate(installedVersion, latestVersion, out var encoderUpdateAvailable))
         {
@@ -2462,6 +2470,13 @@ public sealed class SetupBootstrapService : ISetupBootstrapService, IDisposable
 
         if (kind == SetupDependencyKind.FfmpegBundle && FfmpegReleasePolicy.ReadStableVersion(expectedVersion) is { } stableTarget)
             return FfmpegReleasePolicy.ReadStableVersion(installedVersion) == stableTarget;
+
+        if (kind == SetupDependencyKind.X265
+            && ToolchainBaseline.RequiresX265Multilib(expectedVersion)
+            && !ToolchainBaseline.SupportsX265EightAndTenBit(installedVersion))
+        {
+            return false;
+        }
 
         if (kind is SetupDependencyKind.X264 or SetupDependencyKind.X265 or SetupDependencyKind.SvtAv1
             && TryResolveEncoderVersionUpdate(installedVersion, expectedVersion, out var encoderUpdateAvailable))

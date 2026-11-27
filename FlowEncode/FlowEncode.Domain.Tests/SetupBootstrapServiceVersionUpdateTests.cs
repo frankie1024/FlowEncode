@@ -147,6 +147,27 @@ public sealed class SetupBootstrapServiceVersionUpdateTests
     }
 
     [TestMethod]
+    public void HasSetupDependencyVersionUpdate_X265RequiresMultilibBitDepthWhenExpected()
+    {
+        Assert.IsTrue(SetupBootstrapService.HasSetupDependencyVersionUpdate(
+            SetupDependencyKind.X265,
+            "HEVC encoder version 4.3 (8bit)",
+            "4.3 (8+10-bit multilib)"));
+        Assert.IsTrue(SetupBootstrapService.HasSetupDependencyVersionUpdate(
+            SetupDependencyKind.X265,
+            "HEVC encoder version 4.3",
+            "4.3-multilib.1"));
+        Assert.IsFalse(SetupBootstrapService.HasSetupDependencyVersionUpdate(
+            SetupDependencyKind.X265,
+            string.Empty,
+            "4.3 (8+10-bit multilib)"));
+        Assert.IsFalse(SetupBootstrapService.HasSetupDependencyVersionUpdate(
+            SetupDependencyKind.X265,
+            "HEVC encoder version 4.3 (8bit+10bit)",
+            "4.3 (8+10-bit multilib)"));
+    }
+
+    [TestMethod]
     public void IsInstalledVersionVerified_EncoderRevisionAndSemanticVersions_RequireCurrentVersion()
     {
         Assert.IsTrue(SetupBootstrapService.IsInstalledVersionVerified(
@@ -161,6 +182,18 @@ public sealed class SetupBootstrapServiceVersionUpdateTests
             SetupDependencyKind.X265,
             "HEVC encoder version 4.2",
             "4.2"));
+        Assert.IsFalse(SetupBootstrapService.IsInstalledVersionVerified(
+            SetupDependencyKind.X265,
+            "HEVC encoder version 4.3 (8bit)",
+            "4.3 (8+10-bit multilib)"));
+        Assert.IsFalse(SetupBootstrapService.IsInstalledVersionVerified(
+            SetupDependencyKind.X265,
+            "HEVC encoder version 4.3",
+            "4.3 (8+10-bit multilib)"));
+        Assert.IsTrue(SetupBootstrapService.IsInstalledVersionVerified(
+            SetupDependencyKind.X265,
+            "HEVC encoder version 4.3 (8bit+10bit)",
+            "4.3 (8+10-bit multilib)"));
     }
 
     [TestMethod]

@@ -83,7 +83,7 @@ public sealed class EnvironmentReadinessService : IEnvironmentReadinessService
     private string BuildCacheSignature(IReadOnlyList<ToolProbeResult> tools)
     {
         var settings = _settingsService?.Load();
-        var inputs = new StringBuilder("environment-cache-v1\n");
+        var inputs = new StringBuilder("environment-cache-v2\n");
         inputs.AppendLine(_paths?.RootPath);
         inputs.AppendLine(settings?.PreferSystemEncoders.ToString());
         inputs.AppendLine(JsonSerializer.Serialize(settings?.EffectiveManualToolPaths.OrderBy(static pair => pair.Key)));

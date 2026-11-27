@@ -80,17 +80,39 @@ internal static class EncoderBinaryProbe
         }
     }
 
-    private static string ParseVersion(string output, EncoderKind kind)
+    internal static string ParseVersion(string output, EncoderKind kind)
     {
+        if (kind == EncoderKind.X265)
+        {
+            return ParseX265Version(output);
+        }
+
         var match = kind switch
         {
             EncoderKind.X264 => Regex.Match(output, @"\bx264\s+\d+\.\d+\.\d+(?:\s+[A-Za-z0-9]+)?", RegexOptions.IgnoreCase),
-            EncoderKind.X265 => Regex.Match(output, @"\bHEVC\s+encoder\s+version\s+\d+\.\d+(?:\+\d+)?", RegexOptions.IgnoreCase),
             EncoderKind.SvtAv1 => Regex.Match(output, @"\bSVT-AV1\s+Encoder\s+Lib\s+v\d+\.\d+(?:\.\d+)?", RegexOptions.IgnoreCase),
             _ => Match.Empty
         };
 
         return match.Success ? match.Value : string.Empty;
+    }
+
+    private static string ParseX265Version(string output)
+    {
+        var versionMatch = Regex.Match(output, @"\bHEVC\s+encoder\s+version\s+\d+\.\d+(?:\+\d+)?", RegexOptions.IgnoreCase);
+        if (!versionMatch.Success)
+        {
+            return string.Empty;
+        }
+
+        var bitDepthMatch = Regex.Match(
+            output,
+            @"\bbuild\s+info\b[^\r\n]*?\b(?<depths>(?:8|10|12)bit(?:\+(?:8|10|12)bit)*)\b",
+            RegexOptions.IgnoreCase);
+
+        return bitDepthMatch.Success
+            ? $"{versionMatch.Value} ({bitDepthMatch.Groups["depths"].Value.ToLowerInvariant()})"
+            : versionMatch.Value;
     }
 
     private static string FirstMeaningfulLine(string output)
