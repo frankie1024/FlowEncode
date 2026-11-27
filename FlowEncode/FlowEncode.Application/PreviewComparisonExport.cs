@@ -284,7 +284,7 @@ let zoom = 1;
 let panX = 0, panY = 0;
 let wipeRatio = 0.5;
 let pixelated = true;
-let dragging = false, dragStartX = 0, dragStartY = 0, panStartX = 0, panStartY = 0;
+let dragging = false, didDrag = false, dragStartX = 0, dragStartY = 0, panStartX = 0, panStartY = 0;
 
 const stage = document.getElementById("stage");
 const wrap = document.getElementById("wrap");
@@ -483,11 +483,8 @@ stage.addEventListener("wheel", (e) => {
 }, { passive: false });
 
 stage.addEventListener("mousedown", (e) => {
-  if (e.button === 0 && mode === "flip" && !e.shiftKey && currentGroup().images.length > 1) {
-    activeSrcIdx = (activeSrcIdx + 1) % currentGroup().images.length;
-    updateView();
-  }
-  dragging = true; dragStartX = e.clientX; dragStartY = e.clientY; panStartX = panX; panStartY = panY;
+  if (e.button !== 0) return;
+  dragging = true; didDrag = false; dragStartX = e.clientX; dragStartY = e.clientY; panStartX = panX; panStartY = panY;
   stage.classList.add("dragging");
 });
 window.addEventListener("mousemove", (e) => {
@@ -499,11 +496,20 @@ window.addEventListener("mousemove", (e) => {
     }
   }
   if (!dragging) return;
-  panX = panStartX + (e.clientX - dragStartX);
-  panY = panStartY + (e.clientY - dragStartY);
+  const dx = e.clientX - dragStartX;
+  const dy = e.clientY - dragStartY;
+  if (Math.abs(dx) > 4 || Math.abs(dy) > 4) didDrag = true;
+  panX = panStartX + dx;
+  panY = panStartY + dy;
   applyTransform();
 });
-window.addEventListener("mouseup", () => { dragging = false; stage.classList.remove("dragging"); });
+window.addEventListener("mouseup", (e) => {
+  if (dragging && !didDrag && e.button === 0 && mode === "flip" && !e.shiftKey && currentGroup().images.length > 1) {
+    activeSrcIdx = (activeSrcIdx + 1) % currentGroup().images.length;
+    updateView();
+  }
+  dragging = false; didDrag = false; stage.classList.remove("dragging");
+});
 
 window.addEventListener("keydown", (e) => {
   if (e.key === "ArrowRight") { groupIdx = (groupIdx + 1) % DATA.groups.length; loadGroup(); }

@@ -525,7 +525,7 @@ internal sealed class PythonLspClient : IDisposable
 
     private void HandleIncomingMessage(JsonElement payload)
     {
-        if (!payload.TryGetProperty("id", out var idProperty))
+        if (payload.TryGetProperty("method", out _) || !payload.TryGetProperty("id", out var idProperty))
         {
             return;
         }

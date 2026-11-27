@@ -16,7 +16,18 @@ def redirect_stdout_to_stderr():
         sys.stdout = prev
 
 
+def _acquire_protocol_stdout():
+    try:
+        saved_fd = os.dup(1)
+        os.dup2(2, 1)
+        sys.stdout = sys.stderr
+        return os.fdopen(saved_fd, "w", encoding="utf-8", errors="backslashreplace")
+    except Exception:
+        return sys.stdout
+
+
 def main():
+    protocol_stdout = _acquire_protocol_stdout()
     payload = json.load(sys.stdin)
     file_path = payload.get("filePath") or "<untitled.vpy>"
     content = payload.get("content") or ""
@@ -48,52 +59,57 @@ def main():
 
             outputs = sorted(vs.get_outputs().items())
             video_outputs = {idx: out for idx, out in outputs if isinstance(out, vs.VideoOutputTuple)}
+
+            if not video_outputs:
+                raise RuntimeError("The script did not expose any video outputs.")
+
+            target_idx = output_index if output_index in video_outputs else next(iter(video_outputs.keys()))
+            clip = video_outputs[target_idx].clip
+            total = int(clip.num_frames)
+            if total <= 0:
+                raise RuntimeError("Output clip has 0 frames.")
+
+            count = min(sample_frames, total)
+            if total > count * 2:
+                # Start at 25% into the clip to avoid black/static intros and reflect realistic mid-clip filter cost.
+                start = max(0, min(int(total * 0.25), total - count))
+            else:
+                start = 0
+
+            # Warm up 1 distinct frame so one-time indexer / shader compilation doesn't skew steady-state FPS
+            # and doesn't pollute the timed window with a cached first frame.
+            warmup_frame = start - 1 if start > 0 else 0
+            if start == 0 and total > 1:
+                start = 1
+                count = min(sample_frames, total - 1)
+            with redirect_stdout_to_stderr():
+                _ = clip.get_frame(warmup_frame)
+
+            t0 = time.perf_counter()
+            with redirect_stdout_to_stderr():
+                for frame_idx in range(start, start + count):
+                    _ = clip.get_frame(frame_idx)
+            elapsed = max(1e-6, time.perf_counter() - t0)
+            fps = count / elapsed
+
+            fmt = clip.format
+            result = {
+                "succeeded": True,
+                "outputIndex": int(target_idx),
+                "framesRendered": int(count),
+                "startFrame": int(start),
+                "totalFrames": total,
+                "elapsedSeconds": round(elapsed, 3),
+                "fps": round(fps, 2),
+                "width": int(clip.width),
+                "height": int(clip.height),
+                "formatName": getattr(fmt, "name", "Unknown") if fmt is not None else "Unknown",
+                "bitsPerSample": int(getattr(fmt, "bits_per_sample", 0) or 0) if fmt is not None else 0,
+                "errorMessage": None,
+            }
         finally:
             os.chdir(prev_cwd)
             sys.path[:] = prev_sys_path
-
-        if not video_outputs:
-            raise RuntimeError("The script did not expose any video outputs.")
-
-        target_idx = output_index if output_index in video_outputs else next(iter(video_outputs.keys()))
-        clip = video_outputs[target_idx].clip
-        total = int(clip.num_frames)
-        if total <= 0:
-            raise RuntimeError("Output clip has 0 frames.")
-
-        count = min(sample_frames, total)
-        if total > count * 2:
-            # Start at 25% into the clip to avoid black/static intros and reflect realistic mid-clip filter cost.
-            start = max(0, min(int(total * 0.25), total - count))
-        else:
-            start = 0
-
-        # Warm up 1 frame so one-time indexer / shader compilation doesn't skew steady-state FPS.
-        with redirect_stdout_to_stderr():
-            _ = clip.get_frame(start)
-
-        t0 = time.perf_counter()
-        with redirect_stdout_to_stderr():
-            for frame_idx in range(start, start + count):
-                _ = clip.get_frame(frame_idx)
-        elapsed = max(1e-6, time.perf_counter() - t0)
-        fps = count / elapsed
-
-        fmt = clip.format
-        result = {
-            "succeeded": True,
-            "outputIndex": int(target_idx),
-            "framesRendered": int(count),
-            "startFrame": int(start),
-            "totalFrames": total,
-            "elapsedSeconds": round(elapsed, 3),
-            "fps": round(fps, 2),
-            "width": int(clip.width),
-            "height": int(clip.height),
-            "formatName": getattr(fmt, "name", "Unknown") if fmt is not None else "Unknown",
-            "bitsPerSample": int(getattr(fmt, "bits_per_sample", 0) or 0) if fmt is not None else 0,
-            "errorMessage": None,
-        }
     except Exception as ex:
         traceback.print_exc(file=sys.stderr)
         result = {
@@ -111,7 +127,8 @@ def main():
             "errorMessage": str(ex),
         }
 
-    json.dump(result, sys.stdout, ensure_ascii=False)
+    json.dump(result, protocol_stdout, ensure_ascii=False)
+    protocol_stdout.flush()
 
 
 if __name__ == "__main__":

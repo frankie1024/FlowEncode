@@ -14,12 +14,23 @@ import numpy as np
 import vapoursynth as vs
 
 try:
-    sys.stdout.reconfigure(encoding="utf-8", errors="backslashreplace")
     sys.stderr.reconfigure(encoding="utf-8", errors="backslashreplace")
 except Exception:
     pass
 
-PROTOCOL_STDOUT = sys.stdout
+# Duplicate OS fd 1 for the JSON line protocol and redirect fd 1 -> fd 2 so native C/C++
+# VapourSynth plugins printing to stdout never corrupt the host protocol stream.
+try:
+    _saved_stdout_fd = os.dup(1)
+    os.dup2(2, 1)
+    PROTOCOL_STDOUT = os.fdopen(_saved_stdout_fd, "w", encoding="utf-8", errors="backslashreplace")
+    sys.stdout = sys.stderr
+except Exception:
+    try:
+        sys.stdout.reconfigure(encoding="utf-8", errors="backslashreplace")
+    except Exception:
+        pass
+    PROTOCOL_STDOUT = sys.stdout
 
 
 def emit(payload):
@@ -1148,8 +1159,13 @@ class PreviewSession:
             min_right = min(min_right, right)
             min_bottom = min(min_bottom, bottom)
 
-        # If all sampled frames were black, return zero crop safely.
-        if min_left >= clip.width // 2 or min_top >= clip.height // 2:
+        # If all sampled frames were black or crop would collapse the frame, return zero crop safely.
+        if (
+            min_left >= clip.width // 2
+            or min_top >= clip.height // 2
+            or (min_left + min_right) >= clip.width - 16
+            or (min_top + min_bottom) >= clip.height - 16
+        ):
             min_left = min_top = min_right = min_bottom = 0
 
         # Round down to even numbers for YUV 4:2:0 compatibility.

@@ -319,10 +319,19 @@ public abstract class CliBluRayDemuxBackendAdapterBase : IBluRayDemuxBackendAdap
 
     protected static string CreateStagedOutputDirectory(string finalOutputDirectory, string scope, Guid jobId)
     {
-        var baseDirectory = string.IsNullOrWhiteSpace(finalOutputDirectory)
-            ? Environment.CurrentDirectory
-            : (Path.GetDirectoryName(finalOutputDirectory) ?? Environment.CurrentDirectory);
+        var baseDirectory = ResolveStagingBaseDirectory(finalOutputDirectory);
         return Path.Combine(baseDirectory, TempWorkspaceFolderName, scope, jobId.ToString("N"));
+    }
+
+    private static string ResolveStagingBaseDirectory(string? outputPath)
+    {
+        if (string.IsNullOrWhiteSpace(outputPath))
+        {
+            return Environment.CurrentDirectory;
+        }
+
+        var trimmed = Path.TrimEndingDirectorySeparator(Path.GetFullPath(outputPath));
+        return Path.GetDirectoryName(trimmed) ?? trimmed;
     }
 
     protected static void CleanupStagedOutputDirectory(string stagedOutputDirectory)

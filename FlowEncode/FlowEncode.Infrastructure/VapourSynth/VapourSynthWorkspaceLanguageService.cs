@@ -308,7 +308,26 @@ public sealed class VapourSynthWorkspaceLanguageService : IVapourSynthWorkspaceL
         var stdoutTask = process.StandardOutput.ReadToEndAsync();
         var stderrTask = process.StandardError.ReadToEndAsync();
 
-        await process.WaitForExitAsync(cancellationToken);
+        try
+        {
+            await process.WaitForExitAsync(cancellationToken);
+        }
+        catch (OperationCanceledException)
+        {
+            try
+            {
+                if (!process.HasExited)
+                {
+                    process.Kill(entireProcessTree: true);
+                }
+            }
+            catch
+            {
+            }
+
+            throw;
+        }
+
         var stdout = await stdoutTask;
         var stderr = await stderrTask;
 

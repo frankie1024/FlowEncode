@@ -12,6 +12,7 @@ namespace FlowEncode.Infrastructure;
 
 public sealed class SlowPicsUploadService
 {
+    private const string ComparisonPageUrl = "https://slow.pics/comparison";
     private const string ComparisonApiUrl = "https://slow.pics/api/comparison";
     private const string DefaultUserAgent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) FlowEncode";
     private readonly Func<HttpMessageHandler> _handlerFactory;
@@ -43,15 +44,22 @@ public sealed class SlowPicsUploadService
             Timeout = TimeSpan.FromMinutes(5)
         };
         client.DefaultRequestHeaders.TryAddWithoutValidation("User-Agent", DefaultUserAgent);
-        client.DefaultRequestHeaders.TryAddWithoutValidation("Referer", "https://slow.pics/");
+        client.DefaultRequestHeaders.TryAddWithoutValidation("Referer", ComparisonPageUrl);
+        client.DefaultRequestHeaders.TryAddWithoutValidation("Origin", "https://slow.pics");
 
         try
         {
             progress?.Report("Connecting to slow.pics...");
-            using (var handshake = await client.GetAsync(ComparisonApiUrl, cancellationToken).ConfigureAwait(false))
+            string? xsrfToken = null;
+            using (var handshake = await client.GetAsync(ComparisonPageUrl, cancellationToken).ConfigureAwait(false))
             {
-                // Handshake establishes session cookies; 2xx/4xx responses with cookies are acceptable.
-                _ = handshake.StatusCode;
+                // Handshake establishes session cookies (including XSRF-TOKEN).
+                xsrfToken = TryExtractXsrfToken(handler, handshake);
+            }
+
+            if (!string.IsNullOrWhiteSpace(xsrfToken))
+            {
+                client.DefaultRequestHeaders.TryAddWithoutValidation("X-XSRF-TOKEN", xsrfToken);
             }
 
             using var form = new MultipartFormDataContent();
@@ -166,6 +174,41 @@ public sealed class SlowPicsUploadService
         if (trimmed.Length is >= 4 and <= 48 && !trimmed.Contains('<') && !trimmed.Contains(' '))
         {
             return trimmed;
+        }
+
+        return null;
+    }
+
+    private static string? TryExtractXsrfToken(HttpMessageHandler handler, HttpResponseMessage handshake)
+    {
+        if (handler is HttpClientHandler { CookieContainer: { } cookies })
+        {
+            var tokenCookie = cookies.GetCookies(new Uri("https://slow.pics/"))["XSRF-TOKEN"];
+            if (!string.IsNullOrWhiteSpace(tokenCookie?.Value))
+            {
+                return Uri.UnescapeDataString(tokenCookie.Value);
+            }
+        }
+
+        if (handshake.Headers.TryGetValues("Set-Cookie", out var setCookies))
+        {
+            foreach (var header in setCookies)
+            {
+                const string prefix = "XSRF-TOKEN=";
+                var idx = header.IndexOf(prefix, StringComparison.OrdinalIgnoreCase);
+                if (idx < 0)
+                {
+                    continue;
+                }
+
+                var start = idx + prefix.Length;
+                var end = header.IndexOf(';', start);
+                var raw = end >= 0 ? header[start..end] : header[start..];
+                if (!string.IsNullOrWhiteSpace(raw))
+                {
+                    return Uri.UnescapeDataString(raw.Trim());
+                }
+            }
         }
 
         return null;

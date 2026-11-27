@@ -309,17 +309,11 @@ public sealed class VapourSynthPreviewService : IVapourSynthPreviewService
                 initialOffset,
                 searchRadius,
                 verifyMultiAnchor);
-            await _hostSession!.WriteLineAsync(JsonSerializer.Serialize(command, JsonOptions), cancellationToken).ConfigureAwait(false);
-            var response = await ReadResponseAsync(cancellationToken).ConfigureAwait(false);
+            var response = await SendCommandAndReadResponseAsync(command, requestId, cancellationToken).ConfigureAwait(false);
             if (!string.Equals(response.Type, "temporalAlignment", StringComparison.Ordinal))
             {
                 throw new InvalidOperationException(GetResponseErrorMessage(response)
                     ?? "Preview helper failed to compute temporal alignment.");
-            }
-
-            if (response.RequestId != requestId)
-            {
-                throw new InvalidOperationException("Preview helper returned a mismatched temporal alignment response.");
             }
 
             return new PreviewTemporalAlignmentResult(
@@ -355,17 +349,11 @@ public sealed class VapourSynthPreviewService : IVapourSynthPreviewService
                 outputIndexB,
                 frameNumberA,
                 frameNumberB);
-            await _hostSession!.WriteLineAsync(JsonSerializer.Serialize(command, JsonOptions), cancellationToken).ConfigureAwait(false);
-            var response = await ReadResponseAsync(cancellationToken).ConfigureAwait(false);
+            var response = await SendCommandAndReadResponseAsync(command, requestId, cancellationToken).ConfigureAwait(false);
             if (!string.Equals(response.Type, "spatialAlignment", StringComparison.Ordinal))
             {
                 throw new InvalidOperationException(GetResponseErrorMessage(response)
                     ?? "Preview helper failed to compute spatial alignment.");
-            }
-
-            if (response.RequestId != requestId)
-            {
-                throw new InvalidOperationException("Preview helper returned a mismatched spatial alignment response.");
             }
 
             return new PreviewSpatialAlignmentResult(
@@ -400,17 +388,11 @@ public sealed class VapourSynthPreviewService : IVapourSynthPreviewService
                 frameNumber,
                 x,
                 y);
-            await _hostSession!.WriteLineAsync(JsonSerializer.Serialize(command, JsonOptions), cancellationToken).ConfigureAwait(false);
-            var response = await ReadResponseAsync(cancellationToken).ConfigureAwait(false);
+            var response = await SendCommandAndReadResponseAsync(command, requestId, cancellationToken).ConfigureAwait(false);
             if (!string.Equals(response.Type, "pixelSample", StringComparison.Ordinal))
             {
                 throw new InvalidOperationException(GetResponseErrorMessage(response)
                     ?? "Preview helper failed to sample pixel.");
-            }
-
-            if (response.RequestId != requestId)
-            {
-                throw new InvalidOperationException("Preview helper returned a mismatched pixel sample response.");
             }
 
             return new PreviewPixelSampleResult(
@@ -465,17 +447,11 @@ public sealed class VapourSynthPreviewService : IVapourSynthPreviewService
                 opts.ToneMapHdr,
                 opts.ToneMapTargetNits,
                 opts.SeparateFields);
-            await _hostSession!.WriteLineAsync(JsonSerializer.Serialize(command, JsonOptions), cancellationToken).ConfigureAwait(false);
-            var response = await ReadResponseAsync(cancellationToken).ConfigureAwait(false);
+            var response = await SendCommandAndReadResponseAsync(command, requestId, cancellationToken).ConfigureAwait(false);
             if (!string.Equals(response.Type, "exportFrames", StringComparison.Ordinal))
             {
                 throw new InvalidOperationException(GetResponseErrorMessage(response)
                     ?? "Preview helper failed to export frames.");
-            }
-
-            if (response.RequestId != requestId)
-            {
-                throw new InvalidOperationException("Preview helper returned a mismatched export response.");
             }
 
             return new PreviewExportFramesResult(
@@ -519,17 +495,11 @@ public sealed class VapourSynthPreviewService : IVapourSynthPreviewService
                 Math.Clamp(topN, 1, 50),
                 subpixelOffsetX,
                 subpixelOffsetY);
-            await _hostSession!.WriteLineAsync(JsonSerializer.Serialize(command, JsonOptions), cancellationToken).ConfigureAwait(false);
-            var response = await ReadResponseAsync(cancellationToken).ConfigureAwait(false);
+            var response = await SendCommandAndReadResponseAsync(command, requestId, cancellationToken).ConfigureAwait(false);
             if (!string.Equals(response.Type, "worstFrames", StringComparison.Ordinal))
             {
                 throw new InvalidOperationException(GetResponseErrorMessage(response)
                     ?? "Preview helper failed to scan worst frames.");
-            }
-
-            if (response.RequestId != requestId)
-            {
-                throw new InvalidOperationException("Preview helper returned a mismatched worst-frame response.");
             }
 
             var entries = response.WorstFrames?
@@ -573,17 +543,11 @@ public sealed class VapourSynthPreviewService : IVapourSynthPreviewService
                 requestId,
                 outputIndex,
                 Math.Clamp(sampleCount, 3, 30));
-            await _hostSession!.WriteLineAsync(JsonSerializer.Serialize(command, JsonOptions), cancellationToken).ConfigureAwait(false);
-            var response = await ReadResponseAsync(cancellationToken).ConfigureAwait(false);
+            var response = await SendCommandAndReadResponseAsync(command, requestId, cancellationToken).ConfigureAwait(false);
             if (!string.Equals(response.Type, "autoCrop", StringComparison.Ordinal))
             {
                 throw new InvalidOperationException(GetResponseErrorMessage(response)
                     ?? "Preview helper failed to detect crop bounds.");
-            }
-
-            if (response.RequestId != requestId)
-            {
-                throw new InvalidOperationException("Preview helper returned a mismatched auto-crop response.");
             }
 
             return new PreviewAutoCropResult(
@@ -597,6 +561,29 @@ public sealed class VapourSynthPreviewService : IVapourSynthPreviewService
         finally
         {
             _stateLock.Release();
+        }
+    }
+
+    private async Task<HostResponseDto> SendCommandAndReadResponseAsync<TCommand>(
+        TCommand command,
+        int requestId,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            await _hostSession!.WriteLineAsync(JsonSerializer.Serialize(command, JsonOptions), cancellationToken).ConfigureAwait(false);
+            var response = await ReadResponseAsync(cancellationToken).ConfigureAwait(false);
+            if (response.RequestId != requestId)
+            {
+                throw new InvalidOperationException($"Preview helper returned a mismatched response (expected {requestId}, got {response.RequestId}).");
+            }
+
+            return response;
+        }
+        catch
+        {
+            await CloseHostCoreAsync().ConfigureAwait(false);
+            throw;
         }
     }
 

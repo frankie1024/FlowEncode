@@ -36,6 +36,7 @@ public sealed partial class VapourSynthWorkspaceView : UserControl, IDisposable
     private VapourSynthWorkspaceTabViewModel? _previewLogTab;
     private VapourSynthLanguageFeaturesSnapshot? _latestLanguageFeatures;
     private CancellationTokenSource? _diagnosticsCancellationTokenSource;
+    private CancellationTokenSource? _benchmarkCancellationTokenSource;
     private bool _isLoaded;
     private long _diagnosticsVersion;
     private bool _isDisposed;
@@ -139,6 +140,9 @@ public sealed partial class VapourSynthWorkspaceView : UserControl, IDisposable
     private void UserControl_Unloaded(object sender, RoutedEventArgs e)
     {
         CancelPendingDiagnostics();
+        _benchmarkCancellationTokenSource?.Cancel();
+        _benchmarkCancellationTokenSource?.Dispose();
+        _benchmarkCancellationTokenSource = null;
         StopEditorPaneLayoutTransition();
     }
 
@@ -915,10 +919,11 @@ public sealed partial class VapourSynthWorkspaceView : UserControl, IDisposable
             ApplyEditorSnapshot(pane, snapshot);
         }
 
+        var beforeScript = tab.CurrentContent ?? string.Empty;
         var cursorLine = Math.Max(1, snapshot?.Line ?? 1);
         var result = await ApplySmartEditorRewriteAsync(script =>
             VapourSynthSmartScriptEditor.ToggleBeforeAfterCompare(script, cursorLine));
-        if (result is null)
+        if (result is null || string.Equals(result.UpdatedScript, beforeScript, StringComparison.Ordinal))
         {
             return;
         }
@@ -941,10 +946,15 @@ public sealed partial class VapourSynthWorkspaceView : UserControl, IDisposable
         }
 
         await CaptureEditorStateAsync(pane);
-        if (!ViewModel.Tabs.Contains(tab))
+        if (_isDisposed || !ViewModel.Tabs.Contains(tab))
         {
             return;
         }
+
+        _benchmarkCancellationTokenSource?.Cancel();
+        _benchmarkCancellationTokenSource?.Dispose();
+        var benchmarkCts = new CancellationTokenSource(TimeSpan.FromMinutes(2));
+        _benchmarkCancellationTokenSource = benchmarkCts;
 
         var workingDir = !string.IsNullOrWhiteSpace(tab.CurrentFilePath)
             ? (Path.GetDirectoryName(tab.CurrentFilePath) ?? AppContext.BaseDirectory)
@@ -957,13 +967,26 @@ public sealed partial class VapourSynthWorkspaceView : UserControl, IDisposable
             "Benchmark",
             ViewModel.Texts.VapourSynthSmartBenchmarkRunningStatus));
 
-        var result = await _languageService.BenchmarkScriptAsync(
-            tab.CurrentFilePath,
-            tab.CurrentContent ?? string.Empty,
-            workingDir,
-            sampleFrames: 100,
-            outputIndex: 0,
-            CancellationToken.None);
+        VapourSynthScriptBenchmarkResult result;
+        try
+        {
+            result = await _languageService.BenchmarkScriptAsync(
+                tab.CurrentFilePath,
+                tab.CurrentContent ?? string.Empty,
+                workingDir,
+                sampleFrames: 100,
+                outputIndex: 0,
+                benchmarkCts.Token);
+        }
+        catch (OperationCanceledException)
+        {
+            return;
+        }
+
+        if (_isDisposed || !ReferenceEquals(_benchmarkCancellationTokenSource, benchmarkCts) || !ViewModel.Tabs.Contains(tab))
+        {
+            return;
+        }
 
         if (result.Succeeded)
         {
@@ -1226,14 +1249,20 @@ public sealed partial class VapourSynthWorkspaceView : UserControl, IDisposable
                 return null;
             }
 
-            var targetPane = ReferenceEquals(LeftEditorPane.ConfirmedBinding?.TabId, previewTab.Id)
-                || string.Equals(LeftEditorPane.ConfirmedBinding?.TabId, previewTab.Id, StringComparison.Ordinal)
+            VapourSynthEditorPaneView? targetPane = IsPaneBoundToTab(LeftEditorPane, previewTab)
                 ? LeftEditorPane
-                : (string.Equals(RightEditorPane.ConfirmedBinding?.TabId, previewTab.Id, StringComparison.Ordinal)
-                    ? RightEditorPane
-                    : pane);
+                : (IsPaneBoundToTab(RightEditorPane, previewTab) ? RightEditorPane : null);
 
-            await CaptureEditorStateAsync(targetPane);
+            if (targetPane is not null)
+            {
+                await CaptureEditorStateAsync(targetPane);
+            }
+
+            if (_isDisposed || !ViewModel.Tabs.Contains(previewTab))
+            {
+                return null;
+            }
+
             var currentText = previewTab.CurrentContent ?? string.Empty;
             var editResult = rewriter(currentText);
             if (string.Equals(editResult.UpdatedScript, currentText, StringComparison.Ordinal))
@@ -1241,15 +1270,25 @@ public sealed partial class VapourSynthWorkspaceView : UserControl, IDisposable
                 return editResult;
             }
 
-            var applied = await targetPane.ApplySmartDocumentEditAsync(editResult.UpdatedScript, editResult.TargetLineNumber);
-            if (applied)
+            if (targetPane is not null && IsPaneBoundToTab(targetPane, previewTab))
             {
-                await CaptureEditorStateAsync(targetPane);
-                ScheduleDiagnostics(targetPane);
-                return editResult;
+                var applied = await targetPane.ApplySmartDocumentEditAsync(editResult.UpdatedScript, editResult.TargetLineNumber);
+                if (applied)
+                {
+                    await CaptureEditorStateAsync(targetPane);
+                    ScheduleDiagnostics(targetPane);
+                    return editResult;
+                }
+
+                return null;
             }
 
-            return null;
+            // Tab is currently backgrounded; update its ViewModel buffer directly without touching another tab's editor pane.
+            var updatedScript = editResult.UpdatedScript;
+            var lineCount = Math.Max(1, updatedScript.Count(static ch => ch == '\n') + 1);
+            var targetLine = Math.Clamp(editResult.TargetLineNumber, 1, lineCount);
+            previewTab.ApplyEditorBuffer(updatedScript, targetLine, 1, lineCount, updatedScript.Length);
+            return editResult;
         };
 
         var mainWindowViewModel = App.GetService<MainWindow>().ViewModel;
@@ -1691,22 +1730,24 @@ public sealed partial class VapourSynthWorkspaceView : UserControl, IDisposable
                 GetInt(root, "line", 1),
                 GetInt(root, "column", 1));
 
+            using var requestCts = new CancellationTokenSource(TimeSpan.FromMilliseconds(2500));
+            var requestToken = requestCts.Token;
             object? result = method switch
             {
                 "completion" => await _languageService.GetPythonCompletionsAsync(
                     document,
                     position,
                     GetString(root, "triggerCharacter"),
-                    CancellationToken.None),
+                    requestToken),
                 "hover" => await _languageService.GetPythonHoverAsync(
                     document,
                     position,
-                    CancellationToken.None),
+                    requestToken),
                 "signatureHelp" => await _languageService.GetPythonSignatureHelpAsync(
                     document,
                     position,
                     GetString(root, "triggerCharacter"),
-                    CancellationToken.None),
+                    requestToken),
                 _ => throw new InvalidOperationException($"Unsupported language request: {method}")
             };
 
@@ -2185,6 +2226,9 @@ public sealed partial class VapourSynthWorkspaceView : UserControl, IDisposable
         Unloaded -= UserControl_Unloaded;
         WorkspaceRoot.KeyDown -= WorkspaceRoot_KeyDown;
         CancelPendingDiagnostics();
+        _benchmarkCancellationTokenSource?.Cancel();
+        _benchmarkCancellationTokenSource?.Dispose();
+        _benchmarkCancellationTokenSource = null;
         StopEditorPaneLayoutTransition();
         _previewService.LogEmitted -= PreviewService_LogEmitted;
         LeftEditorPane.Dispose();

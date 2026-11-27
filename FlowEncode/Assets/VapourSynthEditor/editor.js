@@ -488,6 +488,7 @@ function captureStateJson() {
 }
 
 function clearDiagnostics() {
+    latestDiagnostics = [];
     if (!editorModel || typeof monaco === "undefined") {
         return;
     }
@@ -1263,7 +1264,7 @@ function createVsConstantSuggestions(prefix, range) {
             detail: c.detail,
             documentation: c.documentation,
             insertText: c.name,
-            filterText: `vs.${c.name}`,
+            filterText: c.name,
             sortText: `1-${c.name}`,
             range
         });
@@ -1330,7 +1331,9 @@ function createEncodingSnippets(model, position, range, clipInfo) {
             label: "vsinit",
             detail: "VapourSynth 脚本完整骨架",
             ready: hasNs("lsmas") || hasNs("ffms2"),
-            body: `import vapoursynth as vs\ncore = vs.core\n\nsrc = core.lsmas.LWLibavSource(r"\${1:source.mkv}")\n\${0}\nsrc.set_output()`
+            body: hasNs("lsmas") || !hasNs("ffms2")
+                ? `import vapoursynth as vs\ncore = vs.core\n\nsrc = core.lsmas.LWLibavSource(r"\${1:source.mkv}")\n\${0}\nsrc.set_output()`
+                : `import vapoursynth as vs\ncore = vs.core\n\nsrc = core.ffms2.Source(r"\${1:source.mkv}")\n\${0}\nsrc.set_output()`
         },
         {
             label: "lsmas",
@@ -1438,7 +1441,7 @@ function createEncodingSnippets(model, position, range, clipInfo) {
         },
         {
             label: "bm3d",
-            detail: "降噪: vsdenoise.BM3D / bm3dcuda",
+            detail: "降噪: vsdenoise.BM3D / bm3dcuda / bm3d",
             ready: hasPkg("vsdenoise") || hasNs("bm3dcuda") || hasNs("bm3d"),
             req: "vsdenoise / bm3d",
             needsCore: !hasPkg("vsdenoise"),
@@ -1446,7 +1449,9 @@ function createEncodingSnippets(model, position, range, clipInfo) {
             usesActiveVar: true,
             body: hasPkg("vsdenoise")
                 ? `${v} = ${bm3dAlias}.denoise(${v}, sigma=\${1:1.5}, tr=\${2:2})`
-                : `${v} = core.bm3dcuda.BM3D(${v}, sigma=[\${1:1.5}, 0, 0], radius=\${2:2})`
+                : hasNs("bm3dcuda")
+                    ? `${v} = core.bm3dcuda.BM3D(${v}, sigma=[\${1:1.5}, 0, 0], radius=\${2:2})`
+                    : `${v} = core.bm3d.Basic(${v}, sigma=[\${1:1.5}, 0, 0])`
         },
         {
             label: "bbmod",
@@ -1625,7 +1630,7 @@ function createRootMemberSuggestions(prefix, range) {
             detail: member.detail,
             documentation: buildMemberDocumentation(member),
             insertText: member.name,
-            filterText: `core.${member.name}`,
+            filterText: member.name,
             sortText: `${member.kind === "namespace" ? "0" : "1"}-${member.name}`,
             range
         }));
@@ -1645,7 +1650,7 @@ function createNamespaceFunctionSuggestions(namespaceName, prefix, range) {
             detail: functionItem.signatureLabel,
             documentation: functionItem.documentation || namespaceItem.displayName,
             insertText: functionItem.name,
-            filterText: functionItem.qualifiedName,
+            filterText: functionItem.name,
             sortText: `0-${functionItem.name}`,
             range
         }));
@@ -1882,12 +1887,15 @@ async function providePythonCompletions(model, position, context, cancellationTo
     let lspSuggestions = [];
 
     try {
-        const lspItems = await requestLanguageFeature(
+        const timeoutMs = staticSuggestions.length > 0 ? 350 : 1200;
+        const lspPromise = requestLanguageFeature(
             "completion",
             buildLanguageRequestPayload(model, position, {
                 triggerCharacter: normalizeText(context?.triggerCharacter)
             }),
             cancellationToken);
+        const timeoutPromise = new Promise((resolve) => window.setTimeout(() => resolve([]), timeoutMs));
+        const lspItems = await Promise.race([lspPromise, timeoutPromise]);
 
         lspSuggestions = mapLspCompletionItems(lspItems, getWordRange(position));
     } catch {
@@ -1898,14 +1906,24 @@ async function providePythonCompletions(model, position, context, cancellationTo
     };
 }
 
+const PYTHON_KEYWORDS = new Set([
+    "False", "None", "True", "and", "as", "assert", "async", "await", "break",
+    "class", "continue", "def", "del", "elif", "else", "except", "finally",
+    "for", "from", "global", "if", "import", "in", "is", "lambda", "nonlocal",
+    "not", "or", "pass", "raise", "return", "try", "while", "with", "yield"
+]);
+
 function collectSafePythonIdentifierEdits(model, oldName, newName) {
     const edits = [];
-    if (!oldName || !newName || oldName === newName || !/^[A-Za-z_][A-Za-z0-9_]*$/.test(newName)) {
+    if (!oldName || !newName || oldName === newName
+        || !/^[A-Za-z_][A-Za-z0-9_]*$/.test(newName)
+        || PYTHON_KEYWORDS.has(newName)) {
         return edits;
     }
 
     const lineCount = model.getLineCount();
     let tripleQuote = null;
+    let parenDepth = 0;
 
     for (let lineNum = 1; lineNum <= lineCount; lineNum++) {
         const line = model.getLineContent(lineNum);
@@ -1952,6 +1970,18 @@ function collectSafePythonIdentifierEdits(model, oldName, newName) {
                 continue;
             }
 
+            if (ch === "(" || ch === "[" || ch === "{") {
+                parenDepth++;
+                i++;
+                continue;
+            }
+
+            if (ch === ")" || ch === "]" || ch === "}") {
+                parenDepth = Math.max(0, parenDepth - 1);
+                i++;
+                continue;
+            }
+
             if (/[A-Za-z_]/.test(ch)) {
                 let start = i;
                 while (i < line.length && /[A-Za-z0-9_]/.test(line[i])) {
@@ -1961,7 +1991,9 @@ function collectSafePythonIdentifierEdits(model, oldName, newName) {
                 if (ident === oldName) {
                     const prevNonWs = line.slice(0, start).trimEnd();
                     const isMemberAccess = prevNonWs.endsWith(".");
-                    if (!isMemberAccess) {
+                    const rest = line.slice(i).trimStart();
+                    const isKeywordArgName = parenDepth > 0 && rest.startsWith("=") && !rest.startsWith("==");
+                    if (!isMemberAccess && !isKeywordArgName) {
                         edits.push({
                             resource: model.uri,
                             versionId: model.getVersionId(),
@@ -2086,8 +2118,12 @@ function registerLanguageProviders() {
     monaco.languages.registerRenameProvider("python", {
         resolveRenameLocation(model, position) {
             const word = model.getWordAtPosition(position);
-            if (!word || !/^[A-Za-z_][A-Za-z0-9_]*$/.test(word.word)) {
+            if (!word || !/^[A-Za-z_][A-Za-z0-9_]*$/.test(word.word) || PYTHON_KEYWORDS.has(word.word)) {
                 return { rejectReason: "Cannot rename this token." };
+            }
+            const beforeWord = model.getLineContent(position.lineNumber).slice(0, word.startColumn - 1).trimEnd();
+            if (beforeWord.endsWith(".")) {
+                return { rejectReason: "Cannot rename a member attribute." };
             }
             return {
                 range: new monaco.Range(position.lineNumber, word.startColumn, position.lineNumber, word.endColumn),

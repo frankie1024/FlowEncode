@@ -258,6 +258,38 @@ public sealed class SharedTaskCoordinatorTests
     }
 
     [TestMethod]
+    public void BluRayWildcardOutputClaim_BlocksOverlappingConcreteAndDeewTasks()
+    {
+        using var root = new TestRoot(); var tasks = new TaskCoordinator(new Settings());
+        var discDir = Path.Combine(root.Path, "disc");
+        var outDir = Path.Combine(root.Path, "demux");
+        Directory.CreateDirectory(discDir);
+        Directory.CreateDirectory(outDir);
+        var playlist = new BluRayPlaylistItem("00001", "00001.mpls", "10:00", discDir, "00001.mpls", "10:00", TimeSpan.FromMinutes(10), 1);
+        var track = new BluRayTrackItem("1", 1, "1:", BluRayTrackKind.Video, "Video", "H.264", "eng");
+        var bluray = new TaskWorkload(TaskKind.BluRay, BluRay: new BluRayDemuxRequest(
+            Guid.NewGuid(),
+            BluRayDemuxBackend.DgDemux,
+            discDir,
+            outDir,
+            Path.Combine(outDir, "00001"),
+            playlist,
+            [new BluRayTrackSelection(track, Path.Combine(outDir, "00001.*"))],
+            OverwriteOutput: false));
+
+        tasks.Reserve(bluray);
+
+        var collidingVideo = root.Video(Path.Combine(outDir, "00001.264"));
+        Assert.ThrowsExactly<InvalidOperationException>(() => tasks.Reserve(collidingVideo));
+
+        var collidingDeew = root.Audio() with { Audio = root.Audio().Audio! with { Mode = AudioProcessingMode.Ddp, OutputPath = outDir, Deew = new DeewOptions(Format: "ddp") } };
+        Assert.ThrowsExactly<InvalidOperationException>(() => tasks.Reserve(collidingDeew));
+
+        var nonCollidingVideo = root.Video(Path.Combine(outDir, "other.265"));
+        Assert.AreEqual(nonCollidingVideo.TaskId, tasks.Reserve(nonCollidingVideo).TaskId);
+    }
+
+    [TestMethod]
     public void FinalPublish_RacingExistingOutputIsPreservedAndEncodedFileIsRecoverable()
     {
         using var root = new TestRoot(); var final = Path.Combine(root.Path, "movie.264"); var staged = Path.Combine(root.Path, "staged.264");

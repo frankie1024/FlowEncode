@@ -300,7 +300,7 @@ public sealed class TaskCoordinator
                 return false;
 
             if (_files is not null && other._files is not null)
-                return _files.Overlaps(other._files);
+                return FilesOverlapFiles(_files, other._files);
 
             if (_files is not null && other._directory is not null)
                 return FilesOverlapDirectory(_files, other._directory, other._directoryExtensions);
@@ -325,6 +325,53 @@ public sealed class TaskCoordinator
             return false;
         }
 
+        private static bool FilesOverlapFiles(HashSet<string> left, HashSet<string> right)
+        {
+            if (left.Overlaps(right))
+                return true;
+
+            foreach (var a in left)
+            {
+                var aWildcard = ContainsWildcard(a);
+                foreach (var b in right)
+                {
+                    var bWildcard = ContainsWildcard(b);
+                    if (!aWildcard && !bWildcard)
+                        continue;
+
+                    var dirA = Path.GetDirectoryName(a);
+                    var dirB = Path.GetDirectoryName(b);
+                    if (!string.Equals(dirA, dirB, StringComparison.OrdinalIgnoreCase))
+                        continue;
+
+                    var nameA = Path.GetFileName(a);
+                    var nameB = Path.GetFileName(b);
+                    if (aWildcard && !bWildcard)
+                    {
+                        if (System.IO.Enumeration.FileSystemName.MatchesSimpleExpression(nameA, nameB, ignoreCase: true))
+                            return true;
+                    }
+                    else if (!aWildcard && bWildcard)
+                    {
+                        if (System.IO.Enumeration.FileSystemName.MatchesSimpleExpression(nameB, nameA, ignoreCase: true))
+                            return true;
+                    }
+                    else
+                    {
+                        var prefixA = nameA.Split('*', '?')[0];
+                        var prefixB = nameB.Split('*', '?')[0];
+                        if (prefixA.StartsWith(prefixB, StringComparison.OrdinalIgnoreCase)
+                            || prefixB.StartsWith(prefixA, StringComparison.OrdinalIgnoreCase))
+                            return true;
+                    }
+                }
+            }
+
+            return false;
+        }
+
+        private static bool ContainsWildcard(string path) => path.IndexOfAny(['*', '?']) >= 0;
+
         private static bool FilesOverlapDirectory(HashSet<string> files, string directory, HashSet<string>? allowedExtensions)
         {
             foreach (var file in files)
@@ -336,7 +383,7 @@ public sealed class TaskCoordinator
                     return true;
 
                 var ext = Path.GetExtension(file);
-                if (!string.IsNullOrEmpty(ext) && allowedExtensions.Contains(ext))
+                if (!string.IsNullOrEmpty(ext) && (ContainsWildcard(ext) || allowedExtensions.Contains(ext)))
                     return true;
             }
 
@@ -368,7 +415,13 @@ public sealed class TaskCoordinator
             throw new FileNotFoundException($"Source file not found / 未找到输入文件：{request.SourcePath}", request.SourcePath);
     }
 
-    private static bool IsChild(string path, string directory) => path.StartsWith(directory + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase);
+    private static bool IsChild(string path, string directory)
+    {
+        var prefix = directory.EndsWith(Path.DirectorySeparatorChar)
+            ? directory
+            : directory + Path.DirectorySeparatorChar;
+        return path.Length > prefix.Length && path.StartsWith(prefix, StringComparison.OrdinalIgnoreCase);
+    }
     private static string Canonical(string path) => Path.TrimEndingDirectorySeparator(Path.GetFullPath(path));
     private static bool IsActive(EncodingJobState state) => state is EncodingJobState.Queued or EncodingJobState.Running;
     private Entry Find(Guid id) => _entries.GetValueOrDefault(id) ?? throw new KeyNotFoundException("Unknown task ID: " + id);

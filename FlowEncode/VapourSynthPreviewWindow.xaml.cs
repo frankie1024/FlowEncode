@@ -6094,7 +6094,7 @@ public sealed partial class VapourSynthPreviewWindow : Window
 
         try
         {
-            var sampleA = await _previewService.SamplePixelAsync(_selectedOutputInfo.Index, ViewModel.CurrentFrame, x, y, token);
+            var sampleA = await _previewService.SamplePixelAsync(_selectedOutputInfo.Index, ViewModel.CurrentFrame, x, y, _previewLifetimeToken);
             token.ThrowIfCancellationRequested();
 
             static string FormatSample(string slot, PreviewPixelSampleResult s)
@@ -6118,7 +6118,7 @@ public sealed partial class VapourSynthPreviewWindow : Window
                     ViewModel.SelectedOutputSyncMode?.Value,
                     ViewModel.IsTimelineTimeMode,
                     ViewModel.SecondaryFrameOffset);
-                var sampleB = await _previewService.SamplePixelAsync(_secondaryOutputInfo.Index, frameB, x, y, token);
+                var sampleB = await _previewService.SamplePixelAsync(_secondaryOutputInfo.Index, frameB, x, y, _previewLifetimeToken);
                 token.ThrowIfCancellationRequested();
 
                 var deltaLine = $"Δ {sampleA.Plane0Name}={sampleB.Plane0Raw - sampleA.Plane0Raw:+0.##;-0.##;0}";

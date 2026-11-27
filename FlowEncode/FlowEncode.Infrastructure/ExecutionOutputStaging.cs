@@ -63,7 +63,29 @@ internal static class ExecutionOutputStaging
             {
                 var backupPath = CreateSiblingTemporaryFilePath(finalPath, jobId, "backup");
                 BestEffortCleanup.DeleteFile(backupPath, $"staged output backup '{backupPath}'");
-                File.Replace(stagedPath, finalPath, backupPath, ignoreMetadataErrors: true);
+                try
+                {
+                    File.Replace(stagedPath, finalPath, backupPath, ignoreMetadataErrors: true);
+                }
+                catch (Exception replaceEx)
+                {
+                    if (!File.Exists(finalPath) && File.Exists(backupPath))
+                    {
+                        try
+                        {
+                            File.Move(backupPath, finalPath);
+                        }
+                        catch (Exception restoreEx)
+                        {
+                            throw new IOException(
+                                $"Failed to replace '{finalPath}' and could not restore backup '{backupPath}'. {restoreEx.Message}",
+                                replaceEx);
+                        }
+                    }
+
+                    throw;
+                }
+
                 BestEffortCleanup.DeleteFile(backupPath, $"staged output backup '{backupPath}'");
                 return;
             }
@@ -248,7 +270,7 @@ internal static class ExecutionOutputStaging
             BestEffortCleanup.DeleteFile(stagedPath, $"temporary output '{stagedPath}'", onFailure);
         }
 
-        if (!string.IsNullOrWhiteSpace(finalPath))
+        if (!string.IsNullOrWhiteSpace(finalPath) && File.Exists(finalPath))
         {
             var backupPath = CreateSiblingTemporaryFilePath(finalPath, jobId, "backup");
             BestEffortCleanup.DeleteFile(backupPath, $"temporary backup '{backupPath}'", onFailure);

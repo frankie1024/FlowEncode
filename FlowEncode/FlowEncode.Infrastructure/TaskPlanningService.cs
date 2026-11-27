@@ -197,10 +197,12 @@ public sealed class TaskPlanningService(TaskCoordinator tasks, IAppSettingsServi
                 outputs = bluray.Selections.Select(s => new OutputArtifact(
                     bluray.Backend == BluRayDemuxBackend.Eac3To
                         ? Path.Combine(bluray.OutputDirectory, Path.GetFileName(s.OutputPath))
-                        : s.OutputPath,
+                        : Path.IsPathFullyQualified(s.OutputPath)
+                            ? s.OutputPath
+                            : Path.Combine(bluray.OutputDirectory, s.OutputPath),
                     OutputArtifactKind.Media)).ToArray();
-                if (!request.OverwriteOutput && bluray.Backend == BluRayDemuxBackend.Eac3To)
-                    EnsureNoEac3ToTrackConflicts(bluray.OutputDirectory, outputs);
+                if (!request.OverwriteOutput)
+                    EnsureNoBluRayTrackConflicts(bluray.OutputDirectory, outputs);
                 break;
             default:
                 await Tool(RegisteredToolKind.Av1an); await Tool(RegisteredToolKind.Ffprobe);
@@ -220,7 +222,7 @@ public sealed class TaskPlanningService(TaskCoordinator tasks, IAppSettingsServi
         return new(command, outputs, warnings, Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(string.Join("\n", stamps)))));
     }
 
-    private static void EnsureNoEac3ToTrackConflicts(string outputDirectory, IReadOnlyList<OutputArtifact> outputs)
+    private static void EnsureNoBluRayTrackConflicts(string outputDirectory, IReadOnlyList<OutputArtifact> outputs)
     {
         if (!Directory.Exists(outputDirectory))
             return;

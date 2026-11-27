@@ -1119,8 +1119,8 @@ public sealed partial class CliAudioProcessingRunner : IAudioProcessingRunner
 
     private static string GetStagingDirectory(AudioProcessingRequest request)
     {
-        var baseDirectory = Path.GetDirectoryName(Path.TrimEndingDirectorySeparator(request.OutputPath))
-            ?? Environment.CurrentDirectory;
+        var trimmed = Path.TrimEndingDirectorySeparator(Path.GetFullPath(request.OutputPath));
+        var baseDirectory = Path.GetDirectoryName(trimmed) ?? trimmed;
 
         return Path.Combine(baseDirectory, TempWorkspaceFolderName, "audio", request.JobId.ToString("N"));
     }

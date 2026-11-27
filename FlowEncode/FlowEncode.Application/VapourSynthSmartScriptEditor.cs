@@ -124,7 +124,13 @@ public static partial class VapourSynthSmartScriptEditor
             var m = existingCropRegex.Match(lines[i]);
             if (m.Success)
             {
+                var endIdx = FindStatementEndLineIndex(lines, i);
                 lines[i] = m.Groups["indent"].Value + statement;
+                if (endIdx > i)
+                {
+                    lines.RemoveRange(i + 1, endIdx - i);
+                }
+
                 return new SmartScriptEditResult(
                     string.Join(newline, lines),
                     i + 1,
@@ -695,6 +701,11 @@ public static partial class VapourSynthSmartScriptEditor
             }
         }
 
+        if (earlierVars.Count == 0)
+        {
+            return new SmartScriptEditResult(script ?? string.Empty, Math.Max(1, cursorLineNumber), afterVar, false, false);
+        }
+
         string beforeVar;
         if (earlierVars.Contains(afterVar, StringComparer.Ordinal))
         {
@@ -704,8 +715,7 @@ public static partial class VapourSynthSmartScriptEditor
         {
             beforeVar = earlierVars
                 .LastOrDefault(v => Regex.IsMatch(rhs, $@"\b{Regex.Escape(v)}\b"))
-                ?? earlierVars.LastOrDefault()
-                ?? afterVar;
+                ?? earlierVars[^1];
         }
 
         // Find the end line of this statement (supports multi-line parenthesized filter calls).
@@ -922,15 +932,27 @@ public static partial class VapourSynthSmartScriptEditor
         return rhs.Contains('(', StringComparison.Ordinal);
     }
 
+    private static bool IsTopLevelImportStart(string line)
+    {
+        if (string.IsNullOrEmpty(line) || char.IsWhiteSpace(line[0]))
+        {
+            return false;
+        }
+
+        return line.StartsWith("import ", StringComparison.Ordinal)
+            || line.StartsWith("from ", StringComparison.Ordinal);
+    }
+
     private static int FindAfterLastImportIndex(List<string> lines)
     {
         var lastImportLine = -1;
         for (var i = 0; i < lines.Count; i++)
         {
-            var trimmed = lines[i].Trim();
-            if (trimmed.StartsWith("import ", StringComparison.Ordinal) || trimmed.StartsWith("from ", StringComparison.Ordinal))
+            if (IsTopLevelImportStart(lines[i]))
             {
-                lastImportLine = i;
+                var endIdx = FindStatementEndLineIndex(lines, i);
+                lastImportLine = endIdx;
+                i = endIdx;
             }
         }
 
@@ -942,17 +964,18 @@ public static partial class VapourSynthSmartScriptEditor
         var lastImportLine = -1;
         for (var i = 0; i < lines.Count; i++)
         {
-            var trimmed = lines[i].Trim();
-            if (trimmed.StartsWith("import ", StringComparison.Ordinal) || trimmed.StartsWith("from ", StringComparison.Ordinal))
+            if (IsTopLevelImportStart(lines[i]))
             {
-                lastImportLine = i;
-            }
+                var endIdx = FindStatementEndLineIndex(lines, i);
+                lastImportLine = endIdx;
+                var match = ImportModuleAliasRegex.Match(lines[i]);
+                if (match.Success && string.Equals(match.Groups["mod"].Value, moduleName, StringComparison.Ordinal))
+                {
+                    resolvedAlias = match.Groups["alias"].Success ? match.Groups["alias"].Value : moduleName;
+                    return false;
+                }
 
-            var match = ImportModuleAliasRegex.Match(lines[i]);
-            if (match.Success && string.Equals(match.Groups["mod"].Value, moduleName, StringComparison.Ordinal))
-            {
-                resolvedAlias = match.Groups["alias"].Success ? match.Groups["alias"].Value : moduleName;
-                return false;
+                i = endIdx;
             }
         }
 
@@ -974,13 +997,21 @@ public static partial class VapourSynthSmartScriptEditor
         var lastImportLine = -1;
         for (var i = 0; i < lines.Count; i++)
         {
-            var trimmed = lines[i].Trim();
-            if (trimmed.StartsWith("import ", StringComparison.Ordinal) || trimmed.StartsWith("from ", StringComparison.Ordinal))
+            if (!IsTopLevelImportStart(lines[i]))
             {
-                lastImportLine = i;
+                continue;
             }
 
-            var fromMatch = FromImportRegex.Match(lines[i]);
+            var endIdx = FindStatementEndLineIndex(lines, i);
+            lastImportLine = endIdx;
+
+            var combined = endIdx > i
+                ? string.Join(" ", lines.Skip(i).Take(endIdx - i + 1).Select(static l => StripInlineComment(l).Trim()))
+                    .Replace("(", " ", StringComparison.Ordinal)
+                    .Replace(")", " ", StringComparison.Ordinal)
+                : lines[i];
+
+            var fromMatch = FromImportRegex.Match(combined);
             if (fromMatch.Success)
             {
                 var namesPart = fromMatch.Groups["names"].Value;
@@ -996,18 +1027,39 @@ public static partial class VapourSynthSmartScriptEditor
                     }
                 }
             }
+
+            i = endIdx;
         }
 
         lines.Insert(lastImportLine + 1, $"from {moduleName} import {symbolName}");
         return true;
     }
 
+    private static string StripInlineComment(string line)
+    {
+        var hashIdx = line.IndexOf('#');
+        return hashIdx >= 0 ? line[..hashIdx] : line;
+    }
+
     private static int InsertBeforeOutput(List<string> lines, int outputLineIndex, IReadOnlyList<string> statements)
     {
         var clampedIndex = Math.Clamp(outputLineIndex, 0, lines.Count);
+        var indent = string.Empty;
+        if (clampedIndex < lines.Count)
+        {
+            var match = SetOutputMethodRegex.Match(lines[clampedIndex]);
+            if (match.Success)
+            {
+                indent = match.Groups["indent"].Value;
+            }
+        }
+
         for (var i = 0; i < statements.Count; i++)
         {
-            lines.Insert(clampedIndex + i, statements[i]);
+            var stmt = string.IsNullOrEmpty(indent) || string.IsNullOrWhiteSpace(statements[i])
+                ? statements[i]
+                : indent + statements[i];
+            lines.Insert(clampedIndex + i, stmt);
         }
 
         return clampedIndex;

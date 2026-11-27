@@ -52,8 +52,18 @@ internal readonly record struct PublishedOutputFile(long Length, DateTime LastWr
     private static PublishedOutputFile Read(SafeFileHandle handle)
     {
         FileId? identity = null;
-        if (OperatingSystem.IsWindows() && GetFileInformationByHandleEx(handle, FileIdInfo, out var fileId, Marshal.SizeOf<FileId>()))
-            identity = fileId;
+        if (OperatingSystem.IsWindows())
+        {
+            if (GetFileInformationByHandleEx(handle, FileIdInfo, out var fileId, Marshal.SizeOf<FileId>()))
+            {
+                identity = fileId;
+            }
+            else if (GetFileInformationByHandle(handle, out var legacyInfo))
+            {
+                var index = ((ulong)legacyInfo.FileIndexHigh << 32) | legacyInfo.FileIndexLow;
+                identity = new FileId(legacyInfo.VolumeSerialNumber, index, 0);
+            }
+        }
         return new(RandomAccess.GetLength(handle), File.GetLastWriteTimeUtc(handle), identity);
     }
 
@@ -102,6 +112,28 @@ internal readonly record struct PublishedOutputFile(long Length, DateTime LastWr
     [DllImport("kernel32.dll", EntryPoint = "CreateFileW", CharSet = CharSet.Unicode, ExactSpelling = true, SetLastError = true)]
     private static extern SafeFileHandle CreateFile(string path, uint desiredAccess, FileShare shareMode,
         IntPtr securityAttributes, uint creationDisposition, uint flags, IntPtr templateFile);
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct ByHandleFileInformation
+    {
+        public uint FileAttributes;
+        public uint CreationTimeLow;
+        public uint CreationTimeHigh;
+        public uint LastAccessTimeLow;
+        public uint LastAccessTimeHigh;
+        public uint LastWriteTimeLow;
+        public uint LastWriteTimeHigh;
+        public uint VolumeSerialNumber;
+        public uint FileSizeHigh;
+        public uint FileSizeLow;
+        public uint NumberOfLinks;
+        public uint FileIndexHigh;
+        public uint FileIndexLow;
+    }
+
+    [DllImport("kernel32.dll", ExactSpelling = true, SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool GetFileInformationByHandle(SafeFileHandle handle, out ByHandleFileInformation information);
 
     [DllImport("kernel32.dll", ExactSpelling = true, SetLastError = true)]
     [return: MarshalAs(UnmanagedType.Bool)]

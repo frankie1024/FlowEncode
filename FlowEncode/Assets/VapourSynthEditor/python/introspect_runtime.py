@@ -1,6 +1,7 @@
 import importlib.util
 import inspect
 import json
+import os
 import sys
 
 
@@ -255,7 +256,18 @@ def build_runtime_snapshot():
     }
 
 
+def _acquire_protocol_stdout():
+    try:
+        saved_fd = os.dup(1)
+        os.dup2(2, 1)
+        sys.stdout = sys.stderr
+        return os.fdopen(saved_fd, "w", encoding="utf-8", errors="backslashreplace")
+    except Exception:
+        return sys.stdout
+
+
 def main():
+    protocol_stdout = _acquire_protocol_stdout()
     try:
         payload = build_runtime_snapshot()
     except Exception as ex:
@@ -269,7 +281,8 @@ def main():
             "installedPackages": []
         }
 
-    json.dump(payload, sys.stdout, ensure_ascii=False)
+    json.dump(payload, protocol_stdout, ensure_ascii=False)
+    protocol_stdout.flush()
 
 
 if __name__ == "__main__":

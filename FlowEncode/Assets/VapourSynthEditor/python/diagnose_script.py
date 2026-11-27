@@ -138,18 +138,84 @@ def build_unknown_member_message(kind, name, candidates):
     return f"Unknown VapourSynth {kind} '{name}'.", None
 
 
+def _utf8_col_to_utf16_col(source_lines, lineno, byte_col):
+    if byte_col is None or byte_col < 0:
+        return 1
+    if 1 <= lineno <= len(source_lines):
+        line = source_lines[lineno - 1]
+        prefix = line.encode("utf-8")[:byte_col].decode("utf-8", errors="replace")
+        return len(prefix.encode("utf-16-le")) // 2 + 1
+    return byte_col + 1
+
+
+def _utf16_len(text):
+    return len(text.encode("utf-16-le")) // 2
+
+
 def locate_segment(node, source, segment):
-    segment_text = ast.get_source_segment(source, node) or segment
+    source_lines = source.splitlines()
+    target = node
+    while isinstance(target, ast.Attribute) and target.attr != segment:
+        target = target.value
+
+    if isinstance(target, ast.Attribute) and target.attr == segment and getattr(target, "end_col_offset", None) is not None:
+        end_line = getattr(target, "end_lineno", target.lineno) or target.lineno
+        end_byte = target.end_col_offset
+        start_byte = max(0, end_byte - len(segment.encode("utf-8")))
+        start_col = _utf8_col_to_utf16_col(source_lines, end_line, start_byte)
+        end_col = _utf8_col_to_utf16_col(source_lines, end_line, end_byte)
+        return {
+            "startLine": end_line,
+            "startColumn": start_col,
+            "endLine": end_line,
+            "endColumn": max(start_col + 1, end_col)
+        }
+
+    start_line = getattr(target, "lineno", 1) or 1
+    start_byte = getattr(target, "col_offset", 0) or 0
+    if isinstance(target, ast.Name) and target.id == segment:
+        start_col = _utf8_col_to_utf16_col(source_lines, start_line, start_byte)
+        end_col = start_col + max(1, _utf16_len(segment))
+        return {
+            "startLine": start_line,
+            "startColumn": start_col,
+            "endLine": start_line,
+            "endColumn": end_col
+        }
+
+    segment_text = ast.get_source_segment(source, target) or segment
     relative_index = segment_text.find(segment)
-    start_column = node.col_offset + max(relative_index, 0) + 1
-    end_column = start_column + len(segment)
+    if relative_index > 0:
+        prefix_text = segment_text[:relative_index]
+        newline_count = prefix_text.count("\n")
+        if newline_count > 0:
+            start_line += newline_count
+            last_line_prefix = prefix_text.rsplit("\n", 1)[-1]
+            start_col = _utf16_len(last_line_prefix) + 1
+        else:
+            start_col = _utf8_col_to_utf16_col(source_lines, start_line, start_byte) + _utf16_len(prefix_text)
+    else:
+        start_col = _utf8_col_to_utf16_col(source_lines, start_line, start_byte)
+    end_col = start_col + max(1, _utf16_len(segment))
 
     return {
-        "startLine": node.lineno,
-        "startColumn": start_column,
-        "endLine": node.end_lineno or node.lineno,
-        "endColumn": end_column
+        "startLine": start_line,
+        "startColumn": start_col,
+        "endLine": start_line,
+        "endColumn": end_col
     }
+
+
+def _collect_target_names(target):
+    names = []
+    if isinstance(target, ast.Name):
+        names.append(target.id)
+    elif isinstance(target, (ast.Tuple, ast.List)):
+        for elt in target.elts:
+            names.extend(_collect_target_names(elt))
+    elif isinstance(target, ast.Starred):
+        names.extend(_collect_target_names(target.value))
+    return names
 
 
 def _collect_top_level_clip_and_import_names(tree):
@@ -165,38 +231,46 @@ def _collect_top_level_clip_and_import_names(tree):
                 imported_names.add(alias.asname or alias.name)
         elif isinstance(stmt, ast.Assign):
             for target in stmt.targets:
-                if isinstance(target, ast.Name) and target.id not in non_clip_names:
-                    clip_vars.add(target.id)
+                for name in _collect_target_names(target):
+                    if name not in non_clip_names:
+                        clip_vars.add(name)
+        elif isinstance(stmt, ast.AnnAssign):
+            for name in _collect_target_names(stmt.target):
+                if name not in non_clip_names:
+                    clip_vars.add(name)
     return clip_vars, imported_names
 
 
 def _locate_keyword_name(kw, source):
+    source_lines = source.splitlines()
+    lineno = getattr(kw, "lineno", 1) or 1
     seg = ast.get_source_segment(source, kw) or kw.arg or ""
     eq_idx = seg.find("=")
     arg_text = seg[:eq_idx].strip() if eq_idx >= 0 else (kw.arg or "")
-    start_col = (kw.col_offset if getattr(kw, "col_offset", None) is not None else 0) + 1
+    start_col = _utf8_col_to_utf16_col(source_lines, lineno, getattr(kw, "col_offset", 0))
     return {
-        "startLine": getattr(kw, "lineno", 1) or 1,
+        "startLine": lineno,
         "startColumn": start_col,
-        "endLine": getattr(kw, "lineno", 1) or 1,
-        "endColumn": start_col + len(arg_text or kw.arg or ""),
+        "endLine": lineno,
+        "endColumn": start_col + max(1, _utf16_len(arg_text or kw.arg or "")),
     }
 
 
 def _locate_ast_node(node, source):
+    source_lines = source.splitlines()
     start_line = getattr(node, "lineno", 1) or 1
-    start_col = (getattr(node, "col_offset", 0) or 0) + 1
+    start_col = _utf8_col_to_utf16_col(source_lines, start_line, getattr(node, "col_offset", 0))
     end_line = getattr(node, "end_lineno", start_line) or start_line
     raw_end_col = getattr(node, "end_col_offset", None)
     if raw_end_col is not None:
-        end_col = raw_end_col + 1
+        end_col = _utf8_col_to_utf16_col(source_lines, end_line, raw_end_col)
     else:
-        end_col = start_col + max(1, len(ast.get_source_segment(source, node) or ""))
+        end_col = start_col + max(1, _utf16_len(ast.get_source_segment(source, node) or ""))
     return {
         "startLine": start_line,
         "startColumn": start_col,
         "endLine": end_line,
-        "endColumn": end_col,
+        "endColumn": max(start_col + 1 if end_line == start_line else 1, end_col),
     }
 
 
@@ -469,8 +543,7 @@ def build_variable_flow_diagnostics(tree, source):
             rhs_names = _collect_load_names(stmt.value)
             used_after_def.update(rhs_names)
             for target in stmt.targets:
-                if isinstance(target, ast.Name):
-                    lhs = target.id
+                for lhs in _collect_target_names(target):
                     defined_vars.add(lhs)
                     var_defined_line[lhs] = stmt.lineno
                     if lhs not in non_clip_names:
@@ -483,7 +556,40 @@ def build_variable_flow_diagnostics(tree, source):
                             derived_from[lhs] = set(deps)
             continue
 
-        used_after_def.update(_collect_load_names(stmt))
+        if isinstance(stmt, ast.AnnAssign):
+            rhs_names = _collect_load_names(stmt.value) if stmt.value is not None else set()
+            used_after_def.update(rhs_names)
+            if stmt.value is not None:
+                for lhs in _collect_target_names(stmt.target):
+                    defined_vars.add(lhs)
+                    var_defined_line[lhs] = stmt.lineno
+                    if lhs not in non_clip_names:
+                        if lhs not in clip_vars_order:
+                            clip_vars_order.append(lhs)
+                        deps = {n for n in rhs_names if n in defined_vars and n not in imported_names and n not in non_clip_names}
+                        if lhs in derived_from:
+                            derived_from[lhs].update(deps)
+                        else:
+                            derived_from[lhs] = set(deps)
+            continue
+
+        # Record bindings inside top-level control flow blocks (if/try/with/for/while/match)
+        # without descending into function/class definitions.
+        stack = [stmt]
+        while stack:
+            cur = stack.pop()
+            if isinstance(cur, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
+                defined_vars.add(cur.name)
+                continue
+            if isinstance(cur, ast.Name) and isinstance(cur.ctx, ast.Store):
+                defined_vars.add(cur.id)
+                var_defined_line.setdefault(cur.id, getattr(cur, "lineno", stmt.lineno))
+                if cur.id not in non_clip_names and cur.id not in clip_vars_order:
+                    clip_vars_order.append(cur.id)
+            elif isinstance(cur, ast.Name) and isinstance(cur.ctx, ast.Load):
+                used_after_def.add(cur.id)
+            else:
+                stack.extend(ast.iter_child_nodes(cur))
 
     # Build transitive ancestor lookup: ancestors_of[v] = all upstream clip variables v derives from.
     def get_ancestors(var_name):
@@ -650,7 +756,19 @@ def build_variable_flow_diagnostics(tree, source):
     return diagnostics
 
 
+def _acquire_protocol_stdout():
+    try:
+        import os
+        saved_fd = os.dup(1)
+        os.dup2(2, 1)
+        sys.stdout = sys.stderr
+        return os.fdopen(saved_fd, "w", encoding="utf-8", errors="backslashreplace")
+    except Exception:
+        return sys.stdout
+
+
 def main():
+    protocol_stdout = _acquire_protocol_stdout()
     payload = json.load(sys.stdin)
     file_path = payload.get("filePath") or "<untitled.vpy>"
     content = payload.get("content") or ""
@@ -663,7 +781,8 @@ def main():
             "runtimeSummary": "Python syntax error",
             "diagnostics": [build_syntax_diagnostic(ex)]
         }
-        json.dump(result, sys.stdout, ensure_ascii=False)
+        json.dump(result, protocol_stdout, ensure_ascii=False)
+        protocol_stdout.flush()
         return
 
     flow_diagnostics = build_variable_flow_diagnostics(tree, content)
@@ -684,7 +803,8 @@ def main():
             "diagnostics": flow_diagnostics
         }
 
-    json.dump(result, sys.stdout, ensure_ascii=False)
+    json.dump(result, protocol_stdout, ensure_ascii=False)
+    protocol_stdout.flush()
 
 
 if __name__ == "__main__":

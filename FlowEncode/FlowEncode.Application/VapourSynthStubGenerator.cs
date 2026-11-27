@@ -189,8 +189,11 @@ public static partial class VapourSynthStubGenerator
             }
         }
 
-        var seenNames = new HashSet<string>(StringComparer.Ordinal);
-        var hasVarKwargs = false;
+        var seenNames = new HashSet<string>(StringComparer.Ordinal) { "self" };
+        var hasVarArgs = false;
+        var hasBareStar = false;
+        var bareStarIndex = -1;
+        var kwOnlyCountAfterStar = 0;
         for (var i = startIndex; i < parameters.Count; i++)
         {
             var rawLabel = parameters[i].Label?.Trim() ?? string.Empty;
@@ -198,8 +201,6 @@ public static partial class VapourSynthStubGenerator
 
             if (rawLabel.StartsWith("**", StringComparison.Ordinal))
             {
-                hasVarKwargs = true;
-                parts.Add("**kwargs: Any");
                 continue;
             }
 
@@ -207,11 +208,19 @@ public static partial class VapourSynthStubGenerator
             {
                 if (rawLabel == "*")
                 {
-                    parts.Add("*");
+                    if (!hasVarArgs && !hasBareStar)
+                    {
+                        hasBareStar = true;
+                        bareStarIndex = parts.Count;
+                        parts.Add("*");
+                    }
                 }
-                else
+                else if (!hasVarArgs && !hasBareStar)
                 {
-                    parts.Add("*args: Any");
+                    var varArgName = seenNames.Contains("args") ? "_vs_args" : "args";
+                    seenNames.Add(varArgName);
+                    hasVarArgs = true;
+                    parts.Add($"*{varArgName}: Any");
                 }
                 continue;
             }
@@ -221,13 +230,21 @@ public static partial class VapourSynthStubGenerator
                 continue;
             }
 
+            if (hasBareStar)
+            {
+                kwOnlyCountAfterStar++;
+            }
+
             parts.Add($"{name}: Any = ...");
         }
 
-        if (!hasVarKwargs)
+        if (hasBareStar && kwOnlyCountAfterStar == 0 && bareStarIndex >= 0)
         {
-            parts.Add("**kwargs: Any");
+            parts.RemoveAt(bareStarIndex);
         }
+
+        var varKwargsName = seenNames.Contains("kwargs") ? "_vs_kwargs" : "kwargs";
+        parts.Add($"**{varKwargsName}: Any");
 
         return parts.Count == 0 ? string.Empty : ", " + string.Join(", ", parts);
     }

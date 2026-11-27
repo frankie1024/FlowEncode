@@ -357,4 +357,108 @@ public sealed class VapourSynthSmartScriptEditorTests
         Assert.IsTrue(withClip.UpdatedScript.IndexOf("BlankClip") < withClip.UpdatedScript.IndexOf("Deband"));
         Assert.IsTrue(withClip.UpdatedScript.IndexOf("Deband") < withClip.UpdatedScript.IndexOf("clip.set_output()"));
     }
+
+    [TestMethod]
+    public void ApplyCrop_ReplacesMultiLineCropWithoutOrphanArguments()
+    {
+        var script = """
+            import vapoursynth as vs
+            core = vs.core
+            src = core.lsmas.LWLibavSource("bd.mkv")
+            src = core.std.CropRel(
+                src,
+                left=0,
+                right=0,
+                top=140,
+                bottom=140
+            )
+            src.set_output()
+            """;
+
+        var updated = VapourSynthSmartScriptEditor.ApplyCrop(script, 0, isAbsolute: false, left: 2, top: 138, widthOrRight: 2, heightOrBottom: 138);
+        Assert.IsTrue(updated.UpdatedInPlace);
+        StringAssert.Contains(updated.UpdatedScript, "src = core.std.CropRel(src, left=2, right=2, top=138, bottom=138)");
+        Assert.IsFalse(updated.UpdatedScript.Contains("top=140"));
+        Assert.IsFalse(updated.UpdatedScript.Contains("bottom=140"));
+    }
+
+    [TestMethod]
+    public void EnsureImports_DoesNotSplitMultiLineFromImportOrIndentedImport()
+    {
+        var script = """
+            import vapoursynth as vs
+            from vstools import (
+                core,
+                replace_ranges,
+            )
+
+            def helper():
+                import math
+                return math.pi
+
+            src = core.lsmas.LWLibavSource("bd.mkv")
+            src.set_output()
+            """;
+
+        var res = VapourSynthSmartScriptEditor.ApplyCropAndBbmod(script, 0, 0, 140, 0, 140);
+        Assert.IsTrue(res.AddedImport);
+        var importIdx = res.UpdatedScript.IndexOf("import awsmfunc as awf", StringComparison.Ordinal);
+        var closeParenIdx = res.UpdatedScript.IndexOf(")", StringComparison.Ordinal);
+        var defIdx = res.UpdatedScript.IndexOf("def helper():", StringComparison.Ordinal);
+        Assert.IsTrue(importIdx > closeParenIdx && importIdx < defIdx);
+
+        var rfs = VapourSynthSmartScriptEditor.ApplyReplaceRanges(script, 0, [new PreviewSceneRange(10, 20)]);
+        Assert.IsFalse(rfs.AddedImport);
+    }
+
+    [TestMethod]
+    public void ToggleBeforeAfterCompare_NoOpsOnFirstAssignmentWithoutPriorClip()
+    {
+        var script = """
+            import vapoursynth as vs
+            core = vs.core
+            src = core.lsmas.LWLibavSource("bd.mkv")
+            src.set_output()
+            """;
+
+        var res = VapourSynthSmartScriptEditor.ToggleBeforeAfterCompare(script, cursorLineNumber: 3);
+        Assert.AreEqual(script, res.UpdatedScript);
+    }
+
+    [TestMethod]
+    public void StubGenerator_AvoidsDuplicateSelfKwargsAndDanglingBareStar()
+    {
+        var snapshot = new VapourSynthLanguageFeaturesSnapshot(
+            IsRuntimeReady: true,
+            RuntimeSummary: "test",
+            CoreMembers: [],
+            Namespaces:
+            [
+                new VapourSynthPluginNamespaceDescriptor(
+                    "edge",
+                    "com.test.edge",
+                    "Edge",
+                    [
+                        new VapourSynthPluginFunctionDescriptor(
+                            "Weird",
+                            "core.edge.Weird",
+                            "Weird(self, args, kwargs, *, from)",
+                            "VideoNode",
+                            [
+                                new VapourSynthFunctionParameterDescriptor("self", "self", ""),
+                                new VapourSynthFunctionParameterDescriptor("args", "args", ""),
+                                new VapourSynthFunctionParameterDescriptor("kwargs", "kwargs", ""),
+                                new VapourSynthFunctionParameterDescriptor("", "*", ""),
+                                new VapourSynthFunctionParameterDescriptor("from", "from", "")
+                            ],
+                            "Edge case params")
+                    ])
+            ],
+            VsConstants: []);
+
+        var stub = VapourSynthStubGenerator.GenerateStub(snapshot);
+        StringAssert.Contains(stub, "def Weird(self, args: Any = ..., kwargs: Any = ..., **_vs_kwargs: Any) -> 'VideoNode':");
+        Assert.IsFalse(stub.Contains("self, self:"));
+        Assert.IsFalse(stub.Contains("*, **"));
+    }
 }
