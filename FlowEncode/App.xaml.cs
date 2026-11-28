@@ -308,12 +308,20 @@ public partial class App : Microsoft.UI.Xaml.Application
         var cancellationTokenSource = new CancellationTokenSource();
         var environmentIntegration = GetService<CliEnvironmentIntegrationService>();
         var diagnostics = GetService<IAppDiagnostics>();
+        var tasks = GetService<TaskCoordinator>();
         _deferredStartupMaintenanceCancellationTokenSource = cancellationTokenSource;
         _deferredStartupMaintenanceTask = Task.Run(async () =>
         {
             try
             {
                 await Task.Delay(DeferredStartupMaintenanceDelay, cancellationTokenSource.Token);
+                if (tasks.HasInterruptedVideos)
+                {
+                    tasks.CleanupInterruptedVideos(request => InterruptedVideoStaging.Cleanup(request,
+                        message => diagnostics.Write(nameof(InterruptedVideoStaging), message, AppDiagnosticSeverity.Warning)),
+                        cancellationTokenSource.Token);
+                }
+
                 environmentIntegration.Synchronize();
             }
             catch (OperationCanceledException) when (cancellationTokenSource.IsCancellationRequested)

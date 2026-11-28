@@ -1079,7 +1079,7 @@ public sealed class LocalEncodingJobRunner : IEncodingJobRunner
         return Path.Combine(directory, $"{request.JobId:N}_{kind.ToShortName()}_stats.log");
     }
 
-    private static string GetJobTempDirectory(EncodingJobRequest request)
+    internal static string GetJobTempDirectory(EncodingJobRequest request)
     {
         var outputDirectory = Path.GetDirectoryName(request.OutputPath);
         var baseDirectory = string.IsNullOrWhiteSpace(outputDirectory)

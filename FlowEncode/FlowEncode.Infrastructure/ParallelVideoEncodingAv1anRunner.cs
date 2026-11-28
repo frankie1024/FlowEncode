@@ -525,7 +525,7 @@ internal sealed class ParallelVideoEncodingAv1anRunner
             ? InputSourceSupport.ResolvePipelineKind(request.SourcePath)
             : request.PipelineKind) != InputPipelineKind.RawYuvFile;
 
-    private static string GetTempDirectory(EncodingJobRequest request)
+    internal static string GetTempDirectory(EncodingJobRequest request)
     {
         var outputDirectory = Path.GetDirectoryName(request.OutputPath);
         var baseDirectory = string.IsNullOrWhiteSpace(outputDirectory)
@@ -630,19 +630,20 @@ internal sealed class ParallelVideoEncodingAv1anRunner
 
     internal static string CreateTemporaryRawLogPath(EncodingJobRequest request, string tempDirectory)
     {
-        var tempParentDirectory = Path.GetDirectoryName(tempDirectory) ?? tempDirectory;
-        var directory = Path.Combine(tempParentDirectory, "logs", request.JobId.ToString("N"));
+        var directory = GetTemporaryLogDirectory(request, tempDirectory);
         Directory.CreateDirectory(directory);
         return Path.Combine(directory, $"{request.JobId:N}.raw.log");
     }
 
     private static string CreateAv1anLogPath(EncodingJobRequest request, string tempDirectory)
     {
-        var tempParentDirectory = Path.GetDirectoryName(tempDirectory) ?? tempDirectory;
-        var directory = Path.Combine(tempParentDirectory, "logs", request.JobId.ToString("N"));
+        var directory = GetTemporaryLogDirectory(request, tempDirectory);
         Directory.CreateDirectory(directory);
         return Path.Combine(directory, $"{request.JobId:N}.av1an.log");
     }
+
+    internal static string GetTemporaryLogDirectory(EncodingJobRequest request, string tempDirectory) =>
+        Path.Combine(Path.GetDirectoryName(tempDirectory) ?? tempDirectory, "logs", request.JobId.ToString("N"));
 
     private void AppendAv1anFileLog(string av1anLogPath, Action<string> appendLine)
     {

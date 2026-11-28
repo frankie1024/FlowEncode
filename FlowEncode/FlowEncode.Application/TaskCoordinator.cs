@@ -11,6 +11,7 @@ public sealed class TaskCoordinator
     private readonly Dictionary<string, Guid> _keys = new(StringComparer.Ordinal);
     private readonly IAppSettingsService _settings;
     private readonly ITaskHistoryStore? _history;
+    private readonly List<Entry>? _interruptedVideos;
     private int _running;
     private bool _idleActionRunning;
     public event EventHandler? Changed;
@@ -22,10 +23,13 @@ public sealed class TaskCoordinator
         foreach (var saved in history?.Load() ?? [])
         {
             var snapshot = saved.Snapshot;
+            var interruptedVideo = snapshot.State == EncodingJobState.Running && saved.Workload.Kind == TaskKind.Video;
             if (snapshot.State is EncodingJobState.Queued or EncodingJobState.Running)
                 snapshot = snapshot with { State = EncodingJobState.Failed, FinishedAt = DateTimeOffset.UtcNow,
-                    Summary = "The desktop closed before the task finished. Inspect retained output before retrying.", Error = "Desktop interrupted" };
+                    Summary = interruptedVideo ? "The desktop closed before the task finished."
+                        : "The desktop closed before the task finished. Inspect retained output before retrying.", Error = "Desktop interrupted" };
             var entry = new Entry(saved.Workload, snapshot, saved.IdempotencyKey);
+            if (interruptedVideo) (_interruptedVideos ??= []).Add(entry);
             _entries[snapshot.TaskId] = entry;
             if (saved.IdempotencyKey is not null) _keys[saved.IdempotencyKey] = snapshot.TaskId;
         }
@@ -35,6 +39,21 @@ public sealed class TaskCoordinator
     public IReadOnlyList<TaskSnapshot> List() { lock (_gate) return _entries.Values.Select(e => e.Snapshot).OrderByDescending(s => s.CreatedAt).ToArray(); }
     public TaskSnapshot Get(Guid id) { lock (_gate) return Find(id).Snapshot; }
     public TaskWorkload GetRequest(Guid id) { lock (_gate) return Clone(Find(id).Workload); }
+
+    public bool HasInterruptedVideos => _interruptedVideos is { Count: > 0 };
+
+    public void CleanupInterruptedVideos(Func<EncodingJobRequest, bool> cleanup, CancellationToken cancellationToken)
+    {
+        if (_interruptedVideos is null)
+            return;
+
+        foreach (var entry in _interruptedVideos)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            if (cleanup(entry.Workload.Video!))
+                Persist(entry);
+        }
+    }
 
     public async Task<bool> TryRunWhenIdleAsync(Func<Task> action)
     {
