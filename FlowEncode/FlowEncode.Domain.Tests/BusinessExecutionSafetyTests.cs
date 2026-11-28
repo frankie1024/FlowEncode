@@ -187,6 +187,7 @@ public sealed class BusinessExecutionSafetyTests
     [DataRow("dgdemux-named-outputs", null)]
     [DataRow("dgdemux-missing-audio", "Audio 4352")]
     [DataRow("dgdemux-missing-chapters", "Chapters")]
+    [DataRow("dgdemux-untagged-outputs", "Video")]
     public async Task DgDemux_ValidatesActualTrackNamesInsteadOfTheSavedPreview(string scenario, string? missingTrack)
     {
         using var fixture = new Fixture(scenario);

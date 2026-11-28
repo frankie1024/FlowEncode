@@ -260,26 +260,29 @@ public sealed class DgDemuxBackendAdapter : CliBluRayDemuxBackendAdapterBase
     protected override BluRayTrackSelection? FindMissingTrackOutput(BluRayDemuxRequest request, IReadOnlyList<string> outputNames)
     {
         var outputPrefix = Path.GetFileName(request.OutputPrefixPath);
-        // Untagged media is only evidence for older runs that emit no PID-tagged output.
+        var selections = request.Selections.DistinctBy(selection => selection.Track.DemuxToken, StringComparer.OrdinalIgnoreCase).ToArray();
         var hasPidOutputs = outputNames.Any(name => name.StartsWith(outputPrefix + " PID ", StringComparison.OrdinalIgnoreCase));
-        var untaggedMediaCount = hasPidOutputs ? 0 : outputNames.Count(name =>
-            name.StartsWith(outputPrefix + ".", StringComparison.OrdinalIgnoreCase)
-            && !name.EndsWith(".txt", StringComparison.OrdinalIgnoreCase));
+        // Legacy untagged output can only be attributed when there is one media track and one media file.
+        var hasUnambiguousLegacyOutput = !hasPidOutputs
+            && selections.Count(selection => selection.Track.Kind != BluRayTrackKind.Chapters) == 1
+            && outputNames.Count(name => name.StartsWith(outputPrefix + ".", StringComparison.OrdinalIgnoreCase)
+                && IsMediaOutput(name)) == 1;
 
-        foreach (var selection in request.Selections.DistinctBy(selection => selection.Track.DemuxToken, StringComparer.OrdinalIgnoreCase))
+        foreach (var selection in selections)
         {
             var patterns = BluRayDemuxSourceSupport.ResolveDgDemuxTrackOutputPatterns(outputPrefix, selection.Track);
-            if (outputNames.Any(name => patterns.Any(pattern => FileSystemName.MatchesSimpleExpression(pattern, name, ignoreCase: true))))
+            if (outputNames.Any(name => (selection.Track.Kind == BluRayTrackKind.Chapters || IsMediaOutput(name))
+                && patterns.Any(pattern => FileSystemName.MatchesSimpleExpression(pattern, name, ignoreCase: true))))
                 continue;
 
-            if (selection.Track.Kind == BluRayTrackKind.Chapters || untaggedMediaCount == 0)
+            if (selection.Track.Kind == BluRayTrackKind.Chapters || !hasUnambiguousLegacyOutput)
                 return selection;
-
-            untaggedMediaCount--;
         }
 
         return null;
     }
+
+    private static bool IsMediaOutput(string name) => Path.GetExtension(name).ToLowerInvariant() is not (".txt" or ".lwi");
 
     private static BluRayTrackKind ResolveTrackKind(string body)
     {
