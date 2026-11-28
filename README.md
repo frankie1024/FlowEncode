@@ -14,7 +14,7 @@
 
   <p>
     <img alt="Platform" src="https://img.shields.io/badge/platform-Windows%20x64-0078d4">
-    <img alt="Version" src="https://img.shields.io/badge/version-3.1.1-167a7f">
+    <img alt="Version" src="https://img.shields.io/badge/version-3.2.0-167a7f">
     <img alt="License" src="https://img.shields.io/badge/license-GPL--3.0--only-blue">
   </p>
 </div>
