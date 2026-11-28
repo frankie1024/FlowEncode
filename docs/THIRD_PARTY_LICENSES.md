@@ -24,9 +24,8 @@ FlowEncode's own source code is distributed under `GPL-3.0-only`. That license a
 
 | Component | Role | License / Terms |
 | --- | --- | --- |
-| Python 3.14 (new installs) / Python 3.12 (preserved existing environments) | Script runtime | Python Software Foundation License |
+| Python 3.14 x64 (recommended) | Script runtime | Python Software Foundation License |
 | VapourSynth / VSPipe | Script runtime and pipe output | LGPL-2.1 |
-| vsrepo | VapourSynth package helper | MIT |
 | awsmfunc | VapourSynth helper package | MIT |
 | vs-jetpack | VapourSynth helper package | MIT |
 | VapourSynth plugins | User-installed processing plugins | Follow each plugin's own license |
@@ -37,7 +36,7 @@ FlowEncode's own source code is distributed under `GPL-3.0-only`. That license a
 | Av1an | Target-quality encoding orchestration | GPL-3.0 |
 | Avs2PipeMod | `.avs` input bridge | GPL-3.0 |
 
-FlowEncode's setup guide currently supports automatic installation or updates for Python 3.14 (while keeping working Python 3.12 environments), VapourSynth / vsrepo related Python packages, the public VapourSynth plugin bundle, awsmfunc, vs-jetpack, FFmpeg / FFprobe, x264, x265, SVT-AV1, and Av1an. Other command-line tools are detected, pinned, or manually imported only.
+FlowEncode's setup guide supports automatic installation or updates for Python 3.14, VapourSynth, `vsjetpack[full]`, awsmfunc, FFmpeg / FFprobe, x264, x265, SVT-AV1, and Av1an. Other command-line tools are detected, pinned, or manually imported only.
 
 ## Optional User-Supplied Tools
 

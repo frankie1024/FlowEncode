@@ -1,0 +1,64 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<UserControl
+    x:Class="FlowEncode.Controls.Settings.OtherVapourSynthPluginsView"
+    x:Name="Root"
+    IsEnabled="{Binding OtherPluginControlsEnabled}"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:vm="using:FlowEncode.ViewModels">
+    <StackPanel Spacing="{StaticResource AppSpacingM}">
+        <Grid ColumnSpacing="{StaticResource AppSpacingS}">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+            <TextBox x:Name="PackageName" PlaceholderText="{Binding Module.Texts.OtherPluginsPackagePrompt, ElementName=Root}"
+                     AutomationProperties.Name="{Binding Module.Texts.OtherPluginsPackagePrompt, ElementName=Root}"
+                     ToolTipService.ToolTip="{Binding Module.Texts.OtherPluginsPackagePrompt, ElementName=Root}"
+                     IsEnabled="{Binding CanInstallOtherPlugins}" />
+            <Button Grid.Column="1" Style="{StaticResource AccentButtonStyle}"
+                    Content="{Binding Module.Texts.InstallButton, ElementName=Root}"
+                    IsEnabled="{Binding CanInstallOtherPlugins}" Click="InstallPlugin_Click" />
+        </Grid>
+        <!-- Three 44-DIP rows fit in the viewport. -->
+        <ScrollViewer MaxHeight="132" VerticalScrollBarVisibility="Auto" HorizontalScrollMode="Disabled" HorizontalScrollBarVisibility="Disabled">
+            <Grid Margin="0,0,8,0">
+                <ItemsRepeater ItemsSource="{Binding OtherPlugins}" SizeChanged="PluginList_SizeChanged">
+                    <ItemsRepeater.Layout>
+                        <UniformGridLayout Orientation="Horizontal" MaximumRowsOrColumns="2" MinItemWidth="300" MinItemHeight="44"
+                                           MinColumnSpacing="{StaticResource AppSpacingXXL}" ItemsStretch="Fill" />
+                    </ItemsRepeater.Layout>
+                    <ItemsRepeater.ItemTemplate>
+                        <DataTemplate x:DataType="vm:OtherVapourSynthPluginItem">
+                            <Grid ColumnSpacing="{StaticResource AppSpacingM}">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <TextBlock VerticalAlignment="Center" TextTrimming="CharacterEllipsis"
+                                           ToolTipService.ToolTip="{x:Bind Summary}">
+                                    <Run Text="{x:Bind Label}" FontWeight="SemiBold" />
+                                    <Run Text="&#xA0;·&#xA0;" Foreground="{ThemeResource SubtleTextBrush}" />
+                                    <Run Text="{x:Bind Status}" Foreground="{ThemeResource SubtleTextBrush}" />
+                                </TextBlock>
+                                <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center" Spacing="{StaticResource AppSpacingS}">
+                                    <Button Style="{StaticResource StandardButtonStyle}" Content="{x:Bind InstallLabel}"
+                                            Tag="{x:Bind Name}" Visibility="{x:Bind InstallVisibility}"
+                                            IsEnabled="{x:Bind CanInstall}" Click="InstallListedPlugin_Click" />
+                                    <Button Style="{StaticResource StandardButtonStyle}" Content="{x:Bind UpdateLabel}"
+                                            Tag="{x:Bind Name}" Visibility="{x:Bind UpdateVisibility}"
+                                            IsEnabled="{x:Bind CanInstall}" Click="UpdatePlugin_Click" />
+                                    <Button Style="{StaticResource StandardButtonStyle}" Content="{x:Bind UninstallLabel}"
+                                            AutomationProperties.Name="{x:Bind UninstallAutomationName}" Tag="{x:Bind Name}"
+                                            IsEnabled="{x:Bind IsInstalled}" Click="UninstallPlugin_Click" />
+                                </StackPanel>
+                            </Grid>
+                        </DataTemplate>
+                    </ItemsRepeater.ItemTemplate>
+                </ItemsRepeater>
+                <Border x:Name="ColumnDivider" Width="1" Margin="0,4" HorizontalAlignment="Center"
+                        Background="{ThemeResource AppDividerBrush}" Visibility="Collapsed" IsHitTestVisible="False" />
+            </Grid>
+        </ScrollViewer>
+    </StackPanel>
+</UserControl>

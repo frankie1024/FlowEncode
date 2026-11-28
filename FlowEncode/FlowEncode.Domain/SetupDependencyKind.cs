@@ -4,9 +4,7 @@ public enum SetupDependencyKind
 {
     Python312,
     VapourSynth,
-    Vsrepo,
-    VsPluginBundle,
-    Awsmfunc,
+    Awsmfunc = 4,
     Vsjetpack,
     FfmpegBundle,
     X264,
@@ -18,5 +16,6 @@ public enum SetupDependencyKind
     Eac3To,
     Deew,
     Dee,
-    OpusExt
+    OpusExt,
+    VapourSynthUtilityPlugins
 }

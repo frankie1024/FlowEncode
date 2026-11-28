@@ -66,10 +66,12 @@
 | 蓝光 / MKV 解复用 | `DGDemux`、`eac3to` |
 | 音频处理 | `eac3to`、`deew`、`opusenc` / `Opus Encoder`、`FFmpeg`；DDP、AC4、TrueHD、DEE AAC 等任务需要用户自备授权 `Dolby Encoding Engine` / `DEE` |
 | 媒体探测与管线 | `FFmpeg`、`FFprobe` |
-| 脚本环境 | `Python 3.14`（新安装）/ `Python 3.12`（保留已有环境）、`VapourSynth R79`、`vsrepo`、公开 VapourSynth 插件 |
+| 脚本环境 | `Python 3.14 x64`（推荐，最低 3.13 x64）、`VapourSynth R82`、`vsjetpack[full]`、`awsmfunc` |
 | 输入桥接 | `VSPipe`、`Avs2PipeMod` |
 
-可在应用内安装或更新 `Python`、`VapourSynth`、`vsrepo`、公开插件、`FFmpeg` 和视频编码器。`Av1an` 有兼容安装包时也可直接安装。`Avs2PipeMod`、`DGDemux`、`eac3to`、`deew`、`DEE` 和 `opusenc` 需自行获取，可在设置中导入已有工具。
+可在应用内安装或更新 `Python`、`VapourSynth`、`vsjetpack[full]`、`awsmfunc`、`FFmpeg` 和视频编码器。`Av1an` 有兼容安装包时也可直接安装。`Avs2PipeMod`、`DGDemux`、`eac3to`、`deew`、`DEE` 和 `opusenc` 需自行获取，可在设置中导入已有工具。
+
+VS 编辑器内置的滤镜模板使用 CPU 后端，无需另下载模型。安装 `awsmfunc` 时，设置引导会同时安装补边插件 `vapoursynth-fillborders` 和 PNG 导出插件 `vsfpng`。
 
 ## 安装与运行要求
 

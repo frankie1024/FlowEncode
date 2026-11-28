@@ -63,7 +63,6 @@ public partial class MainWindowViewModel : CommunityToolkit.Mvvm.ComponentModel.
     private bool _isDownloadingAppUpdateInstaller;
     private bool _isChangingWorkspaceRoot;
     private int _templateLibraryMutationCount;
-    private int _initialVsPluginDependencyRefreshCount;
     private int? _appUpdateDownloadProgressPercent;
     private AppText _texts = new(AppLanguage.Chinese);
     private string _statusText;
@@ -97,7 +96,6 @@ public partial class MainWindowViewModel : CommunityToolkit.Mvvm.ComponentModel.
     private double _maxConcurrentEncodingJobs = MinConcurrentEncodingJobs;
     private QueueCompletionAction _queueCompletionAction = QueueCompletionAction.None;
     private IReadOnlyDictionary<string, string> _manualToolPaths = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-    private bool _hasRunInitialVsPluginDependencyUpdate;
     private string _workspaceRootPath = string.Empty;
     private string? _preparedWorkspaceRootPath;
     private AppUpdateCheckResult? _lastAppUpdateResult;
@@ -312,15 +310,9 @@ public partial class MainWindowViewModel : CommunityToolkit.Mvvm.ComponentModel.
         ? AppReleasePageUrl
         : _lastAppUpdateResult.ReleaseUrl;
 
-    internal string AppCurrentVersionText => Texts.AppCurrentVersionLabel(GetKnownCurrentAppVersion());
-
-    internal string AppLatestVersionText => string.IsNullOrWhiteSpace(_lastAppUpdateResult?.LatestVersion)
-        ? string.Empty
-        : Texts.AppLatestVersionLabel(_lastAppUpdateResult.LatestVersion);
-
-    internal Visibility AppLatestVersionVisibility => string.IsNullOrWhiteSpace(_lastAppUpdateResult?.LatestVersion)
-        ? Visibility.Collapsed
-        : Visibility.Visible;
+    internal string AppCurrentVersionText => IsAppUpdateAvailable && _lastAppUpdateResult is { LatestVersion.Length: > 0 } update
+        ? $"{Texts.AppCurrentVersionLabel(GetKnownCurrentAppVersion())} · {Texts.AppLatestVersionLabel(update.LatestVersion)}"
+        : Texts.AppCurrentVersionLabel(GetKnownCurrentAppVersion());
 
     internal string AppUpdateStatusText => GetAppUpdateStatusText();
 
@@ -1182,8 +1174,6 @@ public partial class MainWindowViewModel : CommunityToolkit.Mvvm.ComponentModel.
             await SetupGuideModule.RefreshFromEnvironmentAsync();
         }
 
-        RunInitialVsPluginDependencyUpdateIfNeeded();
-
         if (!_hasCompletedSetupGuide)
         {
             SetupGuideModule.OpenSetupGuide();
@@ -1428,7 +1418,7 @@ public partial class MainWindowViewModel : CommunityToolkit.Mvvm.ComponentModel.
                 _hasCompletedSetupGuide,
                 workspaceRootPathToSave,
                 new Dictionary<string, string>(_manualToolPaths, StringComparer.OrdinalIgnoreCase),
-                _hasRunInitialVsPluginDependencyUpdate,
+                currentSettings.HasRunInitialVsPluginDependencyUpdate,
                 GetMaxConcurrentEncodingJobCount(),
                 QueueCompletionAction,
                 currentSettings.PreviewScalingAlgorithm,
@@ -3200,38 +3190,8 @@ public partial class MainWindowViewModel : CommunityToolkit.Mvvm.ComponentModel.
         WorkspaceRootPath = configuredWorkspaceRootPath;
         _hasCompletedSetupGuide = settings.HasSeenSetupGuide;
         _manualToolPaths = new Dictionary<string, string>(settings.EffectiveManualToolPaths, StringComparer.OrdinalIgnoreCase);
-        _hasRunInitialVsPluginDependencyUpdate = settings.HasRunInitialVsPluginDependencyUpdate;
         SelectedTheme = ThemeOptions.FirstOrDefault(option => option.Value == settings.Theme) ?? ThemeOptions[0];
         SelectedLanguage = LanguageOptions.FirstOrDefault(option => option.Value == settings.Language) ?? LanguageOptions[0];
-    }
-
-    private void RunInitialVsPluginDependencyUpdateIfNeeded()
-    {
-        if (_hasRunInitialVsPluginDependencyUpdate)
-        {
-            return;
-        }
-
-        _hasRunInitialVsPluginDependencyUpdate = true;
-        SaveSettings(updateStatusText: false);
-
-        var readiness = _environmentReadinessReport;
-        Interlocked.Increment(ref _initialVsPluginDependencyRefreshCount);
-        _ = Task.Run(async () =>
-        {
-            try
-            {
-                await _setupBootstrapService.RefreshVsPluginPackageDefinitionsAsync(readiness);
-            }
-            catch (Exception ex)
-            {
-                WriteDiagnostic($"Initial VS plugin dependency refresh failed. {ex.GetType().Name}: {ex.Message}");
-            }
-            finally
-            {
-                Interlocked.Decrement(ref _initialVsPluginDependencyRefreshCount);
-            }
-        });
     }
 
     private void WriteDiagnostic(string message)
@@ -3339,7 +3299,6 @@ public partial class MainWindowViewModel : CommunityToolkit.Mvvm.ComponentModel.
             || _isWritingSystemPath
             || _vapourSynthPreviewService.HasActiveSession
             || Volatile.Read(ref _templateLibraryMutationCount) > 0
-            || Volatile.Read(ref _initialVsPluginDependencyRefreshCount) > 0
             || SetupGuideModule.IsSetupGuideInstallRunning
             || SetupGuideModule.IsRefreshingSetupGuide
             || SetupGuideModule.IsCheckingSetupDependencyUpdates;
@@ -4141,8 +4100,6 @@ public partial class MainWindowViewModel : CommunityToolkit.Mvvm.ComponentModel.
         OnPropertyChanged(nameof(AppUpdateProgressVisibility));
         OnPropertyChanged(nameof(AppUpdateReleaseUrl));
         OnPropertyChanged(nameof(AppCurrentVersionText));
-        OnPropertyChanged(nameof(AppLatestVersionText));
-        OnPropertyChanged(nameof(AppLatestVersionVisibility));
         OnPropertyChanged(nameof(AppUpdateStatusText));
     }
 

@@ -10,7 +10,7 @@ public sealed record SetupGuideCacheSnapshot(
     string EnvironmentSignature = "",
     DateTimeOffset? EnvironmentCheckedAt = null)
 {
-    public const int CurrentSchemaVersion = 5;
+    public const int CurrentSchemaVersion = 8;
 }
 
 public sealed record SetupGuideCacheStatusReport(
@@ -26,4 +26,5 @@ public sealed record SetupGuideCacheDependencyStatus(
     string ExecutablePath,
     bool IsInstallSupported,
     bool IsInstallEnabled,
-    string Detail);
+    string Detail,
+    PythonPackageStatus[]? PythonPackages = null);

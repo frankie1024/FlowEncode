@@ -1,5 +1,6 @@
 import json
 import mmap
+import math
 import importlib.util
 import os
 import sys
@@ -81,8 +82,8 @@ def matrix_prop_to_string(value):
 
 def range_prop_to_string(value):
     return {
-        0: "full",
-        1: "limited",
+        0: "limited",
+        1: "full",
     }.get(int(value))
 
 
@@ -374,47 +375,23 @@ class PreviewSession:
             return clip
 
         prop_matrix = matrix_prop_to_string(props["_Matrix"]) if "_Matrix" in props else "2020ncl"
-        prop_range = range_prop_to_string(props["_ColorRange"]) if "_ColorRange" in props else "limited"
+        prop_range = range_prop_to_string(props.get("_Range", 0)) or "limited"
         prop_transfer = transfer_prop_to_string(transfer_code) or "st2084"
         prop_primaries = primaries_prop_to_string(props["_Primaries"]) if "_Primaries" in props else "2020"
         target_peak = max(50.0, min(1000.0, float(target_nits or 203.0)))
 
-        # Prefer libplacebo (bundled via vsrepo) for accurate PQ/HLG tone mapping.
-        if hasattr(core, "placebo") and hasattr(core.placebo, "Tonemap"):
-            src_csp = 3 if transfer_code == 18 else 2  # 2 = HDR10 (PQ), 3 = HLG
-            placebo_in = clip
-            if placebo_in.format.id != vs.YUV444P16 and placebo_in.format.color_family == vs.YUV:
-                try:
-                    placebo_in = placebo_in.resize.Spline36(
-                        format=vs.YUV444P16,
-                        matrix_in_s=prop_matrix,
-                        range_in_s=prop_range,
-                    )
-                except Exception:
-                    placebo_in = clip.resize.Bicubic(format=vs.YUV444P16)
-
-            for kwargs in (
-                {
-                    "src_csp": src_csp,
-                    "dst_csp": 0,
-                    "target_peak": target_peak,
-                    "tone_mapping_function": 3,
-                },
-                {
-                    "src_csp": src_csp,
-                    "dst_csp": 0,
-                    "tone_mapping_function": 3,
-                },
-                {
-                    "src_csp": src_csp,
-                    "dst_csp": 0,
-                },
-            ):
-                try:
-                    mapped = core.placebo.Tonemap(placebo_in, **kwargs)
-                    return mapped.std.SetFrameProps(_Matrix=1, _Transfer=1, _Primaries=1)
-                except Exception:
-                    continue
+        tonemap = getattr(getattr(core, "vszip", None), "Tonemap", None)
+        if tonemap is not None and clip.format.color_family == vs.YUV:
+            src_csp = 2 if transfer_code == 18 else 1  # HLG or HDR10 (PQ)
+            try:
+                yuv444 = clip.resize.Spline36(format=vs.YUV444P16, range_in_s=prop_range, range_s="limited")
+                mapped = tonemap(yuv444, src_csp=src_csp, dst_csp=0, dst_max=target_peak, tone_mapping_function=3)
+                # A filter can report errors on the first frame request.
+                with mapped.get_frame(0):
+                    pass
+                return mapped
+            except vs.Error:
+                pass
 
         # Fallback: zimg linear conversion + smooth Reinhard compression to SDR BT.709.
         try:
@@ -524,16 +501,14 @@ class PreviewSession:
                     work_props = working_clip.get_frame(0).props if working_clip.num_frames > 0 else props
                 resize_attempts = []
                 prop_matrix = matrix_prop_to_string(work_props["_Matrix"]) if "_Matrix" in work_props else None
-                prop_range = range_prop_to_string(work_props["_ColorRange"]) if "_ColorRange" in work_props else None
+                prop_range = range_prop_to_string(work_props["_Range"]) if "_Range" in work_props else None
 
                 subpixel_kwargs = {"src_left": dx, "src_top": dy} if has_subpixel else {}
-                if prop_matrix and prop_range:
-                    resize_attempts.append({"matrix_in_s": prop_matrix, "range_in_s": prop_range, **subpixel_kwargs})
-                if prop_matrix:
-                    resize_attempts.append({"matrix_in_s": prop_matrix, **subpixel_kwargs})
                 if cur_fmt.color_family not in (vs.RGB, vs.GRAY):
-                    resize_attempts.append({"matrix_in_s": "709", "range_in_s": "limited", **subpixel_kwargs})
-                    resize_attempts.append({"matrix_in_s": "709", **subpixel_kwargs})
+                    resize_attempts.append({"matrix_in_s": prop_matrix or "709",
+                                            "range_in_s": prop_range or "limited", **subpixel_kwargs})
+                elif cur_fmt.color_family == vs.GRAY and prop_range:
+                    resize_attempts.append({"range_in_s": prop_range, **subpixel_kwargs})
 
                 resize_attempts.append({**subpixel_kwargs})
 
@@ -1004,66 +979,53 @@ class PreviewSession:
         higher_is_worse = False
         scores = []
 
-        # 0. CAMBI banding score via core.vmaf.CAMBI (higher score = worse banding)
-        if req_metric == "cambi" and hasattr(core, "vmaf") and hasattr(core.vmaf, "CAMBI"):
+        zip_plugin = getattr(core, "vszip", None)
+        cambi = getattr(getattr(core, "akarin", None), "Cambi", None)
+
+        def collect_scores(metric_clip, property_name):
+            result = []
+            for idx, (fa, fb) in enumerate(pairs):
+                with metric_clip.get_frame(idx) as frame:
+                    score = float(frame.props[property_name])
+                # Identical frames report infinite XPSNR; keep the result valid JSON.
+                if not math.isfinite(score):
+                    score = 99.0 if score > 0 else 0.0
+                with sub_b.get_frame(idx) as frame:
+                    pict_type = frame.props.get("_PictType")
+                result.append((fa, fb, score, format_prop_value(pict_type) if pict_type is not None else None))
+            return result
+
+        if req_metric == "cambi":
+            if cambi is None:
+                raise RuntimeError("CAMBI requires the akarin plugin from vsjetpack[full].")
+            with redirect_script_stdout():
+                luma = (sub_b.resize.Bilinear(format=vs.GRAY10, matrix_s="709")
+                        if sub_b.format.color_family == vs.RGB
+                        else sub_b.std.ShufflePlanes(0, vs.GRAY).resize.Point(format=vs.GRAY10))
+                scores = collect_scores(cambi(luma), "CAMBI")
+            metric_used, backend_used, higher_is_worse = "CAMBI", "akarin-cambi", True
+        elif req_metric == "ssimulacra2" and hasattr(zip_plugin, "SSIMULACRA2"):
             try:
                 with redirect_script_stdout():
-                    mclip = core.vmaf.CAMBI(sub_b)
-                    for idx, (fa, fb) in enumerate(pairs):
-                        fr = mclip.get_frame(idx)
-                        val = float(fr.props.get("CAMBI", fr.props.get("_CAMBI", 0.0)))
-                        pt = fr.props.get("_PictType")
-                        scores.append((fa, fb, val, format_prop_value(pt) if pt is not None else None))
-                metric_used = "CAMBI"
-                backend_used = "vmaf-cambi"
-                higher_is_worse = True
-            except Exception:
-                scores = []
-
-        # 1. SSIMULACRA2 via Vship (GPU) or bundled vszip (Zig CPU)
-        if req_metric == "ssimulacra2":
-            if hasattr(core, "vship") and hasattr(core.vship, "SSIMULACRA2"):
-                try:
-                    with redirect_script_stdout():
-                        mclip = core.vship.SSIMULACRA2(sub_a, sub_b)
-                        for idx, (fa, fb) in enumerate(pairs):
-                            fr = mclip.get_frame(idx)
-                            val = float(fr.props.get("_SSIMULACRA2", 0.0))
-                            pt = fr.props.get("_PictType")
-                            scores.append((fa, fb, val, format_prop_value(pt) if pt is not None else None))
-                    metric_used = "SSIMULACRA2"
-                    backend_used = "vship-gpu"
-                except Exception:
-                    scores = []
-
-            if not scores and hasattr(core, "vszip") and hasattr(core.vszip, "Metrics"):
-                try:
-                    with redirect_script_stdout():
-                        mclip = core.vszip.Metrics(sub_a, sub_b, mode=0)
-                        for idx, (fa, fb) in enumerate(pairs):
-                            fr = mclip.get_frame(idx)
-                            val = float(fr.props.get("_SSIMULACRA2", 0.0))
-                            pt = fr.props.get("_PictType")
-                            scores.append((fa, fb, val, format_prop_value(pt) if pt is not None else None))
-                    metric_used = "SSIMULACRA2"
-                    backend_used = "vszip-cpu"
-                except Exception:
-                    scores = []
-
-        # 2. Fast XPSNR via bundled vszip
-        if not scores and req_metric in ("xpsnr", "auto") and hasattr(core, "vszip") and hasattr(core.vszip, "Metrics"):
+                    scores = collect_scores(zip_plugin.SSIMULACRA2(sub_a, sub_b), "SSIMULACRA2")
+                metric_used, backend_used = "SSIMULACRA2", "vszip-cpu"
+            except (vs.Error, KeyError):
+                pass
+        elif req_metric in ("xpsnr", "auto") and hasattr(zip_plugin, "XPSNR"):
             try:
                 with redirect_script_stdout():
-                    mclip = core.vszip.Metrics(sub_a, sub_b, mode=1)
-                    for idx, (fa, fb) in enumerate(pairs):
-                        fr = mclip.get_frame(idx)
-                        val = float(fr.props.get("_XPSNR", fr.props.get("_XPSNR_Y", 0.0)))
-                        pt = fr.props.get("_PictType")
-                        scores.append((fa, fb, val, format_prop_value(pt) if pt is not None else None))
-                metric_used = "XPSNR"
-                backend_used = "vszip-cpu"
-            except Exception:
-                scores = []
+                    if sub_a.format.color_family == vs.YUV and sub_a.format.bits_per_sample in (8, 10):
+                        reference, distorted = sub_a, sub_b
+                    else:
+                        def to_yuv10(clip):
+                            color = {"matrix_s": "709"} if clip.format.color_family != vs.YUV else {}
+                            return clip.resize.Bicubic(format=vs.YUV444P10, **color)
+
+                        reference, distorted = to_yuv10(sub_a), to_yuv10(sub_b)
+                    scores = collect_scores(zip_plugin.XPSNR(reference, distorted, verbose=False), "XPSNR_Y")
+                metric_used, backend_used = "XPSNR", "vszip-cpu"
+            except (vs.Error, KeyError):
+                pass
 
         # 3. Ultra-fast NumPy Luma PSNR fallback (always works, ~2-3s for 80 frames)
         if not scores:
@@ -1199,14 +1161,14 @@ def main():
 
         session = PreviewSession(startup)
         has_vs_align = importlib.util.find_spec("vs_align") is not None
-        has_vmaf_cambi = hasattr(vs.core, "vmaf") and hasattr(vs.core.vmaf, "CAMBI")
+        has_cambi = hasattr(getattr(vs.core, "akarin", None), "Cambi")
         has_native_res = importlib.util.find_spec("nativeres") is not None
         emit(
             {
                 "type": "ready",
                 "outputs": session.describe_outputs(),
                 "hasVsAlign": has_vs_align,
-                "hasVmafCambi": has_vmaf_cambi,
+                "hasCambi": has_cambi,
                 "hasNativeRes": has_native_res,
             }
         )

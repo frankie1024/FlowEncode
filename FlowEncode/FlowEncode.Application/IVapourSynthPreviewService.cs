@@ -92,7 +92,7 @@ public sealed record VapourSynthPreviewOpenRequest(
 public sealed record VapourSynthPreviewSessionInfo(
     IReadOnlyList<VapourSynthPreviewOutputInfo> Outputs,
     bool HasVsAlign = false,
-    bool HasVmafCambi = false,
+    bool HasCambi = false,
     bool HasNativeRes = false);
 
 public sealed record VapourSynthPreviewOutputInfo(

@@ -10,7 +10,7 @@ namespace FlowEncode.Infrastructure;
 public sealed class ProcessToolProbeService : IToolProbeService
 {
     private const int ProbeTimeoutMilliseconds = 5000;
-    private const int VsrepoInstalledProbeTimeoutMilliseconds = 30000;
+    private const string PythonPackageListPrefix = "FLOWENCODE_PACKAGES ";
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
 
     private readonly IToolRegistryService _toolRegistryService;
@@ -37,11 +37,10 @@ public sealed class ProcessToolProbeService : IToolProbeService
         {
             using var discoveryScope = PythonRuntimeCompatibility.BeginDiscoveryScope();
             cancellationToken.ThrowIfCancellationRequested();
-            var vsrepoInstalledCache = new Dictionary<string, VsrepoInstalledProbeResult>(StringComparer.OrdinalIgnoreCase);
 
             return _toolRegistryService
                 .GetTools()
-                .Select(definition => ProbeCached(definition, cancellationToken, vsrepoInstalledCache))
+                .Select(definition => ProbeCached(definition, cancellationToken))
                 .ToList();
         }, cancellationToken);
     }
@@ -52,8 +51,7 @@ public sealed class ProcessToolProbeService : IToolProbeService
         {
             using var discoveryScope = PythonRuntimeCompatibility.BeginDiscoveryScope();
             var definition = _toolRegistryService.GetTool(kind);
-            var vsrepoInstalledCache = new Dictionary<string, VsrepoInstalledProbeResult>(StringComparer.OrdinalIgnoreCase);
-            return ProbeCached(definition, cancellationToken, vsrepoInstalledCache);
+            return ProbeCached(definition, cancellationToken);
         }, cancellationToken);
     }
 
@@ -64,8 +62,7 @@ public sealed class ProcessToolProbeService : IToolProbeService
 
     private ToolProbeResult ProbeCached(
         ToolDefinition definition,
-        CancellationToken cancellationToken,
-        IDictionary<string, VsrepoInstalledProbeResult> vsrepoInstalledCache)
+        CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
 
@@ -80,7 +77,7 @@ public sealed class ProcessToolProbeService : IToolProbeService
             return cached;
         }
 
-        var result = Probe(definition, settings, cancellationToken, vsrepoInstalledCache, manualToolPaths);
+        var result = Probe(definition, settings, cancellationToken, manualToolPaths);
 
         cancellationToken.ThrowIfCancellationRequested();
         _probeCache.TryAdd(key, result);
@@ -91,7 +88,6 @@ public sealed class ProcessToolProbeService : IToolProbeService
         ToolDefinition definition,
         AppSettings settings,
         CancellationToken cancellationToken,
-        IDictionary<string, VsrepoInstalledProbeResult> vsrepoInstalledCache,
         IReadOnlyDictionary<string, string> manualToolPaths)
     {
         cancellationToken.ThrowIfCancellationRequested();
@@ -102,8 +98,6 @@ public sealed class ProcessToolProbeService : IToolProbeService
             ToolProbeMode.ProcessVersion => ProbeCandidateTools(definition, cancellationToken, manualToolPaths, ProbeWithProcessVersion),
             ToolProbeMode.FileVersionInfo => ProbeCandidateTools(definition, cancellationToken, manualToolPaths, ProbeWithFileVersion),
             ToolProbeMode.ExistenceOnly => ProbeCandidateTools(definition, cancellationToken, manualToolPaths, ProbeWithExistenceOnly),
-            ToolProbeMode.VsrepoInstalledPackage => ProbeCandidateTools(definition, cancellationToken, manualToolPaths, (tool, candidate) =>
-                ProbeWithVsrepoInstalledPackage(tool, candidate, vsrepoInstalledCache)),
             ToolProbeMode.PythonModuleImport => ProbeCandidateTools(definition, cancellationToken, manualToolPaths, ProbeWithPythonModuleImport),
             _ => CreateUnknownResult(definition, "Unsupported probe mode.")
         };
@@ -216,9 +210,7 @@ public sealed class ProcessToolProbeService : IToolProbeService
                 return EnrichPythonRuntimeCompatibility(definition, candidate);
             }
 
-            var version = definition.Kind == RegisteredToolKind.VsrepoCli
-                ? string.Empty
-                : ResolveVersionText(definition, candidate.Path, output);
+            var version = ResolveVersionText(definition, candidate.Path, output);
             var ready = CreateReadyResult(definition, candidate, version);
             if (definition.Kind == RegisteredToolKind.Deew)
             {
@@ -255,138 +247,6 @@ public sealed class ProcessToolProbeService : IToolProbeService
         return CreateReadyResult(definition, candidate, "Present");
     }
 
-    private ToolProbeResult ProbeWithVsrepoInstalledPackage(
-        ToolDefinition definition,
-        ToolCandidate candidate,
-        IDictionary<string, VsrepoInstalledProbeResult> vsrepoInstalledCache)
-    {
-        if (string.IsNullOrWhiteSpace(definition.ProbeValue))
-        {
-            return CreateUnknownResult(definition, "Missing VSRepo package probe value.");
-        }
-
-        try
-        {
-            var snapshot = GetVsrepoInstalledProbeResult(candidate, vsrepoInstalledCache);
-            if (snapshot.IsTimedOut)
-            {
-                return CreateMisconfiguredResult(definition, candidate, snapshot.FailureReason);
-            }
-
-            if (snapshot.IsMissingVsrepoModule)
-            {
-                return CreateMissingResult(definition);
-            }
-
-            if (!string.IsNullOrWhiteSpace(snapshot.FailureReason))
-            {
-                return CreateMisconfiguredResult(definition, candidate, snapshot.FailureReason);
-            }
-
-            if (!snapshot.PackageKeys.Contains(definition.ProbeValue))
-            {
-                return CreateMissingResult(definition);
-            }
-
-            return new ToolProbeResult(
-                definition.Kind,
-                ReadinessState.Ready,
-                ToolDetectionSource.None,
-                "vsrepo installed",
-                candidate.Path,
-                "Installed",
-                string.Empty,
-                definition.ReleaseUrl,
-                definition.ManagedExternalToolKind);
-        }
-        catch (Exception ex)
-        {
-            return CreateMisconfiguredResult(definition, candidate, ex.Message);
-        }
-    }
-
-    private VsrepoInstalledProbeResult GetVsrepoInstalledProbeResult(
-        ToolCandidate candidate,
-        IDictionary<string, VsrepoInstalledProbeResult> vsrepoInstalledCache)
-    {
-        if (vsrepoInstalledCache.TryGetValue(candidate.Path, out var cached))
-        {
-            return cached;
-        }
-
-        var result = RunVsrepoInstalledProbe(candidate.Path, VsrepoCommand.CreateArguments("installed", []));
-        if (!result.IsTimedOut && !string.IsNullOrWhiteSpace(result.FailureReason))
-        {
-            var baselineRoot = VsrepoCommand.PrepareBaseline(_paths);
-            var baseline = RunVsrepoInstalledProbe(candidate.Path, VsrepoCommand.CreateArguments("installed", [], baselineRoot));
-            if (!baseline.IsMissingVsrepoModule && string.IsNullOrWhiteSpace(baseline.FailureReason))
-            {
-                result = baseline;
-            }
-        }
-
-        vsrepoInstalledCache[candidate.Path] = result;
-        return result;
-    }
-
-    private static VsrepoInstalledProbeResult RunVsrepoInstalledProbe(string pythonPath, IReadOnlyList<string> arguments)
-    {
-        using var process = new Process
-        {
-            StartInfo = CreatePythonModuleProcessStartInfo(pythonPath, arguments)
-        };
-
-        using var _ = ErrorDialogSuppression.Enter();
-        process.Start();
-        var stdOutTask = process.StandardOutput.ReadToEndAsync();
-        var stdErrTask = process.StandardError.ReadToEndAsync();
-
-        VsrepoInstalledProbeResult result;
-        if (!process.WaitForExit(VsrepoInstalledProbeTimeoutMilliseconds))
-        {
-            process.Kill(true);
-            result = new VsrepoInstalledProbeResult(
-                new HashSet<string>(StringComparer.OrdinalIgnoreCase),
-                true,
-                false,
-                "VSRepo installed probe timed out.");
-        }
-        else
-        {
-            var output = string.Concat(
-                stdOutTask.GetAwaiter().GetResult(),
-                Environment.NewLine,
-                stdErrTask.GetAwaiter().GetResult()).Trim();
-
-            if (process.ExitCode != 0)
-            {
-                result = ContainsMissingVsrepoModule(output)
-                    ? new VsrepoInstalledProbeResult(
-                        new HashSet<string>(StringComparer.OrdinalIgnoreCase),
-                        false,
-                        true,
-                        string.Empty)
-                    : new VsrepoInstalledProbeResult(
-                        new HashSet<string>(StringComparer.OrdinalIgnoreCase),
-                        false,
-                        false,
-                        string.IsNullOrWhiteSpace(FirstMeaningfulLine(output))
-                            ? $"VSRepo installed probe failed with exit code {process.ExitCode}."
-                            : FirstMeaningfulLine(output));
-            }
-            else
-            {
-                result = new VsrepoInstalledProbeResult(
-                    ParseVsrepoInstalledPackageKeys(output),
-                    false,
-                    false,
-                    string.Empty);
-            }
-        }
-
-        return result;
-    }
-
     private ToolProbeResult ProbeWithPythonModuleImport(ToolDefinition definition, ToolCandidate candidate)
     {
         if (string.IsNullOrWhiteSpace(definition.ProbeValue))
@@ -399,7 +259,12 @@ public sealed class ProcessToolProbeService : IToolProbeService
             .Select(EscapePythonSingleQuotedString)
             .ToArray();
         var distributionCandidatesLiteral = string.Join(", ", distributionCandidates.Select(static item => $"'{item}'"));
-        var script = string.Join(
+        var script = definition.Kind switch
+        {
+            RegisteredToolKind.PythonModuleVsjetpack => VsjetpackFullProbeScript,
+            RegisteredToolKind.PythonModuleAwsmfunc => AwsmfuncProbeScript,
+            RegisteredToolKind.VapourSynthUtilityPlugins => VapourSynthUtilityPluginsProbeScript,
+            _ => string.Join(
             "\n",
             "import importlib.metadata, importlib.util, sys",
             $"module_name = '{moduleNameLiteral}'",
@@ -417,11 +282,14 @@ public sealed class ProcessToolProbeService : IToolProbeService
             "    except importlib.metadata.PackageNotFoundError:",
             "        pass",
             "print('Detected')",
-            "sys.exit(0)");
+            "sys.exit(0)")
+        };
 
         try
         {
-            var startInfo = CreatePythonModuleProcessStartInfo(candidate.Path, ["-c", script]);
+            var startInfo = CreatePythonModuleProcessStartInfo(candidate.Path, definition.Kind == RegisteredToolKind.VapourSynthUtilityPlugins
+                ? ["-c", script, .. LocalVapourSynthPluginList.Read(_paths)]
+                : ["-c", script]);
 
             using var _ = ErrorDialogSuppression.Enter();
             var result = ProcessProbeRunner.Run(
@@ -434,6 +302,30 @@ public sealed class ProcessToolProbeService : IToolProbeService
                 Environment.NewLine,
                 result.StandardError).Trim();
 
+            PythonPackageStatus[]? packages = null;
+            if (definition.Kind is RegisteredToolKind.PythonModuleVsjetpack or RegisteredToolKind.VapourSynthUtilityPlugins)
+            {
+                var packageLine = EnumerateMeaningfulLines(result.StandardOutput)
+                    .FirstOrDefault(static line => line.StartsWith(PythonPackageListPrefix, StringComparison.Ordinal));
+                if (packageLine is not null)
+                    packages = JsonSerializer.Deserialize<PythonPackageStatus[]>(packageLine[PythonPackageListPrefix.Length..], JsonOptions);
+            }
+
+            if (definition.Kind == RegisteredToolKind.VapourSynthUtilityPlugins && packages is not null)
+            {
+                var state = result.ExitCode switch
+                {
+                    0 => ReadinessState.Ready,
+                    3 => ReadinessState.Missing,
+                    4 => ReadinessState.Partial,
+                    _ => ReadinessState.Misconfigured
+                };
+                return new ToolProbeResult(definition.Kind, state, candidate.Source, candidate.SourceLabel, candidate.Path,
+                    string.Empty, FirstMeaningfulLine(result.StandardError), definition.ReleaseUrl, PythonPackages: packages);
+            }
+            if (definition.Kind == RegisteredToolKind.VapourSynthUtilityPlugins && result.ExitCode == 0)
+                return CreateMisconfiguredResult(definition, candidate, "The VapourSynth plugin probe returned no package information.");
+
             return result.ExitCode switch
             {
                 0 => new ToolProbeResult(
@@ -445,8 +337,20 @@ public sealed class ProcessToolProbeService : IToolProbeService
                     FirstMeaningfulLine(output, "Detected"),
                     string.Empty,
                     definition.ReleaseUrl,
-                    definition.ManagedExternalToolKind),
+                    definition.ManagedExternalToolKind,
+                    PythonPackages: packages),
                 3 => CreateMissingResult(definition),
+                4 when definition.Kind == RegisteredToolKind.PythonModuleVsjetpack => new ToolProbeResult(
+                    definition.Kind,
+                    ReadinessState.Partial,
+                    candidate.Source,
+                    candidate.SourceLabel,
+                    candidate.Path,
+                    FirstMeaningfulLine(result.StandardOutput),
+                    FirstMeaningfulLine(result.StandardError, "The Python package dependencies are incomplete."),
+                    definition.ReleaseUrl,
+                    definition.ManagedExternalToolKind,
+                    PythonPackages: packages),
                 _ => CreateMisconfiguredResult(
                     definition,
                     candidate,
@@ -460,6 +364,117 @@ public sealed class ProcessToolProbeService : IToolProbeService
             return CreateMisconfiguredResult(definition, candidate, ex.Message);
         }
     }
+
+    internal const string AwsmfuncProbeScript = """
+        import importlib.metadata as metadata
+        import importlib.util
+        import sys
+
+        if importlib.util.find_spec('awsmfunc') is None:
+            sys.exit(3)
+
+        print(metadata.version('awsmfunc'))
+        import awsmfunc
+        """;
+
+    internal const string VapourSynthUtilityPluginsProbeScript = """
+        import importlib.metadata as metadata
+        import json
+        import sys
+
+        try:
+            import vapoursynth as vs
+            core = vs.core
+        except (ImportError, OSError):
+            core = None
+
+        required = {'vapoursynth-fillborders': ('fb', 'FillBorders'), 'vsfpng': ('fpng', 'Write')}
+        only = sys.argv[2] if len(sys.argv) == 3 and sys.argv[1] == '--only' else None
+        packages = []
+        for name in [only] if only else dict.fromkeys([*required, *sys.argv[1:]]):
+            try:
+                version = metadata.version(name)
+            except metadata.PackageNotFoundError:
+                version = ''
+
+            if name in required:
+                namespace, function = required[name]
+                loaded = callable(getattr(getattr(core, namespace, None), function, None))
+            else:
+                if not version:
+                    continue
+                loaded = True
+            packages.append(dict(name=name, installedVersion=version, isReady=loaded))
+
+        print('FLOWENCODE_PACKAGES ' + json.dumps(packages))
+        required_packages = [package for package in packages if package['name'] in required]
+        missing = [package['name'] for package in required_packages if not package['isReady']]
+        if missing:
+            print('VapourSynth plugins not loaded: ' + ', '.join(missing), file=sys.stderr)
+            sys.exit(4 if any(package['installedVersion'] or package['isReady'] for package in required_packages) else 3)
+        """;
+
+    // Package metadata declares extras but does not record which extras were installed.
+    internal const string VsjetpackFullProbeScript = """
+        import importlib.metadata as metadata
+        import importlib.util
+        import json
+        import sys
+
+        if importlib.util.find_spec('vsjetpack') is None:
+            sys.exit(3)
+
+        try:
+            jet = metadata.distribution('vsjetpack')
+        except metadata.PackageNotFoundError:
+            print('The vsjetpack distribution metadata is missing.', file=sys.stderr)
+            sys.exit(4)
+
+        from pip._vendor.packaging.requirements import Requirement
+        from pip._vendor.packaging.utils import canonicalize_name
+
+        print(jet.version)
+        distributions = {'vsjetpack': jet}
+        pending = {('vsjetpack', ''), ('vsjetpack', 'full')}
+        checked = set()
+        missing = set()
+        packages = {}
+        while pending:
+            name, extra = pending.pop()
+            checked.add((name, extra))
+            package = distributions[name]
+            if extra and extra not in {canonicalize_name(value) for value in package.metadata.get_all('Provides-Extra', [])}:
+                missing.add(f'{name}[{extra}]')
+                packages[f'{name}[{extra}]'] = dict(name=f'{name}[{extra}]', installedVersion=package.version, isReady=False)
+                continue
+
+            for value in package.requires or []:
+                requirement = Requirement(value)
+                if requirement.marker and not requirement.marker.evaluate({'extra': extra}):
+                    continue
+                dependency = canonicalize_name(requirement.name)
+                if dependency not in distributions:
+                    try:
+                        distributions[dependency] = metadata.distribution(dependency)
+                    except metadata.PackageNotFoundError:
+                        distributions[dependency] = None
+                installed = distributions[dependency]
+                matches = installed is not None and requirement.specifier.contains(installed.version, prereleases=True)
+                if dependency != 'vsjetpack':
+                    entry = packages.setdefault(dependency, dict(name=dependency, installedVersion=installed.version if installed else '', isReady=True))
+                    entry['isReady'] &= matches
+                if not matches:
+                    missing.add(str(requirement).partition(';')[0])
+                    continue
+                wanted = {(dependency, canonicalize_name(extra)) for extra in requirement.extras}
+                wanted.add((dependency, ''))
+                pending.update(wanted - checked)
+
+        print('FLOWENCODE_PACKAGES ' + json.dumps([packages[name] for name in sorted(packages)]))
+        if missing:
+            print('Missing or incompatible vsjetpack[full] dependencies: ' + ', '.join(sorted(missing)), file=sys.stderr)
+            sys.exit(4)
+        """;
 
     private static ProcessStartInfo CreatePythonModuleProcessStartInfo(string pythonPath, IReadOnlyList<string> arguments)
     {
@@ -531,7 +546,7 @@ public sealed class ProcessToolProbeService : IToolProbeService
                 return CreateMisconfiguredResult(
                     definition,
                     candidate,
-                    $"Python {version} {(is64Bit ? "x64" : "x86")} is not compatible with the VapourSynth stack. Python 3.12+ x64 is required.");
+                    $"Python {version} {(is64Bit ? "x64" : "x86")} is not compatible with the VapourSynth stack. Python 3.13+ x64 is required.");
             }
 
             var executablePath = lines.Count > 1 && File.Exists(lines[1])
@@ -1128,7 +1143,7 @@ public sealed class ProcessToolProbeService : IToolProbeService
             }
         }
 
-        if (definition.Kind is RegisteredToolKind.Vspipe or RegisteredToolKind.Pip or RegisteredToolKind.VsrepoCli)
+        if (definition.Kind is RegisteredToolKind.Vspipe or RegisteredToolKind.Pip)
         {
             foreach (var candidate in EnumerateEnvironmentVariableCandidates(definition))
                 if (seen.Add(candidate.Path)) yield return candidate;
@@ -1405,9 +1420,6 @@ public sealed class ProcessToolProbeService : IToolProbeService
 
         switch (definition.Kind)
         {
-            case RegisteredToolKind.Vsrepo:
-                Add("vsrepo");
-                break;
             case RegisteredToolKind.PythonModuleAwsmfunc:
                 Add("awsmfunc");
                 break;
@@ -1471,91 +1483,6 @@ public sealed class ProcessToolProbeService : IToolProbeService
 
         return string.Empty;
     }
-
-    private static bool ContainsMissingVsrepoModule(string output)
-    {
-        return output.Contains("No module named vsrepo", StringComparison.OrdinalIgnoreCase)
-               || output.Contains("No module named 'vsrepo'", StringComparison.OrdinalIgnoreCase);
-    }
-
-    private static HashSet<string> ParseVsrepoInstalledPackageKeys(string output)
-    {
-        var packageKeys = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-
-        foreach (var rawLine in output.Split(['\r', '\n'], StringSplitOptions.RemoveEmptyEntries))
-        {
-            var line = rawLine.TrimEnd();
-            if (string.IsNullOrWhiteSpace(line)
-                || line.StartsWith("Name", StringComparison.OrdinalIgnoreCase)
-                || line.StartsWith("-", StringComparison.Ordinal))
-            {
-                continue;
-            }
-
-            if (!TryParseVsrepoInstalledLine(line, out var package))
-            {
-                continue;
-            }
-
-            if (!string.IsNullOrWhiteSpace(package.DisplayName))
-            {
-                packageKeys.Add(package.DisplayName);
-            }
-
-            if (!string.IsNullOrWhiteSpace(package.Namespace))
-            {
-                packageKeys.Add(package.Namespace);
-            }
-
-            if (!string.IsNullOrWhiteSpace(package.Identifier))
-            {
-                packageKeys.Add(package.Identifier);
-            }
-        }
-
-        return packageKeys;
-    }
-
-    private static bool TryParseVsrepoInstalledLine(string line, out VsrepoInstalledLine package)
-    {
-        var parts = Regex.Split(line.Trim(), "\\s{2,}");
-        if (parts.Length < 3)
-        {
-            package = new VsrepoInstalledLine(string.Empty, string.Empty, string.Empty);
-            return false;
-        }
-
-        var displayName = parts[0].Trim().TrimStart('*', '+');
-        var packageNamespace = parts[1].Trim();
-        string identifier;
-
-        if (parts.Length >= 5)
-        {
-            identifier = parts[4].Trim();
-        }
-        else
-        {
-            var tailTokens = parts[2].Split(' ', StringSplitOptions.RemoveEmptyEntries);
-            if (tailTokens.Length < 3)
-            {
-                package = new VsrepoInstalledLine(string.Empty, string.Empty, string.Empty);
-                return false;
-            }
-
-            identifier = tailTokens[^1].Trim();
-        }
-
-        package = new VsrepoInstalledLine(displayName, packageNamespace, identifier);
-        return true;
-    }
-
-    private sealed record VsrepoInstalledProbeResult(
-        HashSet<string> PackageKeys,
-        bool IsTimedOut,
-        bool IsMissingVsrepoModule,
-        string FailureReason);
-
-    private sealed record VsrepoInstalledLine(string DisplayName, string Namespace, string Identifier);
 
     private sealed record ToolProbeCacheKey(RegisteredToolKind Kind, string Signature);
 

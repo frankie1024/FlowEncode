@@ -35,6 +35,7 @@ public sealed partial class VapourSynthWorkspaceView : UserControl, IDisposable
     private VapourSynthPreviewWindow? _previewWindow;
     private VapourSynthWorkspaceTabViewModel? _previewLogTab;
     private VapourSynthLanguageFeaturesSnapshot? _latestLanguageFeatures;
+    private SmartFilterTemplate[]? _filterTemplates;
     private CancellationTokenSource? _diagnosticsCancellationTokenSource;
     private CancellationTokenSource? _benchmarkCancellationTokenSource;
     private bool _isLoaded;
@@ -701,189 +702,70 @@ public sealed partial class VapourSynthWorkspaceView : UserControl, IDisposable
         await RunUiActionAsync(() => ExecuteEditorCommandAsync("goto"));
     }
 
-    private void SmartInsertMenuFlyout_Opening(object? sender, object e)
+    private async void SmartInsertMenuFlyout_Opening(object? sender, object e)
     {
         RebuildSmartInsertMenu();
+        await RunUiActionAsync(async () =>
+        {
+            var previous = _latestLanguageFeatures;
+            if (TryGetActiveEditorContext(out var pane, out _))
+                await LoadLanguageFeaturesAsync(pane);
+            if (!ReferenceEquals(previous, _latestLanguageFeatures))
+                RebuildSmartInsertMenu();
+        });
     }
 
     private void RebuildSmartInsertMenu()
     {
         var texts = ViewModel.Texts;
-        var namespaces = new HashSet<string>(
-            _latestLanguageFeatures?.Namespaces.Select(static n => n.Name) ?? [],
-            StringComparer.OrdinalIgnoreCase);
-        var packages = new HashSet<string>(
-            _latestLanguageFeatures?.InstalledPackages ?? [],
-            StringComparer.OrdinalIgnoreCase);
-        var hasRuntime = _latestLanguageFeatures?.IsRuntimeReady == true;
-
-        string FormatLabel(string baseLabel, string? requiredNamespace = null, string? requiredPackage = null)
+        var templates = _filterTemplates ??= JsonSerializer.Deserialize<SmartFilterTemplate[]>(
+            File.ReadAllText(Path.Combine(ViewModel.EditorAssetsRootPath, "filter-templates.json")), BridgeJsonOptions) ?? [];
+        var available = new HashSet<string>(_latestLanguageFeatures?.TemplateSymbols ?? [], StringComparer.Ordinal);
+        if (_latestLanguageFeatures is { } snapshot)
         {
-            if (!hasRuntime)
-            {
-                return baseLabel;
-            }
-
-            if (!string.IsNullOrWhiteSpace(requiredNamespace) && !namespaces.Contains(requiredNamespace))
-            {
-                return baseLabel + texts.VapourSynthSmartMissingDepSuffix(requiredNamespace);
-            }
-
-            if (!string.IsNullOrWhiteSpace(requiredPackage) && !packages.Contains(requiredPackage))
-            {
-                return baseLabel + texts.VapourSynthSmartMissingDepSuffix(requiredPackage);
-            }
-
-            return baseLabel;
-        }
-
-        MenuFlyoutItem MakeFilterItem(
-            string label,
-            Func<string, SmartScriptEditResult> rewriter,
-            string? requiredNamespace = null,
-            string? requiredPackage = null)
-        {
-            var item = new MenuFlyoutItem { Text = FormatLabel(label, requiredNamespace, requiredPackage) };
-            item.Click += async (_, _) => await RunUiActionAsync(() => ApplySmartEditorRewriteAsync(rewriter));
-            return item;
+            available.UnionWith(snapshot.Namespaces.SelectMany(static entry =>
+                entry.Functions.Select(static function => function.QualifiedName)));
         }
 
         SmartInsertMenuFlyout.Items.Clear();
+        foreach (var group in templates.GroupBy(static template => template.Group))
+        {
+            var menu = new MenuFlyoutSubItem
+            {
+                Text = group.Key switch
+                {
+                    "color" => texts.VapourSynthSmartCategoryDepthColor,
+                    "edge" => texts.VapourSynthSmartCategoryCropEdge,
+                    "deinterlace" => texts.VapourSynthSmartCategoryDeinterlace,
+                    "deband" => texts.VapourSynthSmartCategoryDebandGrain,
+                    "denoise" => texts.VapourSynthSmartCategoryDenoise,
+                    "scale" => texts.VapourSynthSmartCategoryAaScale,
+                    _ => texts.VapourSynthSmartCategoryMaskDebug
+                }
+            };
 
-        var depthSub = new MenuFlyoutSubItem { Text = texts.VapourSynthSmartCategoryDepthColor };
-        depthSub.Items.Add(MakeFilterItem(
-            texts.VapourSynthSmartBitdepth16Item,
-            s => VapourSynthSmartScriptEditor.ApplyFilterTemplate(s, 0, "core.fmtc.bitdepth({var}, bits=16)", derivedVariableName: "src16"),
-            requiredNamespace: "fmtc"));
-        depthSub.Items.Add(MakeFilterItem(
-            texts.VapourSynthSmartBitdepth10Item,
-            s => VapourSynthSmartScriptEditor.ApplyFilterTemplate(s, 0, "core.fmtc.bitdepth({var}, bits=10, dmode=3)", derivedVariableName: "out10"),
-            requiredNamespace: "fmtc"));
-        depthSub.Items.Add(MakeFilterItem(
-            texts.VapourSynthSmartBitdepth8Item,
-            s => VapourSynthSmartScriptEditor.ApplyFilterTemplate(s, 0, "core.fmtc.bitdepth({var}, bits=8, dmode=3)", derivedVariableName: "out8"),
-            requiredNamespace: "fmtc"));
-        depthSub.Items.Add(new MenuFlyoutSeparator());
-        depthSub.Items.Add(MakeFilterItem(
-            texts.VapourSynthSmartSetProps709Item,
-            s => VapourSynthSmartScriptEditor.ApplyFilterTemplate(s, 0, "{var}.std.SetFrameProps(_Matrix=1, _Transfer=1, _Primaries=1, _ColorRange=1)"),
-            requiredNamespace: "std"));
-        depthSub.Items.Add(MakeFilterItem(
-            texts.VapourSynthSmartHdrTonemapItem,
-            s => VapourSynthSmartScriptEditor.ApplyFilterTemplate(
-                s,
-                0,
-                "core.placebo.Tonemap({var}.resize.Spline36(format={alias}.YUV444P16), src_csp=2, dst_csp=0, target_peak=203.0, tone_mapping_function=3)",
-                importModule: "vapoursynth",
-                importAlias: "vs"),
-            requiredNamespace: "placebo"));
-        SmartInsertMenuFlyout.Items.Add(depthSub);
-
-        var cropSub = new MenuFlyoutSubItem { Text = texts.VapourSynthSmartCategoryCropEdge };
-        cropSub.Items.Add(MakeFilterItem(
-            texts.VapourSynthSmartCropRelItem,
-            s => VapourSynthSmartScriptEditor.ApplyCrop(s, 0, isAbsolute: false, left: 0, top: 140, widthOrRight: 0, heightOrBottom: 140),
-            requiredNamespace: "std"));
-        cropSub.Items.Add(MakeFilterItem(
-            texts.VapourSynthSmartBbmodItem,
-            s => VapourSynthSmartScriptEditor.ApplyFilterTemplate(s, 0, "{alias}.bbmod({var}, top=2, bottom=2, left=2, right=2, thresh=32, blur=20)", importModule: "awsmfunc", importAlias: "awf"),
-            requiredPackage: "awsmfunc"));
-        cropSub.Items.Add(MakeFilterItem(
-            texts.VapourSynthSmartFillBordersItem,
-            s => VapourSynthSmartScriptEditor.ApplyFilterTemplate(s, 0, "{alias}.fb({var}, top=2, bottom=2, left=2, right=2)", importModule: "awsmfunc", importAlias: "awf"),
-            requiredPackage: "awsmfunc"));
-        SmartInsertMenuFlyout.Items.Add(cropSub);
-
-        var deintSub = new MenuFlyoutSubItem { Text = texts.VapourSynthSmartCategoryDeinterlace };
-        deintSub.Items.Add(MakeFilterItem(
-            texts.VapourSynthSmartQtgmcItem,
-            s => VapourSynthSmartScriptEditor.ApplyFilterTemplate(s, 0, "{alias}.QTGMC({var}, Preset=\"Slow\", TFF=True, FPSDivisor=2)", importModule: "havsfunc", importAlias: "haf"),
-            requiredPackage: "havsfunc"));
-        deintSub.Items.Add(MakeFilterItem(
-            texts.VapourSynthSmartIvtcItem,
-            s => VapourSynthSmartScriptEditor.ApplyMultiLineFilterTemplate(
-                s,
-                0,
-                ["{var} = core.vivtc.VFM({var}, order=1)", "{var} = core.vivtc.VDecimate({var})"]),
-            requiredNamespace: "vivtc"));
-        SmartInsertMenuFlyout.Items.Add(deintSub);
-
-        var debandSub = new MenuFlyoutSubItem { Text = texts.VapourSynthSmartCategoryDebandGrain };
-        debandSub.Items.Add(MakeFilterItem(
-            texts.VapourSynthSmartPlaceboDebandItem,
-            s => VapourSynthSmartScriptEditor.ApplyFilterTemplate(s, 0, "core.placebo.Deband({var}, iterations=1, threshold=4.0, radius=16.0, grain=6.0)"),
-            requiredNamespace: "placebo"));
-        debandSub.Items.Add(MakeFilterItem(
-            texts.VapourSynthSmartNeoF3kdbItem,
-            s => VapourSynthSmartScriptEditor.ApplyFilterTemplate(s, 0, "core.neo_f3kdb.Deband({var}, range=15, y=48, cb=36, cr=36, grainy=24, grainc=0)"),
-            requiredNamespace: "neo_f3kdb"));
-        debandSub.Items.Add(MakeFilterItem(
-            texts.VapourSynthSmartVsDebandItem,
-            s => VapourSynthSmartScriptEditor.ApplyFilterTemplate(s, 0, "Placebo.deband({var}, thr=2.0, radius=16, grain=4)", fromModule: "vsdeband", fromSymbol: "Placebo"),
-            requiredPackage: "vsdeband"));
-        debandSub.Items.Add(MakeFilterItem(
-            texts.VapourSynthSmartAddGrainItem,
-            s => VapourSynthSmartScriptEditor.ApplyFilterTemplate(s, 0, "core.grain.Add({var}, var=1.0, uvar=0.0, constant=False)"),
-            requiredNamespace: "grain"));
-        SmartInsertMenuFlyout.Items.Add(debandSub);
-
-        var denoiseSub = new MenuFlyoutSubItem { Text = texts.VapourSynthSmartCategoryDenoise };
-        denoiseSub.Items.Add(MakeFilterItem(
-            texts.VapourSynthSmartDftTestItem,
-            s => VapourSynthSmartScriptEditor.ApplyFilterTemplate(s, 0, "core.dfttest.DFTTest({var}, sigma=2.0)"),
-            requiredNamespace: "dfttest"));
-        denoiseSub.Items.Add(MakeFilterItem(
-            texts.VapourSynthSmartBm3dItem,
-            s => VapourSynthSmartScriptEditor.ApplyFilterTemplate(s, 0, "BM3D.denoise({var}, sigma=1.5, tr=2)", fromModule: "vsdenoise", fromSymbol: "BM3D"),
-            requiredPackage: "vsdenoise"));
-        denoiseSub.Items.Add(MakeFilterItem(
-            texts.VapourSynthSmartKnlMeansItem,
-            s => VapourSynthSmartScriptEditor.ApplyFilterTemplate(s, 0, "core.knlm.KNLMeansCL({var}, d=1, a=2, h=0.8)"),
-            requiredNamespace: "knlm"));
-        denoiseSub.Items.Add(MakeFilterItem(
-            texts.VapourSynthSmartSmDegrainItem,
-            s => VapourSynthSmartScriptEditor.ApplyFilterTemplate(s, 0, "{alias}.SMDegrain({var}, tr=2, thSAD=150, prefilter=2)", importModule: "havsfunc", importAlias: "haf"),
-            requiredPackage: "havsfunc"));
-        SmartInsertMenuFlyout.Items.Add(denoiseSub);
-
-        var aaSub = new MenuFlyoutSubItem { Text = texts.VapourSynthSmartCategoryAaScale };
-        aaSub.Items.Add(MakeFilterItem(
-            texts.VapourSynthSmartBasedAaItem,
-            s => VapourSynthSmartScriptEditor.ApplyFilterTemplate(s, 0, "based_aa({var}, rfactor=2.0)", fromModule: "vsaa", fromSymbol: "based_aa"),
-            requiredPackage: "vsaa"));
-        aaSub.Items.Add(MakeFilterItem(
-            texts.VapourSynthSmartFineDehaloItem,
-            s => VapourSynthSmartScriptEditor.ApplyFilterTemplate(s, 0, "fine_dehalo({var}, rx=2.0, ry=2.0)", fromModule: "vsdehalo", fromSymbol: "fine_dehalo"),
-            requiredPackage: "vsdehalo"));
-        aaSub.Items.Add(MakeFilterItem(
-            texts.VapourSynthSmartHafDehaloItem,
-            s => VapourSynthSmartScriptEditor.ApplyFilterTemplate(s, 0, "{alias}.FineDehalo({var}, rx=2.0, ry=2.0)", importModule: "havsfunc", importAlias: "haf"),
-            requiredPackage: "havsfunc"));
-        aaSub.Items.Add(new MenuFlyoutSeparator());
-        aaSub.Items.Add(MakeFilterItem(
-            texts.VapourSynthSmartResizeSpline36Item,
-            s => VapourSynthSmartScriptEditor.ApplyFilterTemplate(s, 0, "{var}.resize.Spline36(width=1920, height=1080)"),
-            requiredNamespace: "resize"));
-        aaSub.Items.Add(MakeFilterItem(
-            texts.VapourSynthSmartDescaleItem,
-            s => VapourSynthSmartScriptEditor.ApplyFilterTemplate(s, 0, "core.descale.Debicubic({var}, width=1280, height=720, b=0.0, c=0.5)"),
-            requiredNamespace: "descale"));
-        SmartInsertMenuFlyout.Items.Add(aaSub);
-
-        var maskSub = new MenuFlyoutSubItem { Text = texts.VapourSynthSmartCategoryMaskDebug };
-        maskSub.Items.Add(MakeFilterItem(
-            texts.VapourSynthSmartMaskedMergeItem,
-            s => VapourSynthSmartScriptEditor.ApplyMaskedMerge(s, 0),
-            requiredNamespace: "std"));
-        maskSub.Items.Add(MakeFilterItem(
-            texts.VapourSynthSmartReplaceRangesItem,
-            s => VapourSynthSmartScriptEditor.ApplyReplaceRanges(s, 0, [new PreviewSceneRange(0, 100)]),
-            requiredPackage: "vstools"));
-        maskSub.Items.Add(MakeFilterItem(
-            texts.VapourSynthSmartFrameInfoItem,
-            s => VapourSynthSmartScriptEditor.ApplyFilterTemplate(s, 0, "{alias}.FrameInfo({var}, title=\"Clip\")", importModule: "awsmfunc", importAlias: "awf"),
-            requiredPackage: "awsmfunc"));
-        SmartInsertMenuFlyout.Items.Add(maskSub);
+            foreach (var template in group)
+            {
+                var required = template.Requires ?? [];
+                if (template.Symbol is not null)
+                    required = [.. required, $"{template.Module}.{template.Symbol}"];
+                var missing = _latestLanguageFeatures?.IsRuntimeReady == true
+                    ? required.Where(requirement => !available.Contains(requirement)).ToArray()
+                    : [];
+                var label = texts.Pick(template.Zh, template.En);
+                var item = new MenuFlyoutItem
+                {
+                    IsEnabled = missing.Length == 0,
+                    Text = missing.Length == 0
+                        ? label
+                        : label + texts.VapourSynthSmartMissingDepSuffix(string.Join(", ", missing))
+                };
+                item.Click += async (_, _) => await RunUiActionAsync(() =>
+                    ApplySmartEditorRewriteAsync(script => ApplySmartFilterTemplate(script, template, texts.IsChinese)));
+                menu.Items.Add(item);
+            }
+            SmartInsertMenuFlyout.Items.Add(menu);
+        }
 
         SmartInsertMenuFlyout.Items.Add(new MenuFlyoutSeparator());
 
@@ -905,6 +787,27 @@ public sealed partial class VapourSynthWorkspaceView : UserControl, IDisposable
         quickFixItem.Click += async (_, _) => await RunUiActionAsync(() => ExecuteEditorCommandAsync("quickFix"));
         SmartInsertMenuFlyout.Items.Add(quickFixItem);
     }
+
+    private static SmartScriptEditResult ApplySmartFilterTemplate(string script, SmartFilterTemplate template, bool isChinese)
+    {
+        static string ExpandDefaults(string text) => System.Text.RegularExpressions.Regex.Replace(text, @"\{\d+:([^{}]*)\}", "$1")
+            .Replace("{clip}", "{var}", StringComparison.Ordinal);
+        return VapourSynthSmartScriptEditor.ApplyFilterTemplate(
+            script, 0, ExpandDefaults(template.Expression),
+            importModule: template.Alias is null ? null : template.Module,
+            importAlias: template.Alias,
+            fromModule: template.Symbol is null ? null : template.Module,
+            fromSymbol: template.Symbol,
+            derivedVariableName: template.Output,
+            setup: template.Setup?.Select(ExpandDefaults).ToArray(),
+            comments: isChinese ? template.Comments?.Zh : template.Comments?.En);
+    }
+
+    private sealed record SmartFilterTemplate(string Id, string Group, string Zh, string En, string Expression,
+        string? Module, string? Alias, string? Symbol, string? Output, string[]? Requires, string[]? Setup,
+        SmartFilterComments? Comments);
+
+    private sealed record SmartFilterComments(string[] Zh, string[] En);
 
     private async Task ToggleBeforeAfterCompareAsync()
     {
@@ -1584,7 +1487,7 @@ public sealed partial class VapourSynthWorkspaceView : UserControl, IDisposable
             ViewModel.SetWorkspaceStatus(texts => texts.VapourSynthLanguageRuntimeUnavailableStatus(snapshot.RuntimeSummary));
         }
 
-        await pane.LoadLanguageFeaturesAsync(snapshot);
+        await pane.LoadLanguageFeaturesAsync(snapshot, ViewModel.Texts.Pick("zh", "en"));
     }
 
     private async Task ApplyEditorThemeAsync(ElementTheme actualTheme)

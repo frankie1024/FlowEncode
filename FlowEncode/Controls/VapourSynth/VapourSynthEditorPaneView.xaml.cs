@@ -190,7 +190,7 @@ public sealed partial class VapourSynthEditorPaneView : UserControl, IDisposable
         LoadFailed?.Invoke(this, message);
     }
 
-    public async Task LoadLanguageFeaturesAsync(object snapshot)
+    public async Task LoadLanguageFeaturesAsync(object snapshot, string language)
     {
         if (!IsEditorReady)
         {
@@ -198,7 +198,8 @@ public sealed partial class VapourSynthEditorPaneView : UserControl, IDisposable
         }
 
         var payload = JsonSerializer.Serialize(snapshot, VapourSynthWorkspaceView.BridgeJsonOptions);
-        await EditorWebView.ExecuteScriptAsync($"window.vsWorkspaceHost.loadLanguageFeatures({payload});");
+        var locale = JsonSerializer.Serialize(language);
+        await EditorWebView.ExecuteScriptAsync($"window.vsWorkspaceHost.loadLanguageFeatures({payload}, {locale});");
     }
 
     public async Task ApplyThemeAsync(ElementTheme actualTheme)

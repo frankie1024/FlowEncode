@@ -13,10 +13,6 @@ public interface ISetupBootstrapService
         EnvironmentReadinessReport readiness,
         CancellationToken cancellationToken = default);
 
-    Task RefreshVsPluginPackageDefinitionsAsync(
-        EnvironmentReadinessReport? readiness = null,
-        CancellationToken cancellationToken = default);
-
     Task InstallAsync(
         SetupDependencyKind kind,
         IProgress<SetupInstallProgress>? progress = null,
@@ -29,6 +25,18 @@ public interface ISetupBootstrapService
     Task DownloadDeewComponentsAsync(string executablePath,
         IProgress<SetupInstallProgress>? progress = null, CancellationToken cancellationToken = default)
         => Task.FromException(new NotSupportedException("Downloading deew components is not supported by this provider."));
+
+    Task InstallVapourSynthPluginAsync(string packageName, string pythonPath,
+        IProgress<SetupInstallProgress>? progress = null, CancellationToken cancellationToken = default)
+        => Task.FromException(new NotSupportedException("Installing VapourSynth plugins is not supported by this provider."));
+
+    Task UpdateVapourSynthPluginAsync(string packageName, string pythonPath,
+        IProgress<SetupInstallProgress>? progress = null, CancellationToken cancellationToken = default)
+        => Task.FromException(new NotSupportedException("Updating VapourSynth plugins is not supported by this provider."));
+
+    Task UninstallVapourSynthPluginAsync(string packageName, string pythonPath,
+        IProgress<SetupInstallProgress>? progress = null, CancellationToken cancellationToken = default)
+        => Task.FromException(new NotSupportedException("Uninstalling VapourSynth plugins is not supported by this provider."));
 
     Task UninstallAsync(
         SetupDependencyKind kind,

@@ -429,7 +429,7 @@ public sealed partial class VapourSynthPreviewWindow : Window
             _previewLifetimeToken.ThrowIfCancellationRequested();
             ViewModel.ApplySessionCapabilities(
                 _currentSession.HasVsAlign,
-                _currentSession.HasVmafCambi,
+                _currentSession.HasCambi,
                 _currentSession.HasNativeRes);
             ViewModel.ResetForSession(
                 _currentRequest.DisplayName,

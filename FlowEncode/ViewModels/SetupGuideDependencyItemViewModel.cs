@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using FlowEncode.Domain;
 using Microsoft.UI.Xaml;
 
@@ -25,6 +26,8 @@ public sealed class SetupGuideDependencyItemViewModel : CommunityToolkit.Mvvm.Co
                 OnPropertyChanged(nameof(UninstallActionEnabled));
                 OnPropertyChanged(nameof(ManualSelectEnabled));
                 OnPropertyChanged(nameof(ClearManualPinEnabled));
+                OnPropertyChanged(nameof(CanInstallOtherPlugins));
+                OnPropertyChanged(nameof(OtherPluginControlsEnabled));
             }
         }
     }
@@ -62,14 +65,11 @@ public sealed class SetupGuideDependencyItemViewModel : CommunityToolkit.Mvvm.Co
     public SetupGuideDependencyItemViewModel(
         SetupDependencyKind kind,
         string title,
-        string description,
         ReadinessState state,
         string statusTitle,
+        string inlineStatusText,
         string statusText,
-        string installedVersionText,
-        string latestVersionText,
         string warningText,
-        string detailText,
         string executablePath,
         string releaseUrl,
         string primaryActionText,
@@ -82,24 +82,19 @@ public sealed class SetupGuideDependencyItemViewModel : CommunityToolkit.Mvvm.Co
         string moreActionText = "More",
         string advancedUpdateText = "Update tool (not recommended)",
         bool isUpdateAction = false,
-        string recommendedVersionHelp = "",
-        string upgradeHelp = "")
+        string recommendedVersionHelp = "")
     {
         Kind = kind;
         RecommendedVersionHelp = recommendedVersionHelp;
-        UpgradeHelp = upgradeHelp;
         IsUpdateAction = isUpdateAction;
         MoreActionText = moreActionText;
         AdvancedUpdateText = advancedUpdateText;
         Title = title;
-        Description = description;
         State = state;
         StatusTitle = statusTitle;
+        InlineStatusText = inlineStatusText;
         StatusText = statusText;
-        InstalledVersionText = installedVersionText;
-        LatestVersionText = latestVersionText;
         WarningText = warningText;
-        DetailText = detailText;
         ExecutablePath = executablePath;
         ReleaseUrl = releaseUrl;
         PrimaryActionText = primaryActionText;
@@ -114,17 +109,26 @@ public sealed class SetupGuideDependencyItemViewModel : CommunityToolkit.Mvvm.Co
 
     public string PrimaryActionToolTip => string.IsNullOrWhiteSpace(RecommendedVersionHelp) ? PrimaryActionText : RecommendedVersionHelp;
     public string RecommendedVersionHelp { get; }
-    public string UpgradeHelp { get; }
     public SetupDependencyKind Kind { get; }
     public bool IsUpdateAction { get; }
     public Visibility SettingsPrimaryActionVisibility => IsUpdateAction ? Visibility.Collapsed : PrimaryActionVisibility;
-    public Visibility MoreActionsVisibility => IsManualSelectVisible || IsManualPinned || ToolchainBaseline.HasBaseline(Kind) || IsUpdateAction || !string.IsNullOrWhiteSpace(ReleaseUrl) ? Visibility.Visible : Visibility.Collapsed;
+    public Visibility MoreActionsVisibility => IsManualSelectVisible || IsManualPinned || ToolchainBaseline.HasBaseline(Kind) || IsUpdateAction
+        || !string.IsNullOrWhiteSpace(ReleaseUrl) ? Visibility.Visible : Visibility.Collapsed;
     public string MoreActionText { get; }
     public string AdvancedUpdateText { get; }
     public Visibility AdvancedUpdateVisibility => ToolchainBaseline.HasBaseline(Kind) ? Visibility.Visible : Visibility.Collapsed;
     public bool AdvancedUpdateEnabled => !IsBusy;
 
-    public Visibility DeewComponentsDownloadVisibility => Kind == SetupDependencyKind.Deew ? Visibility.Visible : Visibility.Collapsed;
+    public IReadOnlyList<PythonPackageStatus> PythonPackages { get; init; } = [];
+    public IReadOnlyList<OtherVapourSynthPluginItem> OtherPlugins { get; init; } = [];
+    public Visibility OtherPluginsVisibility => Kind == SetupDependencyKind.VapourSynthUtilityPlugins ? Visibility.Visible : Visibility.Collapsed;
+    public bool IsOtherPluginInstallationAvailable { get; init; }
+    public bool OtherPluginControlsEnabled => !IsBusy;
+    public bool CanInstallOtherPlugins => IsOtherPluginInstallationAvailable && OtherPluginControlsEnabled;
+
+    public Visibility JetpackPackagesVisibility => Kind == SetupDependencyKind.Vsjetpack && PythonPackages.Count > 0
+        ? Visibility.Visible
+        : Visibility.Collapsed;
 
     public bool DeewComponentsDownloadEnabled => Kind == SetupDependencyKind.Deew && !IsBusy
         && State == ReadinessState.Ready && !string.IsNullOrWhiteSpace(ExecutablePath);
@@ -132,23 +136,22 @@ public sealed class SetupGuideDependencyItemViewModel : CommunityToolkit.Mvvm.Co
 
     public string Title { get; }
 
-    public string Description { get; }
 
     public ReadinessState State { get; }
 
     public string StatusTitle { get; }
 
+    public string InlineStatusText { get; }
+    public Visibility InlineStatusVisibility => string.IsNullOrWhiteSpace(InlineStatusText) ? Visibility.Collapsed : Visibility.Visible;
+
     public string StatusText { get; }
-
-    public string InstalledVersionText { get; }
-
-    public string LatestVersionText { get; }
+    public Visibility StatusTextVisibility => string.IsNullOrWhiteSpace(StatusText) ? Visibility.Collapsed : Visibility.Visible;
 
     public string WarningText { get; }
 
-    public string DetailText { get; }
 
     public string ExecutablePath { get; }
+
 
     public string ReleaseUrl { get; }
 
@@ -161,6 +164,7 @@ public sealed class SetupGuideDependencyItemViewModel : CommunityToolkit.Mvvm.Co
     public bool IsUninstallVisible { get; }
 
     public bool IsUninstallBaseEnabled { get; }
+    public string UninstallToolTip { get; init; } = string.Empty;
 
     public bool IsManualSelectVisible { get; }
 
@@ -172,15 +176,7 @@ public sealed class SetupGuideDependencyItemViewModel : CommunityToolkit.Mvvm.Co
 
     public Visibility BlockedBadgeVisibility => State is ReadinessState.Missing or ReadinessState.Misconfigured ? Visibility.Visible : Visibility.Collapsed;
 
-    public Visibility InstalledVersionVisibility => string.IsNullOrWhiteSpace(InstalledVersionText) ? Visibility.Collapsed : Visibility.Visible;
-
-    public Visibility LatestVersionVisibility => string.IsNullOrWhiteSpace(LatestVersionText) ? Visibility.Collapsed : Visibility.Visible;
-
     public Visibility WarningVisibility => string.IsNullOrWhiteSpace(WarningText) ? Visibility.Collapsed : Visibility.Visible;
-
-    public Visibility DetailVisibility => string.IsNullOrWhiteSpace(DetailText) ? Visibility.Collapsed : Visibility.Visible;
-
-    public Visibility PathVisibility => string.IsNullOrWhiteSpace(ExecutablePath) ? Visibility.Collapsed : Visibility.Visible;
 
     public Visibility PrimaryActionVisibility => IsPrimaryActionVisible ? Visibility.Visible : Visibility.Collapsed;
 
@@ -226,4 +222,13 @@ public sealed class SetupGuideDependencyItemViewModel : CommunityToolkit.Mvvm.Co
         IsInstallIndeterminate = false;
         IsBusy = false;
     }
+}
+
+public sealed record OtherVapourSynthPluginItem(
+    string Name, string Label, string Status, string InstallLabel, string UpdateLabel, string UninstallLabel,
+    string UninstallAutomationName, bool IsInstalled, bool CanInstall)
+{
+    public string Summary => $"{Label} · {Status}";
+    public Visibility InstallVisibility => IsInstalled ? Visibility.Collapsed : Visibility.Visible;
+    public Visibility UpdateVisibility => IsInstalled ? Visibility.Visible : Visibility.Collapsed;
 }

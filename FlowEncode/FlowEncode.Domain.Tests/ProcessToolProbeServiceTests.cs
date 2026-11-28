@@ -98,65 +98,22 @@ public sealed class ProcessToolProbeServiceTests
     }
 
     [TestMethod]
-    [DataRow("vsrepo-clean-profile", 2)]
-    [DataRow("vsrepo-existing-profile", 1)]
-    public async Task VsrepoPluginProbe_UsesPinnedManifestWhenUserManifestIsUnavailable(string scenario, int expectedCalls)
+    public void KnownVapourSynthPlugins_KeepDefaultsAndDeduplicatePreviouslyTrackedNames()
     {
-        var pythonPath = CopyToolStub("python", scenario);
-        var service = CreateVsrepoProbe(RegisteredToolKind.VsrepoPackageFfms2, pythonPath);
+        var paths = new LocalAppPaths(_testRoot, _testRoot);
+        string[] defaults =
+        [
+            "vapoursynth-fillborders", "vsfpng", "vapoursynth-autocrop", "vapoursynth-cas",
+            "vapoursynth-dedot", "vapoursynth-edgefixer", "vapoursynth-scxvid"
+        ];
+        CollectionAssert.AreEqual(defaults, LocalVapourSynthPluginList.Read(paths).ToArray());
 
-        var result = await service.ProbeAsync(RegisteredToolKind.VsrepoPackageFfms2);
+        var savedList = Path.Combine(paths.SettingsRootPath, "vapoursynth-plugins.txt");
+        File.WriteAllLines(savedList, ["vapoursynth-autocrop", "VapourSynth.CAS", "example-plugin"]);
+        LocalVapourSynthPluginList.Track(paths, "vapoursynth-scxvid");
 
-        Assert.AreEqual(ReadinessState.Ready, result.State, result.FailureReason);
-        Assert.AreEqual(expectedCalls, File.ReadAllLines(Path.Combine(_testRoot, "python-calls.log")).Length);
-    }
-
-    [TestMethod]
-    public async Task VsrepoLauncherProbe_CanRunWithoutUserManifest()
-    {
-        var launcherPath = CopyToolStub("vsrepo", "vsrepo-clean-profile");
-        var service = CreateVsrepoProbe(RegisteredToolKind.VsrepoCli, launcherPath);
-
-        var result = await service.ProbeAsync(RegisteredToolKind.VsrepoCli);
-
-        Assert.AreEqual(ReadinessState.Ready, result.State, result.FailureReason);
-        Assert.AreEqual("--help", File.ReadAllLines(Path.Combine(_testRoot, "vsrepo-calls.log")).Single());
-    }
-
-    private string CopyToolStub(string tool, string scenario)
-    {
-        foreach (var file in Directory.EnumerateFiles(Path.Combine(AppContext.BaseDirectory, "ToolStub")))
-        {
-            File.Copy(file, Path.Combine(_testRoot, Path.GetFileName(file)));
-        }
-
-        var extension = OperatingSystem.IsWindows() ? ".exe" : string.Empty;
-        var executablePath = Path.Combine(_testRoot, tool + extension);
-        File.Copy(Path.Combine(_testRoot, "FlowEncode.ToolStub" + extension), executablePath);
-        if (!OperatingSystem.IsWindows())
-        {
-            File.SetUnixFileMode(executablePath, UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute);
-        }
-
-        File.WriteAllText(Path.Combine(_testRoot, "business-scenario.txt"), scenario);
-        return executablePath;
-    }
-
-    private ProcessToolProbeService CreateVsrepoProbe(RegisteredToolKind kind, string executablePath)
-    {
-        var definition = new DefaultToolRegistryService().GetTool(kind) with { SearchLocations = ToolSearchLocation.None };
-        var settings = new CountingSettingsService(AppSettings.Default with
-        {
-            ManualToolPaths = new Dictionary<string, string>
-            {
-                [ManualToolPathKeys.ForRegisteredTool(kind)] = executablePath
-            }
-        });
-        return new ProcessToolProbeService(
-            new StubToolRegistryService(definition),
-            new LocalAppPaths(_testRoot, _testRoot),
-            new StubEncoderDiscoveryService(),
-            settings);
+        CollectionAssert.AreEqual(new[] { "vapoursynth-autocrop", "VapourSynth.CAS", "example-plugin" }, File.ReadAllLines(savedList));
+        CollectionAssert.AreEqual(defaults.Append("example-plugin").ToArray(), LocalVapourSynthPluginList.Read(paths).ToArray());
     }
 
     private sealed class CountingSettingsService : IAppSettingsService

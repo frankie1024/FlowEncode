@@ -957,22 +957,10 @@ internal sealed partial class SourceVideoInfoProbe
 
     private static string? MapVapourSynthRange(JsonElement root)
     {
-        var range = TryGetJsonInt(root, "_Range");
-        if (range.HasValue)
+        return TryGetJsonInt(root, "_Range") switch
         {
-            return range.Value switch
-            {
-                0 => "tv",
-                1 => "pc",
-                _ => null
-            };
-        }
-
-        var legacyRange = TryGetJsonInt(root, "_ColorRange");
-        return legacyRange switch
-        {
-            0 => "pc",
-            1 => "tv",
+            0 => "tv",
+            1 => "pc",
             _ => null
         };
     }

@@ -8,7 +8,6 @@ using System.Text.RegularExpressions;
 using FlowEncode.Application;
 using FlowEncode.Domain;
 using Microsoft.Win32;
-using SharpCompress.Archives.SevenZip;
 
 namespace FlowEncode.Infrastructure;
 
@@ -24,22 +23,7 @@ public sealed class SetupBootstrapService : ISetupBootstrapService, IDisposable
         "92480239264744fe0386a1bd8275786fefa126e3129e56a68e22b52c73329965",
         "https://www.python.org/downloads/release/python-31410/");
     private const string VapourSynthReleaseUrl = "https://www.vapoursynth.com/doc/installation.html";
-    private const string Portable7ZipFileName = "7z2602-extra.7z";
-    private const string Portable7ZipDownloadUrl = "https://github.com/ip7z/7zip/releases/download/26.02/7z2602-extra.7z";
-    private const string Portable7ZipSha256 = "081df9e9311dfd9c9e0e98c1c80180b99bb51e4cb24156b5f3057fe3c259d70a";
-    private const string Portable7ZipExecutableSha256 = "35d4d69d7cd6cb44558f208c3b1334268013f9daf82d2dda848893a1c30c59c2";
     private static readonly IReadOnlyList<string> PythonInstallerPublishers = ["Python Software Foundation"];
-    private static readonly IReadOnlyList<string> VsrepoPackageNames = ["ffms2", "fpng", "libp2p", "lsmas", "placebo", "mvsfunc", "havsfunc"];
-    private static readonly IReadOnlyList<RegisteredToolKind> VsrepoPackageToolKinds =
-    [
-        RegisteredToolKind.VsrepoPackageFfms2,
-        RegisteredToolKind.VsrepoPackageFpng,
-        RegisteredToolKind.VsrepoPackageLibp2p,
-        RegisteredToolKind.VsrepoPackageLsmas,
-        RegisteredToolKind.VsrepoPackagePlacebo,
-        RegisteredToolKind.VsrepoPackageMvsfunc,
-        RegisteredToolKind.VsrepoPackageHavsfunc
-    ];
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
 
     private readonly LocalAppPaths _paths;
@@ -90,15 +74,6 @@ public sealed class SetupBootstrapService : ISetupBootstrapService, IDisposable
         return GetLocalStatusReportCoreAsync(readiness, previousReport, cancellationToken);
     }
 
-    public Task RefreshVsPluginPackageDefinitionsAsync(
-        EnvironmentReadinessReport? readiness = null,
-        CancellationToken cancellationToken = default)
-    {
-        cancellationToken.ThrowIfCancellationRequested();
-        VsrepoCommand.PrepareBaseline(_paths);
-        return Task.CompletedTask;
-    }
-
     public async Task InstallAsync(
         SetupDependencyKind kind,
         IProgress<SetupInstallProgress>? progress = null,
@@ -118,6 +93,89 @@ public sealed class SetupBootstrapService : ISetupBootstrapService, IDisposable
         IProgress<SetupInstallProgress>? progress = null, CancellationToken cancellationToken = default) =>
         DeewComponentInstaller.InstallAsync(executablePath, _apiHttpClient, _downloadHttpClient, progress, cancellationToken);
 
+    public Task InstallVapourSynthPluginAsync(string packageName, string pythonPath,
+        IProgress<SetupInstallProgress>? progress = null, CancellationToken cancellationToken = default)
+        => InstallVapourSynthPluginCoreAsync(packageName, pythonPath, false, progress, cancellationToken);
+
+    public Task UpdateVapourSynthPluginAsync(string packageName, string pythonPath,
+        IProgress<SetupInstallProgress>? progress = null, CancellationToken cancellationToken = default)
+        => InstallVapourSynthPluginCoreAsync(packageName, pythonPath, true, progress, cancellationToken);
+
+    private async Task InstallVapourSynthPluginCoreAsync(string packageName, string pythonPath, bool upgrade,
+        IProgress<SetupInstallProgress>? progress, CancellationToken cancellationToken)
+    {
+        const SetupDependencyKind kind = SetupDependencyKind.VapourSynthUtilityPlugins;
+        var name = NormalizeVapourSynthPluginName(packageName);
+        pythonPath = await ValidateVapourSynthPluginPythonAsync(pythonPath, cancellationToken);
+        var runtimeVersion = await QueryPythonDistributionVersionAsync(pythonPath, "vapoursynth", cancellationToken, propagateProbeFailure: true);
+        if (string.IsNullOrWhiteSpace(runtimeVersion))
+            throw new InvalidOperationException("VapourSynth must be installed in the selected Python environment first.");
+        if (upgrade && string.IsNullOrWhiteSpace(await QueryPythonDistributionVersionAsync(
+            pythonPath, name, cancellationToken, propagateProbeFailure: true)))
+        {
+            throw new InvalidOperationException($"{name} is no longer installed in the selected Python environment.");
+        }
+
+        var isRequired = VapourSynthPluginNames.Required.Contains(name);
+        IReadOnlyList<string> packageOptions = isRequired
+            ? ["--force-reinstall", "--no-deps", name]
+            : [name, $"vapoursynth=={runtimeVersion}"];
+        IReadOnlyList<string> upgradeOptions = upgrade ? ["--upgrade"] : [];
+
+        // Remember the request even if pip is interrupted after writing the package.
+        LocalVapourSynthPluginList.Track(_paths, name);
+        ReportProgress(progress, kind, 10, upgrade ? $"Updating {name}..." : $"Installing {name}...");
+        await RunProcessAsync(pythonPath,
+            ["-m", "pip", "install", "--disable-pip-version-check", "--no-input", "--progress-bar", "off",
+                "--only-binary=:all:", "--extra-index-url", VapourSynthToolchainPolicy.VsWheelsIndex,
+                .. upgradeOptions, .. packageOptions],
+            cancellationToken, timeoutMs: 600_000,
+            onOutput: line => ReportProgress(progress, kind, MapPipProgress(line, 95), line),
+            onError: line => ReportProgress(progress, kind, MapPipProgress(line, 95), line));
+
+        if (string.IsNullOrWhiteSpace(await QueryPythonDistributionVersionAsync(pythonPath, name, cancellationToken, propagateProbeFailure: true)))
+            throw new InvalidOperationException($"pip completed, but {name} could not be found in the selected Python environment.");
+        if (isRequired)
+        {
+            await RunProcessAsync(pythonPath, ["-c", ProcessToolProbeService.VapourSynthUtilityPluginsProbeScript, "--only", name],
+                cancellationToken, timeoutMs: 30_000);
+        }
+        ReportProgress(progress, kind, 100, upgrade ? $"{name} is up to date." : $"{name} was installed.");
+    }
+
+    public async Task UninstallVapourSynthPluginAsync(string packageName, string pythonPath,
+        IProgress<SetupInstallProgress>? progress = null, CancellationToken cancellationToken = default)
+    {
+        const SetupDependencyKind kind = SetupDependencyKind.VapourSynthUtilityPlugins;
+        var name = NormalizeVapourSynthPluginName(packageName);
+        if (!LocalVapourSynthPluginList.Read(_paths).Contains(name))
+            throw new InvalidOperationException("This package is not listed under Other Plugins.");
+
+        pythonPath = await ValidateVapourSynthPluginPythonAsync(pythonPath, cancellationToken);
+        ReportProgress(progress, kind, 15, $"Uninstalling {name}...");
+        await RunProcessAsync(pythonPath, ["-m", "pip", "uninstall", "--yes", name], cancellationToken, timeoutMs: 600_000,
+            onOutput: line => ReportProgress(progress, kind, 50, line),
+            onError: line => ReportProgress(progress, kind, 50, line));
+        if (!string.IsNullOrWhiteSpace(await QueryPythonDistributionVersionAsync(pythonPath, name, cancellationToken, propagateProbeFailure: true)))
+            throw new InvalidOperationException($"{name} is still installed in the selected Python environment.");
+        ReportProgress(progress, kind, 100, $"{name} was removed.");
+    }
+
+    private static string NormalizeVapourSynthPluginName(string packageName) =>
+        VapourSynthPluginNames.Normalize(packageName) is { } name && !VapourSynthPluginNames.IsManagedSeparately(name)
+            ? name
+            : throw new ArgumentException("Enter a package name that can be managed under Other Plugins.", nameof(packageName));
+
+    private async Task<string> ValidateVapourSynthPluginPythonAsync(string pythonPath, CancellationToken cancellationToken)
+    {
+        var installation = File.Exists(pythonPath)
+            ? await ProbePythonInstallationAsync(pythonPath, cancellationToken)
+            : null;
+        if (installation is null || !PythonRuntimeCompatibility.IsSupportedRuntime(installation.Version, installation.Is64Bit))
+            throw new InvalidOperationException("The Python environment shown on the plugin card is no longer available or supported. Refresh the environment and try again.");
+        return installation.ExecutablePath;
+    }
+
     private async Task InstallCoreAsync(SetupDependencyKind kind, IProgress<SetupInstallProgress>? progress,
         CancellationToken cancellationToken, bool useBaseline)
     {
@@ -125,10 +183,9 @@ public sealed class SetupBootstrapService : ISetupBootstrapService, IDisposable
         {
             SetupDependencyKind.Python312 => InstallPythonAsync(progress, cancellationToken, useBaseline),
             SetupDependencyKind.VapourSynth => InstallVapourSynthAsync(progress, cancellationToken, useBaseline),
-            SetupDependencyKind.Vsrepo => InstallPythonPackageAsync(kind, "vsrepo", progress, cancellationToken, useBaseline),
-            SetupDependencyKind.VsPluginBundle => InstallVsPluginBundleAsync(progress, cancellationToken, useBaseline),
             SetupDependencyKind.Awsmfunc => InstallPythonPackageAsync(kind, "awsmfunc", progress, cancellationToken, useBaseline),
-            SetupDependencyKind.Vsjetpack => InstallPythonPackageAsync(kind, "vsjetpack", progress, cancellationToken, useBaseline),
+            SetupDependencyKind.Vsjetpack => InstallPythonPackageAsync(kind, VapourSynthToolchainPolicy.VsjetpackPackageSpec, progress, cancellationToken),
+            SetupDependencyKind.VapourSynthUtilityPlugins => InstallVapourSynthUtilityPluginsAsync(progress, cancellationToken),
             SetupDependencyKind.FfmpegBundle => InstallLatestToolAsync(ExternalToolKind.Ffmpeg, kind, progress, cancellationToken, useBaseline),
             SetupDependencyKind.X264 => InstallLatestEncoderAsync(EncoderKind.X264, kind, progress, cancellationToken, useBaseline),
             SetupDependencyKind.X265 => InstallLatestEncoderAsync(EncoderKind.X265, kind, progress, cancellationToken, useBaseline),
@@ -140,10 +197,9 @@ public sealed class SetupBootstrapService : ISetupBootstrapService, IDisposable
         string? pythonPath = null;
         if (kind is SetupDependencyKind.Python312
             or SetupDependencyKind.VapourSynth
-            or SetupDependencyKind.Vsrepo
-            or SetupDependencyKind.VsPluginBundle
             or SetupDependencyKind.Awsmfunc
-            or SetupDependencyKind.Vsjetpack)
+            or SetupDependencyKind.Vsjetpack
+            or SetupDependencyKind.VapourSynthUtilityPlugins)
         {
             pythonPath = await ResolvePreferredPythonAsync(cancellationToken);
         }
@@ -161,8 +217,6 @@ public sealed class SetupBootstrapService : ISetupBootstrapService, IDisposable
         {
             SetupDependencyKind.Python312 => UninstallPythonAsync(progress, cancellationToken),
             SetupDependencyKind.VapourSynth => UninstallPythonPackageAsync(kind, "vapoursynth", progress, cancellationToken),
-            SetupDependencyKind.Vsrepo => UninstallPythonPackageAsync(kind, "vsrepo", progress, cancellationToken),
-            SetupDependencyKind.VsPluginBundle => UninstallVsPluginBundleAsync(progress, cancellationToken),
             SetupDependencyKind.Awsmfunc => UninstallPythonPackageAsync(kind, "awsmfunc", progress, cancellationToken),
             SetupDependencyKind.Vsjetpack => UninstallPythonPackageAsync(kind, "vsjetpack", progress, cancellationToken),
             SetupDependencyKind.FfmpegBundle => UninstallManagedToolAsync(ExternalToolKind.Ffmpeg, kind, progress, cancellationToken),
@@ -186,8 +240,6 @@ public sealed class SetupBootstrapService : ISetupBootstrapService, IDisposable
         {
             SetupDependencyKind.Python312 => CliEnvironmentIntegrationService.GetPythonComponentKey(),
             SetupDependencyKind.VapourSynth => CliEnvironmentIntegrationService.GetPythonPackageComponentKey("vapoursynth"),
-            SetupDependencyKind.Vsrepo => CliEnvironmentIntegrationService.GetPythonPackageComponentKey("vsrepo"),
-            SetupDependencyKind.VsPluginBundle => CliEnvironmentIntegrationService.GetVsPluginBundleComponentKey(),
             SetupDependencyKind.Awsmfunc => CliEnvironmentIntegrationService.GetPythonPackageComponentKey("awsmfunc"),
             SetupDependencyKind.Vsjetpack => CliEnvironmentIntegrationService.GetPythonPackageComponentKey("vsjetpack"),
             _ => null
@@ -216,7 +268,7 @@ public sealed class SetupBootstrapService : ISetupBootstrapService, IDisposable
         SetupDependencyStatusReport? previousReport,
         CancellationToken cancellationToken)
     {
-        var localContext = await BuildLocalStatusContextAsync(readiness, refreshVsrepoPackageDefinitions: false, cancellationToken);
+        var localContext = await BuildLocalStatusContextAsync(readiness, cancellationToken);
         var localReport = BuildStatusReport(
             readiness,
             localContext,
@@ -231,7 +283,6 @@ public sealed class SetupBootstrapService : ISetupBootstrapService, IDisposable
 
     private async Task<SetupStatusLocalContext> BuildLocalStatusContextAsync(
         EnvironmentReadinessReport readiness,
-        bool refreshVsrepoPackageDefinitions,
         CancellationToken cancellationToken)
     {
         if (ReferenceEquals(readiness, _localContextReadiness) && _localContext is not null)
@@ -251,17 +302,13 @@ public sealed class SetupBootstrapService : ISetupBootstrapService, IDisposable
             && PythonRuntimeCompatibility.IsSupportedRuntime(version, is64Bit: true)
                 ? new PythonInstallation(version, python.ExecutablePath, true)
                 : null;
-        var vsrepoPackages = await QueryVsrepoInstalledPackagesAsync(
-            targetPython?.ExecutablePath, refreshVsrepoPackageDefinitions, cancellationToken);
         var deeStatus = await BuildDeeStatusAsync(readiness, cancellationToken);
 
         var context = new SetupStatusLocalContext(
             targetPython,
             null,
             targetPython is not null,
-            vsrepoPackages,
             GetToolResult(readiness, RegisteredToolKind.PythonModuleAwsmfunc).DetectedVersion,
-            GetToolResult(readiness, RegisteredToolKind.PythonModuleVsjetpack).DetectedVersion,
             deeStatus);
         _localContextReadiness = readiness;
         _localContext = context;
@@ -281,10 +328,9 @@ public sealed class SetupBootstrapService : ISetupBootstrapService, IDisposable
         {
             BuildPythonStatus(readiness, localContext.TargetPython, localContext.HighestPython, pythonInstallerPackage),
             BuildVapourSynthStatus(readiness, pypiVersions, localContext.CompatiblePythonReady),
-            BuildVsrepoStatus(readiness, pypiVersions, localContext.CompatiblePythonReady),
-            BuildVsPluginBundleStatus(readiness, localContext.VsrepoPackages, localContext.CompatiblePythonReady),
             BuildAwsmfuncStatus(readiness, localContext.AwsmfuncVersion, pypiVersions, localContext.CompatiblePythonReady),
-            BuildVsjetpackStatus(readiness, localContext.VsjetpackVersion, pypiVersions, localContext.CompatiblePythonReady),
+            BuildVsjetpackStatus(readiness, localContext.CompatiblePythonReady),
+            BuildVapourSynthUtilityPluginsStatus(readiness, localContext.CompatiblePythonReady),
             BuildFfmpegBundleStatus(readiness, toolUpdates),
             BuildEncoderStatus(readiness, RegisteredToolKind.X264, encoderUpdates),
             BuildEncoderStatus(readiness, RegisteredToolKind.X265, encoderUpdates),
@@ -341,7 +387,7 @@ public sealed class SetupBootstrapService : ISetupBootstrapService, IDisposable
                 true,
                 string.Join(
                     Environment.NewLine,
-                    [targetPython.ExecutablePath, $"pip: {BuildToolDetail(pip)}", "New installs use Python 3.14 x64; an existing working Python 3.12/3.13 environment can be kept. / 新安装采用 Python 3.14 x64；已有可用 3.12/3.13 环境可保留。"]));
+                    [$"pip: {BuildToolDetail(pip)}"]));
         }
 
         if (highestPython is not null)
@@ -360,7 +406,7 @@ public sealed class SetupBootstrapService : ISetupBootstrapService, IDisposable
                 installerPackage.ReleaseUrl,
                 true,
                 true,
-                highestPython.ExecutablePath);
+                string.Empty);
         }
 
         return new SetupDependencyStatus(
@@ -394,79 +440,7 @@ public sealed class SetupBootstrapService : ISetupBootstrapService, IDisposable
             VapourSynthToolchainPolicy.ReleaseUrl,
             true,
             targetPythonReady,
-            BuildToolDetail(probe) + Environment.NewLine
-                + "Recommended version: R79 (API3/API4). R80+ removes API3 and needs a separately validated plugin migration. / 推荐版本为 R79；升级 R80+ 前需要迁移并验证 API3 插件。");
-    }
-
-    private SetupDependencyStatus BuildVsrepoStatus(
-        EnvironmentReadinessReport readiness,
-        IReadOnlyDictionary<string, string> pypiVersions,
-        bool targetPythonReady)
-    {
-        var probe = GetToolResult(readiness, RegisteredToolKind.Vsrepo);
-        var cliProbe = GetToolResult(readiness, RegisteredToolKind.VsrepoCli);
-        var latestVersion = VapourSynthToolchainPolicy.VsrepoVersion;
-        var state = ResolveModuleAndCliReadiness(probe.State, cliProbe.State);
-
-        return new SetupDependencyStatus(
-            SetupDependencyKind.Vsrepo,
-            state,
-            probe.State == ReadinessState.Ready ? probe.DetectedVersion : string.Empty,
-            latestVersion,
-            AreVersionsComparableAndDifferent(probe.DetectedVersion, latestVersion),
-            string.IsNullOrWhiteSpace(cliProbe.ExecutablePath) ? probe.ExecutablePath : cliProbe.ExecutablePath,
-            probe.ReleaseUrl,
-            true,
-            targetPythonReady,
-            string.Join(
-                Environment.NewLine,
-                [$"module: {BuildToolDetail(probe)}", $"CLI: {BuildToolDetail(cliProbe)}"]));
-    }
-
-    private SetupDependencyStatus BuildVsPluginBundleStatus(
-        EnvironmentReadinessReport readiness,
-        IReadOnlyDictionary<string, VsrepoInstalledPackage> installedPackages,
-        bool targetPythonReady)
-    {
-        var packageResults = VsrepoPackageToolKinds
-            .Select(kind => GetToolResult(readiness, kind))
-            .ToArray();
-        var readyCount = packageResults.Count(static result => result.State == ReadinessState.Ready);
-        var updateAvailable = VsrepoPackageNames.Any(packageName =>
-        {
-            return installedPackages.TryGetValue(packageName, out var package)
-                && !string.IsNullOrWhiteSpace(package.InstalledVersion)
-                && !string.IsNullOrWhiteSpace(package.LatestVersion)
-                && !string.Equals(package.InstalledVersion, package.LatestVersion, StringComparison.OrdinalIgnoreCase);
-        });
-
-        var detailLines = VsrepoPackageToolKinds.Select(kind =>
-        {
-            var name = kind.ToDisplayName();
-            if (installedPackages.TryGetValue(name, out var package))
-            {
-                var latestSuffix = string.IsNullOrWhiteSpace(package.LatestVersion)
-                    ? string.Empty
-                    : $" -> {package.LatestVersion}";
-                return $"{name}: {package.InstalledVersion}{latestSuffix}";
-            }
-
-            return $"{name}: {GetToolResult(readiness, kind).State}";
-        });
-
-        return new SetupDependencyStatus(
-            SetupDependencyKind.VsPluginBundle,
-            ResolveCompositeState(packageResults),
-            MatchesVsrepoBaseline(installedPackages)
-                ? ToolchainBaseline.VersionFor(SetupDependencyKind.VsPluginBundle)
-                : $"{readyCount}/{VsrepoPackageToolKinds.Count}",
-            string.Empty,
-            updateAvailable,
-            string.Empty,
-            GetToolResult(readiness, RegisteredToolKind.Vsrepo).ReleaseUrl,
-            true,
-            targetPythonReady,
-            string.Join(Environment.NewLine, detailLines));
+            BuildToolDetail(probe));
     }
 
     private SetupDependencyStatus BuildAwsmfuncStatus(
@@ -490,26 +464,41 @@ public sealed class SetupBootstrapService : ISetupBootstrapService, IDisposable
             BuildToolDetail(probe));
     }
 
+    private static SetupDependencyStatus BuildVapourSynthUtilityPluginsStatus(
+        EnvironmentReadinessReport readiness,
+        bool targetPythonReady)
+    {
+        var probe = GetToolResult(readiness, RegisteredToolKind.VapourSynthUtilityPlugins);
+        var pythonPath = string.IsNullOrWhiteSpace(probe.ExecutablePath)
+            ? GetToolResult(readiness, RegisteredToolKind.Python).ExecutablePath
+            : probe.ExecutablePath;
+        var canInstall = targetPythonReady && !string.IsNullOrWhiteSpace(pythonPath)
+            && GetToolResult(readiness, RegisteredToolKind.Vspipe).IsReady;
+        return new SetupDependencyStatus(
+            SetupDependencyKind.VapourSynthUtilityPlugins, probe.State, string.Empty, string.Empty,
+            false, pythonPath, string.Empty, true, canInstall,
+            probe.PythonPackages is null ? probe.FailureReason : string.Empty,
+            PythonPackages: probe.PythonPackages);
+    }
+
     private SetupDependencyStatus BuildVsjetpackStatus(
         EnvironmentReadinessReport readiness,
-        string installedVersion,
-        IReadOnlyDictionary<string, string> pypiVersions,
         bool targetPythonReady)
     {
         var probe = GetToolResult(readiness, RegisteredToolKind.PythonModuleVsjetpack);
-        var latestVersion = VapourSynthToolchainPolicy.VsjetpackVersion;
 
         return new SetupDependencyStatus(
             SetupDependencyKind.Vsjetpack,
             probe.State,
-            installedVersion,
-            latestVersion,
-            AreVersionsComparableAndDifferent(installedVersion, latestVersion),
+            probe.DetectedVersion,
+            string.Empty,
+            false,
             probe.ExecutablePath,
             probe.ReleaseUrl,
             true,
             targetPythonReady,
-            BuildToolDetail(probe));
+            probe.PythonPackages is null ? BuildToolDetail(probe) : string.Empty,
+            PythonPackages: probe.PythonPackages);
     }
 
     private SetupDependencyStatus BuildFfmpegBundleStatus(
@@ -794,183 +783,24 @@ public sealed class SetupBootstrapService : ISetupBootstrapService, IDisposable
         ReportProgress(progress, kind, 100, "Installation completed.");
     }
 
-    private async Task InstallVsPluginBundleAsync(
+    private async Task InstallVapourSynthUtilityPluginsAsync(
         IProgress<SetupInstallProgress>? progress,
-        CancellationToken cancellationToken,
-        bool useBaseline = true)
+        CancellationToken cancellationToken)
     {
+        const SetupDependencyKind kind = SetupDependencyKind.VapourSynthUtilityPlugins;
         var pythonPath = await ResolveCompatiblePythonAsync(cancellationToken);
-        var vsrepoVersionBeforeInstall = await QueryPythonDistributionVersionAsync(
-            pythonPath,
-            "vsrepo",
-            cancellationToken);
-
         await EnsurePipCliLauncherAsync(pythonPath, cancellationToken);
-        await EnsureVsrepoCliLauncherAsync(pythonPath, cancellationToken);
-        var vsrepoVersionAfterInstall = await QueryPythonDistributionVersionAsync(
-            pythonPath,
-            "vsrepo",
-            cancellationToken);
-        if (string.IsNullOrWhiteSpace(vsrepoVersionAfterInstall))
-        {
-            throw new InvalidOperationException("vsrepo launcher repair completed, but the Python distribution could not be verified.");
-        }
+        IReadOnlyList<string> arguments =
+            ["-m", "pip", "install", "--upgrade", "--force-reinstall", "--no-deps", "--only-binary=:all:",
+                "--disable-pip-version-check", "--progress-bar", "off",
+                "--extra-index-url", VapourSynthToolchainPolicy.VsWheelsIndex, .. VapourSynthPluginNames.DefaultPlugins];
 
-        _cliEnvironmentIntegrationService.RecordComponentOwnership(
-            CliEnvironmentIntegrationService.GetPythonPackageComponentKey("vsrepo"),
-            ownsComponent: string.IsNullOrWhiteSpace(vsrepoVersionBeforeInstall),
-            pythonPath,
-            vsrepoVersionAfterInstall,
-            ["vsrepo"]);
-        await EnsureVsrepoArchiveExtractorAsync(pythonPath, progress, cancellationToken);
-        await EnsureVsrepoUserSiteDirectoryAsync(pythonPath, cancellationToken);
-        string? baselineRoot = null;
-        if (useBaseline)
-        {
-            baselineRoot = VsrepoCommand.PrepareBaseline(_paths);
-            ReportProgress(progress, SetupDependencyKind.VsPluginBundle, 5, "Using the pinned plugin manifest; preserving the user's existing definitions.");
-        }
-        else
-        {
-        ReportProgress(progress, SetupDependencyKind.VsPluginBundle, 5, "Updating vsrepo package definitions...");
-        try
-        {
-            await RunProcessAsync(
-                pythonPath,
-                VsrepoCommand.CreateArguments("update", []),
-                cancellationToken,
-                timeoutMs: 120_000,
-                onOutput: line => ReportProgress(progress, SetupDependencyKind.VsPluginBundle, 10, line),
-                onError: line => ReportProgress(progress, SetupDependencyKind.VsPluginBundle, 10, line));
-        }
-        catch (Exception ex) when (ex is not OperationCanceledException)
-        {
-            throw new InvalidOperationException(
-                "Unable to update vsrepo package definitions. Check the network connection and try again.",
-                ex);
-        }
-
-        }
-
-        var packagesBeforeUpdate = await QueryVsrepoInstalledPackagesAsync(
-            pythonPath,
-            refreshPackageDefinitions: false,
-            cancellationToken, useBaseline);
-        var packageNames = useBaseline ? GetVsrepoBaselinePackageIdentifiers() : VsrepoPackageNames;
-        var installedNames = packageNames.Where(packageName =>
-                packagesBeforeUpdate.TryGetValue(packageName, out var package)
-                && !string.IsNullOrWhiteSpace(package.InstalledVersion)).ToHashSet(StringComparer.OrdinalIgnoreCase);
-        var packagePlan = useBaseline
-            ? new VsPluginBundlePackagePlan(packageNames.Where(name => !installedNames.Contains(name)).ToArray(), packageNames)
-            : BuildVsPluginBundlePackagePlan(installedNames);
-        var packageOperations = new (string Operation, IReadOnlyList<string> Packages)[]
-        {
-            ("install", packagePlan.InstallPackages),
-            ("upgrade", packagePlan.UpgradePackages)
-        };
-
-        var operationIndex = 0;
-        foreach (var (operation, packages) in packageOperations.Where(static item => item.Packages.Count > 0))
-        {
-            var operationStartPercent = 20 + (operationIndex * 35);
-            ReportProgress(
-                progress,
-                SetupDependencyKind.VsPluginBundle,
-                operationStartPercent,
-                $"Running vsrepo {operation} {string.Join(" ", packages)}...");
-
-            await RunProcessAsync(
-                pythonPath,
-                VsrepoCommand.CreateArguments(operation, packages, baselineRoot),
-                cancellationToken,
-                timeoutMs: 600_000,
-                onOutput: line => ReportProgress(
-                    progress,
-                    SetupDependencyKind.VsPluginBundle,
-                    operationStartPercent + 25,
-                    line),
-                onError: line => ReportProgress(
-                    progress,
-                    SetupDependencyKind.VsPluginBundle,
-                    operationStartPercent + 10,
-                    line));
-
-            operationIndex++;
-        }
-
-        var installedPackages = await QueryVsrepoInstalledPackagesAsync(
-            pythonPath,
-            refreshPackageDefinitions: false,
-            cancellationToken, useBaseline);
-        var unresolvedPackages = packageNames.Where(name => !installedPackages.TryGetValue(name, out var package)
-            || string.IsNullOrWhiteSpace(package.InstalledVersion)
-            || !string.Equals(package.InstalledVersion, package.LatestVersion, StringComparison.OrdinalIgnoreCase)).ToArray();
-        if (unresolvedPackages.Length > 0)
-        {
-            throw new InvalidOperationException(
-                $"VS plugin bundle update did not complete: {string.Join(", ", unresolvedPackages)}.");
-        }
-
-        _cliEnvironmentIntegrationService.RecordComponentOwnership(
-            CliEnvironmentIntegrationService.GetVsPluginBundleComponentKey(),
-            ownsComponent: packagePlan.InstallPackages.Count > 0,
-            VsrepoCommand.Target,
-            string.Join(",", installedPackages.Values.Select(static package => package.InstalledVersion).Distinct()),
-            packagePlan.InstallPackages);
-
-        ReportProgress(progress, SetupDependencyKind.VsPluginBundle, 100, "VS plugin bundle is ready.");
-    }
-
-    internal static IReadOnlyList<string> GetVsrepoBaselinePackageIdentifiers()
-    {
-        using var stream = typeof(SetupBootstrapService).Assembly.GetManifestResourceStream(VsrepoCommand.BaselineResourceName)
-            ?? throw new InvalidOperationException("The pinned VS plugin manifest is missing.");
-        using var document = JsonDocument.Parse(stream);
-        return document.RootElement.GetProperty("packages").EnumerateArray()
-            .Select(package => package.GetProperty("identifier").GetString()!).ToArray();
-    }
-
-    private static bool MatchesVsrepoBaseline(IReadOnlyDictionary<string, VsrepoInstalledPackage> installedPackages)
-        => MatchesVsrepoBaselineVersions(installedPackages.ToDictionary(item => item.Key, item => item.Value.InstalledVersion, StringComparer.OrdinalIgnoreCase));
-
-    internal static bool MatchesVsrepoBaselineVersions(IReadOnlyDictionary<string, string> installedVersions)
-    {
-        using var stream = typeof(SetupBootstrapService).Assembly.GetManifestResourceStream(VsrepoCommand.BaselineResourceName)!;
-        using var document = JsonDocument.Parse(stream);
-        return document.RootElement.GetProperty("packages").EnumerateArray().All(package =>
-            (installedVersions.TryGetValue(package.GetProperty("identifier").GetString()!, out var actual)
-                || installedVersions.TryGetValue(package.GetProperty("name").GetString()!, out actual))
-            && string.Equals(actual, package.GetProperty("releases")[0].GetProperty("version").GetString(), StringComparison.OrdinalIgnoreCase));
-    }
-
-    internal static VsPluginBundlePackagePlan BuildVsPluginBundlePackagePlan(
-        IEnumerable<string> installedPackageNames)
-    {
-        var installed = installedPackageNames.ToHashSet(StringComparer.OrdinalIgnoreCase);
-        return new VsPluginBundlePackagePlan(
-            VsrepoPackageNames.Where(packageName => !installed.Contains(packageName)).ToArray(),
-            VsrepoPackageNames.ToArray());
-    }
-
-    private static IReadOnlyList<string> GetUnresolvedVsPluginBundlePackages(
-        IReadOnlyDictionary<string, VsrepoInstalledPackage> installedPackages)
-    {
-        return VsrepoPackageNames
-            .Where(packageName =>
-            {
-                if (!installedPackages.TryGetValue(packageName, out var package)
-                    || string.IsNullOrWhiteSpace(package.InstalledVersion))
-                {
-                    return true;
-                }
-
-                return !string.IsNullOrWhiteSpace(package.LatestVersion)
-                    && !string.Equals(
-                        package.InstalledVersion,
-                        package.LatestVersion,
-                        StringComparison.OrdinalIgnoreCase);
-            })
-            .ToArray();
+        ReportProgress(progress, kind, 10, "Installing the default VapourSynth plugins...");
+        await RunProcessAsync(pythonPath, arguments, cancellationToken, timeoutMs: 600_000,
+            onOutput: line => ReportProgress(progress, kind, MapPipProgress(line, 100), line),
+            onError: line => ReportProgress(progress, kind, MapPipProgress(line, 100), line));
+        await RunProcessAsync(pythonPath, ["-c", ProcessToolProbeService.VapourSynthUtilityPluginsProbeScript], cancellationToken, timeoutMs: 30_000);
+        ReportProgress(progress, kind, 100, "The default VapourSynth plugins are installed.");
     }
 
     private async Task InstallLatestEncoderAsync(
@@ -1158,76 +988,8 @@ public sealed class SetupBootstrapService : ISetupBootstrapService, IDisposable
             onOutput: line => ReportProgress(progress, kind, 50, line),
             onError: line => ReportProgress(progress, kind, 50, line));
         _cliEnvironmentIntegrationService.RemoveComponentOwnership(componentKey);
-        if (packageName.Equals("vsrepo", StringComparison.OrdinalIgnoreCase))
-        {
-            RemoveOwnedVsrepoExtractor();
-        }
 
         ReportProgress(progress, kind, 100, $"{packageName} was removed.");
-    }
-
-    private async Task UninstallVsPluginBundleAsync(
-        IProgress<SetupInstallProgress>? progress,
-        CancellationToken cancellationToken)
-    {
-        var componentKey = CliEnvironmentIntegrationService.GetVsPluginBundleComponentKey();
-        var ownership = RequireOwnedComponent(componentKey, "VS plugin bundle");
-        var packages = ownership.OwnedItems
-            .Where(packageName => VsrepoPackageNames.Contains(packageName, StringComparer.OrdinalIgnoreCase))
-            .ToArray();
-        if (packages.Length == 0)
-        {
-            throw new InvalidOperationException("No FlowEncode-owned VS plugin packages were recorded; uninstall was refused.");
-        }
-
-        var pythonPath = await ResolveVsrepoPythonAsync(cancellationToken);
-        var completed = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-
-        await EnsureVsrepoUserSiteDirectoryAsync(pythonPath, cancellationToken);
-        ReportProgress(progress, SetupDependencyKind.VsPluginBundle, 10, "Removing VS plugin bundle...");
-        await RunProcessAsync(
-            pythonPath,
-            VsrepoCommand.CreateArguments("uninstall", packages),
-            cancellationToken,
-            timeoutMs: 600_000,
-            onOutput: line =>
-            {
-                foreach (var packageName in packages)
-                {
-                    if (!line.Contains(packageName, StringComparison.OrdinalIgnoreCase) || !completed.Add(packageName))
-                    {
-                        continue;
-                    }
-
-                    var percent = 10 + (completed.Count * 80.0 / packages.Length);
-                    ReportProgress(progress, SetupDependencyKind.VsPluginBundle, percent, line);
-                }
-            },
-            onError: line => ReportProgress(progress, SetupDependencyKind.VsPluginBundle, 30, line));
-
-        RemoveOwnedVsrepoExtractor();
-        _cliEnvironmentIntegrationService.RemoveComponentOwnership(componentKey);
-        ReportProgress(progress, SetupDependencyKind.VsPluginBundle, 100, "VS plugin bundle was removed.");
-    }
-
-    private async Task<string> ResolveVsrepoPythonAsync(CancellationToken cancellationToken)
-    {
-        var installations = await DiscoverPythonInstallationsAsync(null, cancellationToken);
-        foreach (var installation in OrderPythonInstallations(installations)
-                     .Where(static item => PythonRuntimeCompatibility.IsSupportedRuntime(item.Version, item.Is64Bit)))
-        {
-            var vsrepoVersion = await QueryPythonDistributionVersionAsync(
-                installation.ExecutablePath,
-                "vsrepo",
-                cancellationToken);
-            if (!string.IsNullOrWhiteSpace(vsrepoVersion))
-            {
-                return installation.ExecutablePath;
-            }
-        }
-
-        throw new InvalidOperationException(
-            "No supported Python interpreter with the vsrepo module was found; plugin uninstall was refused.");
     }
 
     private async Task UninstallManagedEncoderAsync(
@@ -1299,20 +1061,38 @@ public sealed class SetupBootstrapService : ISetupBootstrapService, IDisposable
             cancellationToken);
         await EnsurePipCliLauncherAsync(pythonPath, cancellationToken);
         ReportProgress(progress, kind, 10, "Preparing compatible pip install...");
-        var constraintsPath = Path.Combine(_paths.DownloadsRootPath, "vapoursynth-compatibility-3.0.txt");
-        PersistentFileWriter.WriteAllText(constraintsPath, VapourSynthToolchainPolicy.Constraints, new System.Text.UTF8Encoding(false));
+        IReadOnlyList<string> arguments;
+        if (kind == SetupDependencyKind.Vsjetpack)
+        {
+            arguments = VapourSynthToolchainPolicy.VsjetpackInstallArguments();
+        }
+        else if (useBaseline)
+        {
+            arguments = VapourSynthToolchainPolicy.InstallArguments(packageSpec, WriteVapourSynthConstraints());
+        }
+        else
+        {
+            arguments = ["-m", "pip", "install", "--upgrade", "--disable-pip-version-check", "--progress-bar", "off", packageSpec];
+        }
+        if (kind == SetupDependencyKind.Awsmfunc)
+            arguments = [.. arguments, .. VapourSynthPluginNames.Required];
+
         await RunProcessAsync(
             pythonPath,
-            useBaseline ? VapourSynthToolchainPolicy.InstallArguments(packageSpec, constraintsPath)
-                : ["-m", "pip", "install", "--upgrade", "--disable-pip-version-check", "--progress-bar", "off", packageSpec],
+            arguments,
             cancellationToken,
             timeoutMs: 600_000,
             onOutput: line => ReportProgress(progress, kind, MapPipProgress(line, finishPercent), line),
             onError: line => ReportProgress(progress, kind, MapPipProgress(line, finishPercent), line));
 
-        if (distributionName.Equals("vsrepo", StringComparison.OrdinalIgnoreCase))
+        if (kind == SetupDependencyKind.Vsjetpack)
         {
-            await EnsureVsrepoCliLauncherAsync(pythonPath, cancellationToken);
+            await RunProcessAsync(pythonPath, ["-c", ProcessToolProbeService.VsjetpackFullProbeScript], cancellationToken, timeoutMs: 30_000);
+        }
+        else if (kind == SetupDependencyKind.Awsmfunc)
+        {
+            await RunProcessAsync(pythonPath, ["-c", ProcessToolProbeService.AwsmfuncProbeScript], cancellationToken, timeoutMs: 30_000);
+            await RunProcessAsync(pythonPath, ["-c", ProcessToolProbeService.VapourSynthUtilityPluginsProbeScript], cancellationToken, timeoutMs: 30_000);
         }
 
         var installedVersion = await QueryPythonDistributionVersionAsync(
@@ -1332,6 +1112,13 @@ public sealed class SetupBootstrapService : ISetupBootstrapService, IDisposable
             [distributionName]);
     }
 
+    private string WriteVapourSynthConstraints()
+    {
+        var path = Path.Combine(_paths.DownloadsRootPath, "vapoursynth-runtime-constraints.txt");
+        PersistentFileWriter.WriteAllText(path, VapourSynthToolchainPolicy.Constraints, new System.Text.UTF8Encoding(false));
+        return path;
+    }
+
     private static string ExtractPythonDistributionName(string packageSpec)
     {
         var match = Regex.Match(packageSpec, @"^[A-Za-z0-9_.-]+");
@@ -1347,7 +1134,7 @@ public sealed class SetupBootstrapService : ISetupBootstrapService, IDisposable
             .FirstOrDefault(static item => PythonRuntimeCompatibility.IsSupportedRuntime(item.Version, item.Is64Bit));
 
         return target?.ExecutablePath
-            ?? throw new InvalidOperationException("Python 3.12 or newer x64 was not detected. Install a supported x64 Python first.");
+            ?? throw new InvalidOperationException("Python 3.13 or newer x64 was not detected. Install a supported x64 Python first.");
     }
 
     private async Task<string> ResolvePreferredPythonAsync(CancellationToken cancellationToken)
@@ -1717,7 +1504,8 @@ public sealed class SetupBootstrapService : ISetupBootstrapService, IDisposable
     private async Task<string> QueryPythonDistributionVersionAsync(
         string? pythonPath,
         string distributionName,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        bool propagateProbeFailure = false)
     {
         if (string.IsNullOrWhiteSpace(pythonPath) || !File.Exists(pythonPath))
         {
@@ -1732,7 +1520,7 @@ public sealed class SetupBootstrapService : ISetupBootstrapService, IDisposable
             "try:",
             "    print(importlib.metadata.version(name))",
             "except importlib.metadata.PackageNotFoundError:",
-            "    sys.exit(3)");
+            "    pass");
 
         try
         {
@@ -1741,75 +1529,11 @@ public sealed class SetupBootstrapService : ISetupBootstrapService, IDisposable
                 ["-c", script],
                 cancellationToken,
                 timeoutMs: 20_000);
-            return result.ExitCode == 0
-                ? FirstMeaningfulLine(result.Output)
-                : string.Empty;
+            return FirstMeaningfulLine(result.Output);
         }
-        catch
+        catch (Exception ex) when (!propagateProbeFailure && ex is not OperationCanceledException)
         {
             return string.Empty;
-        }
-    }
-
-    private async Task<IReadOnlyDictionary<string, VsrepoInstalledPackage>> QueryVsrepoInstalledPackagesAsync(
-        string? pythonPath,
-        bool refreshPackageDefinitions,
-        CancellationToken cancellationToken,
-        bool useBaseline = true)
-    {
-        if (string.IsNullOrWhiteSpace(pythonPath) || !File.Exists(pythonPath))
-        {
-            return new Dictionary<string, VsrepoInstalledPackage>(StringComparer.OrdinalIgnoreCase);
-        }
-
-        try
-        {
-            await EnsureVsrepoUserSiteDirectoryAsync(pythonPath, cancellationToken);
-            var baselineRoot = useBaseline ? VsrepoCommand.PrepareBaseline(_paths) : null;
-            if (!useBaseline && refreshPackageDefinitions)
-            {
-                await TryUpdateVsrepoPackageDefinitionsAsync(pythonPath, cancellationToken);
-            }
-
-            var result = await RunProcessAsync(
-                pythonPath,
-                VsrepoCommand.CreateArguments("installed", [], baselineRoot),
-                cancellationToken,
-                timeoutMs: 30_000);
-            if (result.ExitCode != 0)
-            {
-                return new Dictionary<string, VsrepoInstalledPackage>(StringComparer.OrdinalIgnoreCase);
-            }
-
-            return ParseVsrepoInstalledPackages(result.Output);
-        }
-        catch
-        {
-            return new Dictionary<string, VsrepoInstalledPackage>(StringComparer.OrdinalIgnoreCase);
-        }
-    }
-
-    private async Task TryUpdateVsrepoPackageDefinitionsAsync(
-        string pythonPath,
-        CancellationToken cancellationToken)
-    {
-        try
-        {
-            await EnsureVsrepoUserSiteDirectoryAsync(pythonPath, cancellationToken);
-            await RunProcessAsync(
-                pythonPath,
-                VsrepoCommand.CreateArguments("update", []),
-                cancellationToken,
-                timeoutMs: 120_000);
-        }
-        catch (Exception ex)
-        {
-            AppDiagnosticsLog.Write(
-                _paths,
-                nameof(SetupBootstrapService),
-                $"Failed to update vsrepo package definitions. {ex.GetType().Name}: {ex.Message}",
-                AppDiagnosticSeverity.Warning,
-                exception: ex);
         }
     }
 
@@ -1909,25 +1633,6 @@ public sealed class SetupBootstrapService : ISetupBootstrapService, IDisposable
             && url.EndsWith("-amd64.exe", StringComparison.OrdinalIgnoreCase)
             && PackageIntegrityVerifier.NormalizeSha256Digest(sha256) is not null;
 
-    internal static ReadinessState ResolveModuleAndCliReadiness(
-        ReadinessState moduleState,
-        ReadinessState cliState)
-    {
-        if (moduleState == ReadinessState.Ready && cliState == ReadinessState.Ready)
-        {
-            return ReadinessState.Ready;
-        }
-
-        if (moduleState == ReadinessState.Misconfigured || cliState == ReadinessState.Misconfigured)
-        {
-            return ReadinessState.Misconfigured;
-        }
-
-        return moduleState == ReadinessState.Ready || cliState == ReadinessState.Ready
-            ? ReadinessState.Partial
-            : ReadinessState.Missing;
-    }
-
     private static string ExtractTrailingResourceId(string? resourceUri)
     {
         if (string.IsNullOrWhiteSpace(resourceUri))
@@ -1955,26 +1660,6 @@ public sealed class SetupBootstrapService : ISetupBootstrapService, IDisposable
         if (!await IsCliCommandHealthyAsync(pipPath, ["--version"], cancellationToken))
         {
             throw new InvalidOperationException($"pip was installed for '{pythonPath}', but the pip command-line launcher is not usable.");
-        }
-    }
-
-    private async Task EnsureVsrepoCliLauncherAsync(string pythonPath, CancellationToken cancellationToken)
-    {
-        var scriptsDirectory = Path.Combine(Path.GetDirectoryName(pythonPath) ?? string.Empty, "Scripts");
-        var vsrepoPath = Path.Combine(scriptsDirectory, "vsrepo.exe");
-        if (await IsCliCommandHealthyAsync(vsrepoPath, [VsrepoCommand.LauncherProbeArgument], cancellationToken))
-        {
-            return;
-        }
-
-        await RunProcessAsync(
-            pythonPath,
-            ["-m", "pip", "install", "--upgrade", "--force-reinstall", "--no-deps", "--disable-pip-version-check", "--progress-bar", "off", VapourSynthToolchainPolicy.PackageSpec("vsrepo")],
-            cancellationToken,
-            timeoutMs: 600_000);
-        if (!await IsCliCommandHealthyAsync(vsrepoPath, [VsrepoCommand.LauncherProbeArgument], cancellationToken))
-        {
-            throw new InvalidOperationException($"vsrepo was installed for '{pythonPath}', but the vsrepo command-line launcher is not usable.");
         }
     }
 
@@ -2024,351 +1709,6 @@ public sealed class SetupBootstrapService : ISetupBootstrapService, IDisposable
         }
     }
 
-    private async Task EnsureVsrepoUserSiteDirectoryAsync(
-        string pythonPath,
-        CancellationToken cancellationToken)
-    {
-        const string script = "import os, site\nos.makedirs(site.getusersitepackages(), exist_ok=True)";
-        await RunProcessAsync(
-            pythonPath,
-            ["-c", script],
-            cancellationToken,
-            timeoutMs: 20_000);
-    }
-
-    private async Task EnsureVsrepoArchiveExtractorAsync(
-        string pythonPath,
-        IProgress<SetupInstallProgress>? progress,
-        CancellationToken cancellationToken)
-    {
-        var vsrepoDirectory = await GetVsrepoPackageDirectoryAsync(pythonPath, cancellationToken);
-        var bundledExtractorPath = Path.Combine(vsrepoDirectory, "7z.exe");
-        if (File.Exists(bundledExtractorPath))
-        {
-            if (await IsCliCommandHealthyAsync(bundledExtractorPath, ["i"], cancellationToken))
-            {
-                return;
-            }
-
-            throw new InvalidOperationException(
-                $"The existing vsrepo extractor is not usable and was left unchanged: {bundledExtractorPath}");
-        }
-
-        var extractorPath = Find7ZipExecutablePath();
-        if (string.IsNullOrWhiteSpace(extractorPath))
-        {
-            extractorPath = await EnsurePortable7ZipAsync(progress, cancellationToken);
-        }
-
-        if (string.IsNullOrWhiteSpace(extractorPath))
-        {
-            throw new InvalidOperationException(
-                "VS plugin installation requires 7-Zip, and the managed portable extractor could not be prepared.");
-        }
-
-        File.Copy(extractorPath, bundledExtractorPath, overwrite: true);
-        var ownedExtractorPaths = new List<string> { bundledExtractorPath };
-        var extractorLibraryPath = Path.Combine(Path.GetDirectoryName(extractorPath)!, "7z.dll");
-        if (File.Exists(extractorLibraryPath))
-        {
-            var bundledExtractorLibraryPath = Path.Combine(vsrepoDirectory, "7z.dll");
-            File.Copy(extractorLibraryPath, bundledExtractorLibraryPath, overwrite: true);
-            ownedExtractorPaths.Add(bundledExtractorLibraryPath);
-        }
-
-        if (!await IsCliCommandHealthyAsync(bundledExtractorPath, ["i"], cancellationToken))
-        {
-            foreach (var ownedPath in ownedExtractorPaths)
-            {
-                if (File.Exists(ownedPath))
-                {
-                    File.Delete(ownedPath);
-                }
-            }
-
-            throw new InvalidOperationException("The prepared vsrepo 7-Zip extractor could not be launched.");
-        }
-
-        _cliEnvironmentIntegrationService.RecordComponentOwnership(
-            CliEnvironmentIntegrationService.GetVsrepoExtractorComponentKey(),
-            ownsComponent: true,
-            bundledExtractorPath,
-            "7-Zip 26.02",
-            ownedExtractorPaths);
-    }
-
-    private void RemoveOwnedVsrepoExtractor()
-    {
-        var componentKey = CliEnvironmentIntegrationService.GetVsrepoExtractorComponentKey();
-        var ownership = _cliEnvironmentIntegrationService.GetComponentOwnership(componentKey);
-        if (ownership is not { OwnsComponent: true })
-        {
-            return;
-        }
-
-        var removedAll = true;
-        foreach (var path in ownership.OwnedItems.Where(IsSafeVsrepoExtractorPath))
-        {
-            try
-            {
-                if (File.Exists(path))
-                {
-                    File.Delete(path);
-                }
-            }
-            catch (Exception ex)
-            {
-                removedAll = false;
-                AppDiagnosticsLog.Write(
-                    _paths,
-                    nameof(SetupBootstrapService),
-                    $"Failed to remove FlowEncode-owned vsrepo extractor '{path}'. {ex.GetType().Name}: {ex.Message}",
-                    AppDiagnosticSeverity.Warning,
-                    exception: ex);
-            }
-        }
-
-        if (removedAll)
-        {
-            _cliEnvironmentIntegrationService.RemoveComponentOwnership(componentKey);
-        }
-    }
-
-    internal static bool IsSafeVsrepoExtractorPath(string? path)
-    {
-        if (string.IsNullOrWhiteSpace(path))
-        {
-            return false;
-        }
-
-        var fileName = Path.GetFileName(path);
-        var parentName = Path.GetFileName(Path.GetDirectoryName(path));
-        return string.Equals(parentName, "vsrepo", StringComparison.OrdinalIgnoreCase)
-            && (string.Equals(fileName, "7z.exe", StringComparison.OrdinalIgnoreCase)
-                || string.Equals(fileName, "7z.dll", StringComparison.OrdinalIgnoreCase));
-    }
-
-    private async Task<string> EnsurePortable7ZipAsync(
-        IProgress<SetupInstallProgress>? progress,
-        CancellationToken cancellationToken)
-    {
-        var managedDirectory = Path.Combine(_paths.ToolsRootPath, "7zip");
-        var managedExecutable = Path.Combine(managedDirectory, "7z.exe");
-        if (File.Exists(managedExecutable))
-        {
-            try
-            {
-                await PackageIntegrityVerifier.VerifySha256Async(
-                    managedExecutable,
-                    Portable7ZipExecutableSha256,
-                    cancellationToken,
-                    "managed 7-Zip executable");
-                await RunProcessAsync(managedExecutable, ["i"], cancellationToken, timeoutMs: 20_000);
-                return managedExecutable;
-            }
-            catch (Exception ex) when (ex is not OperationCanceledException)
-            {
-                var ownershipKey = CliEnvironmentIntegrationService.GetPortable7ZipComponentKey();
-                var ownership = _cliEnvironmentIntegrationService.GetComponentOwnership(ownershipKey);
-                var ownsManagedExecutable = ownership is { OwnsComponent: true }
-                    && string.Equals(
-                        Path.GetFullPath(ownership.InstallationPath),
-                        Path.GetFullPath(managedExecutable),
-                        StringComparison.OrdinalIgnoreCase);
-                if (!ownsManagedExecutable)
-                {
-                    throw new InvalidOperationException(
-                        $"The existing portable 7-Zip cache is invalid and was left unchanged: {managedExecutable}",
-                        ex);
-                }
-
-                AppDiagnosticsLog.Write(
-                    _paths,
-                    nameof(SetupBootstrapService),
-                    $"Replacing an invalid managed 7-Zip cache. {ex.GetType().Name}: {ex.Message}",
-                    AppDiagnosticSeverity.Warning,
-                    exception: ex);
-                Directory.Delete(managedDirectory, recursive: true);
-                _cliEnvironmentIntegrationService.RemoveComponentOwnership(ownershipKey);
-            }
-        }
-
-        Directory.CreateDirectory(_paths.DownloadsRootPath);
-        var archivePath = Path.Combine(_paths.DownloadsRootPath, Portable7ZipFileName);
-        var extractRoot = Path.Combine(_paths.DownloadsRootPath, $"7zip-{Guid.NewGuid():N}");
-        try
-        {
-            ReportProgress(progress, SetupDependencyKind.VsPluginBundle, 2, "Preparing managed portable 7-Zip x64...");
-            await DownloadFileAsync(
-                Portable7ZipDownloadUrl,
-                archivePath,
-                SetupDependencyKind.VsPluginBundle,
-                progress,
-                cancellationToken);
-            await PackageIntegrityVerifier.VerifySha256Async(
-                archivePath,
-                Portable7ZipSha256,
-                cancellationToken,
-                "7-Zip portable package");
-
-            Directory.CreateDirectory(extractRoot);
-            await ExtractPortable7ZipExecutableAsync(archivePath, extractRoot, cancellationToken);
-            var stagedExecutable = Path.Combine(extractRoot, "7z.exe");
-            await PackageIntegrityVerifier.VerifySha256Async(
-                stagedExecutable,
-                Portable7ZipExecutableSha256,
-                cancellationToken,
-                "7-Zip portable executable");
-            await RunProcessAsync(stagedExecutable, ["i"], cancellationToken, timeoutMs: 20_000);
-            ManagedDirectoryInstaller.ReplaceDirectoryContents(extractRoot, managedDirectory);
-            _cliEnvironmentIntegrationService.RecordComponentOwnership(
-                CliEnvironmentIntegrationService.GetPortable7ZipComponentKey(),
-                ownsComponent: true,
-                managedExecutable,
-                "7-Zip 26.02",
-                [managedExecutable]);
-            return managedExecutable;
-        }
-        finally
-        {
-            BestEffortCleanup.DeleteFile(archivePath, "7-Zip portable package", message =>
-                AppDiagnosticsLog.Write(_paths, nameof(SetupBootstrapService), message));
-            if (Directory.Exists(extractRoot))
-            {
-                try
-                {
-                    Directory.Delete(extractRoot, recursive: true);
-                }
-                catch (Exception ex)
-                {
-                    AppDiagnosticsLog.Write(
-                        _paths,
-                        nameof(SetupBootstrapService),
-                        $"Failed to remove portable 7-Zip staging directory. {ex.GetType().Name}: {ex.Message}");
-                }
-            }
-        }
-    }
-
-    internal static async Task ExtractPortable7ZipExecutableAsync(
-        string archivePath,
-        string targetDirectory,
-        CancellationToken cancellationToken)
-    {
-        await using var archiveStream = File.OpenRead(archivePath);
-        using var archive = SevenZipArchive.OpenArchive(archiveStream);
-        var executableEntry = archive.Entries.FirstOrDefault(entry =>
-            !entry.IsDirectory && IsPortable7ZipExecutableEntry(entry.Key));
-        if (executableEntry is null)
-        {
-            throw new FileNotFoundException("The verified 7-Zip package does not contain x64/7za.exe.", archivePath);
-        }
-
-        Directory.CreateDirectory(targetDirectory);
-        var destinationPath = Path.Combine(targetDirectory, "7z.exe");
-        await using var entryStream = executableEntry.OpenEntryStream();
-        await using var destinationStream = File.Open(destinationPath, FileMode.Create, FileAccess.Write, FileShare.None);
-        await entryStream.CopyToAsync(destinationStream, cancellationToken);
-    }
-
-    internal static bool IsPortable7ZipExecutableEntry(string? entryKey)
-        => string.Equals(
-            entryKey?.Replace('\\', '/').TrimStart('/'),
-            "x64/7za.exe",
-            StringComparison.OrdinalIgnoreCase);
-
-    private async Task<string> GetVsrepoPackageDirectoryAsync(
-        string pythonPath,
-        CancellationToken cancellationToken)
-    {
-        const string script = "import os, vsrepo\nprint(os.path.dirname(vsrepo.__file__))";
-        var result = await RunProcessAsync(
-            pythonPath,
-            ["-c", script],
-            cancellationToken,
-            timeoutMs: 20_000);
-        var directoryPath = FirstMeaningfulLine(result.Output);
-        if (string.IsNullOrWhiteSpace(directoryPath) || !Directory.Exists(directoryPath))
-        {
-            throw new InvalidOperationException("The installed vsrepo package directory could not be located.");
-        }
-
-        return directoryPath;
-    }
-
-    private static string? Find7ZipExecutablePath()
-    {
-        var registryPath = Registry.GetValue(@"HKEY_LOCAL_MACHINE\SOFTWARE\7-Zip", "Path", null) as string;
-        var candidates = new[]
-        {
-            registryPath,
-            Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles), "7-Zip", "7z.exe"),
-            Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFilesX86), "7-Zip", "7z.exe"),
-            Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Programs", "7-Zip", "7z.exe")
-        }
-        .Where(static path => !string.IsNullOrWhiteSpace(path))
-        .Select(static path => path!.EndsWith("7z.exe", StringComparison.OrdinalIgnoreCase)
-            ? path
-            : Path.Combine(path, "7z.exe"));
-
-        return candidates.FirstOrDefault(File.Exists);
-    }
-
-    internal static IReadOnlyDictionary<string, VsrepoInstalledPackage> ParseVsrepoInstalledPackages(string output)
-    {
-        var result = new Dictionary<string, VsrepoInstalledPackage>(StringComparer.OrdinalIgnoreCase);
-        foreach (var rawLine in SplitLines(output))
-        {
-            if (string.IsNullOrWhiteSpace(rawLine)
-                || rawLine.StartsWith("Name", StringComparison.OrdinalIgnoreCase)
-                || rawLine.All(static character => character == '-'))
-            {
-                continue;
-            }
-
-            if (!TryParseVsrepoInstalledLine(rawLine, out var package))
-            {
-                continue;
-            }
-
-            result[package.Name] = package;
-            result[package.Namespace] = package;
-            result[package.Identifier] = package;
-        }
-
-        return result;
-    }
-
-    private static bool TryParseVsrepoInstalledLine(string rawLine, out VsrepoInstalledPackage package)
-    {
-        // vsrepo uses minimum column widths, not a delimiter. Long names and
-        // versions leave just one space between columns (for example CAS and
-        // git revisions). Read the four single-token fields from the right.
-        // An unavailable latest release is printed as an empty 11-character
-        // column, with a separator on either side.
-        var match = Regex.Match(rawLine.Trim(),
-            @"^(?<name>.+?)\s+(?<namespace>\S+)\s+(?<installed>\S+)\s{13,}(?<identifier>\S+)$");
-        if (!match.Success)
-        {
-            match = Regex.Match(rawLine.Trim(),
-                @"^(?<name>.+?)\s+(?<namespace>\S+)\s+(?<installed>\S+)\s+(?<latest>\S+)\s+(?<identifier>\S+)$");
-        }
-
-        if (!match.Success)
-        {
-            package = default!;
-            return false;
-        }
-
-        package = new VsrepoInstalledPackage(
-            match.Groups["name"].Value.Trim().TrimStart('*', '+'),
-            match.Groups["namespace"].Value,
-            match.Groups["installed"].Value,
-            match.Groups["latest"].Value,
-            match.Groups["identifier"].Value);
-        return true;
-    }
-
     private static ToolProbeResult GetToolResult(EnvironmentReadinessReport readiness, RegisteredToolKind kind)
     {
         return readiness.Tools.FirstOrDefault(result => result.Kind == kind)
@@ -2399,7 +1739,7 @@ public sealed class SetupBootstrapService : ISetupBootstrapService, IDisposable
             ReadinessState.Ready when !string.IsNullOrWhiteSpace(result.DetectedVersion) =>
                 $"{GetSourceLabel(result)} | {result.DetectedVersion}",
             ReadinessState.Ready => GetSourceLabel(result),
-            ReadinessState.Misconfigured when !string.IsNullOrWhiteSpace(result.FailureReason) => result.FailureReason,
+            ReadinessState.Partial or ReadinessState.Misconfigured when !string.IsNullOrWhiteSpace(result.FailureReason) => result.FailureReason,
             ReadinessState.Missing => "Missing",
             ReadinessState.Unknown when !string.IsNullOrWhiteSpace(result.FailureReason) => result.FailureReason,
             _ => "Not detected"
@@ -2876,9 +2216,7 @@ public sealed class SetupBootstrapService : ISetupBootstrapService, IDisposable
         PythonInstallation? TargetPython,
         PythonInstallation? HighestPython,
         bool CompatiblePythonReady,
-        IReadOnlyDictionary<string, VsrepoInstalledPackage> VsrepoPackages,
         string AwsmfuncVersion,
-        string VsjetpackVersion,
         SetupDependencyStatus DeeStatus);
 
     private sealed record PythonUninstallEntry(
@@ -2887,17 +2225,6 @@ public sealed class SetupBootstrapService : ISetupBootstrapService, IDisposable
         string UninstallString,
         string? QuietUninstallString,
         string? InstallLocation);
-
-    internal sealed record VsrepoInstalledPackage(
-        string Name,
-        string Namespace,
-        string InstalledVersion,
-        string LatestVersion,
-        string Identifier);
-
-    internal sealed record VsPluginBundlePackagePlan(
-        IReadOnlyList<string> InstallPackages,
-        IReadOnlyList<string> UpgradePackages);
 
     private sealed record SilentCommand(string FileName, IReadOnlyList<string> Arguments);
 

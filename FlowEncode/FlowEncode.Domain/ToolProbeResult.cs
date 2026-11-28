@@ -13,7 +13,8 @@ public sealed record ToolProbeResult(
     bool IsProtocolCompatible = false,
     string ProtocolVersion = "",
     string BackendCompatibilityDetail = "",
-    Av1anCapabilitiesSnapshot? Av1anCapabilities = null)
+    Av1anCapabilitiesSnapshot? Av1anCapabilities = null,
+    PythonPackageStatus[]? PythonPackages = null)
 {
     public string DisplayName => Kind.ToDisplayName();
 

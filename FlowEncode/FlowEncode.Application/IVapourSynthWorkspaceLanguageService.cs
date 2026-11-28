@@ -55,7 +55,8 @@ public sealed record VapourSynthLanguageFeaturesSnapshot(
     IReadOnlyList<VapourSynthPluginNamespaceDescriptor> Namespaces,
     IReadOnlyList<VapourSynthCoreMemberDescriptor>? VsConstants = null,
     IReadOnlyList<VapourSynthCoreMemberDescriptor>? VideoNodeMembers = null,
-    IReadOnlyList<string>? InstalledPackages = null);
+    IReadOnlyList<string>? InstalledPackages = null,
+    IReadOnlyList<string>? TemplateSymbols = null);
 
 public sealed record VapourSynthCoreMemberDescriptor(
     string Name,

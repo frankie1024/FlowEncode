@@ -32,8 +32,6 @@ internal interface IVapourSynthPreviewHostSession : IDisposable
 internal sealed class ProcessVapourSynthPreviewHostFactory : IVapourSynthPreviewHostFactory
 {
     private readonly IToolProbeService _toolProbeService;
-    private readonly SemaphoreSlim _pythonPathLock = new(1, 1);
-    private string? _pythonPath;
 
     public ProcessVapourSynthPreviewHostFactory(IToolProbeService toolProbeService)
     {
@@ -71,35 +69,15 @@ internal sealed class ProcessVapourSynthPreviewHostFactory : IVapourSynthPreview
 
     private async Task<string> ResolvePythonPathAsync(CancellationToken cancellationToken)
     {
-        if (!string.IsNullOrWhiteSpace(_pythonPath))
+        var probe = await _toolProbeService.ProbeAsync(RegisteredToolKind.Python, cancellationToken);
+        if (!probe.IsReady || string.IsNullOrWhiteSpace(probe.ExecutablePath))
         {
-            return _pythonPath;
+            throw new InvalidOperationException(string.IsNullOrWhiteSpace(probe.FailureReason)
+                ? "Python runtime is unavailable."
+                : probe.FailureReason);
         }
 
-        await _pythonPathLock.WaitAsync(cancellationToken);
-
-        try
-        {
-            if (!string.IsNullOrWhiteSpace(_pythonPath))
-            {
-                return _pythonPath;
-            }
-
-            var probe = await _toolProbeService.ProbeAsync(RegisteredToolKind.Python, cancellationToken);
-            if (!probe.IsReady || string.IsNullOrWhiteSpace(probe.ExecutablePath))
-            {
-                throw new InvalidOperationException(string.IsNullOrWhiteSpace(probe.FailureReason)
-                    ? "Python runtime is unavailable."
-                    : probe.FailureReason);
-            }
-
-            _pythonPath = probe.ExecutablePath;
-            return _pythonPath;
-        }
-        finally
-        {
-            _pythonPathLock.Release();
-        }
+        return probe.ExecutablePath;
     }
 
     private static string GetHelperPath()

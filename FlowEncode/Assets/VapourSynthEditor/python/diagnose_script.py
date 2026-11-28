@@ -725,8 +725,7 @@ def build_variable_flow_diagnostics(tree, source):
             "Add 'core = vs.core'" if "vs" in all_bound_names else "Add 'import vapoursynth as vs' and 'core = vs.core'",
         ),
         "awf": ("import awsmfunc as awf\n", "Add 'import awsmfunc as awf'"),
-        "haf": ("import havsfunc as haf\n", "Add 'import havsfunc as haf'"),
-        "mvf": ("import mvsfunc as mvf\n", "Add 'import mvsfunc as mvf'"),
+        "vss": ("import vssource as vss\n", "Add 'import vssource as vss'"),
         "replace_ranges": ("from vstools import replace_ranges\n", "Add 'from vstools import replace_ranges'"),
     }
 

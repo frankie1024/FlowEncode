@@ -19,13 +19,13 @@ public sealed class VapourSynthWorkspaceLanguageService : IVapourSynthWorkspaceL
     };
 
     private readonly IToolProbeService _toolProbeService;
-    private readonly SemaphoreSlim _pythonPathLock = new(1, 1);
     private readonly SemaphoreSlim _languageFeaturesLock = new(1, 1);
     private readonly SemaphoreSlim _pythonLspLock = new(1, 1);
     private readonly string _pythonLspRootPath;
     private readonly string _stubsDirectoryPath;
     private readonly PythonLspBootstrapper _pythonLspBootstrapper;
-    private string? _pythonPath;
+    private string? _languageFeaturesPythonPath;
+    private string? _lspPythonPath;
     private VapourSynthLanguageFeaturesSnapshot? _cachedLanguageFeatures;
     private DateTimeOffset _cachedLanguageFeaturesAt;
     private PythonLspClient? _pythonLspClient;
@@ -47,18 +47,13 @@ public sealed class VapourSynthWorkspaceLanguageService : IVapourSynthWorkspaceL
         bool forceRefresh = false,
         CancellationToken cancellationToken = default)
     {
-        if (!forceRefresh
-            && _cachedLanguageFeatures is not null
-            && DateTimeOffset.UtcNow - _cachedLanguageFeaturesAt < TimeSpan.FromMinutes(5))
-        {
-            return _cachedLanguageFeatures;
-        }
-
         await _languageFeaturesLock.WaitAsync(cancellationToken);
 
         try
         {
+            var pythonPath = await ResolvePythonPathAsync(cancellationToken);
             if (!forceRefresh
+                && string.Equals(_languageFeaturesPythonPath, pythonPath, StringComparison.OrdinalIgnoreCase)
                 && _cachedLanguageFeatures is not null
                 && DateTimeOffset.UtcNow - _cachedLanguageFeaturesAt < TimeSpan.FromMinutes(5))
             {
@@ -69,19 +64,22 @@ public sealed class VapourSynthWorkspaceLanguageService : IVapourSynthWorkspaceL
             var snapshot = await RunHelperAsync<VapourSynthLanguageFeaturesSnapshot>(
                 helperPath,
                 null,
-                cancellationToken);
+                cancellationToken,
+                pythonPath);
 
             if (snapshot.IsRuntimeReady)
             {
                 TryRefreshRuntimeStubFile(snapshot);
             }
 
+            _languageFeaturesPythonPath = pythonPath;
             _cachedLanguageFeatures = snapshot;
             _cachedLanguageFeaturesAt = DateTimeOffset.UtcNow;
             return snapshot;
         }
-        catch (Exception ex)
+        catch (Exception ex) when (ex is not OperationCanceledException)
         {
+            _languageFeaturesPythonPath = null;
             var unavailable = CreateUnavailableFeatures(ex.Message);
             _cachedLanguageFeatures = unavailable;
             _cachedLanguageFeaturesAt = DateTimeOffset.UtcNow;
@@ -265,13 +263,10 @@ public sealed class VapourSynthWorkspaceLanguageService : IVapourSynthWorkspaceL
     private async Task<T> RunHelperAsync<T>(
         string helperPath,
         object? inputPayload,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        string? pythonPath = null)
     {
-        var pythonPath = await ResolvePythonPathAsync(cancellationToken);
-        if (string.IsNullOrWhiteSpace(pythonPath))
-        {
-            throw new InvalidOperationException("Python runtime is unavailable.");
-        }
+        pythonPath ??= await ResolvePythonPathAsync(cancellationToken);
 
         var startInfo = new ProcessStartInfo
         {
@@ -354,35 +349,15 @@ public sealed class VapourSynthWorkspaceLanguageService : IVapourSynthWorkspaceL
 
     private async Task<string> ResolvePythonPathAsync(CancellationToken cancellationToken)
     {
-        if (!string.IsNullOrWhiteSpace(_pythonPath))
+        var probe = await _toolProbeService.ProbeAsync(RegisteredToolKind.Python, cancellationToken);
+        if (!probe.IsReady || string.IsNullOrWhiteSpace(probe.ExecutablePath))
         {
-            return _pythonPath;
+            throw new InvalidOperationException(string.IsNullOrWhiteSpace(probe.FailureReason)
+                ? "Python runtime is unavailable."
+                : probe.FailureReason);
         }
 
-        await _pythonPathLock.WaitAsync(cancellationToken);
-
-        try
-        {
-            if (!string.IsNullOrWhiteSpace(_pythonPath))
-            {
-                return _pythonPath;
-            }
-
-            var probe = await _toolProbeService.ProbeAsync(RegisteredToolKind.Python, cancellationToken);
-            if (!probe.IsReady || string.IsNullOrWhiteSpace(probe.ExecutablePath))
-            {
-                throw new InvalidOperationException(string.IsNullOrWhiteSpace(probe.FailureReason)
-                    ? "Python runtime is unavailable."
-                    : probe.FailureReason);
-            }
-
-            _pythonPath = probe.ExecutablePath;
-            return _pythonPath;
-        }
-        finally
-        {
-            _pythonPathLock.Release();
-        }
+        return probe.ExecutablePath;
     }
 
     private async Task<T> ExecutePythonLanguageServerRequestAsync<T>(
@@ -409,14 +384,15 @@ public sealed class VapourSynthWorkspaceLanguageService : IVapourSynthWorkspaceL
 
     private async Task<PythonLspClient> EnsurePythonLanguageServerClientAsync(CancellationToken cancellationToken)
     {
-        if (_pythonLspClient is { IsRunning: true })
+        var pythonPath = await ResolvePythonPathAsync(cancellationToken);
+        if (_pythonLspClient is { IsRunning: true }
+            && string.Equals(_lspPythonPath, pythonPath, StringComparison.OrdinalIgnoreCase))
         {
             return _pythonLspClient;
         }
 
         DisposePythonLanguageServerClient();
 
-        var pythonPath = await ResolvePythonPathAsync(cancellationToken);
         var additionalPythonPath = await _pythonLspBootstrapper.EnsurePackagePathAsync(pythonPath, cancellationToken);
         var combinedPythonPath = BuildCombinedPythonPath(additionalPythonPath);
         var workspaceRootPath = Path.Combine(_pythonLspRootPath, "workspace");
@@ -426,6 +402,7 @@ public sealed class VapourSynthWorkspaceLanguageService : IVapourSynthWorkspaceL
         {
             await client.EnsureStartedAsync(cancellationToken);
             _pythonLspClient = client;
+            _lspPythonPath = pythonPath;
             return client;
         }
         catch
@@ -482,7 +459,6 @@ public sealed class VapourSynthWorkspaceLanguageService : IVapourSynthWorkspaceL
         _disposed = true;
         DisposePythonLanguageServerClient();
         _pythonLspBootstrapper.Dispose();
-        _pythonPathLock.Dispose();
         _languageFeaturesLock.Dispose();
         _pythonLspLock.Dispose();
     }

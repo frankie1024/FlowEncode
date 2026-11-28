@@ -34,7 +34,6 @@ def main():
         "_Primaries",
         "_Transfer",
         "_Range",
-        "_ColorRange",
         "_ChromaLocation",
     ):
         if key in props:

@@ -248,32 +248,6 @@ public sealed class AppText
     public string VapourSynthSmartCategoryDenoise => Pick("降噪", "Denoise");
     public string VapourSynthSmartCategoryAaScale => Pick("抗锯齿 / 去光晕 / 缩放", "AA / Dehalo / Scale");
     public string VapourSynthSmartCategoryMaskDebug => Pick("遮罩 / 替换 / 调试", "Mask / Scening / Debug");
-    public string VapourSynthSmartBitdepth16Item => Pick("升位至 16-bit（自动更新输出）", "Promote to 16-bit (Update Output)");
-    public string VapourSynthSmartBitdepth10Item => Pick("降位至 10-bit 抖动（自动更新输出）", "Dither to 10-bit (Update Output)");
-    public string VapourSynthSmartBitdepth8Item => Pick("降位至 8-bit 抖动（自动更新输出）", "Dither to 8-bit (Update Output)");
-    public string VapourSynthSmartSetProps709Item => Pick("设置 BT.709 帧属性（std.SetFrameProps）", "Set BT.709 Props (std.SetFrameProps)");
-    public string VapourSynthSmartHdrTonemapItem => Pick("HDR 转 SDR 映射（placebo.Tonemap）", "HDR to SDR Tone Map (placebo.Tonemap)");
-    public string VapourSynthSmartCropRelItem => Pick("相对裁切（std.CropRel）", "Relative Crop (std.CropRel)");
-    public string VapourSynthSmartFillBordersItem => Pick("补边修复（awsmfunc.fb）", "Fill Borders (awsmfunc.fb)");
-    public string VapourSynthSmartQtgmcItem => Pick("QTGMC 反交错（havsfunc.QTGMC）", "QTGMC Deinterlace (havsfunc.QTGMC)");
-    public string VapourSynthSmartIvtcItem => Pick("IVTC 反胶片过带（vivtc）", "IVTC (vivtc VFM + VDecimate)");
-    public string VapourSynthSmartPlaceboDebandItem => Pick("Deband（placebo.Deband）", "Deband (placebo.Deband)");
-    public string VapourSynthSmartNeoF3kdbItem => Pick("Deband（neo_f3kdb.Deband）", "Deband (neo_f3kdb.Deband)");
-    public string VapourSynthSmartVsDebandItem => Pick("Deband（vsdeband.Placebo）", "Deband (vsdeband.Placebo)");
-    public string VapourSynthSmartAddGrainItem => Pick("补加胶片噪点（grain.Add）", "Add Grain (grain.Add)");
-    public string VapourSynthSmartBbmodItem => Pick("边线修复（awsmfunc.bbmod）", "Edge Fix (awsmfunc.bbmod)");
-    public string VapourSynthSmartFrameInfoItem => Pick("帧信息叠加（awsmfunc.FrameInfo）", "Frame Info (awsmfunc.FrameInfo)");
-    public string VapourSynthSmartDftTestItem => Pick("降噪（dfttest.DFTTest）", "Denoise (dfttest.DFTTest)");
-    public string VapourSynthSmartBm3dItem => Pick("降噪（vsdenoise.BM3D）", "Denoise (vsdenoise.BM3D)");
-    public string VapourSynthSmartKnlMeansItem => Pick("GPU 降噪（knlm.KNLMeansCL）", "GPU Denoise (knlm.KNLMeansCL)");
-    public string VapourSynthSmartSmDegrainItem => Pick("时域降噪（havsfunc.SMDegrain）", "Temporal Denoise (havsfunc.SMDegrain)");
-    public string VapourSynthSmartBasedAaItem => Pick("抗锯齿（vsaa.based_aa）", "Anti-Aliasing (vsaa.based_aa)");
-    public string VapourSynthSmartFineDehaloItem => Pick("去光晕（vsdehalo.fine_dehalo）", "Dehalo (vsdehalo.fine_dehalo)");
-    public string VapourSynthSmartHafDehaloItem => Pick("去光晕（havsfunc.FineDehalo）", "Dehalo (havsfunc.FineDehalo)");
-    public string VapourSynthSmartResizeSpline36Item => Pick("缩放（resize.Spline36）", "Resize (resize.Spline36)");
-    public string VapourSynthSmartDescaleItem => Pick("逆缩放（descale.Debicubic）", "Descale (descale.Debicubic)");
-    public string VapourSynthSmartMaskedMergeItem => Pick("边缘遮罩合并（std.MaskedMerge）", "Edge Mask Merge (std.MaskedMerge)");
-    public string VapourSynthSmartReplaceRangesItem => Pick("帧区间替换（vstools.replace_ranges）", "Replace Ranges (vstools.replace_ranges)");
     public string VapourSynthSmartToggleAbCompareItem => Pick("切换当前行前后对比（A/B）", "Toggle Filter Before/After Compare (A/B)");
     public string VapourSynthSmartBenchmarkItem => Pick("脚本测速（片中 100 帧 FPS）", "Benchmark Script (100 Mid-Clip Frames)");
     public string VapourSynthSmartRenameSymbolItem => Pick("重命名变量（F2）", "Rename Symbol (F2)");
@@ -838,7 +812,8 @@ public sealed class AppText
     public string SettingsWorkspaceAndMcpTitle => Pick("工作目录与 MCP", "Workspace & MCP");
 
     public string RecommendedVersionHelp => Pick("推荐版本已通过配套兼容性验证，通常无需更新。", "The recommended versions have been tested together; routine updates are usually unnecessary.");
-    public string PythonUpgradeHelpTitle => Pick("Python 升级与回退指引", "Python upgrade and rollback guide");
+    public string SetupCheckAndUpdateButton => Pick("检查并更新", "Check and update");
+    public string SetupRepairDependenciesButton => Pick("修复依赖", "Repair dependencies");
     public string SetupGuideCheckUpdatesButton => Pick("核对推荐版本", "Check Recommended Versions");
     public string SetupGuideCloseButton => Pick("进入工作台", "Enter Workspace");
     public string SetupGuidePreviousButton => Pick("上一页", "Previous");
@@ -903,9 +878,10 @@ public sealed class AppText
     public string InstallButton => Pick("安装", "Install");
     public string UpdateButton => Pick("更新", "Update");
     public string UninstallButton => Pick("卸载", "Uninstall");
-    public string UninstallTooltip => Pick(
-        "从工作目录中移除 FlowEncode 托管的副本。不会影响系统 PATH 或工作目录外部的安装。",
-        "Remove the app-managed copy from the workspace folder. Does not affect installations in the system PATH or outside the workspace.");
+    public string UninstallTooltip => Pick("卸载 FlowEncode 管理的这份安装。", "Uninstall the copy managed by FlowEncode.");
+    public string SetupDependencyUninstallUnavailable => Pick(
+        "这项依赖由外部管理，请通过原安装方式卸载。",
+        "This dependency is managed outside FlowEncode. Use its original installation method to uninstall it.");
     public string ReleasePageButton => Pick("发布页", "Release Page");
     public string ReleasePageTooltip => Pick(
         "在浏览器中打开该工具的 GitHub 发布页，可查看版本详情或手动下载。",
@@ -1792,6 +1768,35 @@ public sealed class AppText
 
     public string InstallAlreadyRunning => Pick("当前已有依赖安装任务在运行。", "Another setup dependency operation is already running.");
     public string DeewComponentsDownloadButton => Pick("下载其他组件", "Download other components");
+    public string JetpackPackagesButton => Pick("查看插件与依赖", "View plugins and dependencies");
+    public string OtherPluginsTitle => Pick("其他插件", "Other Plugins");
+    public string OtherPluginsPackagePrompt => Pick("输入包名（如 vsfpng），安装到当前 VapourSynth 的 Python 环境", "Enter a package name (e.g. vsfpng) to install it in the current VapourSynth Python environment");
+    public string OtherPluginsNeedsRuntime => Pick("请先安装 Python 和 VapourSynth。", "Install Python and VapourSynth first.");
+    public string OtherPluginsInvalidName => Pick("请输入一个包名，例如 vsfpng。", "Enter a package name such as vsfpng.");
+    public string OtherPluginsManagedSeparately(string name) => Pick($"{name} 由 Python 或 VapourSynth 的依赖设置管理。", $"{name} is managed through the Python or VapourSynth dependency settings.");
+    public string OtherPluginsUnavailableForUpdate => Pick("当前 Python 环境中找不到要更新的插件。", "The plugin to update could not be found in the current Python environment.");
+    public string OtherPluginsUnavailableForUninstall => Pick("当前 Python 环境中找不到可卸载的插件。", "The plugin is no longer available to uninstall in the current Python environment.");
+    public string OtherPluginUninstallLabel(string name) => Pick($"卸载 {name}", $"Uninstall {name}");
+    public string OtherPluginUninstallMessage(string name) => Pick($"从当前 Python 环境卸载 {name}？使用它的脚本可能无法运行。", $"Uninstall {name} from the current Python environment? Scripts that use it may stop working.");
+    public string OtherPluginStatus(PythonPackageStatus package, bool checkedPackage, bool requiresLoadCheck)
+    {
+        if (!checkedPackage)
+            return Pick("尚未检测", "Not checked");
+        if (package.IsReady)
+            return requiresLoadCheck ? Pick("已加载", "Loaded") : Pick("已安装", "Installed");
+        return string.IsNullOrWhiteSpace(package.InstalledVersion)
+            ? Pick("未安装", "Not installed")
+            : Pick("已安装，未加载", "Installed, not loaded");
+    }
+    public string JetpackPackagesTitle => Pick("JET 插件与依赖", "JET plugins and dependencies");
+    public string JetpackPackagesSearch => Pick("按名称或版本搜索", "Search by name or version");
+    public string JetpackPackagesNoMatches => Pick("没有符合条件的软件包。", "No matching packages.");
+    public string JetpackPackageCount(int ready, int total) => Pick($"已满足 {ready}/{total} 项依赖", $"{ready} of {total} dependencies satisfied");
+    public string JetpackPackageState(PythonPackageStatus package) => package.IsReady
+        ? Pick("已安装", "Installed")
+        : string.IsNullOrWhiteSpace(package.InstalledVersion)
+            ? Pick("未安装", "Not installed")
+            : Pick("不满足要求", "Does not meet requirements");
     public string DeewComponentsDownloadHint => Pick("将 truehdd、harletty 和 dee_shim 下载到 deew 所在目录。", "Download truehdd, harletty and dee_shim to the deew folder.");
     public string DeewComponentsDownloadUnavailable => Pick($"请先配置 deew {DeewArguments.MinimumVersion} 或更新版本。", $"Set up deew {DeewArguments.MinimumVersion} or newer first.");
     public string DeewComponentsDownloadFailed => Pick("deew 组件下载失败", "Could not download deew components");
@@ -2125,6 +2130,7 @@ public sealed class AppText
     public string ErrorCannotDeleteTitle => Pick("无法删除任务", "Unable to delete");
     public string ErrorSelectionFailedTitle => Pick("选择失败", "Selection Failed");
     public string ErrorInstallFailedTitle => Pick("安装失败", "Install Failed");
+    public string ErrorUpdateFailedTitle => Pick("更新失败", "Update Failed");
     public string ErrorUninstallFailedTitle => Pick("卸载失败", "Uninstall Failed");
     public string ErrorSaveFailedTitle => Pick("保存失败", "Save Failed");
     public string ErrorImportFailedTitle => Pick("导入失败", "Import Failed");

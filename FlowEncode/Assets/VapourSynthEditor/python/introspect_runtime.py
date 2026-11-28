@@ -1,7 +1,9 @@
+import importlib
 import importlib.util
 import inspect
 import json
 import os
+from pathlib import Path
 import sys
 
 
@@ -15,9 +17,10 @@ KNOWN_PYTHON_PACKAGES = (
     "vsdehalo",
     "vsmasktools",
     "vsrgtools",
+    "vsdeinterlace",
+    "vssource",
+    "vskernels",
     "awsmfunc",
-    "havsfunc",
-    "mvsfunc",
     "lvsfunc",
     "kagefunc",
     "vodesfunc",
@@ -145,6 +148,30 @@ def probe_installed_packages():
     return installed
 
 
+def probe_template_symbols():
+    path = Path(__file__).resolve().parent.parent / "filter-templates.json"
+    with path.open(encoding="utf-8") as template_file:
+        templates = json.load(template_file)
+
+    symbols = {
+        requirement
+        for item in templates
+        for requirement in item.get("requires", [])
+        if not requirement.startswith("core.")
+    }
+    symbols.update(f"{item['module']}.{item['symbol']}" for item in templates if item.get("symbol"))
+    symbols.update(f"vssource.{name}" for name in ("BestSource", "LSMAS", "FFMS2"))
+    available = []
+    for qualified in sorted(symbols):
+        module, _, name = qualified.rpartition(".")
+        try:
+            if callable(getattr(importlib.import_module(module), name)):
+                available.append(qualified)
+        except Exception:
+            continue
+    return available
+
+
 def build_runtime_snapshot():
     import vapoursynth as vs
 
@@ -252,7 +279,8 @@ def build_runtime_snapshot():
         "namespaces": namespaces,
         "vsConstants": collect_vs_constants(vs),
         "videoNodeMembers": collect_video_node_members(vs),
-        "installedPackages": probe_installed_packages()
+        "installedPackages": probe_installed_packages(),
+        "templateSymbols": probe_template_symbols(),
     }
 
 

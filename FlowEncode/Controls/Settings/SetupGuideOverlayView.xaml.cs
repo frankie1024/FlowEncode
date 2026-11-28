@@ -339,33 +339,6 @@ public sealed partial class SetupGuideOverlayView : UserControl
             });
     }
 
-    private void MoreDependencyActionsButton_Click(object sender, RoutedEventArgs e)
-    {
-        if (sender is not FrameworkElement { DataContext: SetupGuideDependencyItemViewModel item } button) return;
-        if (ViewModel is null) return;
-        SetupDependencyInteractionHelper.ShowMoreDependencyActions(ViewModel, this, button, item, nameof(SetupGuideOverlayView));
-    }
-
-    private async void InstallSetupDependencyButton_Click(object sender, RoutedEventArgs e)
-    {
-        if (sender is not FrameworkElement { Tag: SetupDependencyKind kind } || ViewModel is null)
-        {
-            return;
-        }
-
-        await SetupDependencyInteractionHelper.InstallSetupDependencyAsync(ViewModel, this, kind, nameof(SetupGuideOverlayView));
-    }
-
-    private async void UninstallSetupDependencyButton_Click(object sender, RoutedEventArgs e)
-    {
-        if (sender is not FrameworkElement { Tag: SetupDependencyKind kind } || ViewModel is null)
-        {
-            return;
-        }
-
-        await SetupDependencyInteractionHelper.UninstallSetupDependencyAsync(ViewModel, this, kind, nameof(SetupGuideOverlayView));
-    }
-
     private void ScheduleLayoutRefresh()
     {
         DispatcherQueue.TryEnqueue(RefreshLayout);

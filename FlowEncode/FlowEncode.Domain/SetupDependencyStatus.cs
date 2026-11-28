@@ -13,4 +13,5 @@ public sealed record SetupDependencyStatus(
     string Detail,
     bool IsProtocolCompatible = false,
     string ProtocolVersion = "",
-    string CompatibilityDetail = "");
+    string CompatibilityDetail = "",
+    PythonPackageStatus[]? PythonPackages = null);

@@ -10,25 +10,14 @@ namespace FlowEncode.Domain.Tests;
 public sealed class SetupBootstrapServiceVersionUpdateTests
 {
     [TestMethod]
-    [DataRow(@"x64\7za.exe", true)]
-    [DataRow("/x64/7ZA.EXE", true)]
-    [DataRow(@"arm64\7za.exe", false)]
-    [DataRow("7za.exe", false)]
-    public void IsPortable7ZipExecutableEntry_AcceptsOnlyX64Executable(string entryName, bool expected)
+    public void VsjetpackInstall_UsesFullExtraAndWheelIndexWithoutPinning()
     {
-        Assert.AreEqual(expected, SetupBootstrapService.IsPortable7ZipExecutableEntry(entryName));
-    }
+        var arguments = VapourSynthToolchainPolicy.VsjetpackInstallArguments();
 
-    [TestMethod]
-    [DataRow(@"C:\Python\Lib\site-packages\vsrepo\7z.exe", true)]
-    [DataRow(@"C:\Python\Lib\site-packages\vsrepo\7z.dll", true)]
-    [DataRow(@"C:\Python\Lib\site-packages\other\7z.exe", false)]
-    [DataRow(@"C:\Python\Lib\site-packages\vsrepo\python.exe", false)]
-    public void IsSafeVsrepoExtractorPath_RestrictsDeletionToVsrepoExtractorFiles(
-        string path,
-        bool expected)
-    {
-        Assert.AreEqual(expected, SetupBootstrapService.IsSafeVsrepoExtractorPath(path));
+        CollectionAssert.AreEqual(new[] { "-m", "pip", "install", "--upgrade", "--disable-pip-version-check",
+            "--progress-bar", "off", "vsjetpack[full]", "--extra-index-url",
+            "https://jaded-encoding-thaumaturgy.github.io/vs-wheels/simple" }, arguments.ToArray());
+        Assert.IsFalse(ToolchainBaseline.HasBaseline(SetupDependencyKind.Vsjetpack));
     }
 
     [TestMethod]
@@ -70,47 +59,6 @@ public sealed class SetupBootstrapServiceVersionUpdateTests
             "Windows installer (32-bit)",
             "https://python.example/python-3.13.9.exe",
             sha256));
-    }
-
-    [TestMethod]
-    [DataRow(ReadinessState.Ready, ReadinessState.Ready, ReadinessState.Ready)]
-    [DataRow(ReadinessState.Ready, ReadinessState.Missing, ReadinessState.Partial)]
-    [DataRow(ReadinessState.Ready, ReadinessState.Misconfigured, ReadinessState.Misconfigured)]
-    [DataRow(ReadinessState.Missing, ReadinessState.Missing, ReadinessState.Missing)]
-    public void ResolveModuleAndCliReadiness_RequiresBothSurfaces(
-        ReadinessState moduleState,
-        ReadinessState cliState,
-        ReadinessState expected)
-    {
-        Assert.AreEqual(
-            expected,
-            SetupBootstrapService.ResolveModuleAndCliReadiness(moduleState, cliState));
-    }
-
-    [TestMethod]
-    public void BuildVsPluginBundlePackagePlan_AllPackagesInstalled_OnlyUpgradesBundle()
-    {
-        var installedPackages = new[] { "ffms2", "fpng", "libp2p", "lsmas", "placebo", "mvsfunc", "havsfunc" };
-
-        var plan = SetupBootstrapService.BuildVsPluginBundlePackagePlan(installedPackages);
-
-        Assert.AreEqual(0, plan.InstallPackages.Count);
-        CollectionAssert.AreEqual(
-            installedPackages,
-            plan.UpgradePackages.ToArray());
-    }
-
-    [TestMethod]
-    public void BuildVsPluginBundlePackagePlan_MissingPackages_InstallsMissingThenUpgradesBundle()
-    {
-        var plan = SetupBootstrapService.BuildVsPluginBundlePackagePlan(["ffms2", "lsmas"]);
-
-        CollectionAssert.AreEqual(
-            new[] { "fpng", "libp2p", "placebo", "mvsfunc", "havsfunc" },
-            plan.InstallPackages.ToArray());
-        CollectionAssert.AreEqual(
-            new[] { "ffms2", "fpng", "libp2p", "lsmas", "placebo", "mvsfunc", "havsfunc" },
-            plan.UpgradePackages.ToArray());
     }
 
     [TestMethod]

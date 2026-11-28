@@ -248,8 +248,9 @@ public sealed class PreviewCompareStateTests
         StringAssert.Contains(script, "__flowencode_output_names__");
         StringAssert.Contains(script, "0: \"source.mkv\"");
         StringAssert.Contains(script, "1: \"encode.mkv\"");
-        StringAssert.Contains(script, "LWLibavSource");
-        StringAssert.Contains(script, "ffms2");
+        StringAssert.Contains(script, "from vssource import BestSource, LSMAS, FFMS2");
+        StringAssert.Contains(script, "for indexer in (BestSource, LSMAS, FFMS2):");
+        StringAssert.Contains(script, "return indexer().source(path, bits=None)");
         StringAssert.Contains(script, @"C:\\videos\\source.mkv");
         StringAssert.Contains(script, @"C:\\videos\\encode.mkv");
     }

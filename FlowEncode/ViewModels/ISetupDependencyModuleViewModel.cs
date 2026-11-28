@@ -23,6 +23,8 @@ public interface ISetupDependencyModuleViewModel
 
     Task<string?> InstallSetupDependencyAsync(SetupDependencyKind kind, bool updateBeyondBaseline = false);
 
+    Task<string?> ChangeVapourSynthPluginAsync(string packageName, VapourSynthPluginAction action);
+
     Task<string?> ImportSetupDependencyAsync(SetupDependencyKind kind, string sourcePath);
 
     Task<string?> PinSetupDependencyBinaryAsync(SetupDependencyKind kind, string sourcePath);
@@ -30,4 +32,11 @@ public interface ISetupDependencyModuleViewModel
     Task<string?> ClearManualPinnedSetupDependencyAsync(SetupDependencyKind kind, bool refreshAfterClear = true);
 
     Task<string?> UninstallSetupDependencyAsync(SetupDependencyKind kind);
+}
+
+public enum VapourSynthPluginAction
+{
+    Install,
+    Update,
+    Uninstall
 }

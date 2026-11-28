@@ -47,16 +47,39 @@ public sealed class SetupBootstrapOfflineStatusTests
             new CliEnvironmentIntegrationService(paths), factory);
         ToolProbeResult Tool(RegisteredToolKind kind, string version) => new(kind, ReadinessState.Ready,
             ToolDetectionSource.ManualSelection, "retained", Path.Combine(root.Path, "python.exe"), version, "", "");
+        PythonPackageStatus[] jetPackages = [new("vapoursynth-zsmooth", "0.20.0", true), new("vapoursynth-bwdif", "", false)];
+        PythonPackageStatus[] utilityPlugins = [new("vapoursynth-fillborders", "5.0", true), new("vsfpng", "1.3", false)];
         var readiness = new EnvironmentReadinessReport(DateTimeOffset.Now,
-            [Tool(RegisteredToolKind.Python, "3.12.10 x64"), Tool(RegisteredToolKind.Pip, "25.0"),
+            [Tool(RegisteredToolKind.Python, "3.14.10 x64"), Tool(RegisteredToolKind.Pip, "25.0"),
+                Tool(RegisteredToolKind.Vspipe, "R82"),
                 Tool(RegisteredToolKind.PythonModuleAwsmfunc, "1.3.5"),
-                Tool(RegisteredToolKind.PythonModuleVsjetpack, "2.2.2")], []);
+                Tool(RegisteredToolKind.PythonModuleVsjetpack, "3.0.0") with
+                {
+                    State = ReadinessState.Partial,
+                    FailureReason = "Missing bwdif",
+                    PythonPackages = jetPackages
+                },
+                Tool(RegisteredToolKind.VapourSynthUtilityPlugins, "") with
+                {
+                    State = ReadinessState.Partial,
+                    PythonPackages = utilityPlugins
+                }], []);
 
         var report = await service.GetLocalStatusReportAsync(readiness);
 
-        Assert.AreEqual("3.12.10 x64", report.Dependencies.Single(item => item.Kind == SetupDependencyKind.Python312).InstalledVersion);
+        Assert.AreEqual("3.14.10 x64", report.Dependencies.Single(item => item.Kind == SetupDependencyKind.Python312).InstalledVersion);
         Assert.AreEqual("1.3.5", report.Dependencies.Single(item => item.Kind == SetupDependencyKind.Awsmfunc).InstalledVersion);
-        Assert.AreEqual("2.2.2", report.Dependencies.Single(item => item.Kind == SetupDependencyKind.Vsjetpack).InstalledVersion);
+        var jet = report.Dependencies.Single(item => item.Kind == SetupDependencyKind.Vsjetpack);
+        Assert.AreEqual("3.0.0", jet.InstalledVersion);
+        Assert.AreEqual(string.Empty, jet.LatestVersion);
+        Assert.AreEqual(string.Empty, jet.Detail);
+        Assert.IsTrue(jet.IsInstallEnabled);
+        CollectionAssert.AreEqual(jetPackages, jet.PythonPackages);
+        var plugins = report.Dependencies.Single(item => item.Kind == SetupDependencyKind.VapourSynthUtilityPlugins);
+        Assert.AreEqual(ReadinessState.Partial, plugins.State);
+        Assert.IsTrue(plugins.IsInstallEnabled);
+        CollectionAssert.AreEqual(utilityPlugins, plugins.PythonPackages);
+        Assert.AreEqual(ReadinessState.Ready, report.Dependencies.Single(item => item.Kind == SetupDependencyKind.Awsmfunc).State);
         Assert.AreEqual(0, factory.RequestCount);
     }
 

@@ -7,6 +7,28 @@ namespace FlowEncode.Domain.Tests;
 public sealed class VapourSynthSmartScriptEditorTests
 {
     [TestMethod]
+    public void SharedFilterTemplate_UsesItsOwnImportAndDoesNotOverwriteWorkVariables()
+    {
+        const string script = """
+            import vapoursynth as video
+            from other import bm3d
+            clip = video.core.std.BlankClip()
+            clip_work = clip
+            clip.set_output(0)
+            """;
+
+        var result = VapourSynthSmartScriptEditor.ApplyFilterTemplate(
+            script, 0, "{symbol}({temp})", fromModule: "vsdenoise", fromSymbol: "bm3d",
+            setup: ["{temp} = {var}.resize.Point(format=vs.GRAYS)"]);
+
+        StringAssert.Contains(result.UpdatedScript, "from other import bm3d");
+        StringAssert.Contains(result.UpdatedScript, "from vsdenoise import bm3d as jet_bm3d");
+        StringAssert.Contains(result.UpdatedScript, "clip_work2 = clip.resize.Point(format=video.GRAYS)");
+        StringAssert.Contains(result.UpdatedScript, "clip = jet_bm3d(clip_work2)");
+        StringAssert.Contains(result.UpdatedScript, "clip.set_output(0)");
+    }
+
+    [TestMethod]
     public void ResolveOutputTarget_FindsRealVariableNameForMultipleOutputs()
     {
         var script = """
@@ -159,14 +181,13 @@ public sealed class VapourSynthSmartScriptEditorTests
         var fresh = VapourSynthSmartScriptEditor.ApplyVideoSourceLoader(string.Empty, @"D:\Videos\movie.mkv");
         Assert.AreEqual("src", fresh.ResolvedVariableName);
         Assert.IsTrue(fresh.AddedImport);
-        StringAssert.Contains(fresh.UpdatedScript, "import vapoursynth as vs");
-        StringAssert.Contains(fresh.UpdatedScript, "core = vs.core");
-        StringAssert.Contains(fresh.UpdatedScript, @"src = core.lsmas.LWLibavSource(r""D:\Videos\movie.mkv"")");
+        StringAssert.Contains(fresh.UpdatedScript, "import vssource as vss");
+        StringAssert.Contains(fresh.UpdatedScript, @"src = vss.BestSource().source(r""D:\Videos\movie.mkv"", bits=None)");
         StringAssert.Contains(fresh.UpdatedScript, "src.set_output()");
 
         var second = VapourSynthSmartScriptEditor.ApplyVideoSourceLoader(fresh.UpdatedScript, @"D:\Videos\encode.mkv");
         Assert.AreEqual("src2", second.ResolvedVariableName);
-        StringAssert.Contains(second.UpdatedScript, @"src2 = core.lsmas.LWLibavSource(r""D:\Videos\encode.mkv"")");
+        StringAssert.Contains(second.UpdatedScript, @"src2 = vss.BestSource().source(r""D:\Videos\encode.mkv"", bits=None)");
         StringAssert.Contains(second.UpdatedScript, "src.set_output()");
     }
 
@@ -356,6 +377,24 @@ public sealed class VapourSynthSmartScriptEditorTests
         StringAssert.Contains(withClip.UpdatedScript, "clip = core.placebo.Deband(clip, threshold=4.0)");
         Assert.IsTrue(withClip.UpdatedScript.IndexOf("BlankClip") < withClip.UpdatedScript.IndexOf("Deband"));
         Assert.IsTrue(withClip.UpdatedScript.IndexOf("Deband") < withClip.UpdatedScript.IndexOf("clip.set_output()"));
+    }
+
+    [TestMethod]
+    public void SmartInsert_PlacesLocalizedCommentsBeforeSetupAndTargetsCode()
+    {
+        var script = "src = make_clip()\r\nsrc.set_output(0)\r\nother.set_output(1)\r\n";
+        var result = VapourSynthSmartScriptEditor.ApplyFilterTemplate(
+            script, 0, "{temp}.process()", derivedVariableName: "out",
+            setup: ["{temp} = Filter({var})"],
+            comments: ["radius 是处理半径。", "0 跳过处理。"]);
+
+        var lines = result.UpdatedScript.Split("\r\n");
+        CollectionAssert.AreEqual(new[]
+        {
+            "src = make_clip()", "# radius 是处理半径。", "# 0 跳过处理。", "src_work = Filter(src)",
+            "out = src_work.process()", "out.set_output(0)", "other.set_output(1)", ""
+        }, lines);
+        Assert.AreEqual("src_work = Filter(src)", lines[result.TargetLineNumber - 1]);
     }
 
     [TestMethod]

@@ -88,6 +88,8 @@ public sealed class EnvironmentReadinessService : IEnvironmentReadinessService
         inputs.AppendLine(settings?.PreferSystemEncoders.ToString());
         inputs.AppendLine(JsonSerializer.Serialize(settings?.EffectiveManualToolPaths.OrderBy(static pair => pair.Key)));
         inputs.AppendLine(JsonSerializer.Serialize(_toolRegistryService.GetTools()));
+        if (_paths is not null)
+            inputs.AppendLine(string.Join('|', LocalVapourSynthPluginList.Read(_paths)));
         inputs.AppendLine(string.Join('|', Enum.GetValues<SetupDependencyKind>().Select(ToolchainBaseline.VersionFor)));
         foreach (var variable in _toolRegistryService.GetTools().SelectMany(static tool => tool.EnvironmentVariableNames)
             .Append("PATH").Distinct().Order())

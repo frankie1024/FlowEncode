@@ -10,16 +10,7 @@ public enum RegisteredToolKind
     Vspipe,
     Python,
     Pip,
-    Vsrepo,
-    VsrepoCli,
-    VsrepoPackageFfms2,
-    VsrepoPackageFpng,
-    VsrepoPackageLibp2p,
-    VsrepoPackageLsmas,
-    VsrepoPackagePlacebo,
-    VsrepoPackageMvsfunc,
-    VsrepoPackageHavsfunc,
-    PythonModuleAwsmfunc,
+    PythonModuleAwsmfunc = 17,
     PythonModuleVsjetpack,
     Avs2PipeMod,
     Av1an,
@@ -27,5 +18,6 @@ public enum RegisteredToolKind
     Eac3To,
     Deew,
     Dee,
-    OpusExt
+    OpusExt,
+    VapourSynthUtilityPlugins
 }

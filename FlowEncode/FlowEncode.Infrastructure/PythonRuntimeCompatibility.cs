@@ -13,7 +13,7 @@ internal static class PythonRuntimeCompatibility
         return new DiscoveryScope(previous);
     }
 
-    public static readonly Version MinimumSupportedVersion = new(3, 12);
+    public static readonly Version MinimumSupportedVersion = new(3, 13);
     public static readonly IReadOnlyList<string> EnvironmentVariableNames = ["FLOWENCODE_PYTHON", "PYTHON_PATH", "PYTHON_EXE", "PYTHON"];
 
     public static bool IsSupportedVersion(Version version)
@@ -187,16 +187,16 @@ internal static class PythonRuntimeCompatibility
             .ToArray();
     }
 
-    // An existing binding wins. Otherwise keep a VS environment before choosing
-    // the fresh-install baseline; installing another Python must not migrate it.
+    // Explicit bindings win. Next prefer the recommended minor, then an existing VS environment.
     internal static int SelectionRank(string path, bool hasVapourSynth, Version version,
         IReadOnlyList<string> bindings, IReadOnlyList<string> pathRuntimes)
     {
         for (var index = 0; index < bindings.Count; index++)
             if (string.Equals(path, bindings[index], StringComparison.OrdinalIgnoreCase)) return index;
-        if (hasVapourSynth)
-            return bindings.Count + (pathRuntimes.Contains(path, StringComparer.OrdinalIgnoreCase) ? 0 : 1);
-        return bindings.Count + (IsTargetMinor(version) ? 2 : 3);
+        var rank = IsTargetMinor(version) ? 0 : 3;
+        if (!hasVapourSynth)
+            return bindings.Count + rank + 2;
+        return bindings.Count + rank + (pathRuntimes.Contains(path, StringComparer.OrdinalIgnoreCase) ? 0 : 1);
     }
 
     internal static IEnumerable<string> EnumeratePathPythonExecutablePaths()

@@ -81,16 +81,13 @@ public sealed class SetupDependencyInstallCoordinator
 
     private static bool UsesPythonEnvironment(SetupDependencyKind kind) => kind is
         SetupDependencyKind.Python312 or SetupDependencyKind.VapourSynth or
-        SetupDependencyKind.Vsrepo or SetupDependencyKind.VsPluginBundle or
-        SetupDependencyKind.Awsmfunc or SetupDependencyKind.Vsjetpack;
+        SetupDependencyKind.Awsmfunc or SetupDependencyKind.Vsjetpack or SetupDependencyKind.VapourSynthUtilityPlugins;
 
     private static IReadOnlyList<SetupDependencyKind> GetPrerequisites(SetupDependencyKind kind) => kind switch
     {
-        SetupDependencyKind.VsPluginBundle =>
-            [SetupDependencyKind.Python312, SetupDependencyKind.VapourSynth, SetupDependencyKind.Vsrepo],
-        SetupDependencyKind.Awsmfunc or SetupDependencyKind.Vsjetpack =>
+        SetupDependencyKind.Awsmfunc or SetupDependencyKind.Vsjetpack or SetupDependencyKind.VapourSynthUtilityPlugins =>
             [SetupDependencyKind.Python312, SetupDependencyKind.VapourSynth],
-        SetupDependencyKind.VapourSynth or SetupDependencyKind.Vsrepo => [SetupDependencyKind.Python312],
+        SetupDependencyKind.VapourSynth => [SetupDependencyKind.Python312],
         _ => []
     };
 }

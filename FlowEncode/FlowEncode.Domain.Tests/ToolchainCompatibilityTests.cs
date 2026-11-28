@@ -66,29 +66,6 @@ public sealed class ToolchainCompatibilityTests
     }
 
     [TestMethod]
-    public void PinnedVsManifest_ContainsCompleteDependencyClosureAndFileHashes()
-    {
-        using var stream = typeof(SetupBootstrapService).Assembly.GetManifestResourceStream("FlowEncode.Infrastructure.Resources.VsrepoBaseline.json")!;
-        using var document = System.Text.Json.JsonDocument.Parse(stream);
-        var packages = document.RootElement.GetProperty("packages").EnumerateArray().ToArray();
-        var identifiers = packages.Select(package => package.GetProperty("identifier").GetString()!).ToHashSet();
-        Assert.AreEqual(packages.Length, identifiers.Count);
-        foreach (var package in packages)
-        {
-            if (package.TryGetProperty("dependencies", out var dependencies))
-                foreach (var dependency in dependencies.EnumerateArray())
-                    if (dependency.ValueKind == System.Text.Json.JsonValueKind.String)
-                        Assert.IsTrue(identifiers.Contains(dependency.GetString()!), dependency.ToString());
-            var releases = package.GetProperty("releases").EnumerateArray().ToArray();
-            Assert.HasCount(1, releases);
-            var artifact = releases[0].GetProperty(package.GetProperty("type").GetString() == "PyScript" ? "script" : "win64");
-            Assert.IsFalse(artifact.GetProperty("url").GetString()!.Contains("/latest/"));
-            foreach (var file in artifact.GetProperty("files").EnumerateObject())
-                Assert.IsTrue(System.Text.RegularExpressions.Regex.IsMatch(file.Value[1].GetString()!, "^[a-f0-9]{64}$"));
-        }
-    }
-
-    [TestMethod]
     public void AviSynthMetadata_Preserves10BitFormatAndExactFrameCount()
     {
         var source = SourceVideoInfoProbe.ParseAviSynthInfo("v:width 128\nv:height 72\nv:pixel_type YUV420P10\nv:bit_depth 10\nv:fps 24000/1001\nv:frames 240\n");

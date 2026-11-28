@@ -71,7 +71,7 @@ public sealed class VapourSynthPreviewWindowViewModel : ObservableObject
     private int _worstSampleCount = 80;
     private string _worstMetric = "xpsnr";
     private bool _hasVsAlign;
-    private bool _hasVmafCambi;
+    private bool _hasCambi;
     private bool _hasNativeRes;
     private int? _pendingSceneStartFrame;
     private StringChoiceOption? _selectedWorstSkipOption;
@@ -1313,10 +1313,10 @@ public sealed class VapourSynthPreviewWindowViewModel : ObservableObject
         private set => SetProperty(ref _hasVsAlign, value);
     }
 
-    public bool HasVmafCambi
+    public bool HasCambi
     {
-        get => _hasVmafCambi;
-        private set => SetProperty(ref _hasVmafCambi, value);
+        get => _hasCambi;
+        private set => SetProperty(ref _hasCambi, value);
     }
 
     public bool HasNativeRes
@@ -1325,10 +1325,10 @@ public sealed class VapourSynthPreviewWindowViewModel : ObservableObject
         private set => SetProperty(ref _hasNativeRes, value);
     }
 
-    public void ApplySessionCapabilities(bool hasVsAlign, bool hasVmafCambi, bool hasNativeRes)
+    public void ApplySessionCapabilities(bool hasVsAlign, bool hasCambi, bool hasNativeRes)
     {
         HasVsAlign = hasVsAlign;
-        HasVmafCambi = hasVmafCambi;
+        HasCambi = hasCambi;
         HasNativeRes = hasNativeRes;
         RebuildWorstMetricOptions();
     }
@@ -1340,7 +1340,7 @@ public sealed class VapourSynthPreviewWindowViewModel : ObservableObject
         WorstMetricOptions.Add(new StringChoiceOption("xpsnr", "XPSNR"));
         WorstMetricOptions.Add(new StringChoiceOption("ssimulacra2", "SSIMULACRA2"));
         WorstMetricOptions.Add(new StringChoiceOption("psnr", "PSNR"));
-        if (_hasVmafCambi)
+        if (_hasCambi)
         {
             WorstMetricOptions.Add(new StringChoiceOption("cambi", "CAMBI"));
         }

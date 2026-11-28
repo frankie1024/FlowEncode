@@ -157,7 +157,7 @@ public sealed class VapourSynthPreviewService : IVapourSynthPreviewService
             return new VapourSynthPreviewSessionInfo(
                 outputs,
                 response.HasVsAlign,
-                response.HasVmafCambi,
+                response.HasCambi,
                 response.HasNativeRes);
         }
         catch (Exception)
@@ -1055,7 +1055,7 @@ public sealed class VapourSynthPreviewService : IVapourSynthPreviewService
 
         public bool HasVsAlign { get; set; }
 
-        public bool HasVmafCambi { get; set; }
+        public bool HasCambi { get; set; }
 
         public bool HasNativeRes { get; set; }
 

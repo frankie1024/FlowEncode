@@ -8,12 +8,76 @@ using FlowEncode.Domain;
 using FlowEncode.Infrastructure;
 using FlowEncode.ViewModels;
 using Microsoft.UI.Xaml;
+using Microsoft.UI.Xaml.Automation;
 using Microsoft.UI.Xaml.Controls;
 
 namespace FlowEncode.Controls.Settings;
 
 internal static class SetupDependencyInteractionHelper
 {
+    public static Task ShowJetpackPackagesAsync(
+        FrameworkElement owner,
+        AppText texts,
+        SetupGuideDependencyItemViewModel item,
+        string diagnosticSource)
+    {
+        var search = new TextBox { PlaceholderText = texts.JetpackPackagesSearch };
+        AutomationProperties.SetName(search, texts.JetpackPackagesSearch);
+        var rows = new StackPanel { Spacing = 8 };
+        var scroll = new ScrollViewer
+        {
+            MaxHeight = 280,
+            VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
+            HorizontalScrollMode = ScrollMode.Disabled,
+            Content = rows
+        };
+        var panel = new StackPanel { Spacing = 12 };
+        panel.Children.Add(search);
+        panel.Children.Add(scroll);
+
+        void FilterRows()
+        {
+            var query = search.Text.Trim();
+            rows.Children.Clear();
+            foreach (var package in item.PythonPackages)
+            {
+                if (!package.Name.Contains(query, StringComparison.OrdinalIgnoreCase)
+                    && !package.InstalledVersion.Contains(query, StringComparison.OrdinalIgnoreCase))
+                {
+                    continue;
+                }
+
+                var packageLabel = string.IsNullOrWhiteSpace(package.InstalledVersion)
+                    ? package.Name
+                    : $"{package.Name}  {package.InstalledVersion}";
+                var row = new Grid { ColumnSpacing = 16 };
+                row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+                row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+                row.Children.Add(new TextBlock { Text = packageLabel, TextWrapping = TextWrapping.Wrap, IsTextSelectionEnabled = true });
+                var state = new TextBlock { Text = texts.JetpackPackageState(package) };
+                Grid.SetColumn(state, 1);
+                row.Children.Add(state);
+                rows.Children.Add(row);
+            }
+
+            if (rows.Children.Count == 0)
+                rows.Children.Add(new TextBlock { Text = texts.JetpackPackagesNoMatches, TextWrapping = TextWrapping.Wrap });
+
+            scroll.ChangeView(null, 0, null, true);
+        }
+
+        FilterRows();
+        search.TextChanged += (_, _) => FilterRows();
+        return WindowInteractionHelper.ShowContentDialogAsync(new ContentDialog
+        {
+            XamlRoot = owner.XamlRoot,
+            RequestedTheme = owner.ActualTheme,
+            Title = texts.JetpackPackagesTitle,
+            Content = panel,
+            CloseButtonText = texts.OkButton
+        }, diagnosticSource);
+    }
+
     public static void ShowMoreDependencyActions(
         ISetupDependencyModuleViewModel viewModel,
         FrameworkElement owner,

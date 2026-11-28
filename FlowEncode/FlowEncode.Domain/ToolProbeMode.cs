@@ -6,6 +6,5 @@ public enum ToolProbeMode
     ProcessVersion,
     FileVersionInfo,
     ExistenceOnly,
-    VsrepoInstalledPackage,
-    PythonModuleImport
+    PythonModuleImport = 5
 }

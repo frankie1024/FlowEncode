@@ -249,12 +249,6 @@ public sealed class CliEnvironmentIntegrationService
     internal static string GetPythonPackageComponentKey(string packageName)
         => $"python-package:{packageName.Trim().ToLowerInvariant()}";
 
-    internal static string GetVsPluginBundleComponentKey() => "vsrepo-plugin-bundle";
-
-    internal static string GetVsrepoExtractorComponentKey() => "vsrepo-extractor";
-
-    internal static string GetPortable7ZipComponentKey() => "portable-7zip";
-
     private static EnvironmentOwnershipManifest RelocateWorkspaceComponentOwnership(
         EnvironmentOwnershipManifest manifest,
         string currentWorkspaceRoot)
@@ -405,10 +399,9 @@ public sealed class CliEnvironmentIntegrationService
         var commands = new List<CliCommandSpec>();
         if (dependencyKind is SetupDependencyKind.Python312
                 or SetupDependencyKind.VapourSynth
-                or SetupDependencyKind.Vsrepo
-                or SetupDependencyKind.VsPluginBundle
                 or SetupDependencyKind.Awsmfunc
                 or SetupDependencyKind.Vsjetpack
+                or SetupDependencyKind.VapourSynthUtilityPlugins
             && !string.IsNullOrWhiteSpace(pythonPath)
             && File.Exists(pythonPath))
         {
@@ -421,10 +414,6 @@ public sealed class CliEnvironmentIntegrationService
                 AddIfExists(commands, Path.Combine(scriptsRoot, "vspipe.exe"), "vspipe", "--version");
             }
 
-            if (dependencyKind is SetupDependencyKind.Vsrepo or SetupDependencyKind.VsPluginBundle)
-            {
-                AddIfExists(commands, Path.Combine(scriptsRoot, "vsrepo.exe"), "vsrepo", VsrepoCommand.LauncherProbeArgument);
-            }
         }
 
         if (dependencyKind == SetupDependencyKind.FfmpegBundle)

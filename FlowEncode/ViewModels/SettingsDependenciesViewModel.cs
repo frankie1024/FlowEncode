@@ -19,9 +19,7 @@ public sealed class SettingsDependenciesViewModel : ModuleViewModelBase, ISetupD
 
     public AppText Texts => Owner.Texts;
 
-    public string EnvironmentCheckedAtText => SetupGuide.EnvironmentCheckedAtText;
-
-    public string SetupGuideRemoteCheckedAtText => SetupGuide.SetupGuideRemoteCheckedAtText;
+    public string DependencyCheckSummary => SetupGuide.DependencyCheckSummary;
 
     public Visibility SetupGuideActionProgressVisibility => SetupGuide.SetupGuideActionProgressVisibility;
 
@@ -81,6 +79,9 @@ public sealed class SettingsDependenciesViewModel : ModuleViewModelBase, ISetupD
     {
         return SetupGuide.InstallSetupDependencyAsync(kind, updateBeyondBaseline);
     }
+
+    public Task<string?> ChangeVapourSynthPluginAsync(string packageName, VapourSynthPluginAction action)
+        => SetupGuide.ChangeVapourSynthPluginAsync(packageName, action);
 
     public async Task<string?> DownloadDeewComponentsAsync()
     {

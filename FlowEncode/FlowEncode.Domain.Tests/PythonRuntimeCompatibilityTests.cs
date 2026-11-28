@@ -44,12 +44,12 @@ public sealed class PythonRuntimeCompatibilityTests
     }
 
     [TestMethod]
-    [DataRow(3, 12, true, true)]
+    [DataRow(3, 12, true, false)]
     [DataRow(3, 13, true, true)]
     [DataRow(3, 12, false, false)]
     [DataRow(3, 11, true, false)]
     [DataRow(4, 0, true, false)]
-    public void IsSupportedRuntime_RequiresPython312OrNewerX64(
+    public void IsSupportedRuntime_RequiresPython313OrNewerX64(
         int major,
         int minor,
         bool is64Bit,
@@ -74,12 +74,12 @@ public sealed class PythonRuntimeCompatibilityTests
     }
 
     [TestMethod]
-    public void Selection_Preserves20BindingWhenNewPythonIsInstalled()
+    public void Selection_PreservesExplicitPython313BindingWhenPython314IsInstalled()
     {
         var candidates = new[]
         {
             (Path: @"C:\Python314\python.exe", Version: new Version(3, 14, 10), Vs: true),
-            (Path: @"C:\Python312\python.exe", Version: new Version(3, 12, 10), Vs: true)
+            (Path: @"C:\Python313\python.exe", Version: new Version(3, 13, 10), Vs: true)
         };
         var selected = candidates.OrderBy(item => PythonRuntimeCompatibility.SelectionRank(
             item.Path, item.Vs, item.Version, [candidates[1].Path], [candidates[0].Path])).First();
@@ -87,11 +87,11 @@ public sealed class PythonRuntimeCompatibilityTests
     }
 
     [TestMethod]
-    public void Selection_KeepsExistingVsEnvironmentBeforeFreshBaseline()
+    public void Selection_PrefersPython314BeforeOtherMinors()
     {
-        var legacy = PythonRuntimeCompatibility.SelectionRank("legacy", true, new Version(3, 12, 10), [], []);
+        var legacy = PythonRuntimeCompatibility.SelectionRank("legacy", true, new Version(3, 13, 10), [], []);
         var baseline = PythonRuntimeCompatibility.SelectionRank("new", false, new Version(3, 14, 10), [], ["new"]);
-        Assert.IsLessThan(baseline, legacy);
+        Assert.IsLessThan(legacy, baseline);
         Assert.IsLessThan(PythonRuntimeCompatibility.SelectionRank("future", false, new Version(3, 15), [], []), baseline);
     }
 

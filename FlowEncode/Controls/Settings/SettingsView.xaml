@@ -4,6 +4,7 @@
     x:Name="RootView"
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:settings="using:FlowEncode.Controls.Settings"
     xmlns:shared="using:FlowEncode.Controls.Shared"
     xmlns:vm="using:FlowEncode.ViewModels"
     xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
@@ -26,7 +27,6 @@
                     <StackPanel Spacing="{StaticResource AppSpacingXS}">
                         <TextBlock FontFamily="{StaticResource AppDisplayFont}" FontSize="{StaticResource AppSectionTitleFontSize}" FontWeight="SemiBold" Text="{Binding Texts.SettingsTitle}" />
                         <TextBlock Foreground="{ThemeResource SubtleTextBrush}" Text="{Binding AppCurrentVersionText}" TextWrapping="WrapWholeWords" />
-                        <TextBlock Foreground="{ThemeResource SubtleTextBrush}" Text="{Binding AppLatestVersionText}" TextWrapping="WrapWholeWords" Visibility="{Binding AppLatestVersionVisibility}" />
                     </StackPanel>
 
                     <StackPanel x:Name="SettingsActionPanel" Grid.Column="1" Orientation="Horizontal" Spacing="{StaticResource AppSpacingS}" HorizontalAlignment="Right" VerticalAlignment="Top">
@@ -140,8 +140,7 @@
 
                         <StackPanel Spacing="{StaticResource AppSpacingXS}">
                             <TextBlock FontFamily="{StaticResource AppDisplayFont}" FontSize="{StaticResource AppSubsectionTitleFontSize}" FontWeight="SemiBold" Text="{Binding Texts.EnvironmentAndDependenciesTitle}" />
-                            <TextBlock Foreground="{ThemeResource SubtleTextBrush}" Text="{Binding EnvironmentCheckedAtText}" TextWrapping="WrapWholeWords" />
-                            <TextBlock Foreground="{ThemeResource SubtleTextBrush}" Text="{Binding SetupGuideRemoteCheckedAtText}" TextWrapping="WrapWholeWords" />
+                            <TextBlock Foreground="{ThemeResource SubtleTextBrush}" Text="{Binding DependencyCheckSummary}" TextWrapping="WrapWholeWords" />
                         </StackPanel>
 
                         <StackPanel x:Name="SettingsDependencyActions" Grid.Column="1" Orientation="Horizontal" Spacing="{StaticResource AppSpacingS}" HorizontalAlignment="Right" VerticalAlignment="Top">
@@ -175,15 +174,15 @@
                     <ItemsControl ItemsSource="{Binding SetupGuideCards}" IsEnabled="{Binding CanModifyDependencies}">
                         <ItemsControl.ItemTemplate>
                             <DataTemplate x:DataType="vm:SetupGuideCardViewModel">
-                                <shared:AnimatedExpander Margin="{StaticResource AppBottomSpacingM}" HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch" CollapsedCompleted="SetupGuideCardExpander_CollapsedCompleted" ContentMargin="12,10,12,0" IsExpanded="{Binding IsExpanded, Mode=TwoWay}">
+                                <shared:AnimatedExpander Margin="{StaticResource AppBottomSpacingM}" HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch" CollapsedCompleted="SetupGuideCardExpander_CollapsedCompleted" HeaderPadding="16,11,12,11" ContentMargin="12,10,12,0" IsExpanded="{Binding IsExpanded, Mode=TwoWay}">
                                     <shared:AnimatedExpander.HeaderContent>
                                         <Grid ColumnSpacing="{StaticResource AppSpacingM}">
                                             <Grid.ColumnDefinitions>
                                                 <ColumnDefinition Width="*" />
                                                 <ColumnDefinition Width="Auto" />
                                             </Grid.ColumnDefinitions>
-                                            <TextBlock FontFamily="{StaticResource AppDisplayFont}" FontSize="{StaticResource AppCardTitleFontSize}" FontWeight="SemiBold" Text="{Binding Title}" VerticalAlignment="Center" />
-                                            <TextBlock Grid.Column="1" Foreground="{ThemeResource SubtleTextBrush}" Text="{Binding ReadySummary}" VerticalAlignment="Center" />
+                                            <TextBlock FontFamily="{StaticResource AppDisplayFont}" FontSize="{StaticResource AppSectionTitleFontSize}" FontWeight="SemiBold" Text="{Binding Title}" VerticalAlignment="Center" />
+                                            <TextBlock Grid.Column="1" FontSize="16" Foreground="{ThemeResource SubtleTextBrush}" Text="{Binding ReadySummary}" VerticalAlignment="Center" />
                                         </Grid>
                                     </shared:AnimatedExpander.HeaderContent>
                                     <shared:AnimatedExpander.BodyContent>
@@ -191,98 +190,7 @@
                                             <ItemsControl ItemsSource="{Binding Items}">
                                                 <ItemsControl.ItemTemplate>
                                                     <DataTemplate x:DataType="vm:SetupGuideDependencyItemViewModel">
-                                                        <Border Margin="{StaticResource AppBottomSpacingM}" Padding="{StaticResource AppInsetPanelPadding}" Background="{ThemeResource CardAltBrush}" BorderBrush="{ThemeResource CardBorderBrush}" BorderThickness="{StaticResource AppCardBorderThickness}" CornerRadius="{StaticResource AppCardCornerRadius}">
-                                                            <Grid RowSpacing="{StaticResource AppSpacingM}">
-                                                                <Grid.RowDefinitions>
-                                                                    <RowDefinition Height="Auto" />
-                                                                    <RowDefinition Height="Auto" />
-                                                                    <RowDefinition Height="Auto" />
-                                                                    <RowDefinition Height="Auto" />
-                                                                    <RowDefinition Height="Auto" />
-                                                                    <RowDefinition Height="Auto" />
-                                                                    <RowDefinition Height="Auto" />
-                                                                </Grid.RowDefinitions>
-
-                                                                <Grid ColumnSpacing="{StaticResource AppSpacingL}">
-                                                                    <Grid.ColumnDefinitions>
-                                                                        <ColumnDefinition Width="*" />
-                                                                        <ColumnDefinition Width="Auto" />
-                                                                    </Grid.ColumnDefinitions>
-
-                                                                    <StackPanel Orientation="Horizontal" Spacing="6">
-                                                                        <TextBlock FontFamily="{StaticResource AppDisplayFont}" FontSize="{StaticResource AppSubsectionTitleFontSize}" FontWeight="SemiBold" Text="{Binding Title}" VerticalAlignment="Center" />
-                                                                        <shared:ContextHelpButton Title="{Binding DataContext.Texts.PythonUpgradeHelpTitle, ElementName=RootView}" HelpText="{Binding UpgradeHelp}" VerticalAlignment="Center" />
-                                                                    </StackPanel>
-
-                                                                    <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="{StaticResource AppSpacingS}" HorizontalAlignment="Right" VerticalAlignment="Top">
-                                                                        <Button Style="{StaticResource StandardButtonStyle}" Content="{Binding DataContext.Texts.DeewComponentsDownloadButton, ElementName=RootView}" Visibility="{Binding DeewComponentsDownloadVisibility}" IsEnabled="{Binding DeewComponentsDownloadEnabled}" ToolTipService.ToolTip="{Binding DataContext.Texts.DeewComponentsDownloadHint, ElementName=RootView}" Click="DownloadDeewComponentsButton_Click" />
-                                                                        <Button Style="{StaticResource StandardButtonStyle}" Content="{Binding MoreActionText}" AutomationProperties.Name="{Binding MoreActionText}" Visibility="{Binding MoreActionsVisibility}" IsEnabled="{Binding AdvancedUpdateEnabled}" Click="MoreDependencyActionsButton_Click" />
-                                                                        <Border Background="Transparent" Visibility="{Binding SettingsPrimaryActionVisibility}">
-                                                                            <ToolTipService.ToolTip>
-                                                                                <ToolTip MaxWidth="420"><TextBlock Text="{Binding PrimaryActionToolTip}" TextWrapping="Wrap" /></ToolTip>
-                                                                            </ToolTipService.ToolTip>
-                                                                            <Button AutomationProperties.Name="{Binding PrimaryActionText}" Tag="{Binding Kind}" Click="InstallSetupDependencyButton_Click" IsEnabled="{Binding PrimaryActionEnabled}" IsHitTestVisible="{Binding PrimaryActionEnabled}" AutomationProperties.HelpText="{Binding PrimaryActionToolTip}" Style="{StaticResource AccentButtonStyle}">
-                                                                                <StackPanel Orientation="Horizontal" Spacing="{StaticResource AppCommandIconTextSpacing}">
-                                                                                    <SymbolIcon Symbol="Download" />
-                                                                                    <TextBlock Text="{Binding PrimaryActionText}" />
-                                                                                </StackPanel>
-                                                                            </Button>
-                                                                        </Border>
-                                                                        <Button Style="{StaticResource StandardButtonStyle}" AutomationProperties.Name="{Binding DataContext.Texts.UninstallButton, ElementName=RootView}" Tag="{Binding Kind}" Click="UninstallSetupDependencyButton_Click" IsEnabled="{Binding UninstallActionEnabled}" Visibility="{Binding UninstallVisibility}" ToolTipService.ToolTip="{Binding DataContext.Texts.UninstallTooltip, ElementName=RootView}">
-                                                                            <StackPanel Orientation="Horizontal" Spacing="{StaticResource AppCommandIconTextSpacing}">
-                                                                                <SymbolIcon Symbol="Delete" />
-                                                                                <TextBlock Text="{Binding DataContext.Texts.UninstallButton, ElementName=RootView}" />
-                                                                            </StackPanel>
-                                                                        </Button>
-
-                                                                    </StackPanel>
-                                                                </Grid>
-
-                                                                <StackPanel Grid.Row="1" Orientation="Horizontal" Spacing="{StaticResource AppSpacingS}" Visibility="{Binding ReadyBadgeVisibility}">
-                                                                    <SymbolIcon Symbol="Accept" Foreground="{ThemeResource AppSuccessBrush}" />
-                                                                    <TextBlock FontWeight="SemiBold" Foreground="{ThemeResource AppSuccessBrush}" Text="{Binding StatusTitle}" />
-                                                                </StackPanel>
-
-                                                                <StackPanel Grid.Row="1" Orientation="Horizontal" Spacing="{StaticResource AppSpacingS}" Visibility="{Binding WarningBadgeVisibility}">
-                                                                    <SymbolIcon Symbol="Sync" Foreground="{ThemeResource AppWarningBrush}" />
-                                                                    <TextBlock FontWeight="SemiBold" Foreground="{ThemeResource AppWarningBrush}" Text="{Binding StatusTitle}" />
-                                                                </StackPanel>
-
-                                                                <StackPanel Grid.Row="1" Orientation="Horizontal" Spacing="{StaticResource AppSpacingS}" Visibility="{Binding BlockedBadgeVisibility}">
-                                                                    <SymbolIcon Symbol="Important" Foreground="{ThemeResource AppErrorBrush}" />
-                                                                    <TextBlock FontWeight="SemiBold" Foreground="{ThemeResource AppErrorBrush}" Text="{Binding StatusTitle}" />
-                                                                </StackPanel>
-
-                                                                <StackPanel Grid.Row="2" Spacing="{StaticResource AppSpacingXS}">
-                                                                    <TextBlock Text="{Binding StatusText}" TextWrapping="WrapWholeWords" />
-                                                                    <TextBlock Foreground="{ThemeResource SubtleTextBrush}" Text="{Binding InstalledVersionText}" TextWrapping="WrapWholeWords" Visibility="{Binding InstalledVersionVisibility}" />
-                                                                    <TextBlock Foreground="{ThemeResource SubtleTextBrush}" Text="{Binding LatestVersionText}" TextWrapping="WrapWholeWords" Visibility="{Binding LatestVersionVisibility}">
-                                                                        <ToolTipService.ToolTip><ToolTip MaxWidth="420"><TextBlock Text="{Binding RecommendedVersionHelp}" TextWrapping="Wrap" /></ToolTip></ToolTipService.ToolTip>
-                                                                    </TextBlock>
-                                                                </StackPanel>
-
-                                                                <TextBlock Grid.Row="3" Foreground="{ThemeResource AppWarningBrush}" Text="{Binding WarningText}" TextWrapping="WrapWholeWords" Visibility="{Binding WarningVisibility}" />
-
-                                                                <Grid Grid.Row="4" RowSpacing="{StaticResource AppSpacingS}" Visibility="{Binding ProgressVisibility}">
-                                                                    <Grid.RowDefinitions>
-                                                                        <RowDefinition Height="Auto" />
-                                                                        <RowDefinition Height="Auto" />
-                                                                    </Grid.RowDefinitions>
-                                                                    <Grid.ColumnDefinitions>
-                                                                        <ColumnDefinition Width="*" />
-                                                                        <ColumnDefinition Width="Auto" />
-                                                                    </Grid.ColumnDefinitions>
-
-                                                                    <TextBlock Foreground="{ThemeResource SubtleTextBrush}" Text="{Binding InstallProgressText}" TextWrapping="WrapWholeWords" />
-                                                                    <TextBlock Grid.Column="1" FontFamily="{StaticResource AppMonoFont}" Text="{Binding InstallProgressPercentText}" />
-                                                                    <ProgressBar Grid.Row="1" Grid.ColumnSpan="2" Height="6" Foreground="{ThemeResource QueueProgressFillBrush}" Background="{ThemeResource QueueProgressSoftBrush}" Minimum="0" Maximum="100" Value="{Binding InstallProgressPercent}" IsIndeterminate="{Binding IsInstallIndeterminate}" />
-                                                                </Grid>
-
-                                                                <TextBlock Grid.Row="5" FontFamily="{StaticResource AppMonoFont}" FontSize="{StaticResource AppCaptionFontSize}" Foreground="{ThemeResource SubtleTextBrush}" Text="{Binding ExecutablePath}" TextWrapping="WrapWholeWords" Visibility="{Binding PathVisibility}" />
-
-                                                                <TextBlock Grid.Row="6" FontFamily="{StaticResource AppMonoFont}" FontSize="{StaticResource AppCaptionFontSize}" Foreground="{ThemeResource SubtleTextBrush}" Text="{Binding DetailText}" TextWrapping="WrapWholeWords" Visibility="{Binding DetailVisibility}" />
-                                                            </Grid>
-                                                        </Border>
+                                                    <settings:SetupDependencyCardView Module="{Binding DataContext.Dependencies, ElementName=RootView}" DeewDownloadVisibility="Visible" />
                                                     </DataTemplate>
                                                 </ItemsControl.ItemTemplate>
                                             </ItemsControl>

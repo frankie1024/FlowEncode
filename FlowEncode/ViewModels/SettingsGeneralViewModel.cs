@@ -16,10 +16,6 @@ public sealed class SettingsGeneralViewModel : ModuleViewModelBase
 
     public string AppCurrentVersionText => Owner.AppCurrentVersionText;
 
-    public string AppLatestVersionText => Owner.AppLatestVersionText;
-
-    public Visibility AppLatestVersionVisibility => Owner.AppLatestVersionVisibility;
-
     public bool IsAppUpdateActionInProgress => Owner.IsAppUpdateActionInProgress;
 
     public Visibility AppUpdateProgressVisibility => Owner.AppUpdateProgressVisibility;

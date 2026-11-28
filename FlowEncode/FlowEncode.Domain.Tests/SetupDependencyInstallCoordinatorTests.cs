@@ -51,16 +51,16 @@ public sealed class SetupDependencyInstallCoordinatorTests
         var releasePython = Signal();
         var releaseTools = Signal();
         var vsStarted = Signal();
-        var vsrepoStarted = Signal();
+        var awsmfuncStarted = Signal();
         var python = coordinator.RunAsync(SetupDependencyKind.Python312, _ => releasePython.Task);
         var vs = coordinator.RunAsync(SetupDependencyKind.VapourSynth, _ =>
         {
             vsStarted.SetResult();
             return Task.CompletedTask;
         });
-        var vsrepo = coordinator.RunAsync(SetupDependencyKind.Vsrepo, _ =>
+        var awsmfunc = coordinator.RunAsync(SetupDependencyKind.Awsmfunc, _ =>
         {
-            vsrepoStarted.SetResult();
+            awsmfuncStarted.SetResult();
             return Task.CompletedTask;
         });
         var toolStarts = 0;
@@ -74,10 +74,10 @@ public sealed class SetupDependencyInstallCoordinatorTests
 
         Assert.AreEqual(2, toolStarts);
         Assert.IsFalse(vsStarted.Task.IsCompleted);
-        Assert.IsFalse(vsrepoStarted.Task.IsCompleted);
+        Assert.IsFalse(awsmfuncStarted.Task.IsCompleted);
         releasePython.SetResult();
         releaseTools.SetResult();
-        await Task.WhenAll(python, vs, vsrepo, ffmpeg, x264).WaitAsync(TimeSpan.FromSeconds(5));
+        await Task.WhenAll(python, vs, awsmfunc, ffmpeg, x264).WaitAsync(TimeSpan.FromSeconds(5));
     }
 
     [TestMethod]
@@ -123,35 +123,6 @@ public sealed class SetupDependencyInstallCoordinatorTests
         Assert.IsFalse(dependentStarted);
         await coordinator.RunAsync(SetupDependencyKind.Python312, _ => Task.CompletedTask);
         await coordinator.RunAsync(SetupDependencyKind.VapourSynth, _ => Task.CompletedTask);
-    }
-
-    [TestMethod]
-    public async Task PluginBundle_WaitsForBothRuntimeAndVsrepo()
-    {
-        var coordinator = new SetupDependencyInstallCoordinator();
-        var releaseRuntime = Signal();
-        var releaseVsrepo = Signal();
-        var vsrepoStarted = Signal();
-        var bundleStarted = Signal();
-        var runtime = coordinator.RunAsync(SetupDependencyKind.VapourSynth, _ => releaseRuntime.Task);
-        var vsrepo = coordinator.RunAsync(SetupDependencyKind.Vsrepo, _ =>
-        {
-            vsrepoStarted.SetResult();
-            return releaseVsrepo.Task;
-        });
-        var bundle = coordinator.RunAsync(SetupDependencyKind.VsPluginBundle, _ =>
-        {
-            bundleStarted.SetResult();
-            return Task.CompletedTask;
-        });
-
-        Assert.IsFalse(bundleStarted.Task.IsCompleted);
-        releaseRuntime.SetResult();
-        await vsrepoStarted.Task.WaitAsync(TimeSpan.FromSeconds(5));
-        Assert.IsFalse(bundleStarted.Task.IsCompleted);
-        releaseVsrepo.SetResult();
-        await Task.WhenAll(runtime, vsrepo, bundle).WaitAsync(TimeSpan.FromSeconds(5));
-        Assert.IsTrue(bundleStarted.Task.IsCompletedSuccessfully);
     }
 
     [TestMethod]

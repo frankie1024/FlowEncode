@@ -128,6 +128,17 @@ internal sealed class ExternalToolLocator
     private IEnumerable<string> EnumerateVspipeCandidates()
     {
         var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var selectedPython = ResolveManual(RegisteredToolKind.Python)
+            ?? PythonRuntimeCompatibility.EnumerateCompatiblePythonExecutablePaths().FirstOrDefault();
+        if (selectedPython is not null)
+        {
+            foreach (var directory in PythonRuntimeCompatibility.EnumeratePythonRuntimeDirectories(selectedPython))
+            {
+                var executable = Path.Combine(directory, "vspipe.exe");
+                if (File.Exists(executable) && seen.Add(executable))
+                    yield return executable;
+            }
+        }
 
         foreach (var root in GetSearchRoots())
         {

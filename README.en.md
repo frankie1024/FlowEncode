@@ -66,10 +66,12 @@ Get the installer or portable ZIP from [GitHub Releases](https://github.com/fran
 | Blu-ray / MKV demuxing | `DGDemux`, `eac3to` |
 | Audio processing | `eac3to`, `deew`, `opusenc` / `Opus Encoder`, `FFmpeg`; DDP, AC4, TrueHD, and DEE AAC tasks require a user-supplied, properly licensed `Dolby Encoding Engine` / `DEE` |
 | Media probing & pipelines | `FFmpeg`, `FFprobe` |
-| Script runtime | `Python 3.14` (new installs) / `Python 3.12` (retained environments), `VapourSynth R79`, `vsrepo`, public VapourSynth plugins |
+| Script runtime | `Python 3.14 x64` (recommended, minimum 3.13 x64), `VapourSynth R82`, `vsjetpack[full]`, `awsmfunc` |
 | Input bridges | `VSPipe`, `Avs2PipeMod` |
 
-Install or update `Python`, `VapourSynth`, `vsrepo`, public plugins, `FFmpeg`, and video encoders from the app. You can also install `Av1an` when a compatible package is available. Get `Avs2PipeMod`, `DGDemux`, `eac3to`, `deew`, `DEE`, and `opusenc` separately and import them in Settings.
+Install or update `Python`, `VapourSynth`, `vsjetpack[full]`, `awsmfunc`, `FFmpeg`, and video encoders from the app. You can also install `Av1an` when a compatible package is available. Get `Avs2PipeMod`, `DGDemux`, `eac3to`, `deew`, `DEE`, and `opusenc` separately and import them in Settings.
+
+The built-in VS editor templates run on the CPU and require no separate model downloads. When you install `awsmfunc`, the setup guide also installs `vapoursynth-fillborders` for Fill Borders and `vsfpng` for PNG export.
 
 ## Installation and Runtime Requirements
 

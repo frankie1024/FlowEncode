@@ -12,6 +12,15 @@ let pendingDocumentFilePath = "";
 let currentDocumentPath = "";
 let currentDocumentBinding = null;
 let hostTheme = "";
+let filterTemplates = [];
+let editorLanguage = "zh";
+const filterTemplatesReady = fetch("./filter-templates.json")
+    .then((response) => {
+        if (!response.ok) throw new Error("Filter templates could not be loaded.");
+        return response.json();
+    })
+    .then((templates) => { filterTemplates = templates; })
+    .catch((error) => console.error(error));
 let languageFeatures = createEmptyLanguageFeatures();
 let languageFeatureIndex = buildLanguageFeatureIndex(languageFeatures);
 let nextLanguageRequestId = 1;
@@ -25,7 +34,8 @@ function createEmptyLanguageFeatures() {
         namespaces: [],
         vsConstants: [],
         videoNodeMembers: [],
-        installedPackages: []
+        installedPackages: [],
+        templateSymbols: []
     };
 }
 
@@ -328,7 +338,8 @@ function normalizeLanguageFeatures(payload) {
         namespaces,
         vsConstants,
         videoNodeMembers,
-        installedPackages
+        installedPackages,
+        templateSymbols: normalizeArray(payload?.templateSymbols)
     };
 }
 
@@ -375,11 +386,13 @@ function buildLanguageFeatureIndex(features) {
         vsConstantMap,
         videoNodeMembers: normalizeArray(features.videoNodeMembers),
         videoNodeMemberMap,
-        installedPackages
+        installedPackages,
+        templateSymbols: new Set(features.templateSymbols)
     };
 }
 
-function loadLanguageFeatures(payload) {
+function loadLanguageFeatures(payload, locale) {
+    editorLanguage = locale === "en" ? "en" : "zh";
     languageFeatures = normalizeLanguageFeatures(payload);
     languageFeatureIndex = buildLanguageFeatureIndex(languageFeatures);
 }
@@ -884,10 +897,11 @@ function collectModelClipVariables(model) {
     const vars = new Set();
     const importedNames = new Set();
     const importedModules = new Map(); // moduleName -> alias
-    const importedSymbols = new Map(); // originalSymbol -> alias
+    const importedSymbols = new Map(); // module.symbol -> alias
     let hasCore = false;
     let lastImportLine = 0;
     let outputVar = "";
+    let outputLine = 0;
     let lastAssignedVar = "";
     const lineCount = model.getLineCount();
 
@@ -919,7 +933,7 @@ function collectModelClipVariables(model) {
                     const orig = aliasMatch[1];
                     const alias = aliasMatch[2] || orig;
                     importedNames.add(alias);
-                    importedSymbols.set(orig, alias);
+                    importedSymbols.set(`${mod}.${orig}`, alias);
                     if (mod === "vapoursynth" && alias === "core") {
                         hasCore = true;
                     }
@@ -936,6 +950,7 @@ function collectModelClipVariables(model) {
         const outMatch = /^([A-Za-z_][A-Za-z0-9_]*)\.set_output\s*\(/.exec(trimmed);
         if (outMatch) {
             outputVar = outMatch[1];
+            outputLine = lineNum;
             vars.add(outMatch[1]);
             continue;
         }
@@ -954,6 +969,7 @@ function collectModelClipVariables(model) {
         importedSymbols,
         hasCore,
         lastImportLine,
+        outputLine,
         activeVar: outputVar || lastAssignedVar || "clip"
     };
 }
@@ -1312,242 +1328,91 @@ function createEncodingSnippets(model, position, range, clipInfo) {
     }
 
     const v = clipInfo.activeVar || "clip";
-    const hasNs = (ns) => languageFeatureIndex.namespaceMap.has(ns);
-    const hasPkg = (pkg) => languageFeatureIndex.installedPackages.has(pkg);
+    const has = (name) => !languageFeatures.isRuntimeReady
+        || (name.startsWith("core.")
+            ? languageFeatureIndex.functionMap.has(name)
+            : languageFeatureIndex.templateSymbols.has(name));
     const vsAlias = clipInfo.importedModules?.get("vapoursynth") || "vs";
     const hasVsImport = clipInfo.importedModules?.has("vapoursynth") === true;
-    const awfAlias = clipInfo.importedModules?.get("awsmfunc") || "awf";
-    const hafAlias = clipInfo.importedModules?.get("havsfunc") || "haf";
-    const rfsAlias = clipInfo.importedSymbols?.get("replace_ranges") || "replace_ranges";
-    const bm3dAlias = clipInfo.importedSymbols?.get("BM3D") || "BM3D";
-    const basedAaAlias = clipInfo.importedSymbols?.get("based_aa") || "based_aa";
-    const fineDehaloAlias = clipInfo.importedSymbols?.get("fine_dehalo") || "fine_dehalo";
-    const placeboDebandAlias = clipInfo.importedSymbols?.get("Placebo") || "Placebo";
     const needsBaseClip = clipInfo.vars.size === 0;
     const baseClipStub = `${v} = core.std.BlankClip(width=1920, height=1080, format=${vsAlias}.YUV420P8)\n`;
-
+    const sourceTemplates = [
+        ["bestsource", "BestSource", "core.bs.VideoSource"],
+        ["lsmas", "LSMAS", "core.lsmas.LWLibavSource"],
+        ["ffms2", "FFMS2", "core.ffms2.Source"]
+    ];
+    const sources = sourceTemplates.map(([label, symbol, backend]) => {
+        const missing = [`vssource.${symbol}`, backend].filter((item) => !has(item));
+        const importer = clipInfo.importedModules?.get("vssource") || "vss";
+        return {
+            label,
+            detail: `vssource.${symbol}`,
+            ready: missing.length === 0,
+            req: missing.join(", "),
+            moduleImport: ["vssource", "vss"],
+            body: `\${1:src} = ${importer}.${symbol}().source(r"\${2:source.mkv}", bits=None)`
+        };
+    });
+    const source = sources[0];
     const defs = [
         {
             label: "vsinit",
-            detail: "VapourSynth 脚本完整骨架",
-            ready: hasNs("lsmas") || hasNs("ffms2"),
-            body: hasNs("lsmas") || !hasNs("ffms2")
-                ? `import vapoursynth as vs\ncore = vs.core\n\nsrc = core.lsmas.LWLibavSource(r"\${1:source.mkv}")\n\${0}\nsrc.set_output()`
-                : `import vapoursynth as vs\ncore = vs.core\n\nsrc = core.ffms2.Source(r"\${1:source.mkv}")\n\${0}\nsrc.set_output()`
+            detail: editorLanguage === "zh" ? "VapourSynth 脚本骨架" : "VapourSynth Script",
+            ready: source.ready,
+            req: source.req,
+            body: `import vssource as vss\n\nsrc = vss.BestSource().source(r"\${1:source.mkv}", bits=None)\n\${0}\nsrc.set_output()`
         },
-        {
-            label: "lsmas",
-            detail: "源加载: lsmas.LWLibavSource",
-            ready: hasNs("lsmas"),
-            req: "lsmas",
-            needsCore: true,
-            body: `\${1:src} = core.lsmas.LWLibavSource(r"\${2:source.mkv}")`
-        },
-        {
-            label: "ffms2",
-            detail: "源加载: ffms2.Source",
-            ready: hasNs("ffms2"),
-            req: "ffms2",
-            needsCore: true,
-            body: `\${1:src} = core.ffms2.Source(r"\${2:source.mkv}")`
-        },
-        {
-            label: "bestsource",
-            detail: "源加载: bs.VideoSource (BestSource)",
-            ready: hasNs("bs"),
-            req: "bestsource",
-            needsCore: true,
-            body: `\${1:src} = core.bs.VideoSource(r"\${2:source.mkv}")`
-        },
-        {
-            label: "bit16",
-            detail: "升位至 16-bit (fmtc.bitdepth)",
-            ready: hasNs("fmtc"),
-            req: "fmtc",
-            needsCore: true,
-            usesActiveVar: true,
-            body: `\${1:src16} = core.fmtc.bitdepth(${v}, bits=16)`
-        },
-        {
-            label: "dither10",
-            detail: "降位至 10-bit 误差扩散抖动 (fmtc.bitdepth)",
-            ready: hasNs("fmtc"),
-            req: "fmtc",
-            needsCore: true,
-            usesActiveVar: true,
-            body: `\${1:out10} = core.fmtc.bitdepth(${v}, bits=10, dmode=\${2:3})`
-        },
-        {
-            label: "dither8",
-            detail: "降位至 8-bit 误差扩散抖动 (fmtc.bitdepth)",
-            ready: hasNs("fmtc"),
-            req: "fmtc",
-            needsCore: true,
-            usesActiveVar: true,
-            body: `\${1:out8} = core.fmtc.bitdepth(${v}, bits=8, dmode=\${2:3})`
-        },
-        {
-            label: "setprops",
-            detail: "设置 BT.709 色彩帧属性 (std.SetFrameProps)",
-            ready: hasNs("std"),
-            usesActiveVar: true,
-            body: `${v} = ${v}.std.SetFrameProps(_Matrix=\${1:1}, _Transfer=\${2:1}, _Primaries=\${3:1}, _ColorRange=\${4:1})`
-        },
-        {
-            label: "hdr2sdr",
-            detail: "HDR 转 SDR 映射 (placebo.Tonemap)",
-            ready: hasNs("placebo"),
-            req: "placebo",
-            needsCore: true,
-            needsVs: true,
-            usesActiveVar: true,
-            body: `${v} = core.placebo.Tonemap(${v}.resize.Spline36(format=${vsAlias}.YUV444P16), src_csp=\${1:2}, dst_csp=0, target_peak=\${2:203.0}, tone_mapping_function=3)`
-        },
-        {
-            label: "deband",
-            detail: "去色带: placebo.Deband",
-            ready: hasNs("placebo"),
-            req: "placebo",
-            needsCore: true,
-            usesActiveVar: true,
-            body: `${v} = core.placebo.Deband(${v}, iterations=\${1:1}, threshold=\${2:4.0}, radius=\${3:16.0}, grain=\${4:6.0})`
-        },
-        {
-            label: "vsdeband",
-            detail: "去色带: vsdeband.Placebo",
-            ready: hasPkg("vsdeband"),
-            req: "vsdeband",
-            fromImport: ["vsdeband", "Placebo"],
-            usesActiveVar: true,
-            body: `${v} = ${placeboDebandAlias}.deband(${v}, thr=\${1:2.0}, radius=\${2:16}, grain=\${3:4})`
-        },
-        {
-            label: "f3kdb",
-            detail: "去色带: neo_f3kdb.Deband",
-            ready: hasNs("neo_f3kdb"),
-            req: "neo_f3kdb",
-            needsCore: true,
-            usesActiveVar: true,
-            body: `${v} = core.neo_f3kdb.Deband(${v}, range=\${1:15}, y=\${2:48}, cb=\${3:36}, cr=\${4:36}, grainy=\${5:24}, grainc=0)`
-        },
-        {
-            label: "denoise",
-            detail: "降噪: dfttest.DFTTest",
-            ready: hasNs("dfttest"),
-            req: "dfttest",
-            needsCore: true,
-            usesActiveVar: true,
-            body: `${v} = core.dfttest.DFTTest(${v}, sigma=\${1:2.0})`
-        },
-        {
-            label: "bm3d",
-            detail: "降噪: vsdenoise.BM3D / bm3dcuda / bm3d",
-            ready: hasPkg("vsdenoise") || hasNs("bm3dcuda") || hasNs("bm3d"),
-            req: "vsdenoise / bm3d",
-            needsCore: !hasPkg("vsdenoise"),
-            fromImport: hasPkg("vsdenoise") ? ["vsdenoise", "BM3D"] : null,
-            usesActiveVar: true,
-            body: hasPkg("vsdenoise")
-                ? `${v} = ${bm3dAlias}.denoise(${v}, sigma=\${1:1.5}, tr=\${2:2})`
-                : hasNs("bm3dcuda")
-                    ? `${v} = core.bm3dcuda.BM3D(${v}, sigma=[\${1:1.5}, 0, 0], radius=\${2:2})`
-                    : `${v} = core.bm3d.Basic(${v}, sigma=[\${1:1.5}, 0, 0])`
-        },
-        {
-            label: "bbmod",
-            detail: "边线修复: awsmfunc.bbmod",
-            ready: hasPkg("awsmfunc"),
-            req: "awsmfunc",
-            moduleImport: ["awsmfunc", "awf"],
-            usesActiveVar: true,
-            body: `${v} = ${awfAlias}.bbmod(${v}, top=\${1:2}, bottom=\${2:2}, left=\${3:2}, right=\${4:2}, thresh=\${5:32}, blur=\${6:20})`
-        },
-        {
-            label: "aa",
-            detail: "抗锯齿: vsaa.based_aa",
-            ready: hasPkg("vsaa") || hasPkg("vsjetpack"),
-            req: "vsaa / vsjetpack",
-            fromImport: ["vsaa", "based_aa"],
-            usesActiveVar: true,
-            body: `${v} = ${basedAaAlias}(${v}, rfactor=\${1:2.0})`
-        },
-        {
-            label: "dehalo",
-            detail: "去光晕: vsdehalo / havsfunc.FineDehalo",
-            ready: hasPkg("vsdehalo") || hasPkg("havsfunc"),
-            req: "vsdehalo / havsfunc",
-            fromImport: hasPkg("vsdehalo") ? ["vsdehalo", "fine_dehalo"] : null,
-            moduleImport: !hasPkg("vsdehalo") ? ["havsfunc", "haf"] : null,
-            usesActiveVar: true,
-            body: hasPkg("vsdehalo")
-                ? `${v} = ${fineDehaloAlias}(${v}, rx=\${1:2.0}, ry=\${2:2.0})`
-                : `${v} = ${hafAlias}.FineDehalo(${v}, rx=\${1:2.0}, ry=\${2:2.0})`
-        },
-        {
-            label: "descale",
-            detail: "逆缩放: descale.Debicubic",
-            ready: hasNs("descale"),
-            req: "descale",
-            needsCore: true,
-            usesActiveVar: true,
-            body: `${v} = core.descale.Debicubic(${v}, width=\${1:1280}, height=\${2:720}, b=\${3:0.0}, c=\${4:0.5})`
-        },
-        {
-            label: "qtgmc",
-            detail: "反交错: havsfunc.QTGMC",
-            ready: hasPkg("havsfunc"),
-            req: "havsfunc",
-            moduleImport: ["havsfunc", "haf"],
-            usesActiveVar: true,
-            body: `${v} = ${hafAlias}.QTGMC(${v}, Preset="\${1:Slow}", TFF=\${2:True}, FPSDivisor=\${3:2})`
-        },
-        {
-            label: "ivtc",
-            detail: "反胶片过带: vivtc.VFM + VDecimate",
-            ready: hasNs("vivtc"),
-            req: "vivtc",
-            needsCore: true,
-            usesActiveVar: true,
-            body: `${v} = core.vivtc.VFM(${v}, order=\${1:1})\n${v} = core.vivtc.VDecimate(${v})`
-        },
-        {
-            label: "edgemask",
-            detail: "边缘遮罩合并: std.MaskedMerge",
-            ready: hasNs("std"),
-            needsCore: true,
-            usesActiveVar: true,
-            body: clipInfo.vars.has("flt")
-                ? `mask = ${v}.std.Prewitt().std.Maximum()\n${v} = core.std.MaskedMerge(\${1:flt}, ${v}, mask)`
-                : `flt = ${v}  # 替换为滤镜处理\nmask = ${v}.std.Prewitt().std.Maximum()\n${v} = core.std.MaskedMerge(\${1:flt}, ${v}, mask)`
-        },
-        {
-            label: "rfs",
-            detail: "帧区间局部替换: vstools.replace_ranges",
-            ready: hasPkg("vstools") || hasPkg("vsjetpack"),
-            req: "vstools / vsjetpack",
-            fromImport: ["vstools", "replace_ranges"],
-            usesActiveVar: true,
-            body: clipInfo.vars.has("flt")
-                ? `${v} = ${rfsAlias}(${v}, \${1:flt}, [(\${2:0}, \${3:100})])`
-                : `flt = ${v}  # 替换为滤镜处理\n${v} = ${rfsAlias}(${v}, \${1:flt}, [(\${2:0}, \${3:100})])`
-        },
-        {
-            label: "frameinfo",
-            detail: "帧信息叠加: awsmfunc.FrameInfo",
-            ready: hasPkg("awsmfunc"),
-            req: "awsmfunc",
-            moduleImport: ["awsmfunc", "awf"],
-            usesActiveVar: true,
-            body: `${v} = ${awfAlias}.FrameInfo(${v}, title="\${1:Clip}")`
-        },
+        ...sources,
+        ...filterTemplates.map((template) => {
+            const required = [...(template.requires || [])];
+            if (template.symbol) required.push(`${template.module}.${template.symbol}`);
+            const missing = required.filter((item) => !has(item));
+            const alias = clipInfo.importedModules?.get(template.module) || template.alias || "";
+            const importedName = `${template.module}.${template.symbol}`;
+            const importedSymbol = clipInfo.importedSymbols?.get(importedName);
+            let symbol = importedSymbol || template.symbol || "";
+            const nameInUse = (name) => clipInfo.vars.has(name) || clipInfo.importedNames.has(name);
+            if (template.symbol && !importedSymbol && nameInUse(symbol)) {
+                symbol = `jet_${template.symbol}`;
+                for (let suffix = 2; nameInUse(symbol); suffix++) symbol = `jet_${template.symbol}${suffix}`;
+            }
+            let temp = `${v}_work`;
+            for (let suffix = 2; clipInfo.vars.has(temp); suffix++) temp = `${v}_work${suffix}`;
+            const statements = [...(template.setup || []), `${template.output || v} = ${template.expression}`];
+            const code = statements.join("\n");
+            const usesFilteredClip = code.includes("{filtered}");
+            const expanded = code
+                .replaceAll("{clip}", v)
+                .replaceAll("{temp}", temp)
+                .replaceAll("{filtered}", "flt")
+                .replaceAll("{alias}", alias)
+                .replaceAll("{symbol}", symbol)
+                .replace(/\bvs\./g, `${vsAlias}.`)
+                .replace(/\{(\d+:[^{}]*)\}/g, (_, placeholder) => "$" + "{" + placeholder + "}");
+            const seed = usesFilteredClip && !clipInfo.vars.has("flt") ? `flt = ${v}\n` : "";
+            const comments = (template.comments?.[editorLanguage] || []).map((line) => `# ${line}\n`).join("");
+            return {
+                label: template.id,
+                detail: template[editorLanguage],
+                ready: missing.length === 0,
+                req: missing.join(", "),
+                needsCore: code.includes("core."),
+                needsVs: code.includes("vs."),
+                usesActiveVar: true,
+                output: template.output,
+                moduleImport: template.alias ? [template.module, template.alias] : null,
+                fromImport: template.symbol && !importedSymbol ? [template.module, template.symbol, symbol] : null,
+                body: seed + comments + expanded
+            };
+        }),
         {
             label: "vscmp",
-            detail: "双路输出对比骨架 (Output 0 vs Output 1)",
+            detail: editorLanguage === "zh" ? "双路输出对比骨架" : "Two-Output Comparison",
             ready: true,
             usesActiveVar: true,
             body: clipInfo.vars.has("flt")
                 ? `\${1:${v}}.set_output(0)\n\${2:flt}.set_output(1)`
-                : `flt = ${v}  # 替换为对比处理画面\n\${1:${v}}.set_output(0)\n\${2:flt}.set_output(1)`
+                : `flt = ${v}\n\${1:${v}}.set_output(0)\n\${2:flt}.set_output(1)`
         }
     ];
 
@@ -1566,39 +1431,52 @@ function createEncodingSnippets(model, position, range, clipInfo) {
             if (d.moduleImport && !clipInfo.importedModules?.has(d.moduleImport[0])) {
                 missingHeaderLines.push(`import ${d.moduleImport[0]} as ${d.moduleImport[1]}`);
             }
-            if (d.fromImport && !clipInfo.importedSymbols?.has(d.fromImport[1])) {
-                missingHeaderLines.push(`from ${d.fromImport[0]} import ${d.fromImport[1]}`);
+            if (d.fromImport) {
+                const [module, original, alias] = d.fromImport;
+                const suffix = alias === original ? "" : ` as ${alias}`;
+                missingHeaderLines.push(`from ${module} import ${original}${suffix}`);
             }
             if ((d.needsCore || (d.usesActiveVar && needsBaseClip)) && !clipInfo.hasCore) {
                 missingHeaderLines.push(`core = ${vsAlias}.core`);
             }
 
             let insertText = d.usesActiveVar && needsBaseClip ? (baseClipStub + d.body) : d.body;
-            let additionalTextEdits = undefined;
+            const additionalTextEdits = [];
 
             if (missingHeaderLines.length > 0) {
                 const headerBlock = missingHeaderLines.join("\n") + "\n";
                 if (importInsertLine < position.lineNumber) {
-                    additionalTextEdits = [{
+                    additionalTextEdits.push({
                         range: new monaco.Range(importInsertLine, 1, importInsertLine, 1),
                         text: headerBlock
-                    }];
+                    });
                 } else {
                     insertText = headerBlock + insertText;
+                }
+            }
+
+            if (d.output && clipInfo.outputLine > position.lineNumber) {
+                const line = model.getLineContent(clipInfo.outputLine);
+                const startColumn = line.indexOf(v) + 1;
+                if (startColumn > 0) {
+                    additionalTextEdits.push({
+                        range: new monaco.Range(clipInfo.outputLine, startColumn, clipInfo.outputLine, startColumn + v.length),
+                        text: d.output
+                    });
                 }
             }
 
             const item = {
                 label: d.label,
                 kind: monaco.languages.CompletionItemKind.Snippet,
-                detail: d.ready ? `${d.detail} ✓` : `${d.detail} [缺少 ${d.req}]`,
+                detail: d.ready ? d.detail : `${d.detail} [${editorLanguage === "zh" ? "缺少" : "Missing"} ${d.req}]`,
                 documentation: insertText.replace(/\$\{[0-9]+:([^}]*)\}/g, "$1").replace(/\$\{[0-9]+\}/g, ""),
                 insertText,
                 insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
                 sortText: `${d.ready ? "2" : "8"}-${d.label}`,
                 range
             };
-            if (additionalTextEdits) {
+            if (additionalTextEdits.length > 0) {
                 item.additionalTextEdits = additionalTextEdits;
             }
             return item;
@@ -2291,7 +2169,8 @@ require.config({
     }
 });
 
-require(["vs/editor/editor.main"], () => {
+require(["vs/editor/editor.main"], async () => {
+    await filterTemplatesReady;
     defineThemes();
     createEditor();
 });
