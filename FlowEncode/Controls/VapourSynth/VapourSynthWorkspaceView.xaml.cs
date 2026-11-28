@@ -769,6 +769,34 @@ public sealed partial class VapourSynthWorkspaceView : UserControl, IDisposable
 
         SmartInsertMenuFlyout.Items.Add(new MenuFlyoutSeparator());
 
+        var samplingEnabled = VapourSynthSmartScriptEditor.IsSmartSamplingEnabled(ViewModel.ActiveTab?.CurrentContent ?? string.Empty);
+        const string samplingDependency = "awsmfunc.SelectRangeEvery";
+        var samplingMissing = _latestLanguageFeatures?.IsRuntimeReady == true && !available.Contains(samplingDependency);
+        var samplingItem = new ToggleMenuFlyoutItem
+        {
+            Text = samplingMissing && !samplingEnabled
+                ? texts.VapourSynthSmartSamplingItem + texts.VapourSynthSmartMissingDepSuffix(samplingDependency)
+                : texts.VapourSynthSmartSamplingItem,
+            IsChecked = samplingEnabled,
+            IsEnabled = samplingEnabled || !samplingMissing
+        };
+        samplingItem.Click += async (_, _) => await RunUiActionAsync(async () =>
+        {
+            if (!TryGetActiveEditorContext(out _, out var tab))
+            {
+                return;
+            }
+
+            var result = await ApplySmartEditorRewriteAsync(script =>
+                VapourSynthSmartScriptEditor.ToggleSmartSampling(script, [texts.VapourSynthSmartSamplingComment]));
+            if (result is not null && ViewModel.Tabs.Contains(tab))
+            {
+                var enabled = VapourSynthSmartScriptEditor.IsSmartSamplingEnabled(result.UpdatedScript);
+                ViewModel.SetWorkspaceStatus(tab, t => enabled ? t.VapourSynthSmartSamplingEnabledStatus : t.VapourSynthSmartSamplingDisabledStatus);
+            }
+        });
+        SmartInsertMenuFlyout.Items.Add(samplingItem);
+
         var abCompareItem = new MenuFlyoutItem { Text = texts.VapourSynthSmartToggleAbCompareItem };
         abCompareItem.Click += async (_, _) => await RunUiActionAsync(ToggleBeforeAfterCompareAsync);
         SmartInsertMenuFlyout.Items.Add(abCompareItem);

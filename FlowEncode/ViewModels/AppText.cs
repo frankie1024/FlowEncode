@@ -340,6 +340,14 @@ public sealed class AppText
     public string VapourSynthSmartCategoryDenoise => Pick("降噪", "Denoise");
     public string VapourSynthSmartCategoryAaScale => Pick("抗锯齿 / 去光晕 / 缩放", "AA / Dehalo / Scale");
     public string VapourSynthSmartCategoryMaskDebug => Pick("遮罩 / 替换 / 调试", "Mask / Scening / Debug");
+    public string VapourSynthSmartSamplingItem => Pick("sample取样", "Sample Frames");
+    public string VapourSynthSmartSamplingComment => Pick(
+        "取样参数以帧为单位。将下方开关改为 False 可恢复整片输出。",
+        "Sampling options are in frames. Set the switch below to False to restore full-length output.");
+    public string VapourSynthSmartSamplingEnabledStatus => Pick(
+        "已切换到样片输出。按 F9 试压，再点一次「sample取样」可恢复整片。",
+        "Switched to sample output. Press F9 for a test encode, or select Sample Frames again to restore the full clip.");
+    public string VapourSynthSmartSamplingDisabledStatus => Pick("已恢复整片输出。", "Restored full-length output.");
     public string VapourSynthSmartToggleAbCompareItem => Pick("切换当前行前后对比（A/B）", "Toggle Filter Before/After Compare (A/B)");
     public string VapourSynthSmartBenchmarkItem => Pick("脚本测速（片中 100 帧 FPS）", "Benchmark Script (100 Mid-Clip Frames)");
     public string VapourSynthSmartRenameSymbolItem => Pick("重命名变量（F2）", "Rename Symbol (F2)");

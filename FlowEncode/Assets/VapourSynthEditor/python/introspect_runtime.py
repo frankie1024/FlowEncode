@@ -160,6 +160,7 @@ def probe_template_symbols():
         if not requirement.startswith("core.")
     }
     symbols.update(f"{item['module']}.{item['symbol']}" for item in templates if item.get("symbol"))
+    symbols.add("awsmfunc.SelectRangeEvery")
     symbols.update(f"vssource.{name}" for name in ("BestSource", "LSMAS", "FFMS2"))
     available = []
     for qualified in sorted(symbols):

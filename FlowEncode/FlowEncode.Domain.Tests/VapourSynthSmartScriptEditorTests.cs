@@ -7,6 +7,55 @@ namespace FlowEncode.Domain.Tests;
 public sealed class VapourSynthSmartScriptEditorTests
 {
     [TestMethod]
+    public void ToggleSmartSampling_UpdatesOutputZeroAndPreservesEditsWhenToggled()
+    {
+        const string script = """
+            from vstools import core
+            src = core.std.BlankClip(length=172800)
+            ref = src
+            src.set_output(0)
+            ref.set_output(1)
+            """;
+
+        var inserted = VapourSynthSmartScriptEditor.ToggleSmartSampling(script, ["Set the switch below to False to restore the full clip."]);
+        Assert.IsTrue(VapourSynthSmartScriptEditor.IsSmartSamplingEnabled(inserted.UpdatedScript));
+        StringAssert.Contains(inserted.UpdatedScript, "import awsmfunc as awf");
+        StringAssert.Contains(inserted.UpdatedScript.ReplaceLineEndings("\n"), """
+            # Set the switch below to False to restore the full clip.
+            sample_enabled = True  # [FlowEncode Smart Sampling]
+            sample = src
+            if sample_enabled:
+                sample = awf.SelectRangeEvery(src, every=3000, length=100, offset=[5000, 5000])
+            """.ReplaceLineEndings("\n"));
+        StringAssert.Contains(inserted.UpdatedScript, "sample.set_output(0)");
+        StringAssert.Contains(inserted.UpdatedScript, "ref.set_output(1)");
+
+        var customized = inserted.UpdatedScript.Replace("length=100", "length=80", StringComparison.Ordinal)
+            .ReplaceLineEndings("\r\n");
+        var disabled = VapourSynthSmartScriptEditor.ToggleSmartSampling(customized);
+        Assert.IsTrue(disabled.UpdatedInPlace);
+        Assert.IsFalse(VapourSynthSmartScriptEditor.IsSmartSamplingEnabled(disabled.UpdatedScript));
+        Assert.AreEqual(customized.Replace("sample_enabled = True", "sample_enabled = False", StringComparison.Ordinal), disabled.UpdatedScript);
+        Assert.AreEqual(customized, VapourSynthSmartScriptEditor.ToggleSmartSampling(disabled.UpdatedScript).UpdatedScript);
+    }
+
+    [TestMethod]
+    [DataRow("sample = src", "")]
+    [DataRow("sample = src", "\nsample.set_output(2)")]
+    public void ToggleSmartSampling_CreatesOutputZeroWithoutReusingAnExistingName(string sourceAssignment, string existingOutput)
+    {
+        var script = $"src = core.std.BlankClip()\n{sourceAssignment}{existingOutput}";
+
+        var inserted = VapourSynthSmartScriptEditor.ToggleSmartSampling(script);
+
+        Assert.AreEqual("sample2", inserted.ResolvedVariableName);
+        StringAssert.Contains(inserted.UpdatedScript, sourceAssignment + existingOutput);
+        StringAssert.Contains(inserted.UpdatedScript, "sample2 = awf.SelectRangeEvery(sample, every=3000, length=100, offset=[5000, 5000])");
+        Assert.AreEqual(0, VapourSynthSmartScriptEditor.ResolveOutputTarget(inserted.UpdatedScript).OutputIndex);
+        StringAssert.Contains(inserted.UpdatedScript, "sample2.set_output()");
+    }
+
+    [TestMethod]
     public void SharedFilterTemplate_UsesItsOwnImportAndDoesNotOverwriteWorkVariables()
     {
         const string script = """

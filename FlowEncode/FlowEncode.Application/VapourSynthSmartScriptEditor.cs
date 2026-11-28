@@ -39,6 +39,11 @@ public static partial class VapourSynthSmartScriptEditor
         @"^[ \t]*from\s+(?<mod>[A-Za-z_][A-Za-z0-9_\.]*)\s+import\s+(?<names>.+?)\s*(?:#.*)?$",
         RegexOptions.Compiled);
 
+    private const string SmartSamplingMarker = "# [FlowEncode Smart Sampling]";
+    private static readonly Regex SmartSamplingSwitchRegex = new(
+        $@"^[ \t]*(?<variable>[A-Za-z_]\w*)_enabled[ \t]*=[ \t]*(?<enabled>True|False)[ \t]+{Regex.Escape(SmartSamplingMarker)}[ \t]*\r?$",
+        RegexOptions.Compiled | RegexOptions.Multiline);
+
     private static readonly Regex GeneratedVideoSourcePathRegex = new(
         """
         ^
@@ -362,6 +367,55 @@ public static partial class VapourSynthSmartScriptEditor
         return ApplyMultiLineFilterTemplate(
             script, outputIndex, [.. setup ?? [], "{target} = " + expressionTemplateWithPlaceholder],
             importModule, importAlias, fromModule, fromSymbol, derivedVariableName, comments);
+    }
+
+    public static bool IsSmartSamplingEnabled(string script) =>
+        SmartSamplingSwitchRegex.Match(script).Groups["enabled"].Value == "True";
+
+    public static SmartScriptEditResult ToggleSmartSampling(string script, IReadOnlyList<string>? comments = null)
+    {
+        var existing = SmartSamplingSwitchRegex.Match(script);
+        if (existing.Success)
+        {
+            var enabled = existing.Groups["enabled"];
+            var value = enabled.Value == "True" ? "False" : "True";
+            return new SmartScriptEditResult(
+                script[..enabled.Index] + value + script[(enabled.Index + enabled.Length)..],
+                script[..existing.Index].Count(static character => character == '\n') + 1,
+                existing.Groups["variable"].Value, UpdatedInPlace: true, AddedImport: false);
+        }
+
+        var names = Regex.Matches(script, @"\b[A-Za-z_]\w*\b").Select(static match => match.Value).ToHashSet(StringComparer.Ordinal);
+        var sample = "sample";
+        for (var suffix = 2; names.Contains(sample) || names.Contains($"{sample}_enabled"); suffix++)
+        {
+            sample = $"sample{suffix}";
+        }
+
+        var alias = "awf";
+        for (var suffix = 2; names.Contains(alias); suffix++)
+        {
+            alias = $"awf{suffix}";
+        }
+
+        var target = ResolveOutputTarget(script);
+        if (!target.FoundSetOutput || target.OutputIndex != 0)
+        {
+            var lines = SplitLines(script, out var newline);
+            var insertAt = target.FoundSetOutput ? target.SetOutputLineIndex + 1 : lines.Count;
+            var indent = target.FoundSetOutput ? SetOutputMethodRegex.Match(lines[target.SetOutputLineIndex]).Groups["indent"].Value : string.Empty;
+            lines.Insert(insertAt, $"{indent}{target.VariableName}.set_output()");
+            script = string.Join(newline, lines);
+        }
+
+        return ApplyMultiLineFilterTemplate(script, 0,
+            [
+                $"{sample}_enabled = True  {SmartSamplingMarker}",
+                "{target} = {var}",
+                $"if {sample}_enabled:",
+                "    {target} = {alias}.SelectRangeEvery({var}, every=3000, length=100, offset=[5000, 5000])"
+            ],
+            importModule: "awsmfunc", importAlias: alias, derivedVariableName: sample, comments: comments);
     }
 
     public static SmartScriptEditResult ApplyMultiLineFilterTemplate(
