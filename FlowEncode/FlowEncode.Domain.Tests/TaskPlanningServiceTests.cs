@@ -112,7 +112,9 @@ public sealed class TaskPlanningServiceTests
     }
 
     [TestMethod]
-    public async Task MkvTrackWildcard_RejectsMatchingOutputOnCreateAndSubmit()
+    [DataRow(BluRayDemuxBackend.Eac3To)]
+    [DataRow(BluRayDemuxBackend.DgDemux)]
+    public async Task DemuxOutputPatterns_RejectMatchingOutputOnCreateAndSubmit(BluRayDemuxBackend backend)
     {
         using var fixture = new BusinessExecutionSafetyTests.Fixture("mkv-demux");
         var source = Path.Combine(fixture.Root, "source.mkv");
@@ -121,14 +123,19 @@ public sealed class TaskPlanningServiceTests
         var playlist = new BluRayPlaylistItem("source", "source", "", source, "", "", null, null);
         var track = new BluRayTrackItem("1", 1, "1", BluRayTrackKind.Audio, "Audio", "", "");
         var pattern = BluRayDemuxSourceSupport.ResolveTrackOutputPath(BluRayDemuxBackend.Eac3To, output, playlist, track);
-        var request = new TaskWorkload(TaskKind.BluRay, BluRay: new(Guid.NewGuid(), BluRayDemuxBackend.Eac3To, source,
-            output, Path.Combine(output, "source"), playlist, [new(track, pattern)], OverwriteOutput: false));
+        var demuxRequest = backend == BluRayDemuxBackend.DgDemux
+            ? fixture.DemuxRequest(backend) with { OutputDirectory = output, OverwriteOutput = false }
+            : new BluRayDemuxRequest(Guid.NewGuid(), backend, source, output, Path.Combine(output, "source"),
+                playlist, [new(track, pattern)], OverwriteOutput: false);
+        var request = new TaskWorkload(TaskKind.BluRay, BluRay: demuxRequest);
         var tasks = new TaskCoordinator(fixture.Settings);
-        var runner = new CoordinatedBluRayRunner(new CliBluRayDemuxRunner([fixture.DemuxRunner(BluRayDemuxBackend.Eac3To)]), tasks);
+        var runner = new CoordinatedBluRayRunner(new CliBluRayDemuxRunner([fixture.DemuxRunner(backend)]), tasks);
         var plans = new TaskPlanningService(tasks, fixture.Settings, fixture.Probes, null!, null!, null!, null!, runner, null!);
         File.WriteAllText(Path.Combine(output, "unrelated.flac"), "unrelated");
         var plan = await plans.CreateAsync(request);
-        var conflict = Path.ChangeExtension(pattern, ".FLAC");
+        var conflict = backend == BluRayDemuxBackend.DgDemux
+            ? Path.Combine(output, "00001 PID 1011.AVC")
+            : Path.ChangeExtension(pattern, ".FLAC");
         File.WriteAllText(conflict, "existing track");
 
         var createError = await Assert.ThrowsExactlyAsync<IOException>(() => plans.CreateAsync(request));
@@ -137,7 +144,7 @@ public sealed class TaskPlanningServiceTests
         StringAssert.Contains(createError.Message, conflict);
         StringAssert.Contains(submitError.Message, conflict);
         Assert.IsEmpty(tasks.List());
-        Assert.IsFalse(File.Exists(Path.Combine(fixture.Root, "eac3to-calls.log")));
+        Assert.IsFalse(File.Exists(Path.Combine(fixture.Root, backend.ToString().ToLowerInvariant() + "-calls.log")));
     }
 
     [TestMethod]

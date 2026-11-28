@@ -266,7 +266,7 @@ public sealed class SharedTaskCoordinatorTests
         Directory.CreateDirectory(discDir);
         Directory.CreateDirectory(outDir);
         var playlist = new BluRayPlaylistItem("00001", "00001.mpls", "10:00", discDir, "00001.mpls", "10:00", TimeSpan.FromMinutes(10), 1);
-        var track = new BluRayTrackItem("1", 1, "1:", BluRayTrackKind.Video, "Video", "H.264", "eng");
+        var track = new BluRayTrackItem("4113", 1, "4113", BluRayTrackKind.Video, "Video", "H.264", "eng");
         var bluray = new TaskWorkload(TaskKind.BluRay, BluRay: new BluRayDemuxRequest(
             Guid.NewGuid(),
             BluRayDemuxBackend.DgDemux,
@@ -282,10 +282,13 @@ public sealed class SharedTaskCoordinatorTests
         var collidingVideo = root.Video(Path.Combine(outDir, "00001.264"));
         Assert.ThrowsExactly<InvalidOperationException>(() => tasks.Reserve(collidingVideo));
 
+        var collidingPidVideo = root.Video(Path.Combine(outDir, "00001 PID 4113.264"));
+        Assert.ThrowsExactly<InvalidOperationException>(() => tasks.Reserve(collidingPidVideo));
+
         var collidingDeew = root.Audio() with { Audio = root.Audio().Audio! with { Mode = AudioProcessingMode.Ddp, OutputPath = outDir, Deew = new DeewOptions(Format: "ddp") } };
         Assert.ThrowsExactly<InvalidOperationException>(() => tasks.Reserve(collidingDeew));
 
-        var nonCollidingVideo = root.Video(Path.Combine(outDir, "other.265"));
+        var nonCollidingVideo = root.Video(Path.Combine(outDir, "00001 PID 4114.265"));
         Assert.AreEqual(nonCollidingVideo.TaskId, tasks.Reserve(nonCollidingVideo).TaskId);
     }
 

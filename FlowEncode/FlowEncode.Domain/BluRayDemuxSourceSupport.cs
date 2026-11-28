@@ -298,7 +298,10 @@ public static class BluRayDemuxSourceSupport
     {
         if (backend == BluRayDemuxBackend.DgDemux)
         {
-            return Path.Combine(outputDirectory, $"{playlist.Id}.*");
+            var outputPrefix = Path.Combine(outputDirectory, playlist.Id);
+            return track.Kind == BluRayTrackKind.Chapters
+                ? outputPrefix + ".chapters.txt"
+                : $"{outputPrefix} PID {track.DemuxToken}*";
         }
 
         var stem = SanitizeOutputStem(playlist.Id, "source");
@@ -309,6 +312,24 @@ public static class BluRayDemuxSourceSupport
         }
 
         return Path.Combine(outputDirectory, $"{baseName}{ResolveEac3ToTrackOutputExtension(track)}");
+    }
+
+    public static IReadOnlyList<string> ResolveDgDemuxTrackOutputPatterns(string outputPrefix, BluRayTrackItem track)
+    {
+        if (track.Kind == BluRayTrackKind.Chapters)
+            return [outputPrefix + ".chapters.txt"];
+
+        var trackPrefix = $"{outputPrefix} PID {track.DemuxToken}";
+        return [trackPrefix + ".*", trackPrefix + " *.*"];
+    }
+
+    public static IEnumerable<string> ResolveDgDemuxOutputPatterns(BluRayDemuxRequest request)
+    {
+        var outputPrefix = Path.Combine(request.OutputDirectory, Path.GetFileName(request.OutputPrefixPath));
+        // The dotted prefix also covers auxiliary files and older untagged outputs.
+        return request.Selections.SelectMany(selection => ResolveDgDemuxTrackOutputPatterns(outputPrefix, selection.Track))
+            .Append(outputPrefix + ".*")
+            .Distinct(StringComparer.OrdinalIgnoreCase);
     }
 
     private static string GetTrackKindToken(BluRayTrackKind kind) => kind switch

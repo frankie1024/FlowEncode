@@ -194,13 +194,10 @@ public sealed class TaskPlanningService(TaskCoordinator tasks, IAppSettingsServi
                     await Tool(RegisteredToolKind.Ffprobe);
                 stamps.Add(Stamp(bluray.Playlist.SourcePath));
                 command = bluRayRunner.BuildDisplayCommand(bluray);
-                outputs = bluray.Selections.Select(s => new OutputArtifact(
-                    bluray.Backend == BluRayDemuxBackend.Eac3To
-                        ? Path.Combine(bluray.OutputDirectory, Path.GetFileName(s.OutputPath))
-                        : Path.IsPathFullyQualified(s.OutputPath)
-                            ? s.OutputPath
-                            : Path.Combine(bluray.OutputDirectory, s.OutputPath),
-                    OutputArtifactKind.Media)).ToArray();
+                var trackOutputPaths = bluray.Backend == BluRayDemuxBackend.DgDemux
+                    ? BluRayDemuxSourceSupport.ResolveDgDemuxOutputPatterns(bluray)
+                    : bluray.Selections.Select(selection => Path.Combine(bluray.OutputDirectory, Path.GetFileName(selection.OutputPath)));
+                outputs = trackOutputPaths.Select(path => new OutputArtifact(path, OutputArtifactKind.Media)).ToArray();
                 if (!request.OverwriteOutput)
                     EnsureNoBluRayTrackConflicts(bluray.OutputDirectory, outputs);
                 break;

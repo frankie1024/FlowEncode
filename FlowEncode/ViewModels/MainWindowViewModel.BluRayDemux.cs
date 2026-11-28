@@ -1044,9 +1044,7 @@ public partial class MainWindowViewModel
             return null;
         }
 
-        return SelectedBluRayPlaylist is null
-            ? Path.GetFullPath(BluRayDemuxOutputPath.Trim())
-            : Path.Combine(Path.GetFullPath(BluRayDemuxOutputPath.Trim()), $"{SelectedBluRayPlaylist.Id}.*");
+        return Path.GetFullPath(BluRayDemuxOutputPath.Trim());
     }
 
     internal void RefreshBluRayTrackOutputPreviews()

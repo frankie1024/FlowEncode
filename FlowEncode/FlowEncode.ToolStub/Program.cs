@@ -147,6 +147,20 @@ if (businessScenario is "mkv-demux" or "mkv-demux-no-chapters" && tool == "eac3t
     Console.WriteLine("Done.");
     return 0;
 }
+if (tool == "dgdemux" && businessScenario is "dgdemux-named-outputs" or "dgdemux-missing-audio" or "dgdemux-missing-chapters")
+{
+    var prefix = Option("-o")!;
+    await File.WriteAllTextAsync(prefix + " PID 4113.avc", "extracted video");
+    await File.WriteAllTextAsync(prefix + ".qp.txt", "chapter keyframes");
+    if (businessScenario == "dgdemux-missing-audio")
+        await File.WriteAllTextAsync(prefix + " PID 4353 7.1 48 1536 eng DELAY 0ms.dts", "another audio track");
+    else
+        await File.WriteAllTextAsync(prefix + " PID 4352 7.1 48 1536 eng DELAY 0ms.dts", "extracted audio");
+    if (businessScenario != "dgdemux-missing-chapters")
+        await File.WriteAllTextAsync(prefix + ".chapters.txt", "extracted chapters");
+    Console.WriteLine("Done!");
+    return 0;
+}
 if (businessScenario is not null && tool is "dgdemux" or "eac3to")
 {
     var outputFile = tool == "dgdemux" ? Option("-o") + ".264"

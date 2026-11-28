@@ -269,19 +269,11 @@ public sealed class TaskCoordinator
             if (workload.Kind == TaskKind.BluRay)
             {
                 var bluray = workload.BluRay!;
-                var files = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-                foreach (var selection in bluray.Selections)
-                {
-                    if (string.IsNullOrWhiteSpace(selection.OutputPath))
-                        continue;
-
-                    var targetPath = bluray.Backend == BluRayDemuxBackend.Eac3To
-                        ? Path.Combine(bluray.OutputDirectory, Path.GetFileName(selection.OutputPath))
-                        : Path.IsPathFullyQualified(selection.OutputPath)
-                            ? selection.OutputPath
-                            : Path.Combine(bluray.OutputDirectory, selection.OutputPath);
-                    files.Add(Canonical(targetPath));
-                }
+                var outputPaths = bluray.Backend == BluRayDemuxBackend.DgDemux
+                    ? BluRayDemuxSourceSupport.ResolveDgDemuxOutputPatterns(bluray)
+                    : bluray.Selections.Where(selection => !string.IsNullOrWhiteSpace(selection.OutputPath))
+                        .Select(selection => Path.Combine(bluray.OutputDirectory, Path.GetFileName(selection.OutputPath)));
+                var files = outputPaths.Select(Canonical).ToHashSet(StringComparer.OrdinalIgnoreCase);
 
                 return files.Count > 0
                     ? new OutputClaim(files, directory: null, directoryExtensions: null)

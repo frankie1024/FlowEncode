@@ -106,20 +106,24 @@ public abstract class CliBluRayDemuxBackendAdapterBase : IBluRayDemuxBackendAdap
             throw new ArgumentException("Select valid tracks to demux / 请选择有效的解复用轨道。");
     }
 
-    protected static IReadOnlyList<string> ValidateStagedOutputs(BluRayDemuxRequest request, string stagedDirectory)
+    protected IReadOnlyList<string> ValidateStagedOutputs(BluRayDemuxRequest request, string stagedDirectory)
     {
         var files = Directory.GetFiles(stagedDirectory, "*", SearchOption.AllDirectories)
             .Where(p => new FileInfo(p).Length > 0 && Path.GetExtension(p).ToLowerInvariant() is not (".log" or ".html" or ".json"))
             .ToArray();
-        foreach (var selection in request.Selections)
-        {
-            var pattern = Path.GetFileName(selection.OutputPath);
-            if (!files.Any(p => System.IO.Enumeration.FileSystemName.MatchesSimpleExpression(pattern, Path.GetFileName(p), ignoreCase: true)))
-                throw new InvalidOperationException($"No non-empty output for the selected track / 选中轨道未生成有效产物：{selection.Track.DisplayName}");
-        }
+        var missing = FindMissingTrackOutput(request, files.Select(static file => Path.GetFileName(file)).ToArray());
+        if (missing is not null)
+            throw new InvalidOperationException($"No non-empty output for the selected track / 选中轨道未生成有效产物：{missing.Track.DisplayName}");
         if (files.Length < request.Selections.Select(s => s.Track.DemuxToken).Distinct().Count())
             throw new InvalidOperationException("Some selected tracks produced no output / 部分选中轨道未生成有效产物。");
         return files.Select(p => Path.Combine(request.OutputDirectory, Path.GetRelativePath(stagedDirectory, p))).ToArray();
+    }
+
+    protected virtual BluRayTrackSelection? FindMissingTrackOutput(BluRayDemuxRequest request, IReadOnlyList<string> outputNames)
+    {
+        return request.Selections.FirstOrDefault(selection =>
+            !outputNames.Any(name => System.IO.Enumeration.FileSystemName.MatchesSimpleExpression(
+                Path.GetFileName(selection.OutputPath), name, ignoreCase: true)));
     }
 
     protected async Task<BluRayDemuxResult> RunProcessAsync(

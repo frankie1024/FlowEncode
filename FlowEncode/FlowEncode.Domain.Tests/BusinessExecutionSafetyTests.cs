@@ -184,6 +184,46 @@ public sealed class BusinessExecutionSafetyTests
     }
 
     [TestMethod]
+    [DataRow("dgdemux-named-outputs", null)]
+    [DataRow("dgdemux-missing-audio", "Audio 4352")]
+    [DataRow("dgdemux-missing-chapters", "Chapters")]
+    public async Task DgDemux_ValidatesActualTrackNamesInsteadOfTheSavedPreview(string scenario, string? missingTrack)
+    {
+        using var fixture = new Fixture(scenario);
+        var request = fixture.DemuxRequest(BluRayDemuxBackend.DgDemux);
+        var legacyOutputPath = Path.Combine(request.OutputDirectory, "00800.*");
+        request = request with
+        {
+            OutputPrefixPath = Path.Combine(request.OutputDirectory, "00800"),
+            Selections =
+            [
+                new(new("4113", 1, "4113", BluRayTrackKind.Video, "Video", "", ""), legacyOutputPath),
+                new(new("4352", 2, "4352", BluRayTrackKind.Audio, "Audio 4352", "", "eng"), legacyOutputPath),
+                new(new("chapters", 3, "chapters", BluRayTrackKind.Chapters, "Chapters", "", ""), legacyOutputPath)
+            ]
+        };
+        var runner = fixture.DemuxRunner(request.Backend);
+
+        if (missingTrack is not null)
+        {
+            var error = await Assert.ThrowsExactlyAsync<InvalidOperationException>(() => runner.RunAsync(request));
+            StringAssert.Contains(error.Message, missingTrack);
+            Assert.IsFalse(Directory.Exists(request.OutputDirectory));
+            Assert.IsTrue(Directory.EnumerateFiles(Path.Combine(fixture.Root, ".flowencode-temp", "bluray-demux", request.JobId.ToString("N"))).Any());
+            return;
+        }
+
+        var result = await runner.RunAsync(request);
+
+        Assert.AreEqual(EncodingJobState.Completed, result.State, result.Log);
+        CollectionAssert.AreEquivalent(new[]
+        {
+            "00800 PID 4113.avc", "00800 PID 4352 7.1 48 1536 eng DELAY 0ms.dts", "00800.chapters.txt", "00800.qp.txt"
+        }, result.OutputPaths.Select(Path.GetFileName).ToArray());
+        Assert.IsTrue(result.OutputPaths.All(File.Exists));
+    }
+
+    [TestMethod]
     public async Task Eac3ToAudio_EmptyOutputCannotReplaceExistingFile()
     {
         using var f = new Fixture("empty-output");
