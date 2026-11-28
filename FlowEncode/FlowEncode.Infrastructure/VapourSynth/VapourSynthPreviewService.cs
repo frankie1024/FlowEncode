@@ -25,6 +25,7 @@ public sealed class VapourSynthPreviewService : IVapourSynthPreviewService
     private readonly LocalAppPaths _appPaths;
     private readonly IPreviewFrameTransportFactory _frameTransportFactory;
     private readonly IVapourSynthPreviewHostFactory _hostFactory;
+    private readonly IToolProbeService? _toolProbeService;
     private readonly string _sessionRootPath;
     private readonly SemaphoreSlim _stateLock = new(1, 1);
     private readonly TimeSpan _closeTimeout = TimeSpan.FromSeconds(2);
@@ -53,6 +54,7 @@ public sealed class VapourSynthPreviewService : IVapourSynthPreviewService
         LocalAppPaths appPaths)
         : this(appPaths, new ProcessVapourSynthPreviewHostFactory(toolProbeService), new SharedMemoryPreviewFrameTransportFactory())
     {
+        _toolProbeService = toolProbeService;
     }
 
     internal VapourSynthPreviewService(
@@ -556,12 +558,81 @@ public sealed class VapourSynthPreviewService : IVapourSynthPreviewService
                 response.CropRight,
                 response.CropBottom,
                 response.SampledCount,
-                response.ElapsedMs);
+                response.ElapsedMs,
+                response.CropRepair);
         }
         finally
         {
             _stateLock.Release();
         }
+    }
+
+    public async Task<PreviewRepairAnalysisResult> AnalyzeRepairsAsync(
+        int outputIndex,
+        CancellationToken cancellationToken = default,
+        string? mediaSource = null,
+        bool deep = false,
+        string? playlistPath = null)
+    {
+        var ffmpegTask = deep ? Task.FromResult<string?>(null) : FindMediaToolAsync(RegisteredToolKind.Ffmpeg, cancellationToken);
+        var ffprobeTask = mediaSource is null ? Task.FromResult<string?>(null) : FindMediaToolAsync(RegisteredToolKind.Ffprobe, cancellationToken);
+        await Task.WhenAll(ffmpegTask, ffprobeTask).ConfigureAwait(false);
+        await _stateLock.WaitAsync(cancellationToken).ConfigureAwait(false);
+        try
+        {
+            ThrowIfDisposed();
+            EnsureActiveHost();
+            var requestId = Interlocked.Increment(ref _commandCounter);
+            var command = new RepairScanCommandDto("analyzeRepairs", requestId, outputIndex, deep, mediaSource,
+                await ffmpegTask.ConfigureAwait(false), await ffprobeTask.ConfigureAwait(false), playlistPath);
+            var response = await SendCommandAndReadResponseAsync(command, requestId, cancellationToken).ConfigureAwait(false);
+            if (!string.Equals(response.Type, "repairAnalysis", StringComparison.Ordinal))
+            {
+                throw new InvalidOperationException(GetResponseErrorMessage(response) ?? "Preview helper failed to analyze repairs.");
+            }
+
+            var suggestions = response.Suggestions ?? [];
+            string? bandingFailure = null;
+            if (!deep)
+            {
+                try
+                {
+                    // Keep the other findings if the optional native CAMBI filter terminates the helper.
+                    var bandingRequestId = Interlocked.Increment(ref _commandCounter);
+                    var banding = await SendCommandAndReadResponseAsync(
+                        new RepairBandingCommandDto("analyzeRepairBanding", bandingRequestId), bandingRequestId, cancellationToken).ConfigureAwait(false);
+                    bandingFailure = banding.Type == "repairBanding"
+                        ? banding.BandingScanFailure
+                        : GetResponseErrorMessage(banding) ?? "Preview helper failed to analyze banding.";
+                    if (banding.Type == "repairBanding" && banding.Suggestions is { } bandingSuggestions)
+                    {
+                        suggestions.AddRange(bandingSuggestions);
+                    }
+                }
+                catch (Exception ex) when (!cancellationToken.IsCancellationRequested)
+                {
+                    bandingFailure = ex.Message;
+                }
+            }
+
+            return new PreviewRepairAnalysisResult(response.SampledCount, response.VariableCrop, bandingFailure, suggestions,
+                response.ChapterCount, response.WindowCount, response.HasPgs, response.FieldScanFailure, response.Deep, response.Truncated,
+                response.PlaylistSeamCount, response.PlaylistMismatch);
+        }
+        finally
+        {
+            _stateLock.Release();
+        }
+    }
+
+    private async Task<string?> FindMediaToolAsync(RegisteredToolKind tool, CancellationToken cancellationToken)
+    {
+        if (_toolProbeService is null)
+        {
+            return null;
+        }
+        var result = await _toolProbeService.ProbeAsync(tool, cancellationToken).ConfigureAwait(false);
+        return result.IsReady ? result.ExecutablePath : null;
     }
 
     private async Task<HostResponseDto> SendCommandAndReadResponseAsync<TCommand>(
@@ -572,7 +643,11 @@ public sealed class VapourSynthPreviewService : IVapourSynthPreviewService
         try
         {
             await _hostSession!.WriteLineAsync(JsonSerializer.Serialize(command, JsonOptions), cancellationToken).ConfigureAwait(false);
-            var response = await ReadResponseAsync(cancellationToken).ConfigureAwait(false);
+            HostResponseDto response;
+            do
+            {
+                response = await ReadResponseAsync(cancellationToken).ConfigureAwait(false);
+            } while (response.RequestId == requestId && string.Equals(response.Type, "repairProgress", StringComparison.Ordinal));
             if (response.RequestId != requestId)
             {
                 throw new InvalidOperationException($"Preview helper returned a mismatched response (expected {requestId}, got {response.RequestId}).");
@@ -1023,6 +1098,11 @@ public sealed class VapourSynthPreviewService : IVapourSynthPreviewService
         int OutputIndex,
         int SampleCount);
 
+    private sealed record RepairBandingCommandDto(string Command, int RequestId);
+
+    private sealed record RepairScanCommandDto(string Command, int RequestId, int OutputIndex, bool Deep,
+        string? MediaSource, string? FfmpegPath, string? FfprobePath, string? PlaylistPath);
+
     private sealed record CloseCommandDto(string Command);
 
     private sealed class HostResponseDto
@@ -1124,6 +1204,22 @@ public sealed class VapourSynthPreviewService : IVapourSynthPreviewService
         public int CropRight { get; set; }
 
         public int CropBottom { get; set; }
+
+        public PreviewRepairSuggestion? CropRepair { get; set; }
+
+        public bool VariableCrop { get; set; }
+
+        public string? BandingScanFailure { get; set; }
+
+        public List<PreviewRepairSuggestion>? Suggestions { get; set; }
+        public int ChapterCount { get; set; }
+        public int WindowCount { get; set; }
+        public bool HasPgs { get; set; }
+        public string? FieldScanFailure { get; set; }
+        public bool Deep { get; set; }
+        public bool Truncated { get; set; }
+        public int PlaylistSeamCount { get; set; }
+        public bool PlaylistMismatch { get; set; }
     }
 
     private sealed class HostWorstFrameDto

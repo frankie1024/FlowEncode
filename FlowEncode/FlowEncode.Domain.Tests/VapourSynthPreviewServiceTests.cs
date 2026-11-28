@@ -12,6 +12,50 @@ namespace FlowEncode.Domain.Tests;
 public sealed class VapourSynthPreviewServiceTests
 {
     [TestMethod]
+    public async Task AnalyzeRepairsAsync_KeepsCropWhenOptionalBandingHostExits()
+    {
+        using var context = CreateContext();
+        context.Session.EnqueueResponse(CreateReadyResponseJson((0, "Preview", 512, 288, 100)));
+        context.Session.EnqueueResponse("""{"type":"repairProgress","requestId":1}""");
+        context.Session.EnqueueResponse("""
+            {"type":"repairAnalysis","requestId":1,"sampledCount":16,"suggestions":[{
+              "kind":"crop","frames":[0,50,99],"statements":["crop"],"edges":[0,21,0,21],"remainder":[0,1,0,1]
+            }]}
+            """);
+        await context.Service.OpenSessionAsync(CreateOpenRequest());
+
+        var result = await context.Service.AnalyzeRepairsAsync(0);
+
+        Assert.AreEqual(16, result.SampledCount);
+        Assert.IsNotNull(result.BandingScanFailure);
+        CollectionAssert.AreEqual(new[] { 0, 21, 0, 21 }, result.Suggestions.Single().Edges);
+        CollectionAssert.AreEqual(new[] { 0, 1, 0, 1 }, result.Suggestions.Single().Remainder);
+        StringAssert.Contains(context.Session.WrittenLines[1], "analyzeRepairBanding");
+        Assert.IsFalse(context.Service.HasActiveSession);
+    }
+
+    [TestMethod]
+    public async Task AnalyzeRepairsAsync_DeepScanReturnsPlaylistFindingsWithoutBandingPass()
+    {
+        using var context = CreateContext();
+        context.Session.EnqueueResponse(CreateReadyResponseJson((0, "Preview", 512, 288, 100)));
+        context.Session.EnqueueResponse("""
+            {"type":"repairAnalysis","requestId":1,"sampledCount":100,"deep":true,"chapterCount":2,"playlistSeamCount":3,
+              "suggestions":[{"kind":"freeze","frames":[50],"statements":[],"edges":[],"ranges":[{"start":49,"end":55}]}]}
+            """);
+        await context.Service.OpenSessionAsync(CreateOpenRequest());
+
+        var result = await context.Service.AnalyzeRepairsAsync(0, deep: true, playlistPath: "00001.mpls");
+
+        Assert.IsTrue(result.Deep);
+        Assert.AreEqual(3, result.PlaylistSeamCount);
+        Assert.AreEqual(new PreviewRepairRange(49, 55), result.Suggestions.Single().Ranges!.Single());
+        Assert.IsFalse(result.Suggestions.Single().CanApply);
+        Assert.AreEqual(1, context.Session.WrittenLines.Count);
+        StringAssert.Contains(context.Session.WrittenLines[0], "00001.mpls");
+    }
+
+    [TestMethod]
     public async Task UnresponsiveHost_TimesOutAndClosesSession()
     {
         using var context = CreateContext(TimeSpan.FromMilliseconds(100));

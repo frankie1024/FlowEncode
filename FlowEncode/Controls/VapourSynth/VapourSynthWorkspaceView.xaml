@@ -29,81 +29,122 @@
                 <RowDefinition Height="Auto" />
             </Grid.RowDefinitions>
 
-            <CommandBar
-                x:Name="EditorCommandBar"
-                Padding="10,4,10,4"
-                Background="Transparent"
-                DefaultLabelPosition="Right"
-                IsDynamicOverflowEnabled="True"
-                OverflowButtonVisibility="Auto">
-                <AppBarButton Click="OpenDocumentButton_Click" Label="{Binding Texts.VapourSynthOpenButton}">
-                    <AppBarButton.Icon>
-                        <SymbolIcon Symbol="OpenFile" />
-                    </AppBarButton.Icon>
-                </AppBarButton>
-                <AppBarButton Click="SaveDocumentButton_Click" Label="{Binding Texts.SaveButton}">
-                    <AppBarButton.Icon>
-                        <SymbolIcon Symbol="Save" />
-                    </AppBarButton.Icon>
-                </AppBarButton>
-                <AppBarButton Click="SaveDocumentAsButton_Click" Label="{Binding Texts.SaveAsButton}">
-                    <AppBarButton.Icon>
-                        <SymbolIcon Symbol="SaveLocal" />
-                    </AppBarButton.Icon>
-                </AppBarButton>
-                <AppBarSeparator />
-                <AppBarButton Click="UndoButton_Click" Label="{Binding Texts.VapourSynthUndoButton}">
-                    <AppBarButton.Icon>
-                        <SymbolIcon Symbol="Undo" />
-                    </AppBarButton.Icon>
-                </AppBarButton>
-                <AppBarButton Click="RedoButton_Click" Label="{Binding Texts.VapourSynthRedoButton}">
-                    <AppBarButton.Icon>
-                        <SymbolIcon Symbol="Redo" />
-                    </AppBarButton.Icon>
-                </AppBarButton>
-                <AppBarSeparator />
-                <AppBarButton Click="FindButton_Click" Label="{Binding Texts.VapourSynthFindButton}">
-                    <AppBarButton.Icon>
-                        <SymbolIcon Symbol="Find" />
-                    </AppBarButton.Icon>
-                </AppBarButton>
-                <AppBarButton Click="ReplaceButton_Click" Label="{Binding Texts.VapourSynthReplaceButton}">
-                    <AppBarButton.Icon>
-                        <SymbolIcon Symbol="Switch" />
-                    </AppBarButton.Icon>
-                </AppBarButton>
-                <AppBarButton Click="GoToButton_Click" Label="{Binding Texts.VapourSynthGoToButton}">
-                    <AppBarButton.Icon>
-                        <SymbolIcon Symbol="Forward" />
-                    </AppBarButton.Icon>
-                </AppBarButton>
-                <AppBarButton x:Name="SmartInsertButton" Label="{Binding Texts.VapourSynthSmartInsertButton}">
-                    <AppBarButton.Icon>
-                        <SymbolIcon Symbol="Add" />
-                    </AppBarButton.Icon>
-                    <AppBarButton.Flyout>
-                        <MenuFlyout x:Name="SmartInsertMenuFlyout" Opening="SmartInsertMenuFlyout_Opening" />
-                    </AppBarButton.Flyout>
-                </AppBarButton>
-                <AppBarSeparator />
-                <AppBarButton x:Name="EncodeButton" Click="EncodeButton_Click" IsEnabled="{Binding CanRunScriptAction}" Foreground="{ThemeResource AccentTextFillColorPrimaryBrush}" Label="{Binding Texts.VapourSynthEncodeButton}">
-                    <AppBarButton.Icon>
-                        <SymbolIcon Symbol="Video" />
-                    </AppBarButton.Icon>
-                    <AppBarButton.KeyboardAccelerators>
-                        <KeyboardAccelerator Key="F9" />
-                    </AppBarButton.KeyboardAccelerators>
-                </AppBarButton>
-                <AppBarButton Click="PreviewButton_Click" IsEnabled="{Binding CanRunScriptAction}" Foreground="{ThemeResource AccentTextFillColorPrimaryBrush}" Label="{Binding Texts.VapourSynthPreviewButton}">
-                    <AppBarButton.Icon>
-                        <SymbolIcon Symbol="Play" />
-                    </AppBarButton.Icon>
-                    <AppBarButton.KeyboardAccelerators>
-                        <KeyboardAccelerator Key="F5" />
-                    </AppBarButton.KeyboardAccelerators>
-                </AppBarButton>
-            </CommandBar>
+            <Grid Margin="10,4,10,4">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+                <CommandBar
+                    x:Name="EditorCommandBar"
+                    Padding="0"
+                    Background="Transparent"
+                    DefaultLabelPosition="Right"
+                    IsDynamicOverflowEnabled="True"
+                    MinWidth="0"
+                    OverflowButtonVisibility="Auto">
+                    <AppBarButton Click="OpenDocumentButton_Click" Label="{Binding Texts.VapourSynthOpenButton}">
+                        <AppBarButton.Icon>
+                            <SymbolIcon Symbol="OpenFile" />
+                        </AppBarButton.Icon>
+                    </AppBarButton>
+                    <AppBarButton Click="SaveDocumentButton_Click" Label="{Binding Texts.SaveButton}">
+                        <AppBarButton.Icon>
+                            <SymbolIcon Symbol="Save" />
+                        </AppBarButton.Icon>
+                    </AppBarButton>
+                    <AppBarButton Click="SaveDocumentAsButton_Click" Label="{Binding Texts.SaveAsButton}">
+                        <AppBarButton.Icon>
+                            <SymbolIcon Symbol="SaveLocal" />
+                        </AppBarButton.Icon>
+                    </AppBarButton>
+                    <AppBarSeparator />
+                    <AppBarButton Click="UndoButton_Click" Label="{Binding Texts.VapourSynthUndoButton}">
+                        <AppBarButton.Icon>
+                            <SymbolIcon Symbol="Undo" />
+                        </AppBarButton.Icon>
+                    </AppBarButton>
+                    <AppBarButton Click="RedoButton_Click" Label="{Binding Texts.VapourSynthRedoButton}">
+                        <AppBarButton.Icon>
+                            <SymbolIcon Symbol="Redo" />
+                        </AppBarButton.Icon>
+                    </AppBarButton>
+                    <AppBarSeparator />
+                    <AppBarButton Click="FindButton_Click" Label="{Binding Texts.VapourSynthFindButton}">
+                        <AppBarButton.Icon>
+                            <SymbolIcon Symbol="Find" />
+                        </AppBarButton.Icon>
+                    </AppBarButton>
+                    <AppBarButton Click="ReplaceButton_Click" Label="{Binding Texts.VapourSynthReplaceButton}">
+                        <AppBarButton.Icon>
+                            <SymbolIcon Symbol="Switch" />
+                        </AppBarButton.Icon>
+                    </AppBarButton>
+                    <AppBarButton Click="GoToButton_Click" Label="{Binding Texts.VapourSynthGoToButton}">
+                        <AppBarButton.Icon>
+                            <SymbolIcon Symbol="Forward" />
+                        </AppBarButton.Icon>
+                    </AppBarButton>
+                    <AppBarButton x:Name="SmartInsertButton" Label="{Binding Texts.VapourSynthSmartInsertButton}">
+                        <AppBarButton.Icon>
+                            <SymbolIcon Symbol="Add" />
+                        </AppBarButton.Icon>
+                        <AppBarButton.Flyout>
+                            <MenuFlyout x:Name="SmartInsertMenuFlyout" Opening="SmartInsertMenuFlyout_Opening" />
+                        </AppBarButton.Flyout>
+                    </AppBarButton>
+                </CommandBar>
+
+                <CommandBar
+                    Grid.Column="1"
+                    Padding="0"
+                    Background="Transparent"
+                    DefaultLabelPosition="Right"
+                    IsDynamicOverflowEnabled="False"
+                    OverflowButtonVisibility="Collapsed">
+                    <AppBarElementContainer VerticalAlignment="Center">
+                        <SplitButton
+                            AutomationProperties.Name="{Binding Texts.VapourSynthRepairAnalyzeButton}"
+                            Click="AnalyzeRepairsButton_Click"
+                            IsEnabled="{Binding CanRunScriptAction}">
+                            <StackPanel Orientation="Horizontal" Spacing="8">
+                                <SymbolIcon Symbol="Scan" />
+                                <TextBlock VerticalAlignment="Center" Text="{Binding Texts.VapourSynthRepairAnalyzeButton}" />
+                            </StackPanel>
+                            <SplitButton.Flyout>
+                                <MenuFlyout>
+                                    <MenuFlyoutItem Click="DeepScanRepairsButton_Click" Text="{Binding Texts.VapourSynthRepairDeepButton}">
+                                        <MenuFlyoutItem.Icon>
+                                            <SymbolIcon Symbol="Find" />
+                                        </MenuFlyoutItem.Icon>
+                                    </MenuFlyoutItem>
+                                    <MenuFlyoutItem Click="ScanPlaylistSeamsButton_Click" Text="{Binding Texts.VapourSynthRepairPlaylistButton}">
+                                        <MenuFlyoutItem.Icon>
+                                            <SymbolIcon Symbol="List" />
+                                        </MenuFlyoutItem.Icon>
+                                    </MenuFlyoutItem>
+                                </MenuFlyout>
+                            </SplitButton.Flyout>
+                        </SplitButton>
+                    </AppBarElementContainer>
+                    <AppBarSeparator />
+                    <AppBarButton x:Name="EncodeButton" Click="EncodeButton_Click" IsEnabled="{Binding CanRunScriptAction}" Foreground="{ThemeResource AccentTextFillColorPrimaryBrush}" Label="{Binding Texts.VapourSynthEncodeButton}">
+                        <AppBarButton.Icon>
+                            <SymbolIcon Symbol="Video" />
+                        </AppBarButton.Icon>
+                        <AppBarButton.KeyboardAccelerators>
+                            <KeyboardAccelerator Key="F9" />
+                        </AppBarButton.KeyboardAccelerators>
+                    </AppBarButton>
+                    <AppBarButton Click="PreviewButton_Click" IsEnabled="{Binding CanRunScriptAction}" Foreground="{ThemeResource AccentTextFillColorPrimaryBrush}" Label="{Binding Texts.VapourSynthPreviewButton}">
+                        <AppBarButton.Icon>
+                            <SymbolIcon Symbol="Play" />
+                        </AppBarButton.Icon>
+                        <AppBarButton.KeyboardAccelerators>
+                            <KeyboardAccelerator Key="F5" />
+                        </AppBarButton.KeyboardAccelerators>
+                    </AppBarButton>
+                </CommandBar>
+            </Grid>
 
             <TabView
                 x:Name="WorkspaceTabView"
@@ -207,6 +248,7 @@
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="Auto" />
                             <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
                         </Grid.ColumnDefinitions>
                         <ProgressRing Width="20" Height="20" IsActive="{Binding IsScriptActionRunning}" />
                         <TextBlock
@@ -215,6 +257,8 @@
                             AutomationProperties.LiveSetting="Polite"
                             Text="{Binding ScriptActionStatusText}"
                             TextWrapping="Wrap" />
+                        <Button x:Name="CancelRepairScanButton" Grid.Column="2" Content="{Binding Texts.CancelButton}"
+                                Click="CancelRepairScanButton_Click" Visibility="Collapsed" />
                     </Grid>
                 </Grid>
             </Border>

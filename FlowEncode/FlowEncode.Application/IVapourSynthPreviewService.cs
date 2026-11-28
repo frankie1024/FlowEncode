@@ -80,6 +80,14 @@ public interface IVapourSynthPreviewService : IDisposable
         CancellationToken cancellationToken = default) =>
         throw new NotSupportedException("Auto-crop detection is not supported by this preview service.");
 
+    Task<PreviewRepairAnalysisResult> AnalyzeRepairsAsync(
+        int outputIndex,
+        CancellationToken cancellationToken = default,
+        string? mediaSource = null,
+        bool deep = false,
+        string? playlistPath = null) =>
+        throw new NotSupportedException("Repair analysis is not supported by this preview service.");
+
     Task CloseSessionAsync(CancellationToken cancellationToken = default);
 }
 

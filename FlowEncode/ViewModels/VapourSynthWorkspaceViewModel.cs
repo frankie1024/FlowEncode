@@ -31,6 +31,7 @@ public sealed class VapourSynthWorkspaceViewModel : ObservableObject
     private bool _isCompareMode;
     private bool _isScriptActionRunning;
     private bool _isPreparingEncode;
+    private Func<AppText, string>? _scriptActionStatus;
     private VapourSynthWorkspacePaneKind _activePane = VapourSynthWorkspacePaneKind.Left;
     private VapourSynthWorkspaceTabViewModel? _activeTab;
     private VapourSynthWorkspaceTabViewModel? _leftTab;
@@ -137,11 +138,11 @@ public sealed class VapourSynthWorkspaceViewModel : ObservableObject
 
     public Visibility ScriptActionProgressVisibility => _isScriptActionRunning ? Visibility.Visible : Visibility.Collapsed;
 
-    public string ScriptActionStatusText => _isPreparingEncode
+    public string ScriptActionStatusText => _scriptActionStatus?.Invoke(Texts) ?? (_isPreparingEncode
         ? Texts.VapourSynthEncodePreparingStatus
-        : Texts.VapourSynthPreviewPreparingStatus;
+        : Texts.VapourSynthPreviewPreparingStatus);
 
-    internal bool TryBeginScriptAction(bool preparingEncode)
+    internal bool TryBeginScriptAction(bool preparingEncode, Func<AppText, string>? status = null)
     {
         if (_isScriptActionRunning)
         {
@@ -149,6 +150,7 @@ public sealed class VapourSynthWorkspaceViewModel : ObservableObject
         }
 
         _isPreparingEncode = preparingEncode;
+        _scriptActionStatus = status;
         _isScriptActionRunning = true;
         RaiseScriptActionPropertyChanges();
         return true;
@@ -157,6 +159,7 @@ public sealed class VapourSynthWorkspaceViewModel : ObservableObject
     internal void EndScriptAction()
     {
         _isScriptActionRunning = false;
+        _scriptActionStatus = null;
         RaiseScriptActionPropertyChanges();
     }
 

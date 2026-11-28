@@ -176,19 +176,57 @@ public sealed class VapourSynthSmartScriptEditorTests
     }
 
     [TestMethod]
-    public void ApplyVideoSourceLoader_BuildsFreshScriptAndAvoidsVariableCollisions()
+    public void BuildVideoSourceScript_UsesLwLibavAndPreservesTheSourcePath()
     {
-        var fresh = VapourSynthSmartScriptEditor.ApplyVideoSourceLoader(string.Empty, @"D:\Videos\movie.mkv");
-        Assert.AreEqual("src", fresh.ResolvedVariableName);
-        Assert.IsTrue(fresh.AddedImport);
-        StringAssert.Contains(fresh.UpdatedScript, "import vssource as vss");
-        StringAssert.Contains(fresh.UpdatedScript, @"src = vss.BestSource().source(r""D:\Videos\movie.mkv"", bits=None)");
-        StringAssert.Contains(fresh.UpdatedScript, "src.set_output()");
+        var path = Path.GetFullPath(Path.Combine(Path.GetTempPath(), "蓝光样片's track.AVC"));
+        var draft = VapourSynthSmartScriptEditor.BuildVideoSourceScript(path);
 
-        var second = VapourSynthSmartScriptEditor.ApplyVideoSourceLoader(fresh.UpdatedScript, @"D:\Videos\encode.mkv");
-        Assert.AreEqual("src2", second.ResolvedVariableName);
-        StringAssert.Contains(second.UpdatedScript, @"src2 = vss.BestSource().source(r""D:\Videos\encode.mkv"", bits=None)");
-        StringAssert.Contains(second.UpdatedScript, "src.set_output()");
+        Assert.AreEqual($"""
+            from vstools import core
+            file = R"{path}"
+            src = core.lsmas.LWLibavSource(file)
+            src.set_output()
+            """.ReplaceLineEndings("\n"), draft.UpdatedScript);
+        Assert.AreEqual(3, draft.TargetLineNumber);
+        Assert.AreEqual(path, VapourSynthSmartScriptEditor.FindGeneratedVideoSourcePath(draft.UpdatedScript));
+        Assert.AreEqual(path, VapourSynthSmartScriptEditor.FindGeneratedVideoSourcePath(draft.UpdatedScript.ReplaceLineEndings("\r\n")));
+    }
+
+    [TestMethod]
+    public void BuildVideoSourceScript_UsesFfms2ForElementaryVc1()
+    {
+        var path = Path.GetFullPath("track.VC1");
+        var draft = VapourSynthSmartScriptEditor.BuildVideoSourceScript(path);
+
+        StringAssert.Contains(draft.UpdatedScript, "src = core.ffms2.Source(file)");
+        Assert.AreEqual(path, VapourSynthSmartScriptEditor.FindGeneratedVideoSourcePath(draft.UpdatedScript));
+    }
+
+    [TestMethod]
+    public void FindGeneratedVideoSourcePath_PreservesLegacyBestSourceAndRejectsAmbiguousScripts()
+    {
+        const string legacy = """src = vss.BestSource().source(r"old.mkv", bits=None)""";
+        var draft = VapourSynthSmartScriptEditor.BuildVideoSourceScript("new.mkv");
+
+        Assert.AreEqual("old.mkv", VapourSynthSmartScriptEditor.FindGeneratedVideoSourcePath(legacy));
+        Assert.IsNull(VapourSynthSmartScriptEditor.FindGeneratedVideoSourcePath($"{legacy}\n{draft.UpdatedScript}"));
+    }
+
+    [TestMethod]
+    [DataRow("movie.MKV", true)]
+    [DataRow("track.avc", true)]
+    [DataRow("track.hevc", true)]
+    [DataRow("track.vc1", true)]
+    [DataRow("track.m2v", true)]
+    [DataRow("encode.264", true)]
+    [DataRow("encode.265", true)]
+    [DataRow("encode.ivf", true)]
+    [DataRow("playlist.mpls", false)]
+    [DataRow("audio.flac", false)]
+    [DataRow("script.vpy", false)]
+    public void IsSupportedVideoSourcePath_RecognizesVideoWithoutCapturingOtherDrops(string fileName, bool expected)
+    {
+        Assert.AreEqual(expected, VapourSynthSmartScriptEditor.IsSupportedVideoSourcePath(fileName));
     }
 
     [TestMethod]

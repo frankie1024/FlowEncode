@@ -1,6 +1,7 @@
 using System;
 using System.IO;
 using System.Linq;
+using FlowEncode.Application;
 using FlowEncode.Domain;
 
 namespace FlowEncode;
@@ -13,7 +14,8 @@ public enum DragDropPayloadType
     Audio,
     BluRayFolder,
     DemuxMkv,
-    CompareVideos
+    CompareVideos,
+    VapourSynthVideo
 }
 
 public sealed class AppLaunchActivation
@@ -81,13 +83,16 @@ public sealed class AppLaunchActivation
         }
     }
 
-    public static DragDropPayloadType ClassifyFilePath(string filePath)
+    public static DragDropPayloadType ClassifyFilePath(string filePath, bool forVapourSynthWorkspace = false)
     {
         if (string.IsNullOrWhiteSpace(filePath))
             return DragDropPayloadType.Unsupported;
 
         if (IsSupportedScriptExtension(filePath))
             return DragDropPayloadType.Script;
+
+        if (forVapourSynthWorkspace && VapourSynthSmartScriptEditor.IsSupportedVideoSourcePath(filePath))
+            return DragDropPayloadType.VapourSynthVideo;
 
         if (IsSupportedVideoExtension(filePath))
             return DragDropPayloadType.Video;

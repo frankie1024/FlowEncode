@@ -446,21 +446,19 @@ public sealed partial class MainWindow : Window, ISettingsViewHost, IShellNaviga
                     return;
                 }
 
-                var payloadType = AppLaunchActivation.ClassifyFilePath(firstFile.Path);
+                var payloadType = ClassifyDroppedFilePath(firstFile.Path);
                 switch (payloadType)
                 {
                     case DragDropPayloadType.Script:
                         await HandleExternalVapourSynthOpenAsync(firstFile.Path);
                         break;
                     case DragDropPayloadType.Video:
-                        if (string.Equals(_activeShellSectionTag, MainShellSections.VapourSynthWorkspace, StringComparison.Ordinal)
-                            && VapourSynthWorkspacePanel is not null)
+                        NavigateToEncodingPage(firstFile.Path);
+                        break;
+                    case DragDropPayloadType.VapourSynthVideo:
+                        if (VapourSynthWorkspacePanel is { } workspace)
                         {
-                            await VapourSynthWorkspacePanel.InsertDroppedVideoSourceAsync(firstFile.Path);
-                        }
-                        else
-                        {
-                            NavigateToEncodingPage(firstFile.Path);
+                            await workspace.CreateScriptFromDroppedVideoAsync(firstFile.Path);
                         }
                         break;
                     case DragDropPayloadType.Audio:
@@ -1296,7 +1294,7 @@ public sealed partial class MainWindow : Window, ISettingsViewHost, IShellNaviga
                     && ViewModel.SelectedBluRayDemuxBackend?.Value == BluRayDemuxBackend.Eac3To
                     && BluRayDemuxSourceSupport.IsMkvSourcePath(firstFile.Path)
                     ? DragDropPayloadType.DemuxMkv
-                    : AppLaunchActivation.ClassifyFilePath(firstFile.Path);
+                    : ClassifyDroppedFilePath(firstFile.Path);
                 _activeDragDataView = dataView;
                 _activeDragPayloadType = fileType;
                 return fileType;
@@ -1340,6 +1338,10 @@ public sealed partial class MainWindow : Window, ISettingsViewHost, IShellNaviga
             return DragDropPayloadType.Unsupported;
         }
     }
+
+    private DragDropPayloadType ClassifyDroppedFilePath(string filePath) =>
+        AppLaunchActivation.ClassifyFilePath(filePath,
+            forVapourSynthWorkspace: string.Equals(_activeShellSectionTag, MainShellSections.VapourSynthWorkspace, StringComparison.Ordinal));
 
     private void ResetActiveDragState()
     {
@@ -1409,6 +1411,7 @@ public sealed partial class MainWindow : Window, ISettingsViewHost, IShellNaviga
         {
             DragDropPayloadType.Script => (texts.DragDropScriptOverlayTitle, texts.DragDropScriptOverlayHint),
             DragDropPayloadType.Video => (texts.DragDropVideoOverlayTitle, texts.DragDropVideoOverlayHint),
+            DragDropPayloadType.VapourSynthVideo => (texts.DragDropVapourSynthVideoOverlayTitle, texts.DragDropVapourSynthVideoOverlayHint),
             DragDropPayloadType.Audio => (texts.DragDropAudioOverlayTitle, texts.DragDropAudioOverlayHint),
             DragDropPayloadType.BluRayFolder => (texts.DragDropBluRayOverlayTitle, texts.DragDropBluRayOverlayHint),
             DragDropPayloadType.DemuxMkv => (texts.DragDropDemuxMkvOverlayTitle, texts.DragDropDemuxMkvOverlayHint),

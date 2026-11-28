@@ -14,6 +14,9 @@ from contextlib import contextmanager
 import numpy as np
 import vapoursynth as vs
 
+from repair_analysis import analyze_banding, analyze_repairs, attach_evidence, crop_samples, make_luma_clip, verify_crop_repair
+from repair_scan import deep_scan, read_chapters, read_playlist_seams
+
 try:
     sys.stderr.reconfigure(encoding="utf-8", errors="backslashreplace")
 except Exception:
@@ -37,6 +40,19 @@ except Exception:
 def emit(payload):
     PROTOCOL_STDOUT.write(json.dumps(payload, ensure_ascii=False) + "\n")
     PROTOCOL_STDOUT.flush()
+
+
+def repair_progress(request_id):
+    last_report = time.monotonic()
+
+    def report():
+        nonlocal last_report
+        now = time.monotonic()
+        if now - last_report >= 2:
+            emit({"type": "repairProgress", "requestId": request_id})
+            last_report = now
+
+    return report
 
 
 @contextmanager
@@ -279,6 +295,7 @@ class PreviewSession:
         self.video_outputs = OrderedDict()
         self.render_clips = OrderedDict()
         self.align_luma_clips = {}
+        self._repair_banding_inputs = None
         self._max_render_clip_cache = 24
 
         self._evaluate_script()
@@ -1096,45 +1113,10 @@ class PreviewSession:
             start, end = 0, total - 1
 
         sample_indices = sorted(set(int(round(start + (end - start) * (i / max(1, n - 1)))) for i in range(n)))
-        min_left = clip.width // 2
-        min_top = clip.height // 2
-        min_right = clip.width // 2
-        min_bottom = clip.height // 2
-        # Threshold in 8-bit equivalent luma (24 = slightly above limited black 16 to absorb encoding noise).
-        threshold = 24.0
-
-        for frame_idx in sample_indices:
-            luma = self._get_full_luma_array(output_index, frame_idx)
-            h, w = luma.shape
-            row_p95 = np.percentile(luma, 95, axis=1)
-            col_p95 = np.percentile(luma, 95, axis=0)
-            active_rows = np.where(row_p95 > threshold)[0]
-            active_cols = np.where(col_p95 > threshold)[0]
-            if active_rows.size == 0 or active_cols.size == 0:
-                continue
-            top = int(active_rows[0])
-            bottom = int((h - 1) - active_rows[-1])
-            left = int(active_cols[0])
-            right = int((w - 1) - active_cols[-1])
-            min_left = min(min_left, left)
-            min_top = min(min_top, top)
-            min_right = min(min_right, right)
-            min_bottom = min(min_bottom, bottom)
-
-        # If all sampled frames were black or crop would collapse the frame, return zero crop safely.
-        if (
-            min_left >= clip.width // 2
-            or min_top >= clip.height // 2
-            or (min_left + min_right) >= clip.width - 16
-            or (min_top + min_bottom) >= clip.height - 16
-        ):
-            min_left = min_top = min_right = min_bottom = 0
-
-        # Round down to even numbers for YUV 4:2:0 compatibility.
-        crop_left = max(0, (min_left // 2) * 2)
-        crop_top = max(0, (min_top // 2) * 2)
-        crop_right = max(0, (min_right // 2) * 2)
-        crop_bottom = max(0, (min_bottom // 2) * 2)
+        with redirect_script_stdout():
+            aligned, exact, bounds = crop_samples(clip, make_luma_clip(clip), sample_indices)
+            repair = verify_crop_repair(clip, aligned, exact, [next(iter(bounds))]) if aligned != exact else None
+        crop_left, crop_top, crop_right, crop_bottom = aligned
         elapsed_ms = round((time.perf_counter() - t0) * 1000.0, 1)
 
         return {
@@ -1143,9 +1125,47 @@ class PreviewSession:
             "cropTop": crop_top,
             "cropRight": crop_right,
             "cropBottom": crop_bottom,
+            "cropRepair": repair,
             "sampledCount": len(sample_indices),
             "elapsedMs": elapsed_ms,
         }
+
+    def analyze_repairs(self, output_index, source=None, ffprobe=None, ffmpeg=None, progress=lambda: None):
+        clip = self.video_outputs[output_index].clip
+        if clip.format is None or not clip.width or not clip.height or not clip.num_frames:
+            raise RuntimeError("Repair analysis needs a nonempty video with a fixed format and frame size.")
+        with redirect_script_stdout():
+            chapters, pgs = read_chapters(ffprobe, source, clip)
+            result, self._repair_banding_inputs = analyze_repairs(clip, chapters=chapters, pgs=pgs, ffmpeg=ffmpeg, progress=progress)
+        return result
+
+    def deep_scan_repairs(self, output_index, source=None, ffprobe=None, progress=lambda: None, playlist=None):
+        clip = self.video_outputs[output_index].clip
+        if clip.format is None or not clip.width or not clip.height or not clip.num_frames:
+            raise RuntimeError("Deep scan needs a nonempty video with a fixed format and frame size.")
+        with redirect_script_stdout():
+            chapters, _ = read_chapters(ffprobe, source, clip)
+            seams = read_playlist_seams(playlist, clip)
+            rows = deep_scan(clip, make_luma_clip(clip), chapters, 0, clip.num_frames - 1, progress, seams)
+        suggestions = []
+        rows.sort(key=lambda row: row[1])
+        for kind, start, end, frame, score in rows[:500]:
+            frames = [frame]
+            if kind == "decode":
+                frames = [n for n in (start - 1, end + 1) if 0 <= n < clip.num_frames]
+            suggestions.append(attach_evidence({"kind": kind, "frames": frames, "edges": [], "statements": []},
+                                               [(start, end)], kind, value=score))
+        return {"type": "repairAnalysis", "sampledCount": clip.num_frames, "chapterCount": len(chapters),
+                "playlistSeamCount": len(seams), "playlistMismatch": bool(playlist and not seams),
+                "deep": True, "truncated": len(rows) > len(suggestions), "suggestions": suggestions}
+
+    def analyze_repair_banding(self, progress):
+        inputs = self._repair_banding_inputs
+        self._repair_banding_inputs = None
+        if inputs is None:
+            raise RuntimeError("Run repair analysis before checking banding.")
+        with redirect_script_stdout():
+            return analyze_banding(*inputs, progress=progress)
 
 
 def main():
@@ -1278,6 +1298,25 @@ def main():
                     float(command.get("subpixelOffsetX") or 0.0),
                     float(command.get("subpixelOffsetY") or 0.0),
                 )
+                response["requestId"] = request_id
+                emit(response)
+                continue
+
+            if command_name == "analyzeRepairs":
+                request_id = int(command.get("requestId", 0))
+                report_repair_progress = repair_progress(request_id)
+                args = (int(command["outputIndex"]), command.get("mediaSource"), command.get("ffprobePath"))
+                if command.get("deep"):
+                    response = session.deep_scan_repairs(*args, progress=report_repair_progress, playlist=command.get("playlistPath"))
+                else:
+                    response = session.analyze_repairs(*args, ffmpeg=command.get("ffmpegPath"), progress=report_repair_progress)
+                response["requestId"] = request_id
+                emit(response)
+                continue
+
+            if command_name == "analyzeRepairBanding":
+                request_id = int(command.get("requestId", 0))
+                response = session.analyze_repair_banding(repair_progress(request_id))
                 response["requestId"] = request_id
                 emit(response)
                 continue

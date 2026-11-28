@@ -196,7 +196,8 @@ public sealed partial class VapourSynthPreviewWindow : Window
         VapourSynthPreviewOpenRequest request,
         AppLanguage language,
         AppThemePreference themePreference,
-        PreviewCompareMode? initialCompareMode = null)
+        PreviewCompareMode? initialCompareMode = null,
+        int? repairFrameNumber = null)
     {
         if (_previewLifetimeToken.IsCancellationRequested)
         {
@@ -226,7 +227,7 @@ public sealed partial class VapourSynthPreviewWindow : Window
         }
 
         ApplyPresentation(language, themePreference);
-        var loaded = await LoadSessionAsync(preserveCurrentFrame: !shouldResetChapters, initialCompareMode: initialCompareMode);
+        var loaded = await LoadSessionAsync(!shouldResetChapters, initialCompareMode, repairFrameNumber);
         if (_previewLifetimeToken.IsCancellationRequested)
         {
             return false;
@@ -401,7 +402,10 @@ public sealed partial class VapourSynthPreviewWindow : Window
             });
     }
 
-    private async Task<bool> LoadSessionAsync(bool preserveCurrentFrame, PreviewCompareMode? initialCompareMode = null)
+    private async Task<bool> LoadSessionAsync(
+        bool preserveCurrentFrame,
+        PreviewCompareMode? initialCompareMode = null,
+        int? repairFrameNumber = null)
     {
         if (_currentRequest is null || _previewLifetimeToken.IsCancellationRequested)
         {
@@ -412,9 +416,22 @@ public sealed partial class VapourSynthPreviewWindow : Window
         StopPlayback();
         _frameRequestScheduler.ClearPending();
         SaveCurrentOutputState();
+        foreach (var state in _outputStates.Values)
+        {
+            state.AutoCropRepair = null;
+        }
+        if (repairFrameNumber.HasValue)
+        {
+            _outputStates.Clear();
+            _selectedOutputInfo = null;
+            _secondaryOutputInfo = null;
+            ViewModel.SecondaryFrameOffset = 0;
+            ViewModel.SubpixelOffsetX = 0;
+            ViewModel.SubpixelOffsetY = 0;
+        }
 
         var previousOutputIndex = _selectedOutputInfo?.Index ?? 0;
-        var previousFrame = preserveCurrentFrame ? ViewModel.CurrentFrame : 0;
+        var previousFrame = repairFrameNumber ?? (preserveCurrentFrame ? ViewModel.CurrentFrame : 0);
 
         ViewModel.ResetForSession(
             _currentRequest.DisplayName,
@@ -989,11 +1006,16 @@ public sealed partial class VapourSynthPreviewWindow : Window
         int sourceHeight)
     {
         var outputState = GetOrCreateOutputState(outputInfo);
+        var crop = CreateCropSettings(outputState, ViewModel.IsCropPanelVisible);
+        if (crop.IsEnabled && outputState.AutoCropRepair?.Edges is [var left, var top, var right, var bottom])
+        {
+            crop = crop with { Mode = PreviewCropMode.Relative, Relative = new(left, top, right, bottom) };
+        }
         return new PreviewFrameCompositionRequest(
             sourcePixels,
             sourceWidth,
             sourceHeight,
-            CreateCropSettings(outputState, ViewModel.IsCropPanelVisible));
+            crop);
     }
 
     private bool IsActiveFrameRequest(
@@ -2423,6 +2445,7 @@ public sealed partial class VapourSynthPreviewWindow : Window
         }
 
         var outputState = GetOrCreateOutputState(_selectedOutputInfo);
+        outputState.AutoCropRepair = null;
         if (IsAbsoluteCropMode(outputState.CropMode))
         {
             ApplyAbsoluteCropFieldValue(
@@ -2804,6 +2827,10 @@ public sealed partial class VapourSynthPreviewWindow : Window
 
         var outputState = GetOrCreateOutputState(_selectedOutputInfo);
         var clipToken = useSnippetPlaceholder ? "${1:clip}" : "clip";
+        if (outputState.AutoCropRepair is { } repair)
+        {
+            return VapourSynthRepairScriptBuilder.FormatSnippet([repair], clipToken);
+        }
         if (IsAbsoluteCropMode(outputState.CropMode))
         {
             EnsureAbsoluteCropStateWithinBounds(outputState.AbsoluteCrop, _selectedOutputInfo.Width, _selectedOutputInfo.Height);
@@ -5310,7 +5337,7 @@ public sealed partial class VapourSynthPreviewWindow : Window
             nameof(AutoCropButton_Click),
             async () =>
             {
-                if (_selectedOutputInfo is null)
+                if (_selectedOutputInfo is not { } output)
                 {
                     return;
                 }
@@ -5320,26 +5347,41 @@ public sealed partial class VapourSynthPreviewWindow : Window
                 try
                 {
                     var result = await _previewService.AutoDetectCropAsync(
-                        _selectedOutputInfo.Index,
+                        output.Index,
                         sampleCount: 12,
                         _previewLifetimeToken);
-                    var outputState = GetOrCreateOutputState(_selectedOutputInfo);
+                    if (!ReferenceEquals(output, _selectedOutputInfo))
+                    {
+                        return;
+                    }
+
+                    var (left, top, right, bottom) = (result.Left, result.Top, result.Right, result.Bottom);
+                    var outputState = GetOrCreateOutputState(output);
+                    outputState.AutoCropRepair = null;
+                    var note = string.Empty;
+                    if (result.CropRepair is { Failure: null, Edges: [var exactLeft, var exactTop, var exactRight, var exactBottom] } repair)
+                    {
+                        (left, top, right, bottom) = (exactLeft, exactTop, exactRight, exactBottom);
+                        outputState.AutoCropRepair = repair;
+                        note = " " + ViewModel.Texts.VapourSynthRepairCropRemainder;
+                    }
+                    else if (result.CropRepair?.Failure is not null)
+                    {
+                        note = " " + ViewModel.Texts.VapourSynthPreviewAutoCropRemainderUnavailable;
+                    }
+
                     outputState.RelativeCrop.Left = result.Left;
                     outputState.RelativeCrop.Top = result.Top;
                     outputState.RelativeCrop.Right = result.Right;
                     outputState.RelativeCrop.Bottom = result.Bottom;
                     outputState.AbsoluteCrop.Left = result.Left;
                     outputState.AbsoluteCrop.Top = result.Top;
-                    outputState.AbsoluteCrop.Width = Math.Max(1, _selectedOutputInfo.Width - result.Left - result.Right);
-                    outputState.AbsoluteCrop.Height = Math.Max(1, _selectedOutputInfo.Height - result.Top - result.Bottom);
-                    ApplyCropControlsFromState(outputState, _selectedOutputInfo);
+                    outputState.AbsoluteCrop.Width = Math.Max(1, output.Width - result.Left - result.Right);
+                    outputState.AbsoluteCrop.Height = Math.Max(1, output.Height - result.Top - result.Bottom);
+                    SyncControls();
                     RefreshDisplayedFrame();
                     SetStatusText(ViewModel.Texts.VapourSynthPreviewAutoCropDoneStatus(
-                        result.Left,
-                        result.Top,
-                        result.Right,
-                        result.Bottom,
-                        result.ElapsedMs));
+                        left, top, right, bottom, result.ElapsedMs) + note);
                 }
                 catch (Exception ex) when (ex is not OperationCanceledException)
                 {
@@ -5411,6 +5453,13 @@ public sealed partial class VapourSynthPreviewWindow : Window
                 var widthOrRight = (int)Math.Max(0, isAbs ? outputState.AbsoluteCrop.Width : outputState.RelativeCrop.Right);
                 var heightOrBottom = (int)Math.Max(0, isAbs ? outputState.AbsoluteCrop.Height : outputState.RelativeCrop.Bottom);
                 var fallback = BuildCropCommandSnippet(useSnippetPlaceholder: false);
+                if (outputState.AutoCropRepair is { } repair)
+                {
+                    var outputIndex = _selectedOutputInfo.Index;
+                    await ApplySmartScriptEditOrFallbackCopyAsync(
+                        script => VapourSynthRepairScriptBuilder.Build(script, outputIndex, [repair]), fallback);
+                    return;
+                }
 
                 await ApplySmartScriptEditOrFallbackCopyAsync(
                     script => VapourSynthSmartScriptEditor.ApplyCrop(
@@ -5437,6 +5486,17 @@ public sealed partial class VapourSynthPreviewWindow : Window
                 }
 
                 var outputState = GetOrCreateOutputState(_selectedOutputInfo);
+                if (outputState.AutoCropRepair is { } crop)
+                {
+                    var outputIndex = _selectedOutputInfo.Index;
+                    PreviewRepairSuggestion[] repairs = [crop, new("edge", crop.Frames,
+                        ["import awsmfunc as awf", "_fe_repair_clip = awf.bbmod(_fe_repair_clip, top=2, bottom=2, left=2, right=2, thresh=32, blur=20)"], [])];
+                    await ApplySmartScriptEditOrFallbackCopyAsync(
+                        script => VapourSynthRepairScriptBuilder.Build(script, outputIndex, repairs),
+                        VapourSynthRepairScriptBuilder.FormatSnippet(repairs));
+                    return;
+                }
+
                 var left = (int)Math.Max(0, outputState.RelativeCrop.Left);
                 var top = (int)Math.Max(0, outputState.RelativeCrop.Top);
                 var right = (int)Math.Max(0, outputState.RelativeCrop.Right);
@@ -7570,6 +7630,8 @@ public sealed partial class VapourSynthPreviewWindow : Window
         public AbsoluteCropState AbsoluteCrop { get; init; } = new();
 
         public RelativeCropState RelativeCrop { get; init; } = new();
+
+        public PreviewRepairSuggestion? AutoCropRepair { get; set; }
 
         public static PreviewOutputState CreateDefault(int width, int height)
         {

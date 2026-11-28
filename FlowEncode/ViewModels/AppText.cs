@@ -58,6 +58,8 @@ public sealed class AppText
     public string DragDropScriptOverlayHint => Pick("支持 .vpy 和 .py 文件", "Supports .vpy and .py files");
     public string DragDropVideoOverlayTitle => Pick("拖放视频以压制", "Drop a video to encode");
     public string DragDropVideoOverlayHint => Pick("支持 .mkv / .mp4 / .avi / .flv / .y4m / .yuv / .avs", "Supports .mkv / .mp4 / .avi / .flv / .y4m / .yuv / .avs");
+    public string DragDropVapourSynthVideoOverlayTitle => Pick("拖入视频以创建 VPY", "Drop a video to create a VPY script");
+    public string DragDropVapourSynthVideoOverlayHint => Pick("支持 MKV、AVC、HEVC、VC-1、IVF 等", "Supports MKV, AVC, HEVC, VC-1, IVF, and other formats");
     public string DragDropCompareVideoOverlayTitle => Pick("拖放两个视频以直接对比", "Drop two videos to compare");
     public string DragDropCompareVideoOverlayHint => Pick("将自动打开预览窗口对比两个画面，无需手动编写 .vpy 脚本", "Open both videos directly in preview compare mode without writing a .vpy script");
     public string DragDropAudioOverlayTitle => Pick("拖放音频以处理", "Drop an audio file to process");
@@ -232,6 +234,96 @@ public sealed class AppText
     public string TemplateEditorTitle => Pick("模板编辑", "Template Editor");
     public string VapourSynthWorkspaceTitle => "VapourSynth";
     public string VapourSynthOpenButton => Pick("打开", "Open");
+    public string VapourSynthRepairAnalyzeButton => Pick("自动检测", "Detect Issues");
+    public string VapourSynthRepairDeepButton => Pick("深度扫描", "Deep Scan");
+    public string VapourSynthRepairPlaylistButton => Pick("检查蓝光接缝", "Check Blu-ray Seams");
+    public string VapourSynthRepairPlaylistType => Pick("蓝光播放列表（MPLS）", "Blu-ray Playlist (MPLS)");
+    public string VapourSynthRepairPlaylistMismatch => Pick("这个播放列表没有可用的接缝，或时长与当前输出不匹配。", "This playlist has no usable seams or its duration differs from the current output.");
+    public string VapourSynthRepairDeepStatus => Pick("正在逐帧检查解码、闪帧和冻结…", "Scanning every frame for decode errors, flashes, and freezes...");
+    public string VapourSynthRepairDeepSummary(int frames, int chapters, int seams) => Pick($"已逐帧检查 {frames} 帧，覆盖 {chapters} 个章节边界和 {seams} 个播放列表接缝。点时间戳查看异常。", $"Checked {frames} frames, including {chapters} chapter boundaries and {seams} playlist seams. Select a timestamp to inspect a finding.");
+    public string VapourSynthRepairSampleSummary(int frames, int windows, int chapters, int output) => Pick($"已检查输出 {output} 的 {windows} 段和 {frames} 个取样帧，覆盖 {chapters} 个章节边界。点时间戳预览，勾选要写入脚本的修复。", $"Checked {windows} windows and {frames} sample frames in output {output}, covering {chapters} chapter boundaries. Select a timestamp to preview or select a fix to add it to the script.");
+    public string VapourSynthRepairTruncated => Pick("异常较多，显示前 500 条。", "Showing the first 500 findings.");
+    public string VapourSynthRepairPgs => Pick("原片含 PGS 字幕。裁切前请确认字幕位置。", "The source contains PGS subtitles. Check their placement before cropping.");
+    public string VapourSynthRepairFieldsUnavailable => Pick("场序检测未完成，请检查 FFmpeg。", "Field detection did not complete. Check FFmpeg.");
+    public string VapourSynthRepairRegion(int x1, int y1, int x2, int y2) => Pick($"疑似区域（原片像素）({x1}, {y1})–({x2}, {y2})", $"Suspected region (source pixels) ({x1}, {y1})–({x2}, {y2})");
+    public string VapourSynthRepairMoreRanges(string ranges, int count) => Pick($"{ranges} 等 {count} 段", $"{ranges} and more ({count} ranges)");
+    public string VapourSynthRepairScope(string scope, int hits, int samples) => scope switch
+    {
+        "widespread" => Pick($"跨片反复出现 · {hits}/{samples} 个样本", $"Recurring across the video · {hits}/{samples} samples"),
+        "local" => Pick($"集中在部分区间 · {hits}/{samples} 个样本", $"Concentrated in some intervals · {hits}/{samples} samples"),
+        _ => Pick($"范围证据不足 · {hits}/{samples} 个样本", $"Insufficient coverage · {hits}/{samples} samples")
+    };
+    public string VapourSynthRepairFinding(string kind) => kind switch
+    {
+        "subtitle" => Pick("疑似字幕占用黑边，已暂停裁切建议", "Possible subtitles in the border. Cropping is paused."),
+        "variable-crop" => Pick("疑似变画幅", "Possible Aspect Ratio Changes"),
+        "telecine" => Pick("疑似 3:2 过带", "Possible 3:2 Telecine"),
+        "interlace" => Pick("疑似隔行梳齿", "Possible Interlacing"),
+        "freeze" => Pick("疑似冻结或重复帧", "Possible Freeze or Duplicate Frames"),
+        "duplicate" => Pick("运动画面中的疑似重复帧", "Possible Duplicate Frames Within Motion"),
+        "black-run" => Pick("疑似异常短黑场", "Possible Abnormally Short Black Segment"),
+        "flash" => Pick("疑似异常闪帧", "Possible Isolated Flash"),
+        "decode" => Pick("帧解码失败", "Frame Decode Error"),
+        "seam" => Pick("章节边界画面突变", "Abrupt Change at Chapter Boundary"),
+        "playlist-seam" => Pick("蓝光播放列表接缝画面突变", "Abrupt Change at Blu-ray Playlist Seam"),
+        "block" => Pick("疑似压缩块或突然掉质", "Possible Blocking or Abrupt Quality Drop"),
+        "ring" => Pick("疑似振铃或锐化光晕", "Possible Ringing or Sharpening Halo"),
+        "chroma" => Pick("疑似色度偏移", "Possible Chroma Shift"),
+        "chroma-edge" => Pick("疑似色度脏边", "Possible Chroma Border Artifacts"),
+        "native" => Pick("疑似放大源", "Possible Upscaled Source"),
+        _ => kind
+    };
+    public string VapourSynthRepairEvidence(string evidence, double? value, int? total) => evidence switch
+    {
+        "border-consensus" => Pick($"按 {value:0} 个样帧的共有边界裁切。", $"Uses borders shared by {value:0} sample frames."),
+        "edge-consensus" => Pick($"在 {total} 个样帧中，{value:0} 帧的相同边缘出现亮线或暗线。", $"The same bright or dark edge appeared in {value:0} of {total} samples."),
+        "bright-margin" => Pick("在暗色边缘检测到成行的亮像素。", "Found rows of bright pixels in a dark margin."),
+        "aspect-change" => Pick($"不同样帧的边界总宽度相差 {value:0} 像素。", $"Combined border widths differ by {value:0} px between samples."),
+        "staircase" => Pick($"最明显的样帧有 {value:0} 处斜线呈阶梯状。", $"The strongest sample contains {value:0} diagonal stair-step patches."),
+        "cambi-pq" or "cambi-sdr" => $"CAMBI {(evidence == "cambi-pq" ? "PQ" : "SDR")} {value:0.00}",
+        "idet-tff" or "idet-bff" => Pick($"idet 在 {total} 帧中判定 {value:0} 帧为{(evidence == "idet-tff" ? "顶场优先" : "底场优先")}。", $"idet marked {value:0} of {total} frames as {(evidence == "idet-tff" ? "top" : "bottom")} field first."),
+        "cadence" or "cadence-vivtc" => Pick($"在 {total} 帧中检测到 {value:0} 个符合五帧节奏的重复场。{(evidence == "cadence-vivtc" ? "已用 VIVTC 复核。" : "")}", $"Found {value:0} repeated fields in a five-frame pattern across {total} frames.{(evidence == "cadence-vivtc" ? " Checked with VIVTC." : "")}"),
+        "freeze" or "duplicate" => Pick("连续画面的亮度几乎相同。", "Adjacent frames have nearly identical luma."),
+        "black-run" => Pick("连续几帧接近全黑，随后恢复画面。", "A short run of nearly black frames is followed by picture content."),
+        "decode" => Pick("VapourSynth 请求该帧时出错。", "VapourSynth failed to read this frame."),
+        "ring" => Pick($"强边缘两侧检测到 {value:0} 处亮度过冲。", $"Found {value:0} overshoots next to strong edges."),
+        "chroma" => Pick($"多条边缘的亮度和色度位置相差约 {value:0.0} 像素。", $"Luma and chroma edges are separated by about {value:0.0} px."),
+        "chroma-edge1" or "chroma-edge2" => Pick($"{value:0} 个样帧的 {(evidence == "chroma-edge1" ? "U" : "V")} 平面在同一边缘出现异常。", $"The {(evidence == "chroma-edge1" ? "U" : "V")} plane shows an anomaly along the same edge in {value:0} samples."),
+        "native" => Pick($"逆缩放误差的候选高度为 {value:0} 像素。", $"Descale error suggests a candidate height of {value:0} px."),
+        "block" => Pick($"检测到规则的块边界，强度约为对照的 {value:0.0} 倍。", $"Detected regular block boundaries at about {value:0.0}× the baseline."),
+        _ => Pick($"相邻画面的亮度差异为 {value:0.0}。", $"Adjacent frame luma difference was {value:0.0}.")
+    };
+    public string VapourSynthRepairScanningStatus => Pick("正在抽样检查画面…", "Analyzing sample frames...");
+    public string VapourSynthRepairValidatingStatus => Pick("正在试跑所选修复…", "Testing the selected repairs...");
+    public string VapourSynthRepairTitle => Pick("画面修复建议", "Picture Repair Suggestions");
+    public string VapourSynthRepairNoSuggestions => Pick("抽样画面里没有找到可建议修复的问题。", "The sampled frames yielded no repair suggestions.");
+    public string VapourSynthRepairVariableCrop => Pick("抽样帧的黑边宽度不一致。裁切建议只采用共有的黑边范围。", "Border widths vary across samples. Any crop uses only the border area common to the samples.");
+    public string VapourSynthRepairBandingUnavailable => Pick("CAMBI 无法分析此片的色带。", "CAMBI could not analyze banding in this clip.");
+    public string VapourSynthRepairCrop => Pick("裁掉黑边", "Crop Black Borders");
+    public string VapourSynthRepairEdge => Pick("修复疑似脏边", "Repair Suspected Dirty Edges");
+    public string VapourSynthRepairEdgeNeedsCrop => Pick("这项修复需要先裁掉黑边。", "This repair requires cropping the black borders first.");
+    public string VapourSynthRepairCropVerified => Pick("对比取样帧的边界已用 AutoCrop 复核。", "AutoCrop corroborated the borders on the comparison frames.");
+    public string VapourSynthRepairAa => Pick("试用抗锯齿（AA）", "Try Anti-Aliasing (AA)");
+    public string VapourSynthRepairDeband => Pick("试用轻度去色带", "Try Mild Debanding");
+    public string VapourSynthRepairManual => Pick("手动试滤镜", "Try Filters Manually");
+    public string VapourSynthRepairCas => Pick("轻度锐化（CAS）", "Mild Sharpening (CAS)");
+    public string VapourSynthRepairDedot => Pick("减轻彩虹纹和边缘爬点（DeDot）", "Reduce Rainbows and Dot Crawl (DeDot)");
+    public string VapourSynthRepairEdges(int left, int top, int right, int bottom) => IsChinese
+        ? $"左 {left} · 上 {top} · 右 {right} · 下 {bottom} 像素"
+        : $"Left {left} · Top {top} · Right {right} · Bottom {bottom} px";
+    public string VapourSynthRepairCropRemainder => Pick("按色度采样对齐裁切，再补齐剩余黑边并缩放。", "Crop on the chroma grid, then fill the remaining border pixels and resize.");
+    public string VapourSynthRepairFilterUnavailable => Pick("这个滤镜未能出帧。", "This filter could not render a frame.");
+    public string VapourSynthRepairDraft => Pick("VPY 草稿", "VPY Draft");
+    public string VapourSynthRepairDraftEmpty => Pick("勾选修复以生成脚本", "Select a repair to generate the script");
+    public string VapourSynthRepairCopy => Pick("复制脚本", "Copy Script");
+    public string VapourSynthRepairInsert => Pick("插回原 VPY", "Insert Into Original VPY");
+    public string VapourSynthRepairCopied => Pick("已复制 VPY 脚本。", "Copied the VPY script.");
+    public string VapourSynthRepairInserted => Pick("已将所选修复插回原脚本。", "Inserted the selected repairs into the original script.");
+    public string VapourSynthRepairScriptChanged => Pick("原脚本已关闭或有改动。请重新检测后再插入。", "The original script was closed or changed. Run detection again before inserting.");
+    public string VapourSynthRepairBefore => Pick("处理前", "Before");
+    public string VapourSynthRepairAfter => Pick("处理后", "After");
+    public string VapourSynthRepairPreviewFailed => Pick("无法打开这项修复的对比预览。", "Could not open the comparison for this repair.");
+    public string VapourSynthRepairPreviewLoading => Pick("正在打开对比…", "Opening comparison...");
     public string VapourSynthReloadButton => Pick("重新载入", "Reload");
     public string VapourSynthFindButton => Pick("查找", "Find");
     public string VapourSynthReplaceButton => Pick("替换", "Replace");
@@ -273,9 +365,9 @@ public sealed class AppText
     public string VapourSynthSmartEditAppliedStatus(string variableName, int lineNumber) => IsChinese
         ? $"已插入 {variableName}（第 {lineNumber} 行），按 Ctrl+Z 可撤销。"
         : $"Inserted for {variableName} (line {lineNumber}). Press Ctrl+Z to undo.";
-    public string VapourSynthDroppedVideoInsertedStatus(string variableName, string fileName) => IsChinese
-        ? $"已为 {fileName} 插入源加载语句（{variableName}）。"
-        : $"Inserted source loader ({variableName}) for {fileName}.";
+    public string VapourSynthDroppedVideoScriptCreatedStatus(string fileName) => IsChinese
+        ? $"已为 {fileName} 创建 VPY 草稿。"
+        : $"Created a VPY draft for {fileName}.";
     public string VapourSynthPreviewPreparingStatus => Pick(
         "正在加载预览。首次读取视频可能需要建立 .lwi 等索引，请稍候，无需重复点击。",
         "Loading preview. The first read may need to build an index such as .lwi. Please wait; no need to click again.");
@@ -574,6 +666,7 @@ public sealed class AppText
         : $"AutoCrop: L={left}, T={top}, R={right}, B={bottom} ({elapsedMs:0} ms).";
     public string VapourSynthPreviewAutoCropFailedStatus(string error) =>
         IsChinese ? $"自动黑边检测失败：{error}" : $"AutoCrop failed: {error}";
+    public string VapourSynthPreviewAutoCropRemainderUnavailable => Pick("补边滤镜未能出帧，已保留对齐裁切值。", "The border-fill filter could not render. The aligned crop values were kept.");
     public string VapourSynthPreviewInsertToEditorButton => Pick("插回编辑器", "Insert to Editor");
     public string VapourSynthPreviewInsertReplaceRangesButton => Pick("插回 replace_ranges", "Insert replace_ranges");
     public string VapourSynthPreviewSmartInsertedStatus(string variableName, int lineNumber, bool updatedInPlace) => IsChinese

@@ -919,7 +919,7 @@ public sealed partial class VapourSynthWorkspaceView : UserControl, IDisposable
         }
     }
 
-    public async Task InsertDroppedVideoSourceAsync(string videoFilePath)
+    public async Task CreateScriptFromDroppedVideoAsync(string videoFilePath)
     {
         if (string.IsNullOrWhiteSpace(videoFilePath))
         {
@@ -929,13 +929,21 @@ public sealed partial class VapourSynthWorkspaceView : UserControl, IDisposable
         await RunUiActionAsync(async () =>
         {
             await EnsureWorkspaceInitializedAsync();
-            var result = await ApplySmartEditorRewriteAsync(script =>
-                VapourSynthSmartScriptEditor.ApplyVideoSourceLoader(script, videoFilePath));
-            if (result is not null)
+            await CaptureVisibleEditorStatesAsync();
+
+            var source = VapourSynthSmartScriptEditor.BuildVideoSourceScript(videoFilePath);
+            var fileName = Path.GetFileName(videoFilePath);
+            await RunWithWorkspaceTabSelectionSuppressedAsync(async () =>
             {
-                var fileName = Path.GetFileName(videoFilePath);
-                ViewModel.SetWorkspaceStatus(texts => texts.VapourSynthDroppedVideoInsertedStatus(result.ResolvedVariableName, fileName));
-            }
+                var tab = ViewModel.ActiveTab is { CurrentFilePath: null, HasUnsavedChanges: false, CurrentContent.Length: 0 } emptyTab
+                    ? emptyTab
+                    : await ViewModel.CreateNewTabAsync();
+                tab.ApplyEditorBuffer(source.UpdatedScript, source.TargetLineNumber, 1,
+                    source.UpdatedScript.Count(static character => character == '\n') + 1, source.UpdatedScript.Length);
+                ViewModel.SetWorkspaceStatus(tab, texts => texts.VapourSynthDroppedVideoScriptCreatedStatus(fileName));
+                await RefreshWorkspaceTabsAsync();
+                ScheduleDiagnostics(GetActiveEditorPane());
+            });
         });
     }
 
@@ -2126,6 +2134,7 @@ public sealed partial class VapourSynthWorkspaceView : UserControl, IDisposable
         }
 
         _isDisposed = true;
+        _repairAnalysisCancellation?.Cancel();
         Unloaded -= UserControl_Unloaded;
         WorkspaceRoot.KeyDown -= WorkspaceRoot_KeyDown;
         CancelPendingDiagnostics();

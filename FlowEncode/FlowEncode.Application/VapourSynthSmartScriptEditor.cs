@@ -1,7 +1,9 @@
 using System;
 using System.Collections.Generic;
 using System.Globalization;
+using System.IO;
 using System.Linq;
+using System.Text.Json;
 using System.Text.RegularExpressions;
 
 namespace FlowEncode.Application;
@@ -36,6 +38,26 @@ public static partial class VapourSynthSmartScriptEditor
     private static readonly Regex FromImportRegex = new(
         @"^[ \t]*from\s+(?<mod>[A-Za-z_][A-Za-z0-9_\.]*)\s+import\s+(?<names>.+?)\s*(?:#.*)?$",
         RegexOptions.Compiled);
+
+    private static readonly Regex GeneratedVideoSourcePathRegex = new(
+        """
+        ^
+        (?:
+            file [ \t]* = [ \t]* (?<literal>[rR]"[^"\r\n]+"|"(?:[^"\\\r\n]|\\.)+") [ \t]* \r?\n
+            \w+ [ \t]* = [ \t]* core\.(?:lsmas\.LWLibavSource|ffms2\.Source)\( [ \t]* file [ \t]* \)
+            |
+            \w+ [ \t]* = [ \t]* \w+\.BestSource\(\)\.source\( (?<literal>[rR]"[^"\r\n]+"), [ \t]* bits=None \)
+        )
+        [ \t]* \r?$
+        """,
+        RegexOptions.Compiled | RegexOptions.Multiline | RegexOptions.IgnorePatternWhitespace);
+
+    private static readonly HashSet<string> VideoSourceExtensions = new(StringComparer.OrdinalIgnoreCase)
+    {
+        ".mkv", ".mp4", ".mov", ".m4v", ".webm", ".avi", ".flv", ".y4m", ".yuv", ".avs",
+        ".m2ts", ".mts", ".ts", ".vob", ".mpg", ".mpeg", ".m2v", ".mpv", ".vc1",
+        ".avc", ".h264", ".264", ".hevc", ".h265", ".265", ".ivf", ".obu"
+    };
 
     private static readonly HashSet<string> NonClipVariableNames = new(StringComparer.Ordinal)
     {
@@ -450,103 +472,48 @@ public static partial class VapourSynthSmartScriptEditor
             AddedImport: addedImport);
     }
 
-    public static SmartScriptEditResult ApplyVideoSourceLoader(string script, string videoFilePath)
+    public static bool IsSupportedVideoSourcePath(string filePath) => VideoSourceExtensions.Contains(Path.GetExtension(filePath));
+
+    public static SmartScriptEditResult BuildVideoSourceScript(string videoFilePath)
     {
-        if (string.IsNullOrWhiteSpace(videoFilePath))
+        var path = Path.GetFullPath(videoFilePath);
+        var literal = path.Any(static character => character is '"' or '\r' or '\n') || path.EndsWith('\\')
+            ? JsonSerializer.Serialize(path)
+            : $"R\"{path}\"";
+        // L-SMASH Works can return no clip for elementary VC-1 streams.
+        var loader = string.Equals(Path.GetExtension(path), ".vc1", StringComparison.OrdinalIgnoreCase)
+            ? "core.ffms2.Source"
+            : "core.lsmas.LWLibavSource";
+        var script = string.Join('\n',
+            "from vstools import core",
+            $"file = {literal}",
+            $"src = {loader}(file)",
+            "src.set_output()");
+        return new SmartScriptEditResult(script, 3, "src", UpdatedInPlace: false, AddedImport: true);
+    }
+
+    public static string? FindGeneratedVideoSourcePath(string script)
+    {
+        var matches = GeneratedVideoSourcePathRegex.Matches(script);
+        if (matches.Count != 1)
         {
-            return new SmartScriptEditResult(script ?? string.Empty, 1, "src", false, false);
+            return null;
         }
 
-        var normalizedPath = videoFilePath.Trim();
-        var rawLiteral = normalizedPath.Contains('"', StringComparison.Ordinal)
-            ? $"\"{normalizedPath.Replace("\\", "\\\\", StringComparison.Ordinal).Replace("\"", "\\\"", StringComparison.Ordinal)}\""
-            : $"r\"{normalizedPath}\"";
-
-        var lines = SplitLines(script ?? string.Empty, out var newline);
-        var hasContent = lines.Any(static l => !string.IsNullOrWhiteSpace(l));
-        if (!hasContent)
+        var literal = matches[0].Groups["literal"].Value;
+        if (literal[0] is 'r' or 'R')
         {
-            var fresh = new List<string>
-            {
-                "import vssource as vss",
-                string.Empty,
-                $"src = vss.BestSource().source({rawLiteral}, bits=None)",
-                "src.set_output()"
-            };
-            return new SmartScriptEditResult(
-                string.Join(newline, fresh),
-                3,
-                "src",
-                UpdatedInPlace: false,
-                AddedImport: true);
+            return literal[2..^1];
         }
 
-        var addedImport = EnsureImportModule(lines, "vssource", "vss", out var sourceAlias);
-
-        var assignedVars = new HashSet<string>(StringComparer.Ordinal);
-        var hasSetOutput = false;
-        for (var i = 0; i < lines.Count; i++)
+        try
         {
-            var assign = AssignmentRegex.Match(lines[i]);
-            if (assign.Success && assign.Groups["indent"].Value.Length == 0)
-            {
-                assignedVars.Add(assign.Groups["var"].Value);
-            }
-
-            if (SetOutputMethodRegex.IsMatch(lines[i]))
-            {
-                hasSetOutput = true;
-            }
+            return JsonSerializer.Deserialize<string>(literal);
         }
-
-        var varName = "src";
-        if (assignedVars.Contains(varName))
+        catch (JsonException)
         {
-            var suffix = 2;
-            while (assignedVars.Contains($"src{suffix}"))
-            {
-                suffix++;
-            }
-
-            varName = $"src{suffix}";
+            return null;
         }
-
-        var loaderLine = $"{varName} = {sourceAlias}.BestSource().source({rawLiteral}, bits=None)";
-        int targetLineIdx;
-        if (!hasSetOutput)
-        {
-            if (lines.Count > 0 && !string.IsNullOrWhiteSpace(lines[^1]))
-            {
-                lines.Add(string.Empty);
-            }
-
-            targetLineIdx = lines.Count;
-            lines.Add(loaderLine);
-            lines.Add($"{varName}.set_output()");
-        }
-        else
-        {
-            var insertAt = FindAfterLastImportIndex(lines);
-            while (insertAt < lines.Count && Regex.IsMatch(lines[insertAt], @"^[ \t]*core\s*="))
-            {
-                insertAt++;
-            }
-
-            while (insertAt < lines.Count && string.IsNullOrWhiteSpace(lines[insertAt]))
-            {
-                insertAt++;
-            }
-
-            lines.Insert(insertAt, loaderLine);
-            targetLineIdx = insertAt;
-        }
-
-        return new SmartScriptEditResult(
-            string.Join(newline, lines),
-            targetLineIdx + 1,
-            varName,
-            UpdatedInPlace: false,
-            AddedImport: addedImport);
     }
 
     private const string AbCompareMarker = "# [FlowEncode A/B]";

@@ -34,7 +34,8 @@ public sealed record PreviewAutoCropResult(
     int Right,
     int Bottom,
     int SampledFrames,
-    double ElapsedMs);
+    double ElapsedMs,
+    PreviewRepairSuggestion? CropRepair = null);
 
 public sealed record PreviewSceneRange(
     int StartFrame,
