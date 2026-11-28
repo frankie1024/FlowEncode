@@ -219,6 +219,9 @@
                                     </Border>
                                 </Grid>
 
+                                <ComboBox Header="{Binding Texts.DeewAtmosModeHeader}" ItemsSource="{Binding Deew.AtmosModes}" SelectedItem="{Binding Deew.AtmosMode, Mode=TwoWay}" Visibility="{Binding DeewAtmosModeVisibility}" HorizontalAlignment="Stretch" />
+                                <ComboBox Header="{Binding Texts.DeewAc4ImsModeHeader}" ItemsSource="{Binding Deew.Ac4ImsModes}" SelectedItem="{Binding Deew.Ac4ImsMode, Mode=TwoWay}" Visibility="{Binding DeewAc4ImsModeVisibility}" HorizontalAlignment="Stretch" />
+
                                 <!-- Conditional deew Warning -->
                                 <InfoBar IsOpen="True" IsClosable="False" Severity="Warning" Message="{Binding Deew.Warning}" Visibility="{Binding DeewWarningVisibility}" />
 
@@ -252,8 +255,6 @@
                                             <Grid x:Name="AudioAdvancedOptionsGrid" ColumnSpacing="{StaticResource AppSpacingS}" RowSpacing="{StaticResource AppSpacingS}">
                                                 <NumberBox Header="{Binding Texts.DeewTrackHeader}" Minimum="0" SmallChange="1" Value="{Binding Deew.TrackIndex, Mode=TwoWay}" Visibility="{Binding AudioDeewOptionsVisibility}" />
                                                 <ComboBox Header="{Binding Texts.DeewDdpModeHeader}" ItemsSource="{Binding Deew.DdpModes}" SelectedItem="{Binding Deew.DdpMode, Mode=TwoWay}" Visibility="{Binding DeewDdpModeVisibility}" HorizontalAlignment="Stretch" />
-                                                <ComboBox Header="{Binding Texts.DeewAtmosModeHeader}" ItemsSource="{Binding Deew.AtmosModes}" SelectedItem="{Binding Deew.AtmosMode, Mode=TwoWay}" Visibility="{Binding DeewAtmosModeVisibility}" HorizontalAlignment="Stretch" />
-                                                <ComboBox Header="{Binding Texts.DeewAc4ImsModeHeader}" ItemsSource="{Binding Deew.Ac4ImsModes}" SelectedItem="{Binding Deew.Ac4ImsMode, Mode=TwoWay}" Visibility="{Binding DeewAc4ImsModeVisibility}" HorizontalAlignment="Stretch" />
                                                 <TextBox Header="{Binding Texts.AudioEac3ToAdditionalArgumentsHeader}" PlaceholderText="{Binding Texts.AudioEac3ToAdditionalArgumentsPlaceholder}" Text="{Binding AudioProcessingAdditionalArguments, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Visibility="{Binding AudioEac3ToOptionsVisibility}" />
                                             </Grid>
 
@@ -269,18 +270,13 @@
                                                     <ComboBox Header="{Binding Texts.DeewPipeModeHeader}" ItemsSource="{Binding Deew.PipeModes}" SelectedItem="{Binding Deew.PipeMode, Mode=TwoWay}" HorizontalAlignment="Stretch" />
                                                 </Grid>
                                                 <Grid x:Name="DeewTrueHddGrid" ColumnSpacing="{StaticResource AppSpacingS}" RowSpacing="{StaticResource AppSpacingS}" Visibility="{Binding Deew.TrueHddOptionsVisibility}">
-                                                    <ComboBox Header="{Binding Texts.DeewWarpModeHeader}" ItemsSource="{Binding Deew.WarpModes}" SelectedItem="{Binding Deew.WarpMode, Mode=TwoWay}" Visibility="{Binding Deew.TrueHddOptionsVisibility}" HorizontalAlignment="Stretch" />
-                                                    <ComboBox Header="{Binding Texts.DeewBedConformHeader}" ItemsSource="{Binding Deew.BedConformOptions}" SelectedItem="{Binding Deew.BedConform, Mode=TwoWay}" Visibility="{Binding Deew.TrueHddOptionsVisibility}" HorizontalAlignment="Stretch" />
+                                                    <ComboBox Header="{Binding Texts.DeewWarpModeHeader}" ItemsSource="{Binding Deew.WarpModes}" SelectedItem="{Binding Deew.WarpMode, Mode=TwoWay}" Visibility="{Binding Deew.TrueHddOptionsVisibility}" ToolTipService.ToolTip="{Binding Texts.DeewWarpModeHint}" HorizontalAlignment="Stretch" />
+                                                    <ComboBox Header="{Binding Texts.DeewBedConformHeader}" ItemsSource="{Binding Deew.BedConformOptions}" SelectedItem="{Binding Deew.BedConform, Mode=TwoWay}" Visibility="{Binding Deew.TrueHddOptionsVisibility}" IsEnabled="{Binding Deew.IsBedConformEditable}" HorizontalAlignment="Stretch" />
                                                 </Grid>
-                                                <Grid x:Name="DeewNamingGrid" ColumnSpacing="{StaticResource AppSpacingS}" RowSpacing="{StaticResource AppSpacingS}" Visibility="{Binding Deew.OutputNamingVisibility}">
-                                                    <TextBox Header="{Binding Texts.DeewOutputNameHeader}" PlaceholderText="{Binding Texts.DeewOutputNamePlaceholder}" Text="{Binding Deew.OutputName, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Visibility="{Binding Deew.OutputNamingVisibility}" />
-                                                    <TextBox Header="{Binding Texts.DeewOutputTemplateHeader}" PlaceholderText="{Binding Texts.DeewOutputTemplatePlaceholder}" Text="{Binding Deew.OutputTemplate, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Visibility="{Binding Deew.OutputNamingVisibility}" />
-                                                </Grid>
+                                                <TextBlock Text="{Binding Texts.DeewForcedBedConformHint}" Visibility="{Binding Deew.ForcedBedConformHintVisibility}" TextWrapping="Wrap" Foreground="{ThemeResource SubtleTextBrush}" FontSize="{StaticResource AppCaptionFontSize}" />
                                                 <Grid x:Name="DeewFlagsGrid" ColumnSpacing="{StaticResource AppSpacingM}" RowSpacing="0">
                                                     <CheckBox Content="{Binding Texts.DeewLfeHeader}" IsChecked="{Binding Deew.DisableLfe, Mode=TwoWay}" Visibility="{Binding Deew.LfeVisibility}" FontSize="{StaticResource AppCaptionFontSize}" />
                                                     <CheckBox Content="{Binding Texts.DeewNoPhaseShiftHeader}" IsChecked="{Binding Deew.NoPhaseShift, Mode=TwoWay}" Visibility="{Binding Deew.NoPhaseShiftVisibility}" FontSize="{StaticResource AppCaptionFontSize}" />
-                                                    <CheckBox Content="{Binding Texts.DeewKeepTempHeader}" IsChecked="{Binding Deew.KeepTemp, Mode=TwoWay}" FontSize="{StaticResource AppCaptionFontSize}" />
-                                                    <CheckBox Content="{Binding Texts.DeewKeepLogHeader}" IsChecked="{Binding Deew.KeepLog, Mode=TwoWay}" FontSize="{StaticResource AppCaptionFontSize}" />
                                                     <CheckBox Content="{Binding Texts.DeewMeasureOnlyHeader}" IsChecked="{Binding Deew.MeasureOnly, Mode=TwoWay}" Visibility="{Binding Deew.MeasureOnlyVisibility}" FontSize="{StaticResource AppCaptionFontSize}" />
                                                 </Grid>
                                                 <Grid x:Name="DeewTempGrid" ColumnSpacing="{StaticResource AppSpacingS}" RowSpacing="{StaticResource AppSpacingS}">
@@ -361,8 +357,7 @@
                             StatusText="{Binding AudioProcessingStatusText}"
                             Title="{Binding Texts.AudioProcessingStatusTitle}" />
 
-                        <!-- Compact 4-Tile Encoder Parameter Summary Strip (Matches Auto Encode) -->
-                        <Grid Grid.Row="1" ColumnSpacing="{StaticResource AppSpacingS}" DataContext="{Binding Form}">
+                        <Grid x:Name="AudioSummaryGrid" Grid.Row="1" ColumnSpacing="{StaticResource AppSpacingS}" RowSpacing="{StaticResource AppSpacingS}" DataContext="{Binding Form}">
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="0.85*" />
                                 <ColumnDefinition Width="1.15*" />
@@ -373,14 +368,15 @@
                             <Border Padding="10,8" Background="{ThemeResource CardAltBrush}" BorderBrush="{ThemeResource CardBorderBrush}" BorderThickness="{StaticResource AppCardBorderThickness}" CornerRadius="{StaticResource AppCardCornerRadius}">
                                 <StackPanel HorizontalAlignment="Center" Spacing="2">
                                     <TextBlock HorizontalAlignment="Center" FontSize="{StaticResource AppSmallFontSize}" Foreground="{ThemeResource SubtleTextBrush}" MaxLines="1" Text="{Binding SummaryCard1Label}" TextTrimming="CharacterEllipsis" />
-                                    <TextBlock HorizontalAlignment="Center" FontFamily="{StaticResource AppMonoFont}" FontSize="{StaticResource AppBodyFontSize}" FontWeight="SemiBold" MaxLines="1" Text="{Binding SummaryCard1Value}" TextTrimming="CharacterEllipsis" ToolTipService.ToolTip="{Binding SummaryCard1Value}" />
+                                    <TextBlock HorizontalAlignment="Center" FontFamily="{StaticResource AppMonoFont}" FontSize="{StaticResource AppBodyFontSize}" FontWeight="SemiBold" MaxLines="2" Text="{Binding SummaryCard1Value}" TextAlignment="Center" TextWrapping="Wrap" TextTrimming="CharacterEllipsis" ToolTipService.ToolTip="{Binding SummaryCard1Value}" />
+                                    <TextBlock HorizontalAlignment="Center" FontSize="{StaticResource AppSmallFontSize}" Foreground="{ThemeResource SubtleTextBrush}" Text="{Binding SummaryCard1Detail}" Visibility="{Binding SummaryCard1DetailVisibility}" TextAlignment="Center" TextWrapping="Wrap" />
                                 </StackPanel>
                             </Border>
 
                             <Border Grid.Column="1" Padding="10,8" Background="{ThemeResource CardAltBrush}" BorderBrush="{ThemeResource CardBorderBrush}" BorderThickness="{StaticResource AppCardBorderThickness}" CornerRadius="{StaticResource AppCardCornerRadius}">
                                 <StackPanel HorizontalAlignment="Center" Spacing="2">
                                     <TextBlock HorizontalAlignment="Center" FontSize="{StaticResource AppSmallFontSize}" Foreground="{ThemeResource SubtleTextBrush}" MaxLines="1" Text="{Binding SummaryCard2Label}" TextTrimming="CharacterEllipsis" />
-                                    <TextBlock HorizontalAlignment="Center" FontFamily="{StaticResource AppMonoFont}" FontSize="{StaticResource AppBodyFontSize}" FontWeight="SemiBold" MaxLines="1" Text="{Binding SummaryCard2Value}" TextTrimming="CharacterEllipsis" ToolTipService.ToolTip="{Binding SummaryCard2Value}" />
+                                    <TextBlock HorizontalAlignment="Center" FontFamily="{StaticResource AppMonoFont}" FontSize="{StaticResource AppBodyFontSize}" FontWeight="SemiBold" MaxLines="2" Text="{Binding SummaryCard2Value}" TextAlignment="Center" TextWrapping="Wrap" TextTrimming="CharacterEllipsis" ToolTipService.ToolTip="{Binding SummaryCard2Value}" />
                                 </StackPanel>
                             </Border>
 
@@ -394,7 +390,7 @@
                             <Border Grid.Column="3" Padding="10,8" Background="{ThemeResource CardAltBrush}" BorderBrush="{ThemeResource CardBorderBrush}" BorderThickness="{StaticResource AppCardBorderThickness}" CornerRadius="{StaticResource AppCardCornerRadius}">
                                 <StackPanel HorizontalAlignment="Center" Spacing="2">
                                     <TextBlock HorizontalAlignment="Center" FontSize="{StaticResource AppSmallFontSize}" Foreground="{ThemeResource SubtleTextBrush}" MaxLines="1" Text="{Binding SummaryCard4Label}" TextTrimming="CharacterEllipsis" />
-                                    <TextBlock HorizontalAlignment="Center" FontFamily="{StaticResource AppMonoFont}" FontSize="{StaticResource AppBodyFontSize}" FontWeight="SemiBold" MaxLines="1" Text="{Binding SummaryCard4Value}" TextTrimming="CharacterEllipsis" ToolTipService.ToolTip="{Binding SummaryCard4Tooltip}" />
+                                    <TextBlock HorizontalAlignment="Center" FontFamily="{StaticResource AppMonoFont}" FontSize="{StaticResource AppBodyFontSize}" FontWeight="SemiBold" MaxLines="2" Text="{Binding SummaryCard4Value}" TextAlignment="Center" TextWrapping="Wrap" TextTrimming="CharacterEllipsis" ToolTipService.ToolTip="{Binding SummaryCard4Tooltip}" />
                                 </StackPanel>
                             </Border>
                         </Grid>

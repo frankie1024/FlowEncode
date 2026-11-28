@@ -29,7 +29,7 @@ public sealed partial class AudioProcessingView : UserControl
         RootScrollViewer.SizeChanged += (_, _) => ScheduleWorkspaceHeightRefresh();
         AudioAdvancedParametersExpander.Expanded += (_, _) => MarkAdvancedExpanderUserToggled();
         AudioAdvancedParametersExpander.Collapsed += (_, _) => MarkAdvancedExpanderUserToggled();
-        foreach (var grid in new[] { AudioProcessingOptionsGrid, AudioAdvancedOptionsGrid, DeewEncodingGrid, DeewSignalGrid, DeewTrueHddGrid, DeewNamingGrid, DeewFlagsGrid, DeewTempGrid })
+        foreach (var grid in new[] { AudioProcessingOptionsGrid, AudioAdvancedOptionsGrid, DeewEncodingGrid, DeewSignalGrid, DeewTrueHddGrid, DeewFlagsGrid, DeewTempGrid })
         {
             foreach (var child in grid.Children.OfType<FrameworkElement>())
             {
@@ -112,9 +112,10 @@ public sealed partial class AudioProcessingView : UserControl
         ConfigureVisibleFields(DeewEncodingGrid, innerWidth, 3, 150);
         ConfigureVisibleFields(DeewSignalGrid, innerWidth, 3, 150);
         ConfigureVisibleFields(DeewTrueHddGrid, innerWidth, 2, 180);
-        ConfigureVisibleFields(DeewNamingGrid, innerWidth, 2, 180);
         ConfigureVisibleFields(DeewFlagsGrid, innerWidth, 3, 150);
         ConfigureVisibleFields(DeewTempGrid, innerWidth, 2, 180);
+        var monitorWidth = _stackedWorkspace ? totalWidth : totalWidth - formCardWidth - UiTokens.SpacingL;
+        ConfigureVisibleFields(AudioSummaryGrid, monitorWidth - 34, monitorWidth < 510 ? 2 : 4, 110);
         AudioProcessingActionBar.IsStacked = _compactForms || innerWidth < 380;
     }
 

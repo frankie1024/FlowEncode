@@ -56,14 +56,16 @@ public partial class MainWindowViewModel
     private string? _deewExpectedOutputFileName;
     private AudioProcessingResult? _lastAudioResult;
 
-    internal DeewOptions? LoadDeewOptions() => _settingsService.Load().DeewOptions;
+    internal DeewOptions LoadDeewOptions() =>
+        (_settingsService.Load().DeewOptions ?? new()) with { Format = "ddp" };
 
-    internal void DeewOptionsChanged()
+    internal void DeewOptionsChanged(bool trackSelectionChanged)
     {
         var form = AudioProcessingModule?.Form;
         if (form is null) return;
         _settingsService.Save(_settingsService.Load() with { DeewOptions = form.Deew.Stored });
         CancelAudioSourceProbeForPendingInputRefresh();
+        if (trackSelectionChanged) ClearAudioSourceInfo();
         ScheduleAudioProcessingInputRefresh(probeSource: true);
     }
 
@@ -86,6 +88,7 @@ public partial class MainWindowViewModel
     private CancellationTokenSource? _audioProcessingInputRefreshCancellationTokenSource;
     private int _audioSourceProbeVersion;
     private int _audioProcessingInputRefreshVersion;
+    private bool _pendingAudioSourceRefresh;
     private bool _isApplyingDeferredAudioProcessingInputRefresh;
     private bool _isAudioProcessingInputRefreshPending;
     private bool _isApplyingAudioProcessingLanguageState;
@@ -109,6 +112,8 @@ public partial class MainWindowViewModel
             if (SetProperty(ref _audioProcessingSourcePath, value))
             {
                 CancelAudioSourceProbeForPendingInputRefresh();
+                ClearAudioSourceInfo();
+                AudioProcessingModule?.Form.Deew.SetSource(null);
                 ScheduleAudioProcessingInputRefresh(probeSource: true);
             }
         }
@@ -413,14 +418,15 @@ public partial class MainWindowViewModel
             if (_audioSourceInfo is not null)
             {
                 var summary = Texts.AudioSourceInfoSummary(
-                    string.IsNullOrWhiteSpace(_audioSourceInfo.CodecName) ? "unknown" : _audioSourceInfo.CodecName,
+                    SelectedAudioWorkflow?.Value == AudioProcessingMode.Ddp ? Texts.DeewSourceCodecLabel(_audioSourceInfo)
+                        : string.IsNullOrWhiteSpace(_audioSourceInfo.CodecName) ? "unknown" : _audioSourceInfo.CodecName,
                     Texts.AudioSourceChannelLabel(_audioSourceInfo),
                     _audioSourceInfo.BitDepth,
                     _audioSourceInfo.SampleRate,
                     _audioSourceInfo.IsLossless());
                 if (SelectedAudioWorkflow?.Value != AudioProcessingMode.Ddp) return summary;
-                if (_audioSourceInfo.RequiresDdpDtsCompatibilityInput()
-                    || (_audioSourceInfo.Channels > 0 && !AudioSourceInfo.IsDeewChannelCountSupported(_audioSourceInfo.Channels)))
+                if (_audioSourceInfo.DeewChannelCount != _audioSourceInfo.Channels
+                    || (_audioSourceInfo.Channels > 0 && !AudioSourceInfo.IsDeewChannelCountSupported(_audioSourceInfo.DeewChannelCount)))
                     summary += Environment.NewLine + Texts.AudioSourceRecommendation(_audioSourceInfo);
                 if (_deewTrueHdSurroundAttenuation)
                     summary += Environment.NewLine + Texts.DeewTrueHdSurroundAttenuationWarning;
@@ -768,10 +774,9 @@ public partial class MainWindowViewModel
                 }
 
                 if (_audioSourceInfo is { Channels: > 0 }
-                    && !deewOptions.Format.EndsWith("-atmos", StringComparison.Ordinal)
-                    && !(deewOptions.Format == "ac4-ims" && _audioSourceInfo.IsTrueHdAtmos)
-                    && !AudioSourceInfo.IsDeewChannelCountSupported(_audioSourceInfo.Channels)
-                    && !_audioSourceInfo.RequiresDdpDtsCompatibilityInput())
+                    && !DeewArguments.IsAtmosFormat(deewOptions.Format)
+                    && !(deewOptions.Format == "ac4-ims" && (_audioSourceInfo.IsTrueHdAtmos || _audioSourceInfo.IsDtsX || _audioSourceInfo.Auro3DLayout is not null))
+                    && !AudioSourceInfo.IsDeewChannelCountSupported(_audioSourceInfo.DeewChannelCount))
                 {
                     throw new InvalidOperationException(Texts.AudioDdpUnsupportedChannels(_audioSourceInfo));
                 }
@@ -1210,10 +1215,14 @@ public partial class MainWindowViewModel
 
     private void ScheduleAudioProcessingInputRefresh(bool probeSource)
     {
+        probeSource |= _pendingAudioSourceRefresh;
         CancelPendingAudioProcessingInputRefresh();
         var requestVersion = Interlocked.Increment(ref _audioProcessingInputRefreshVersion);
         var cancellationTokenSource = new CancellationTokenSource();
         _audioProcessingInputRefreshCancellationTokenSource = cancellationTokenSource;
+        _pendingAudioSourceRefresh = probeSource;
+        if (probeSource && !string.IsNullOrWhiteSpace(AudioProcessingSourcePath))
+            SetAudioProcessingInputRefreshPending(true);
 
         _ = RefreshAudioProcessingInputDeferredAsync(requestVersion, probeSource, cancellationTokenSource.Token);
     }
@@ -1251,6 +1260,7 @@ public partial class MainWindowViewModel
                 RaiseAudioProcessingInputPropertyChanges();
                 if (probeSource)
                 {
+                    _pendingAudioSourceRefresh = false;
                     StartAudioSourceProbe(AudioProcessingSourcePath);
                 }
 
@@ -1301,13 +1311,19 @@ public partial class MainWindowViewModel
         Interlocked.Increment(ref _audioSourceProbeVersion);
     }
 
-    private void StartAudioSourceProbe(string sourcePath)
+    private void ClearAudioSourceInfo()
     {
-        DisposeAudioSourceProbeCancellation();
+        _deewPreflightError = null;
         _deewTrueHdSurroundAttenuation = false;
         _deewExpectedOutputFileName = null;
         _audioSourceInfo = null;
         _audioSourceInfoError = null;
+    }
+
+    private void StartAudioSourceProbe(string sourcePath)
+    {
+        DisposeAudioSourceProbeCancellation();
+        ClearAudioSourceInfo();
         _isAudioSourceInfoLoading = false;
         AudioOpusUseMappingFamily1 = false;
 
@@ -1340,6 +1356,7 @@ public partial class MainWindowViewModel
                 {
                     _audioSourceInfo = null;
                     _audioSourceInfoError = null;
+                    AudioProcessingModule.Form.Deew.SetSource(null);
                 }
 
                 return;
@@ -1348,14 +1365,17 @@ public partial class MainWindowViewModel
             AudioSourceInfo? info;
             if (SelectedAudioWorkflow?.Value == AudioProcessingMode.Ddp)
             {
+                var deew = AudioProcessingModule.Form.Deew;
+                var trackIndex = (int)deew.TrackIndex;
                 try
                 {
-                    var snapshot = await new DeewPlanningService(_toolProbeService).InspectAsync(sourcePath, AudioProcessingModule.Form.Deew.Build(), cancellationToken);
+                    var options = deew.Build();
+                    trackIndex = options.TrackIndex ?? 0;
+                    var snapshot = await new DeewPlanningService(_toolProbeService).InspectAsync(sourcePath, options, cancellationToken);
                     if (version != _audioSourceProbeVersion) return;
                     _deewTrueHdSurroundAttenuation = snapshot.TrueHdSurroundAttenuation;
                     _deewExpectedOutputFileName = snapshot.ExpectedOutputFileName;
-                    AudioProcessingModule.Form.Deew.SetSource(snapshot.Source);
-                    AudioProcessingModule.Form.Deew.SetDefaults(snapshot.DefaultDdpMode, snapshot.DefaultAtmosMode, snapshot.DefaultBitrates, snapshot.DefaultAc4ImsMode, snapshot.OutputTemplate);
+                    deew.SetDefaults(snapshot.DefaultDdpMode, snapshot.DefaultAtmosMode, snapshot.DefaultBitrates, snapshot.DefaultAc4ImsMode, snapshot.OutputTemplate);
                     _deewPreflightError = null;
                     info = snapshot.Source;
                 }
@@ -1364,7 +1384,7 @@ public partial class MainWindowViewModel
                 {
                     if (version != _audioSourceProbeVersion) return;
                     _deewPreflightError = ex.Message;
-                    info = await _audioSourceInfoService.ProbeAsync(sourcePath, (int)AudioProcessingModule.Form.Deew.TrackIndex, cancellationToken);
+                    info = await _audioSourceInfoService.ProbeAsync(sourcePath, trackIndex, cancellationToken);
                 }
             }
             else info = await _audioSourceInfoService.ProbeAsync(sourcePath, cancellationToken);
@@ -1391,6 +1411,7 @@ public partial class MainWindowViewModel
 
             _audioSourceInfo = null;
             _audioSourceInfoError = ex.Message;
+            AudioProcessingModule.Form.Deew.SetSource(null);
             AudioOpusUseMappingFamily1 = false;
         }
         finally
@@ -1790,6 +1811,7 @@ public partial class MainWindowViewModel
         _audioProcessingInputRefreshCancellationTokenSource?.Cancel();
         _audioProcessingInputRefreshCancellationTokenSource?.Dispose();
         _audioProcessingInputRefreshCancellationTokenSource = null;
+        _pendingAudioSourceRefresh = false;
     }
 
     internal void RaiseAudioProcessingInputPropertyChanges()
@@ -1809,6 +1831,12 @@ public partial class MainWindowViewModel
         OnPropertyChanged(nameof(CanStartAudioProcessing));
         OnPropertyChanged(nameof(CanClearAudioProcessingTask));
         OnPropertyChanged(nameof(AudioCapabilitySummary));
+    }
+
+    internal void RefreshDeewAudioSource()
+    {
+        if (SelectedAudioWorkflow?.Value == AudioProcessingMode.Ddp && !string.IsNullOrWhiteSpace(AudioProcessingSourcePath))
+            ScheduleAudioProcessingInputRefresh(probeSource: true);
     }
 
     internal void RaiseAudioProcessingLanguagePropertyChanges()

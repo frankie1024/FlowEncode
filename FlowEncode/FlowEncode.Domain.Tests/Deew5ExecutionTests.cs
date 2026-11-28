@@ -118,10 +118,10 @@ public sealed class Deew5ExecutionTests
     }
 
     [TestMethod]
-    [DataRow(5, "dee_measure_loudness")][DataRow(7, "dee_ddp_encoder")][DataRow(8, "dee_ddp_encoder")]
-    public async Task Measurement_ReturnsLoudnessWithoutMediaOrFormatEncoder(int channels, string neededTool)
+    [DataRow(5)][DataRow(7)][DataRow(8)]
+    public async Task Measurement_ReturnsLoudnessWithoutMediaOrFormatEncoder(int channels)
     {
-        using var fixture = new Fixture([neededTool]);
+        using var fixture = new Fixture(channels >= 7 ? ["dee_measure_loudness", "dee_shim"] : ["dee_measure_loudness"]);
         var result = await fixture.Runner.RunAsync(fixture.Request(new(Format: "aac", MeasureOnly: true, Dialnorm: -30), channels: channels));
         Assert.AreEqual(EncodingJobState.Completed, result.State, result.Log);
         Assert.AreEqual(-27, result.LoudnessDb); Assert.IsNull(result.DialnormDb);

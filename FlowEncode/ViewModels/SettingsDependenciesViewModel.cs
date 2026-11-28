@@ -82,6 +82,13 @@ public sealed class SettingsDependenciesViewModel : ModuleViewModelBase, ISetupD
         return SetupGuide.InstallSetupDependencyAsync(kind, updateBeyondBaseline);
     }
 
+    public async Task<string?> DownloadDeewComponentsAsync()
+    {
+        var error = await SetupGuide.DownloadDeewComponentsAsync();
+        if (error is null) Owner.RefreshDeewAudioSource();
+        return error;
+    }
+
     public Task<string?> ImportSetupDependencyAsync(SetupDependencyKind kind, string sourcePath)
     {
         return SetupGuide.ImportSetupDependencyAsync(kind, sourcePath);

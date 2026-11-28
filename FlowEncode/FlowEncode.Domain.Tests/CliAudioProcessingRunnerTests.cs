@@ -85,23 +85,6 @@ public sealed class CliAudioProcessingRunnerTests
     }
 
     [TestMethod]
-    public void CreateDdpDtsPreparationStartInfo_RequestsDecoderBedBeforeInputAndPreservesPaths()
-    {
-        var source = @"D:\音轨\English DTS-X DELAY -80ms.dts";
-        var target = @"D:\临时目录\English DTS-X DELAY -80ms.flac";
-        var startInfo = CliAudioProcessingRunner.CreateDdpDtsPreparationStartInfo(@"D:\工具\ffmpeg.exe", source, target);
-        var args = startInfo.ArgumentList.ToList();
-
-        Assert.IsTrue(args.IndexOf("-downmix") < args.IndexOf("-i"));
-        Assert.AreEqual("7.1", args[args.IndexOf("-downmix") + 1]);
-        Assert.AreEqual(source, args[args.IndexOf("-i") + 1]);
-        Assert.AreEqual(target, args[^1]);
-        Assert.AreEqual("flac", args[args.IndexOf("-c:a") + 1]);
-        Assert.IsFalse(args.Contains("-ac"));
-        Assert.IsFalse(startInfo.UseShellExecute);
-    }
-
-    [TestMethod]
     public void CreateOpusPipelineStartInfos_WhenPathsContainChinese_UsesDirectProcessArguments()
     {
         var request = CreateRequest(

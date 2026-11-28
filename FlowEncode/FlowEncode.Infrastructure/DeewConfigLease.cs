@@ -19,16 +19,7 @@ internal sealed class DeewConfigLease : IDisposable
         Func<CancellationToken, Task> initialize, CancellationToken token)
     {
         var config = Path.Combine(Path.GetDirectoryName(Path.GetFullPath(executable))!, "config.toml");
-        var lockPath = config + ".flowencode.lock";
-        FileStream fileLock;
-        var deadline = DateTime.UtcNow.AddMinutes(30);
-        while (true)
-        {
-            token.ThrowIfCancellationRequested();
-            try { fileLock = new FileStream(lockPath, FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.None); break; }
-            catch (IOException) when (DateTime.UtcNow < deadline) { await Task.Delay(150, token); }
-            catch (UnauthorizedAccessException ex) { throw new InvalidOperationException("deew must be in a writable portable directory. Move or reimport the complete directory.", ex); }
-        }
+        var fileLock = await LockToolchainAsync(Path.GetDirectoryName(config)!, token);
         DeewConfigLease? lease = null;
         try
         {
@@ -58,6 +49,19 @@ internal sealed class DeewConfigLease : IDisposable
             try { if (lease is not null) Recover(config, lease._backup); }
             finally { fileLock.Dispose(); }
             throw;
+        }
+    }
+
+    internal static async Task<FileStream> LockToolchainAsync(string directory, CancellationToken token)
+    {
+        var lockPath = Path.Combine(directory, "config.toml.flowencode.lock");
+        var deadline = DateTime.UtcNow.AddMinutes(30);
+        while (true)
+        {
+            token.ThrowIfCancellationRequested();
+            try { return new FileStream(lockPath, FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.None); }
+            catch (IOException) when (DateTime.UtcNow < deadline) { await Task.Delay(150, token); }
+            catch (UnauthorizedAccessException ex) { throw new InvalidOperationException("deew must be in a writable portable directory. Move or reimport the complete directory.", ex); }
         }
     }
 

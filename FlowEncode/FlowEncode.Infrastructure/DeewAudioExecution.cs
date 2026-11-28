@@ -23,10 +23,7 @@ public sealed partial class CliAudioProcessingRunner
         var deewLine = version.Split('\n').FirstOrDefault(l => l.TrimStart().StartsWith("deew ", StringComparison.OrdinalIgnoreCase)) ?? "";
         if (!DeewToolchain.IsSupportedVersion(deewLine)) throw new InvalidOperationException($"FlowEncode requires deew >={DeewArguments.MinimumVersion}. Upgrade the portable deew executable. " + deewLine);
         var environment = DeewToolchain.StartInfo(deew, ffmpeg, ffprobe);
-        var actualProbe = DeewToolchain.Resolve(deew, "ffprobe", environment.Environment["PATH"] ?? "");
-        var actualFfmpeg = DeewToolchain.Resolve(deew, "ffmpeg", environment.Environment["PATH"] ?? "");
-        var source = await FfprobeAudioSourceInfoService.ProbeAtPathAsync(actualProbe, request.SourcePath, options.TrackIndex ?? 0, false, token)
-            ?? throw new InvalidOperationException("Cannot inspect the selected input audio track.");
+        var source = await DeewToolchain.ProbeSourceAsync(environment, request.SourcePath, options, token);
         var outputRoot = Path.GetFullPath(request.OutputPath);
         if (options.TempMode == DeewTempMode.Custom && string.IsNullOrWhiteSpace(options.CustomTempRoot))
             throw new InvalidOperationException("Select a writable custom temporary directory.");
@@ -35,7 +32,6 @@ public sealed partial class CliAudioProcessingRunner
         var temp = Path.Combine(jobRoot, "temp");
         var eventsPath = Path.Combine(jobRoot, "events.jsonl");
         var staging = GetStagingDirectory(request);
-        var inputDirectory = Path.Combine(jobRoot, "input");
         var diagnostics = new List<string>();
         var outputs = new List<string>();
         var log = new StringBuilder();
@@ -96,10 +92,7 @@ public sealed partial class CliAudioProcessingRunner
             Directory.CreateDirectory(temp);
             lease = await DeewConfigLease.AcquireAsync(deew, options.TempMode == DeewTempMode.DeewSettings ? null : temp,
                 async ct => { await DeewToolchain.ProbeAsync(DeewToolchain.StartInfo(deew, ffmpeg, ffprobe), "-gc", ct); }, token);
-            var effectiveChannels = source.RequiresDdpDtsCompatibilityInput() ? 8 : source.Channels;
             var profile = DeewBitrates.Apply(DeewArguments.Resolve(options, source, lease.Snapshot.DdpMode, lease.Snapshot.AtmosMode, warnings, lease.Snapshot.Ac4ImsMode), lease.Snapshot.Bitrates);
-            if (!options.MeasureOnly && options.Format.EndsWith("-atmos", StringComparison.Ordinal) && !source.IsTrueHdAtmos)
-                throw new InvalidOperationException("Atmos output requires a selected TrueHD Atmos input track.");
             _ = DeewOutputNaming.ResolveFileName(request.SourcePath, source, profile, lease.Snapshot.OutputTemplate);
             if (options.TempMode == DeewTempMode.DeewSettings)
             {
@@ -107,13 +100,12 @@ public sealed partial class CliAudioProcessingRunner
                 Log("deew manages its own temp directory: " + externalTemp + ". Host cancellation may leave intermediates; this directory is never recursively cleaned by FlowEncode.");
             }
             var usePipe = options.PipeMode is not null ? options.PipeMode != "never" : lease.Snapshot.Pipe;
-            var hasDecode = profile.RequiredTools.Contains("truehdd");
-            var isPiped = usePipe && !hasDecode && (options.MeasureOnly || options.Format is "dd" or "ddp" or "ac4" or "aac");
+            var isPiped = usePipe && !profile.HasSpatialDecode && (options.MeasureOnly || options.Format is "dd" or "ddp" or "ac4" or "aac");
             var needsPcmTemp = !isPiped;
             if (needsPcmTemp
                 && source.DurationSeconds is > 0 && source.SampleRate is > 0)
             {
-                var estimatedBytes = source.DurationSeconds.Value * source.SampleRate.Value * Math.Min(effectiveChannels, 8) * 3;
+                var estimatedBytes = source.DurationSeconds.Value * source.SampleRate.Value * Math.Min(source.DeewChannelCount, 8) * 3;
                 try
                 {
                     var drive = new DriveInfo(Path.GetPathRoot(externalTemp ?? temp)!);
@@ -132,23 +124,6 @@ public sealed partial class CliAudioProcessingRunner
             if (Directory.Exists(staging) && Directory.EnumerateFileSystemEntries(staging).Any())
                 throw new InvalidOperationException("This job's staging directory is not empty: " + staging);
             Directory.CreateDirectory(staging);
-            var input = request.SourcePath;
-            if (source.RequiresDdpDtsCompatibilityInput())
-            {
-                if (!options.MeasureOnly && options.Format.EndsWith("-atmos", StringComparison.Ordinal)) throw new InvalidOperationException("Atmos output requires TrueHD Atmos input.");
-                Directory.CreateDirectory(inputDirectory);
-                input = Path.Combine(inputDirectory, Path.GetFileNameWithoutExtension(input) + ".flac");
-                var preparation = CreateDdpDtsPreparationStartInfo(actualFfmpeg, request.SourcePath, input);
-                // The selected audio stream must be the same one used for probing and encoding.
-                var map = preparation.ArgumentList.IndexOf("-map");
-                if (map >= 0) preparation.ArgumentList[map + 1] = $"0:a:{options.TrackIndex ?? 0}";
-                Log("Preparing DTS:X lossless 7.1 compatibility input; height metadata is not retained.");
-                var prepared = await ExecuteSingleProcessAsync(request, preparation, Log, token, null);
-                if (prepared.ExitCode != 0) throw new InvalidOperationException("DTS:X input preparation failed.");
-                var preparedInfo = await FfprobeAudioSourceInfoService.ProbeAtPathAsync(actualProbe, input, 0, false, token);
-                if (preparedInfo is not { Channels: 8, ChannelLayout: "7.1" }) throw new InvalidOperationException("DTS:X preparation did not produce a 7.1 layout.");
-                options = options with { TrackIndex = null };
-            }
             reader = new DeewEventsReader(profile, Log, (fraction, stage, db, origin) =>
             {
                 lock (gate)
@@ -162,7 +137,7 @@ public sealed partial class CliAudioProcessingRunner
                 }
             }, piped: isPiped);
             var info = DeewToolchain.StartInfo(deew, ffmpeg, ffprobe);
-            foreach (var arg in DeewArguments.Build(input, staging, options)) info.ArgumentList.Add(arg);
+            foreach (var arg in DeewArguments.Build(request.SourcePath, staging, options)) info.ArgumentList.Add(arg);
             info.Environment["DEEW_EVENTS_FILE"] = eventsPath;
             PublishProgress();
             exit = await ExecuteDeewAsync(request.JobId, info, eventsPath, reader, Log, PublishProgress, token);
@@ -220,7 +195,6 @@ public sealed partial class CliAudioProcessingRunner
             catch (Exception ex) { preserveStaging = true; Log("Diagnostic preservation failed: " + ex.Message); summary += " Diagnostic preservation failed; staging retained: " + staging; }
             if (options.KeepTemp && Directory.Exists(temp) && Directory.EnumerateFileSystemEntries(temp).Any()) retainedTemp = temp;
             else ExecutionOutputStaging.CleanupStagedDirectory(temp, Log);
-            ExecutionOutputStaging.CleanupStagedDirectory(inputDirectory, Log);
             try { File.Delete(eventsPath); } catch (Exception ex) { Log("Events cleanup: " + ex.Message); }
             if (!preserveStaging && !mediaMigrationFailed) ExecutionOutputStaging.CleanupStagedDirectory(staging, Log, 2);
             else summary += " Recoverable output retained: " + staging;

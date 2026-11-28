@@ -54,7 +54,7 @@ FlowEncode 是 Windows x64 桌面前端，用来组织和调用 `x264`、`x265`�
 | 蓝光 / MKV 解复用 | 扫描蓝光目录（`DGDemux` / `eac3to`）或包含 `.mkv` 的目录（`eac3to`），选择播放列表与轨道，导出视频、音频、字幕和章节。 |
 | VapourSynth | 内置 `.vpy` / `.py` 编辑器，支持拖放打开、多标签、左右对比、链式补全、静态诊断与快速修复、智能滤镜插入及脚本测速；独立预览窗口提供多路对比（卷帘/并排/差值/热力图/闪烁）、自动帧对齐与亚像素对齐、自动切边、最差帧扫描、直方图/波形图/矢量示波器、像素吸管、对比篮导出与 9 种预览滤镜（原图、亮度、色度、`Solar ×1`、`Solar ×2`、残差、暗场提亮、范围越界、边缘高亮，`F` / `Shift+F` 切换）。 |
 | 视频压制 | 配置 `x264`、`x265`、`SVT-AV1` 常规编码任务，支持输入输出管理、HDR 参数导入、实际命令预览复制、任务队列、批量操作、快捷键与实时日志。 |
-| 音频转码 | 调用 `eac3to`、`deew`、`FFmpeg` / `opusenc` 处理音频，支持 FLAC、AC3、DDP、AC4 / `ac4-ims`、AAC、TrueHD、Opus 等输出，支持自定义输出命名与模板、管道模式和响度测量。使用 `deew` 的任务需要 `deew 5.5.3` 或更新版本及用户自备的授权 `Dolby Encoding Engine` / `DEE ≥6.7.0`。 |
+| 音频转码 | 调用 `eac3to`、`deew`、`FFmpeg` / `opusenc` 处理音频，支持 FLAC、AC3、DDP、AC4 / `ac4-ims`、AAC、TrueHD、Opus 等输出，支持自定义输出命名与模板、管道模式和响度测量。使用 `deew` 的任务需要 `deew 5.7.0` 或更新版本及用户自备的授权 `Dolby Encoding Engine` / `DEE ≥6.7.0`。 |
 | 自动压制 | 调用 `Av1an` 按目标质量自动压制，根据当前后端能力检测可用质量指标与编码器，支持探测参数、后端附加参数、执行计划与分阶段日志。 |
 | 模板库 | 保存、载入、导入、导出、置顶和覆盖 `.profile` 模板，复用常用编码参数。 |
 | 环境引导与设置 | 检测本地与远端依赖状态，引导安装或更新公开工具链，支持手动导入、固定或移除部分外部工具；管理工作目录、主题、语言、系统 `PATH`、应用更新和队列完成后动作。 |
@@ -109,7 +109,7 @@ FlowEncode_Portable_v<version>.zip       # 便携 ZIP
 SHA256SUMS.txt                           # 总 SHA256 校验清单
 ```
 
-> **deew 音频工具要求**：使用 `deew` 的音频任务要求 [deew 5.5.3](https://github.com/pcrlnd/deew/releases/tag/5.5.3) 或更新版本和授权 `DEE ≥6.7.0`，建议搭配 `truehdd ≥0.6.3` 与 `dee_shim ≥0.2.0`。升级 `deew` 时替换 CLI 版 `deew.exe` 即可保留原有 `config.toml` 和 DEE 目录。如需继续使用旧版 `deew 3.x` / `DEE 5.2.1`，请使用 [2.0.3 兼容维护版](https://github.com/frankie1024/FlowEncode/releases/tag/v2.0.3)。
+> **deew 音频工具要求**。使用 `deew` 的音频任务需要 [deew 5.7.0](https://github.com/pcrlnd/deew/releases/tag/5.7.0) 或更新版本，以及授权 `DEE ≥6.7.0`。可在设置的 deew 卡片中点击 **下载其他组件**，将 `truehdd`、`harletty` 和 `dee_shim` 安装到 `deew.exe` 所在目录。DTS:X 和 Auro-3D 输入可用于 `ddp-atmos`、`thd-atmos`、`ac4-atmos` 和 `ac4-ims`，需要 `harletty ≥0.9.0`。升级时可保留原有 `config.toml` 和 DEE 目录。如需继续使用 `deew 3.x` / `DEE 5.2.1`，请使用 [2.0.3 兼容维护版](https://github.com/frankie1024/FlowEncode/releases/tag/v2.0.3)。
 
 ### 运行前置依赖
 

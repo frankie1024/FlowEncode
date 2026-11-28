@@ -114,6 +114,10 @@ public sealed class SetupBootstrapService : ISetupBootstrapService, IDisposable
         await InstallCoreAsync(kind, progress, cancellationToken, useBaseline: false);
     }
 
+    public Task DownloadDeewComponentsAsync(string executablePath,
+        IProgress<SetupInstallProgress>? progress = null, CancellationToken cancellationToken = default) =>
+        DeewComponentInstaller.InstallAsync(executablePath, _apiHttpClient, _downloadHttpClient, progress, cancellationToken);
+
     private async Task InstallCoreAsync(SetupDependencyKind kind, IProgress<SetupInstallProgress>? progress,
         CancellationToken cancellationToken, bool useBaseline)
     {

@@ -1344,16 +1344,17 @@ public sealed class AppText
     }
 
     public string DeewFormatHeader => Pick("输出格式", "Output format");
+    public string DeewDecoderLabel(string decoder) => Pick($"解码器 {decoder}", $"Decoder · {decoder}");
     public string DeewDdpModeHeader => Pick("DDP 档位", "DDP mode");
     public string DeewAtmosModeHeader => Pick("DDP Atmos 档位", "DDP Atmos mode");
     public string DeewAc4ImsModeHeader => Pick("AC4 IMS 档位", "AC4 IMS mode");
     public string DeewPipeModeHeader => Pick("管道模式 (-p)", "Pipe mode (-p)");
     public string DeewWarpModeHeader => Pick("Atmos Warp 模式 (-wm)", "Atmos warp mode (-wm)");
+    public string DeewWarpModeHint => Pick("仅在音轨缺少 Warp 模式元数据时使用此设置。", "Used when the source track has no warp mode metadata.");
     public string DeewBedConformHeader => Pick("Bed 规整 (-bc)", "Bed conform (-bc)");
-    public string DeewOutputNameHeader => Pick("输出文件名 (-on)", "Output name (-on)");
-    public string DeewOutputNamePlaceholder => Pick("留空则按模板或源文件名命名", "Leave blank to use template or source name");
-    public string DeewOutputTemplateHeader => Pick("输出命名模板 (-ot)", "Output template (-ot)");
-    public string DeewOutputTemplatePlaceholder => Pick("默认 {stem}，如 {stem}.{lang}", "Default {stem}, e.g. {stem}.{lang}");
+    public string DeewForcedBedConformHint => Pick("harletty 解码 DTS:X 或 Auro-3D 时会自动开启 Bed 规整。", "Bed conform is always on when harletty decodes DTS:X or Auro-3D.");
+    public string DeewSpatialAudioLabel => Pick("空间音频", "Spatial audio");
+    public string DeewLosslessLabel => Pick("无损", "Lossless");
     public string DeewBitrateHeader => Pick("码率 (kbps)", "Bitrate (kbps)");
     public string DeewDownmixHeader => Pick("声道混合", "Downmix channels");
     public string DeewLfeHeader => Pick("禁用 LFE", "Disable LFE");
@@ -1365,8 +1366,6 @@ public sealed class AppText
     public string DeewTrackHeader => Pick("音轨索引（从 0 开始）", "Track index (zero-based)");
     public string DeewAdvancedHeader => Pick("高级参数", "Advanced parameters");
     public string DeewMeasureOnlyHeader => Pick("仅测响度 (-mo)", "Measure only (-mo)");
-    public string DeewKeepLogHeader => Pick("保留诊断日志 (-kl)", "Keep diagnostic logs (-kl)");
-    public string DeewKeepTempHeader => Pick("保留临时文件 (-k)", "Keep temporary files (-k)");
     public string DeewInstancesHeader => Pick("并行实例（如 50%）", "Instances (e.g. 50%)");
     public string DeewAdditionalHeader => Pick("额外编码参数（覆盖面板值）", "Additional encoding arguments (override panel values)");
     public string DeewTempHeader => Pick("临时目录模式", "Temporary directory mode");
@@ -1458,8 +1457,16 @@ public sealed class AppText
 
     public string AudioDdpUnsupportedChannels(AudioSourceInfo sourceInfo) =>
         IsChinese
-            ? $"实际探测到 {AudioSourceChannelLabel(sourceInfo)}。当前 deew 仅接受 1、2、6、8 声道输入，请先转换为支持的声道布局。"
-            : $"Detected {AudioSourceChannelLabel(sourceInfo)}. The current deew accepts only 1, 2, 6 or 8 input channels. Convert the source to a supported layout first.";
+            ? $"检测到 {AudioSourceChannelLabel(sourceInfo)}。deew 的普通声道模式支持 1、2、5、6、7、8 声道。"
+            : $"Detected {AudioSourceChannelLabel(sourceInfo)}. Channel-based deew processing supports 1, 2, 5, 6, 7 or 8 channels.";
+
+    public string DeewSourceCodecLabel(AudioSourceInfo source) => source.Auro3DLayout switch
+    {
+        "" => "Auro-3D",
+        { } layout => $"Auro-3D {layout}",
+        _ when source.IsDtsX => "DTS:X",
+        _ => string.IsNullOrWhiteSpace(source.CodecName) ? "unknown" : source.CodecName
+    };
 
     public string AudioSourceInfoSummary(string codecName, string channelLabel, int? bitDepth, int? sampleRate, bool isLossless) =>
         IsChinese
@@ -1473,11 +1480,12 @@ public sealed class AppText
 
     public string AudioSourceRecommendation(AudioSourceInfo? sourceInfo)
     {
-        if (sourceInfo?.RequiresDdpDtsCompatibilityInput() == true)
+        if (sourceInfo is { IsDts: true } && sourceInfo.DeewChannelCount != sourceInfo.Channels)
         {
+            var bed = sourceInfo.DeewChannelCount == 6 ? "5.1" : "7.1";
             return Pick(
-                "DTS:X 转 DDP 时将自动准备兼容的 7.1 无损输入，高度声道内容折入 7.1，输出不保留 DTS:X 元数据。",
-                "DTS:X to DDP automatically prepares a compatible lossless 7.1 input with height content folded in. The output does not retain DTS:X metadata.");
+                $"转码为普通声道格式或仅测响度时，deew 会将 DTS 高度声道混入 {bed}。",
+                $"For channel-based encoding or loudness measurement, deew folds DTS height channels into {bed}.");
         }
 
         if (sourceInfo is { Channels: > 0 } && !AudioSourceInfo.IsDeewChannelCountSupported(sourceInfo.Channels))
@@ -1783,6 +1791,12 @@ public sealed class AppText
             : $"Template unpinned: {name}";
 
     public string InstallAlreadyRunning => Pick("当前已有依赖安装任务在运行。", "Another setup dependency operation is already running.");
+    public string DeewComponentsDownloadButton => Pick("下载其他组件", "Download other components");
+    public string DeewComponentsDownloadHint => Pick("将 truehdd、harletty 和 dee_shim 下载到 deew 所在目录。", "Download truehdd, harletty and dee_shim to the deew folder.");
+    public string DeewComponentsDownloadUnavailable => Pick($"请先配置 deew {DeewArguments.MinimumVersion} 或更新版本。", $"Set up deew {DeewArguments.MinimumVersion} or newer first.");
+    public string DeewComponentsDownloadFailed => Pick("deew 组件下载失败", "Could not download deew components");
+    public string DeewComponentsDownloadComplete => Pick("truehdd、harletty 和 dee_shim 已安装到 deew 所在目录。", "truehdd, harletty and dee_shim are installed in the deew folder.");
+    public string DeewComponentDownloading(string component) => Pick($"正在下载 {component}…", $"Downloading {component}…");
     public string SetupDependencyImportedStatus(string dependencyLabel) =>
         IsChinese
             ? $"{dependencyLabel} 已导入到工作目录。"

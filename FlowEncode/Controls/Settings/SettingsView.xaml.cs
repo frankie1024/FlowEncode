@@ -171,6 +171,19 @@ public sealed partial class SettingsView : UserControl
         await SetupDependencyInteractionHelper.InstallSetupDependencyAsync(DependenciesViewModel, this, kind, nameof(SettingsView));
     }
 
+    private async void DownloadDeewComponentsButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (DependenciesViewModel is not { CanModifyDependencies: true } dependencies) return;
+        await SetupDependencyInteractionHelper.RunGuardedAsync(dependencies, this, nameof(SettingsView),
+            "Download deew components", dependencies.Texts.DeewComponentsDownloadFailed, async () =>
+            {
+                var error = await dependencies.DownloadDeewComponentsAsync();
+                await SetupDependencyInteractionHelper.ShowMessageAsync(dependencies, this,
+                    error is null ? dependencies.Texts.DeewComponentsDownloadButton : dependencies.Texts.DeewComponentsDownloadFailed,
+                    error ?? dependencies.Texts.DeewComponentsDownloadComplete);
+            });
+    }
+
     private async void UninstallSetupDependencyButton_Click(object sender, RoutedEventArgs e)
     {
         if (sender is not FrameworkElement { Tag: SetupDependencyKind kind } || DependenciesViewModel is null)

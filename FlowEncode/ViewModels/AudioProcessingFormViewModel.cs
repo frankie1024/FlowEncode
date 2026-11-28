@@ -3,6 +3,7 @@ using System.Collections.ObjectModel;
 using System.Linq;
 using System.Threading.Tasks;
 using FlowEncode.Domain;
+using FlowEncode.Infrastructure;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Media;
 
@@ -47,14 +48,30 @@ public sealed class AudioProcessingFormViewModel : ModuleViewModelBase
     public Visibility DeewAtmosModeVisibility => AudioDeewOptionsVisibility == Visibility.Visible ? Deew.AtmosModeVisibility : Visibility.Collapsed;
     public Visibility DeewAc4ImsModeVisibility => AudioDeewOptionsVisibility == Visibility.Visible ? Deew.Ac4ImsModeVisibility : Visibility.Collapsed;
     public Visibility DeewWarningVisibility => AudioDeewOptionsVisibility == Visibility.Visible ? Deew.WarningVisibility : Visibility.Collapsed;
+    private bool IsDeewMeasureOnly => Deew.EffectiveProfile?.Options.MeasureOnly ?? Deew.MeasureOnly;
 
     public string SummaryCard1Label => Texts.AudioWorkflowHeader;
 
-    public string SummaryCard1Value => SelectedAudioWorkflow?.Label ?? "deew";
+    public string SummaryCard1Value
+    {
+        get
+        {
+            var tool = SelectedAudioWorkflow?.Label ?? "deew";
+            if ((SelectedAudioWorkflow?.Value ?? AudioProcessingMode.Ddp) != AudioProcessingMode.Ddp)
+                return tool;
+            var version = DeewToolchain.ReadReportedVersion(Owner.GetToolResult(RegisteredToolKind.Deew).DetectedVersion);
+            return string.IsNullOrEmpty(version) ? tool : $"{tool} {version}";
+        }
+    }
+
+    public string SummaryCard1Detail => (SelectedAudioWorkflow?.Value ?? AudioProcessingMode.Ddp) == AudioProcessingMode.Ddp
+        && Deew.SpatialDecoder is { } decoder ? Texts.DeewDecoderLabel(decoder) : "";
+
+    public Visibility SummaryCard1DetailVisibility => string.IsNullOrEmpty(SummaryCard1Detail) ? Visibility.Collapsed : Visibility.Visible;
 
     public string SummaryCard2Label => (SelectedAudioWorkflow?.Value ?? AudioProcessingMode.Ddp) switch
     {
-        AudioProcessingMode.Ddp when Deew.MeasureOnly => Texts.Pick("运行模式", "Mode"),
+        AudioProcessingMode.Ddp when IsDeewMeasureOnly => Texts.Pick("运行模式", "Mode"),
         AudioProcessingMode.Ddp => Texts.DeewFormatHeader,
         AudioProcessingMode.Opus => Texts.Pick("编码后端", "Backend"),
         _ => Texts.AudioEac3ToOutputFormatHeader
@@ -62,17 +79,17 @@ public sealed class AudioProcessingFormViewModel : ModuleViewModelBase
 
     public string SummaryCard2Value => (SelectedAudioWorkflow?.Value ?? AudioProcessingMode.Ddp) switch
     {
-        AudioProcessingMode.Ddp when Deew.MeasureOnly => Texts.Pick("仅测响度", "Measure Only"),
+        AudioProcessingMode.Ddp when IsDeewMeasureOnly => Texts.Pick("仅测响度", "Measure Only"),
         AudioProcessingMode.Ddp => Deew.EffectiveProfile is { } profile
-            ? $"{profile.Options.Format} ({profile.Extension})"
-            : Deew.Format,
+            ? $"{DeewOutputNaming.FormatSummaryName(profile.Options.Format)} ({profile.Extension})"
+            : DeewOutputNaming.FormatSummaryName(Deew.Format),
         AudioProcessingMode.Opus => AudioOpusUseMappingFamily1 ? "FFmpeg libopus" : "opusenc",
         _ => SelectedAudioEac3ToOutputFormat?.Label ?? ".flac"
     };
 
     public string SummaryCard3Label => (SelectedAudioWorkflow?.Value ?? AudioProcessingMode.Ddp) switch
     {
-        AudioProcessingMode.Ddp when Deew.MeasureOnly => Texts.Pick("媒体输出", "Media Output"),
+        AudioProcessingMode.Ddp when IsDeewMeasureOnly => Texts.Pick("媒体输出", "Media Output"),
         AudioProcessingMode.Ddp => Texts.Pick("码率", "Bitrate"),
         AudioProcessingMode.Opus => Texts.AudioOpusBitrateHeader,
         _ => Texts.Pick("编码类型", "Encoding")
@@ -80,10 +97,10 @@ public sealed class AudioProcessingFormViewModel : ModuleViewModelBase
 
     public string SummaryCard3Value => (SelectedAudioWorkflow?.Value ?? AudioProcessingMode.Ddp) switch
     {
-        AudioProcessingMode.Ddp when Deew.MeasureOnly => Texts.Pick("不生成", "None"),
-        AudioProcessingMode.Ddp => Deew.EffectiveProfile?.EffectiveBitrateKbps is { } bitrate
-            ? $"{bitrate} kbps"
-            : Texts.Pick("无损", "Lossless"),
+        AudioProcessingMode.Ddp when IsDeewMeasureOnly => Texts.Pick("不生成", "None"),
+        AudioProcessingMode.Ddp => Deew.EffectiveProfile is { } profile
+            ? profile.EffectiveBitrateKbps is { } bitrate ? $"{bitrate} kbps" : Texts.DeewLosslessLabel
+            : "—",
         AudioProcessingMode.Opus => SelectedAudioOpusBitrate?.Label ?? Texts.Pick("未选择", "Not set"),
         _ => SelectedAudioEac3ToOutputFormat?.Value == AudioEac3ToOutputFormat.Ac3
             ? Texts.Pick("有损", "Lossy")
@@ -92,18 +109,18 @@ public sealed class AudioProcessingFormViewModel : ModuleViewModelBase
 
     public string SummaryCard4Label => (SelectedAudioWorkflow?.Value ?? AudioProcessingMode.Ddp) switch
     {
-        AudioProcessingMode.Ddp when Deew.MeasureOnly => Texts.Pick("分析目标", "Target"),
-        AudioProcessingMode.Ddp => Texts.Pick("模式 / DRC", "Mode / DRC"),
+        AudioProcessingMode.Ddp when IsDeewMeasureOnly => Texts.Pick("分析目标", "Target"),
+        AudioProcessingMode.Ddp => Deew.EffectiveProfile?.HasEncodingMode == true ? Texts.Pick("模式 / DRC", "Mode / DRC") : "DRC",
         AudioProcessingMode.Opus => Texts.AudioOpusMappingFamilyHeader,
         _ => Texts.AudioEac3ToAdditionalArgumentsHeader
     };
 
     public string SummaryCard4Value => (SelectedAudioWorkflow?.Value ?? AudioProcessingMode.Ddp) switch
     {
-        AudioProcessingMode.Ddp when Deew.MeasureOnly => Texts.Pick("原始输入", "Original Source"),
+        AudioProcessingMode.Ddp when IsDeewMeasureOnly => Texts.Pick("原始输入", "Original Source"),
         AudioProcessingMode.Ddp => Deew.EffectiveProfile is { } profile
-            ? $"{profile.Mode} · {profile.Drc}"
-            : "--",
+            ? profile.HasEncodingMode ? $"{profile.Mode} · {profile.Drc}" : profile.Drc
+            : "—",
         AudioProcessingMode.Opus => AudioOpusUseMappingFamily1 ? "Family 1" : Texts.Pick("标准", "Standard"),
         _ => string.IsNullOrWhiteSpace(AudioProcessingAdditionalArguments)
             ? Texts.Pick("默认", "Default")
@@ -127,6 +144,8 @@ public sealed class AudioProcessingFormViewModel : ModuleViewModelBase
     {
         OnPropertyChanged(nameof(SummaryCard1Label));
         OnPropertyChanged(nameof(SummaryCard1Value));
+        OnPropertyChanged(nameof(SummaryCard1Detail));
+        OnPropertyChanged(nameof(SummaryCard1DetailVisibility));
         OnPropertyChanged(nameof(SummaryCard2Label));
         OnPropertyChanged(nameof(SummaryCard2Value));
         OnPropertyChanged(nameof(SummaryCard3Label));
@@ -222,6 +241,7 @@ public sealed class AudioProcessingFormViewModel : ModuleViewModelBase
     public void HandleEnvironmentReadinessApplied()
     {
         Owner.RaiseAudioProcessingEnvironmentPropertyChanges();
+        NotifySummaryCards();
     }
 
     public void ApplyLanguageState()

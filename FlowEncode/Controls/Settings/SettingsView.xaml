@@ -215,6 +215,7 @@
                                                                     </StackPanel>
 
                                                                     <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="{StaticResource AppSpacingS}" HorizontalAlignment="Right" VerticalAlignment="Top">
+                                                                        <Button Style="{StaticResource StandardButtonStyle}" Content="{Binding DataContext.Texts.DeewComponentsDownloadButton, ElementName=RootView}" Visibility="{Binding DeewComponentsDownloadVisibility}" IsEnabled="{Binding DeewComponentsDownloadEnabled}" ToolTipService.ToolTip="{Binding DataContext.Texts.DeewComponentsDownloadHint, ElementName=RootView}" Click="DownloadDeewComponentsButton_Click" />
                                                                         <Button Style="{StaticResource StandardButtonStyle}" Content="{Binding MoreActionText}" AutomationProperties.Name="{Binding MoreActionText}" Visibility="{Binding MoreActionsVisibility}" IsEnabled="{Binding AdvancedUpdateEnabled}" Click="MoreDependencyActionsButton_Click" />
                                                                         <Border Background="Transparent" Visibility="{Binding SettingsPrimaryActionVisibility}">
                                                                             <ToolTipService.ToolTip>

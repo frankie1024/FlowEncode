@@ -122,7 +122,7 @@ public sealed class Deew5ContractTests
         foreach (var format in new[] { "ddp", "aac", "thd", "ac4" })
         {
             var p = DeewArguments.Resolve(new(Format: format, MeasureOnly: true, DownmixChannels: 2, Dialnorm: -27), 7);
-            CollectionAssert.AreEqual(new[] { "dee_ddp_encoder" }, p.RequiredTools.ToArray());
+            CollectionAssert.AreEqual(new[] { "dee_measure_loudness", "dee_shim" }, p.RequiredTools.ToArray());
             Assert.IsNull(p.Extension); Assert.IsNull(p.Options.Dialnorm);
             var six = DeewArguments.Resolve(new(Format: format, MeasureOnly: true), 5);
             CollectionAssert.AreEqual(new[] { "dee_measure_loudness" }, six.RequiredTools.ToArray());
@@ -141,8 +141,16 @@ public sealed class Deew5ContractTests
         Assert.ThrowsExactly<InvalidOperationException>(() => DeewArguments.Resolve(new(Format: format, AdditionalArguments: arguments), 8));
 
     [TestMethod]
-    [DataRow("5.5.2", false)][DataRow("5.5.3", true)][DataRow("5.6.0", true)][DataRow("5.4.0", false)][DataRow("5.3.1", false)][DataRow("5.2.0", false)][DataRow("5.1.1", false)][DataRow("5.0.3", false)][DataRow("4.0.0", false)][DataRow("not found", false)]
+    [DataRow("5.5.3", false)][DataRow("5.6.1", false)][DataRow("5.7.0", true)][DataRow("5.8.0", true)][DataRow("5.4.0", false)][DataRow("5.3.1", false)][DataRow("5.2.0", false)][DataRow("5.1.1", false)][DataRow("5.0.3", false)][DataRow("4.0.0", false)][DataRow("not found", false)]
     public void VersionGate_RejectsLegacyAndUnreadableVersions(string version, bool expected) => Assert.AreEqual(expected, DeewToolchain.IsSupportedVersion(version));
+
+    [TestMethod]
+    [DataRow("deew     5.7.0    C:\\tools\\deew.exe\r\nDEE      6.7.0", "5.7.0")]
+    [DataRow("5.7.0", "5.7.0")]
+    [DataRow("deew 5.7.1-beta.1\nffmpeg 9.0.2", "5.7.1-beta.1")]
+    [DataRow("harletty 0.9.0\nDEE 6.7.0", "")]
+    public void ReportedVersion_UsesDeewVersionWithoutItsPath(string output, string expected) =>
+        Assert.AreEqual(expected, DeewToolchain.ReadReportedVersion(output));
 
     [TestMethod]
     [DataRow("\n")][DataRow("\r\n")]
@@ -220,7 +228,7 @@ public sealed class Deew5ContractTests
             var file = Path.Combine(root, "events.jsonl");
             var logs = new List<string>(); var updates = new List<double?>();
             var reader = new DeewEventsReader(DeewArguments.Resolve(new(Dialnorm: -27), 2), logs.Add, (p, s, db, source) => updates.Add(p));
-            var bytes = Encoding.UTF8.GetBytes("{\"type\":\"hello\",\"version\":\"5.5.3\"}\n{\"type\":\"warning\",\"text\":\"中文\"}\n{\"type\":\"progress\",\"job\":0,\"stage\":\"encode\",\"percent\":50,\"db\":-27}\n{\"type\":\"done\",\"job\":0}\n{\"type\":\"error\",\"text\":\"tail failure\"}\n");
+            var bytes = Encoding.UTF8.GetBytes("{\"type\":\"hello\",\"version\":\"" + DeewArguments.MinimumVersion + "\"}\n{\"type\":\"warning\",\"text\":\"中文\"}\n{\"type\":\"progress\",\"job\":0,\"stage\":\"encode\",\"percent\":50,\"db\":-27}\n{\"type\":\"done\",\"job\":0}\n{\"type\":\"error\",\"text\":\"tail failure\"}\n");
             await using (var stream = new FileStream(file, FileMode.Create, FileAccess.Write, FileShare.ReadWrite))
                 foreach (var b in bytes)
                 {

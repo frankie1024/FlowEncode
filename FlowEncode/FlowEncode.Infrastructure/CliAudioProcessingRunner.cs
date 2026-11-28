@@ -104,30 +104,6 @@ public sealed partial class CliAudioProcessingRunner : IAudioProcessingRunner
             cancellationToken);
     }
 
-    internal static ProcessStartInfo CreateDdpDtsPreparationStartInfo(string ffmpegPath, string sourcePath, string inputPath)
-    {
-        var startInfo = new ProcessStartInfo
-        {
-            FileName = ffmpegPath,
-            UseShellExecute = false,
-            RedirectStandardOutput = true,
-            RedirectStandardError = true,
-            CreateNoWindow = true
-        };
-        // Request the coded bed from the DTS decoder. An output -ac 8 would instead
-        // apply a generic downmix to the decoded 7.1.4 presentation.
-        foreach (var argument in new[]
-        {
-            "-hide_banner", "-nostdin", "-y", "-downmix", "7.1", "-i", sourcePath,
-            "-map", "0:a:0", "-c:a", "flac", "-sample_fmt", "s32", "-compression_level", "0", inputPath
-        })
-        {
-            startInfo.ArgumentList.Add(argument);
-        }
-
-        return startInfo;
-    }
-
     private async Task<AudioProcessingResult> RunOpusAsync(
         AudioProcessingRequest request,
         IProgress<AudioProcessingProgress>? progress,

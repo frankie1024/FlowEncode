@@ -92,17 +92,16 @@ public sealed class AudioSourceInfoTests
     }
 
     [TestMethod]
-    [DataRow("dts", "DTS-HD MA + DTS:X", 12, true)]
-    [DataRow("dts", "DTS-HD MA + DTS:X", 8, false)]
-    [DataRow("DTS", "DTS-HD MA", 12, true)]
-    [DataRow("dts", "DTS-HD MA", 8, false)]
-    [DataRow("dts", "DTS", 6, false)]
-    [DataRow("flac", "", 12, false)]
-    [DataRow("truehd", "Atmos", 12, false)]
-    public void RequiresDdpDtsCompatibilityInput_RecognizesDtsXWithoutChangingOtherFormats(
-        string codec, string profile, int channels, bool expected)
+    [DataRow("dts", "DTS-HD MA + DTS:X", 12, "7.1.4", 8)]
+    [DataRow("dts", "DTS-HD MA + DTS:X", 8, "5.1.2", 6)]
+    [DataRow("DTS", "DTS-HD MA", 12, "", 8)]
+    [DataRow("dts", "DTS-HD MA", 8, "7.1", 8)]
+    [DataRow("dts", "DTS", 6, "5.1", 6)]
+    [DataRow("flac", "", 12, "7.1.4", 12)]
+    [DataRow("truehd", "Atmos", 12, "7.1.4", 12)]
+    public void DeewChannelCount_MatchesUpstreamDtsBed(string codec, string profile, int channels, string layout, int expected)
     {
-        Assert.AreEqual(expected, CreateInfo(codec, profile, channels).RequiresDdpDtsCompatibilityInput());
+        Assert.AreEqual(expected, (CreateInfo(codec, profile, channels) with { ChannelLayout = layout }).DeewChannelCount);
     }
 
     private static AudioSourceInfo CreateInfo(string codecName, string profileName = "", int channels = 2, int? bitDepth = 24)

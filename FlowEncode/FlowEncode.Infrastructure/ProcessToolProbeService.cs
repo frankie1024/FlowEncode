@@ -1433,6 +1433,7 @@ public sealed class ProcessToolProbeService : IToolProbeService
         {
             RegisteredToolKind.Vspipe => TryExtractVapourSynthCoreVersion(processOutput),
             RegisteredToolKind.OpusExt => TryExtractOpusEncoderVersion(processOutput),
+            RegisteredToolKind.Deew => DeewToolchain.ReadReportedVersion(processOutput),
             _ => string.Empty
         };
     }

@@ -259,7 +259,7 @@ public sealed class Deew55ContractTests
         var fractions = new List<double?>();
         var reader = new DeewEventsReader(DeewArguments.Resolve(new(Format: "ddp"), 6), _ => { },
             (fraction, _, _, _) => fractions.Add(fraction), piped: true);
-        reader.Accept("""{"type":"hello","version":"5.5.3"}""");
+        reader.Accept($$"""{"type":"hello","version":"{{DeewArguments.MinimumVersion}}"}""");
         // Unknown duration starts with pulse (null percent), then piped measure (0..40%), then piped encode (40..99.9%).
         reader.Accept("""{"type":"progress","job":0,"stage":"measure","percent":null,"db":null}""");
         reader.Accept("""{"type":"progress","job":0,"stage":"measure","percent":0,"db":null}""");

@@ -153,6 +153,70 @@ public sealed class Deew55ExecutionTests
         Assert.AreEqual("music", imsTokens[imsTokens.IndexOf("--ac4-ims-mode") + 1]);
     }
 
+    [TestMethod]
+    [DataRow("ddp-atmos", "dee_ddpjoc_encoder", ".ec3", false)]
+    [DataRow("thd-atmos", "dee_dthd_encoder", ".thd", false)]
+    [DataRow("ac4-atmos", "dee_ac4ajoc_encoder", ".ac4", true)]
+    [DataRow("ac4-ims", "dee_ac4ims_encoder", ".ac4", true)]
+    public async Task SpatialSources_KeepOriginalTrackAndUseHarletty(string format, string encoder, string extension, bool auro)
+    {
+        using var fixture = new Deew5ExecutionTests.Fixture([encoder, "harletty", "dee_shim"]);
+        var request = fixture.Request(new(Format: format, TrackIndex: 1, OutputTemplate: "{stem}.{track}",
+            WarpMode: "loro", BedConform: false), scenario: "spatial");
+        var source = Path.ChangeExtension(request.SourcePath, ".mkv");
+        await File.WriteAllTextAsync(source, JsonSerializer.Serialize(auro
+            ? new { scenario = "spatial", codec = "flac", profile = "", layout = "7.1", auro = (string?)"13.1" }
+            : new { scenario = "spatial", codec = "dts", profile = "DTS-HD MA + DTS:X", layout = "5.1.2", auro = (string?)null }));
+        request = request with { SourcePath = source };
+
+        var plan = await new DeewPlanningService(fixture.Probes).InspectAsync(source, request.Deew!);
+        Assert.AreEqual(auro ? "13.1" : null, plan.Source.Auro3DLayout);
+        Assert.AreEqual(auro ? 8 : 6, plan.Source.DeewChannelCount);
+        CollectionAssert.Contains(plan.Profile.RequiredTools.ToArray(), "harletty");
+        CollectionAssert.DoesNotContain(plan.Profile.RequiredTools.ToArray(), "truehdd");
+        Assert.AreEqual("loro", plan.Profile.Options.WarpMode);
+        Assert.IsNull(plan.Profile.Options.BedConform);
+        Assert.IsTrue(plan.Diagnostics.Any(message => message.Contains("Bed conform is always enabled")));
+
+        var updates = new ConcurrentQueue<AudioProcessingProgress>();
+        var result = await fixture.Runner.RunAsync(request, new InlineProgress(updates.Enqueue));
+        Assert.AreEqual(EncodingJobState.Completed, result.State, result.Log);
+        StringAssert.EndsWith(result.OutputFiles!.Single(), ".1" + extension);
+        Assert.IsTrue(updates.Any(update => update.PhaseLabel == "harletty decode"));
+        var command = CommandArgumentTokenizer.Tokenize(result.DisplayCommand).ToList();
+        Assert.AreEqual("loro", command[command.IndexOf("-wm") + 1]);
+        CollectionAssert.DoesNotContain(command, "-bc");
+    }
+
+    [TestMethod]
+    public async Task UnsupportedAtmosSource_ReturnsFailedJobWithDiagnostics()
+    {
+        using var fixture = new Deew5ExecutionTests.Fixture(["dee_ddpjoc_encoder", "dee_shim"]);
+        var request = fixture.Request(new(Format: "ddp-atmos"), channels: 6);
+
+        var result = await fixture.Runner.RunAsync(request);
+
+        Assert.AreEqual(EncodingJobState.Failed, result.State);
+        StringAssert.Contains(result.Summary, "Atmos output requires");
+        Assert.AreEqual(0, result.OutputFiles!.Count);
+        Assert.AreEqual(Deew5ContractTests.Config, await File.ReadAllTextAsync(fixture.ConfigPath));
+    }
+
+    [TestMethod]
+    [DataRow(false)]
+    [DataRow(true)]
+    public async Task AuroCarrier_IsIdentifiedWhenUsingChannelBasedProcessing(bool measureOnly)
+    {
+        using var fixture = new Deew5ExecutionTests.Fixture(["dee_ddp_encoder", "dee_measure_loudness", "harletty", "dee_shim"]);
+        var request = fixture.Request(new(TrackIndex: 1, MeasureOnly: measureOnly), channels: 8);
+        await File.WriteAllTextAsync(request.SourcePath, JsonSerializer.Serialize(new { codec = "flac", channels = 8, auro = "13.1" }));
+
+        var plan = await new DeewPlanningService(fixture.Probes).InspectAsync(request.SourcePath, request.Deew!);
+
+        Assert.AreEqual("13.1", plan.Source.Auro3DLayout);
+        Assert.IsFalse(plan.Profile.HasSpatialDecode);
+    }
+
     private sealed class InlineProgress(Action<AudioProcessingProgress> report) : IProgress<AudioProcessingProgress>
     { public void Report(AudioProcessingProgress value) => report(value); }
 }

@@ -14,7 +14,7 @@ internal sealed class DeewEventsReader
     private readonly Action<string> _diagnostic;
     private readonly Action<double?, string, double?, DeewDbSource> _progress;
     private readonly DeewStageTimeEstimate _timeEstimate;
-    private readonly Dictionary<string, (double Start, double End)> _stageRanges;
+    private Dictionary<string, (double Start, double End)> _stageRanges;
     public bool HasHello { get; private set; }
     public string? Error { get; private set; }
     public double? Db { get; private set; }
@@ -30,9 +30,9 @@ internal sealed class DeewEventsReader
         _stageRanges = BuildStageRanges(profile, piped);
     }
 
-    private static Dictionary<string, (double Start, double End)> BuildStageRanges(DeewEffectiveOutputProfile profile, bool piped)
+    private static Dictionary<string, (double Start, double End)> BuildStageRanges(DeewEffectiveOutputProfile profile, bool piped, bool hasDecode = false)
     {
-        var hasDecode = profile.RequiredTools.Contains("truehdd");
+        hasDecode |= profile.HasSpatialDecode;
         var effectivePiped = piped && !hasDecode && (profile.Options.MeasureOnly || profile.Options.Format is "dd" or "ddp" or "ac4" or "aac");
         var hasFfmpeg = !hasDecode && !effectivePiped;
         var stages = new List<(string Name, double Weight)>();
@@ -120,6 +120,10 @@ internal sealed class DeewEventsReader
             {
                 if (e.TryGetProperty("job", out var job) && job.GetInt32() != 0) return;
                 var stage = e.TryGetProperty("stage", out var s) ? s.GetString() ?? "" : "";
+                var harlettyDecode = stage == "decode" && e.TryGetProperty("decoder", out var decoder)
+                    && decoder.ValueKind == JsonValueKind.String && decoder.GetString() == "harletty";
+                if (harlettyDecode && !_stageRanges.ContainsKey(stage))
+                    _stageRanges = BuildStageRanges(_profile, piped: false, hasDecode: true);
                 double? percent = e.TryGetProperty("percent", out var p) && p.ValueKind == JsonValueKind.Number && p.TryGetDouble(out var n) && double.IsFinite(n) ? Math.Clamp(n, 0, 100) : null;
                 double? eventDb = e.TryGetProperty("db", out var db) && db.ValueKind == JsonValueKind.Number && db.TryGetDouble(out var value)
                     && double.IsFinite(value) && (_profile.Options.MeasureOnly || value is >= -31 and <= 0) ? value : null;
@@ -151,7 +155,7 @@ internal sealed class DeewEventsReader
                     Fraction = Math.Min(.999, Math.Max(Fraction, range.Item1 + (range.Item2 - range.Item1) * percent.Value / 100));
                     fraction = Fraction;
                 }
-                _progress(fraction, stage, eventDb, origin);
+                _progress(fraction, harlettyDecode ? "harletty decode" : stage, eventDb, origin);
             }
             // done deliberately has no effect: upstream also emits it on failure and stop.
         }

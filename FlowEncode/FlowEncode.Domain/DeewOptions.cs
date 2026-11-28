@@ -21,12 +21,17 @@ public enum DeewTempMode { OutputVolume, Custom, DeewSettings }
 public sealed record DeewEffectiveOutputProfile(
     DeewOptions Options, int SourceSlots, int OutputSlots, bool HasLfe,
     string Mode, string Drc, string? Extension, IReadOnlyList<string> RequiredTools,
-    DeewDbSource DbSource, int? EffectiveBitrateKbps = null);
+    DeewDbSource DbSource, int? EffectiveBitrateKbps = null)
+{
+    public bool HasSpatialDecode => RequiredTools.Contains("truehdd") || RequiredTools.Contains("harletty");
+    public bool HasEncodingMode => !Options.MeasureOnly
+        && (Options.Format is "ddp-atmos" or "ac4-ims" || Options.Format == "ddp" && OutputSlots == 8);
+}
 
 public static class DeewArguments
 {
-    public const string MinimumVersion = "5.5.3";
-    public const string RecommendedVersion = "5.5.3";
+    public const string MinimumVersion = "5.7.0";
+    public const string RecommendedVersion = MinimumVersion;
     public static readonly string[] Formats = ["dd", "ddp", "ddp-atmos", "thd", "thd-atmos", "ac4", "ac4-atmos", "ac4-ims", "aac"];
     public static readonly string[] WarpModes = ["normal", "warping", "prologiciix", "loro"];
     public static readonly string[] PipeModes = ["auto", "always", "never"];
@@ -34,7 +39,21 @@ public static class DeewArguments
     public static bool HasPhaseShift(string format) => format is "dd" or "ddp" or "ddp-atmos";
     public static bool HasLowPassFilter(string format) => format is "dd" or "ddp";
     public static bool HasSurround3dbAttenuation(string format) => format is "dd" or "ddp" or "thd";
+    public static bool IsAtmosFormat(string format) => format is "ddp-atmos" or "thd-atmos" or "ac4-atmos";
     public static bool HasTrueHddOptions(string format) => format is "ddp-atmos" or "thd-atmos" or "ac4-atmos" or "ac4-ims";
+
+    private static bool UsesHarletty(DeewOptions options, AudioSourceInfo source) =>
+        !options.MeasureOnly && HasTrueHddOptions(options.Format)
+        && (source.IsDtsX || source.Auro3DLayout is not null || (source.IsDts && IsAtmosFormat(options.Format)));
+
+    public static DeewOptions ApplySourceBedConform(DeewOptions options, AudioSourceInfo source, ICollection<string>? warnings = null)
+    {
+        if (options.BedConform is null || !UsesHarletty(options, source))
+            return options;
+        if (options.BedConform == false)
+            warnings?.Add("Bed conform is always enabled when deew decodes DTS:X or Auro-3D with harletty.");
+        return options with { BedConform = null };
+    }
 
     private static readonly (string Short, string Long, bool Flag, string Canonical)[] Allowed =
     [
@@ -185,17 +204,31 @@ public static class DeewArguments
 
     public static DeewEffectiveOutputProfile Resolve(DeewOptions? input, AudioSourceInfo source,
         string defaultDdpMode = "standard", string defaultAtmosMode = "streaming", ICollection<string>? warnings = null,
-        string defaultAc4ImsMode = "general") =>
-        Resolve(input, source.RequiresDdpDtsCompatibilityInput() ? 8 : source.Channels, defaultDdpMode, defaultAtmosMode,
-            warnings, source.SampleRate, source.IsTrueHdAtmos, defaultAc4ImsMode);
+        string defaultAc4ImsMode = "general")
+    {
+        var options = Normalize(input, warnings);
+        if (!options.MeasureOnly && IsAtmosFormat(options.Format)
+            && !source.IsTrueHdAtmos && !source.IsDts && source.Auro3DLayout is null)
+            throw new InvalidOperationException("Atmos output requires TrueHD Atmos, DTS:X or Auro-3D input. DTS:X and Auro-3D require harletty 0.9.0 or newer.");
+
+        options = ApplySourceBedConform(options, source, warnings);
+        return ResolveCore(options, source.DeewChannelCount, defaultDdpMode, defaultAtmosMode,
+            warnings, source.SampleRate, source.IsTrueHdAtmos, defaultAc4ImsMode, UsesHarletty(options, source));
+    }
 
     public static DeewEffectiveOutputProfile Resolve(DeewOptions? input, int sourceChannels,
         string defaultDdpMode = "standard", string defaultAtmosMode = "streaming", ICollection<string>? warnings = null,
-        int? sourceSampleRate = null, bool sourceIsTrueHdAtmos = false, string defaultAc4ImsMode = "general")
+        int? sourceSampleRate = null, bool sourceIsTrueHdAtmos = false, string defaultAc4ImsMode = "general") =>
+        ResolveCore(Normalize(input, warnings), sourceChannels, defaultDdpMode, defaultAtmosMode, warnings,
+            sourceSampleRate, sourceIsTrueHdAtmos, defaultAc4ImsMode, usesHarletty: false);
+
+    private static DeewEffectiveOutputProfile ResolveCore(DeewOptions o, int sourceChannels, string defaultDdpMode,
+        string defaultAtmosMode, ICollection<string>? warnings, int? sourceSampleRate, bool sourceIsTrueHdAtmos,
+        string defaultAc4ImsMode, bool usesHarletty)
     {
-        var o = Normalize(input, warnings);
-        var atmos = o.Format.EndsWith("-atmos", StringComparison.Ordinal);
+        var atmos = IsAtmosFormat(o.Format);
         var ac4Ims = o.Format == "ac4-ims";
+        var imsAtmos = ac4Ims && (sourceIsTrueHdAtmos || usesHarletty);
         var slots = sourceChannels switch { 5 => 6, 7 => 8, _ => sourceChannels };
         if (o.MeasureOnly)
         {
@@ -203,12 +236,12 @@ public static class DeewArguments
                 throw new InvalidOperationException("deew requires a supported source layout (1, 2, 5, 6, 7 or 8 channels).");
             return new(o, slots, 0, false, "", "", null,
                 sourceIsTrueHdAtmos ? ["dee_measure_loudness", "truehdd"]
-                    : [slots == 8 ? "dee_ddp_encoder" : "dee_measure_loudness"], DeewDbSource.Measured);
+                    : slots == 8 ? ["dee_measure_loudness", "dee_shim"] : ["dee_measure_loudness"], DeewDbSource.Measured);
         }
-        if (!atmos && !(ac4Ims && sourceIsTrueHdAtmos) && sourceChannels is not (1 or 2 or 5 or 6 or 7 or 8))
+        if (!atmos && !imsAtmos && sourceChannels is not (1 or 2 or 5 or 6 or 7 or 8))
             throw new InvalidOperationException("deew requires a supported source layout (1, 2, 5, 6, 7 or 8 channels).");
-        if (ac4Ims && !sourceIsTrueHdAtmos && sourceChannels is 1 or 2)
-            throw new InvalidOperationException("AC4 IMS requires a 5.0/5.1/7.0/7.1 or TrueHD Atmos input.");
+        if (ac4Ims && !imsAtmos && sourceChannels is 1 or 2)
+            throw new InvalidOperationException("AC4 IMS requires 5.0, 5.1, 7.0, 7.1, TrueHD Atmos, DTS:X or Auro-3D input.");
         if (ac4Ims && o.DownmixChannels.HasValue) throw new InvalidOperationException("AC4 IMS does not support downmix.");
         if (ac4Ims && o.DisableLfe) throw new InvalidOperationException("AC4 IMS does not support disable LFE.");
         if (atmos && o.DownmixChannels.HasValue) throw new InvalidOperationException("Atmos does not support downmix.");
@@ -220,7 +253,7 @@ public static class DeewArguments
         if (o.Format.StartsWith("thd") && o.BitrateKbps.HasValue) throw new InvalidOperationException("TrueHD does not accept bitrate.");
         if (o.Dialnorm is not null and not 0 && o.Format is "aac" or "ac4-atmos" or "ac4-ims") throw new InvalidOperationException("This format does not support dialnorm.");
         if (o.Format == "ac4" && slots == 8 && o.Dialnorm is not null and not 0) throw new InvalidOperationException("AC4 dialnorm measurement does not support 7.0/7.1 sources.");
-        var output = atmos || (ac4Ims && sourceIsTrueHdAtmos) ? 0
+        var output = atmos || imsAtmos ? 0
             : ac4Ims ? 6
             : o.Format == "aac" ? 2
             : o.DownmixChannels ?? (slots == 8 && o.Format is "dd" or "ac4" ? 6 : slots);
@@ -248,10 +281,11 @@ public static class DeewArguments
         var tools = new List<string> { o.Format switch { "dd" or "ddp" => "dee_ddp_encoder", "ddp-atmos" => "dee_ddpjoc_encoder",
             "thd" or "thd-atmos" => "dee_dthd_encoder", "ac4" => "dee_ac4_encoder", "ac4-atmos" => "dee_ac4ajoc_encoder",
             "ac4-ims" => "dee_ac4ims_encoder", _ => "dee_aac_encoder" } };
-        if (atmos || (ac4Ims && sourceIsTrueHdAtmos)) tools.Add("truehdd");
+        if (atmos || imsAtmos) tools.Add(usesHarletty ? "harletty" : "truehdd");
         // deew maps TrueHD input rates >=72 kHz to 96 kHz. All need --apodise off, regardless of DRC.
         if (o.Format is "ddp-atmos" or "thd-atmos" || o.Format == "thd" && (drc == "none" || sourceSampleRate is >= 72000)
-            || o.Format == "ddp" && output == 8 && (mode == "standard" || !hasLfe)) tools.Add("dee_shim");
+            || o.Format == "ddp" && output == 8 && (mode == "standard" || !hasLfe)
+            || o.Format is "dd" or "ddp" && sourceChannels == 5 && output == 6) tools.Add("dee_shim");
         if (o.Format == "ac4" && o.Dialnorm is not null and not 0) tools.Add("dee_measure_loudness");
         var ext = o.Format switch { "dd" => ".ac3", "ddp" when output == 8 && mode == "bluray" => ".eb3",
             "ddp-atmos" when mode == "bluray" => ".eb3", "ddp" or "ddp-atmos" => ".ec3",

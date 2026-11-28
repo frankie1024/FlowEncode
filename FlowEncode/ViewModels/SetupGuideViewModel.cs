@@ -337,6 +337,28 @@ public sealed class SetupGuideViewModel : ObservableObject, ISetupDependencyModu
             return Texts.Pick("请先安装此依赖所需的前置组件。", "Install the required prerequisites first.");
         }
 
+        return await RunDependencyInstallAsync(item, (progress, cancellationToken) => updateBeyondBaseline
+            ? _setupBootstrapService.UpdateBeyondBaselineAsync(kind, progress, cancellationToken)
+            : _setupBootstrapService.InstallAsync(kind, progress, cancellationToken));
+    }
+
+    internal async Task<string?> DownloadDeewComponentsAsync()
+    {
+        var item = FindSetupGuideDependency(SetupDependencyKind.Deew);
+        if (_isSetupGuideInstallRunning || _installingDependencies.ContainsKey(SetupDependencyKind.Deew))
+            return Texts.InstallAlreadyRunning;
+        if (item is null || !item.DeewComponentsDownloadEnabled)
+            return Texts.DeewComponentsDownloadUnavailable;
+
+        return await RunDependencyInstallAsync(item, (progress, cancellationToken) =>
+            _setupBootstrapService.DownloadDeewComponentsAsync(item.ExecutablePath, progress, cancellationToken),
+            Texts.DeewComponentDownloading);
+    }
+
+    private async Task<string?> RunDependencyInstallAsync(SetupGuideDependencyItemViewModel item,
+        Func<IProgress<SetupInstallProgress>, CancellationToken, Task> install, Func<string, string>? progressText = null)
+    {
+        var kind = item.Kind;
         _installingDependencies.Add(kind, item);
         item.BeginOperation();
         RaiseSetupGuideStatePropertyChanges();
@@ -344,12 +366,11 @@ public sealed class SetupGuideViewModel : ObservableObject, ISetupDependencyModu
 
         try
         {
-            var progress = new Progress<SetupInstallProgress>(item.ReportProgress);
+            var progress = new Progress<SetupInstallProgress>(update => item.ReportProgress(progressText is null
+                ? update : update with { StatusText = progressText(update.StatusText) }));
             await _installCoordinator.RunAsync(
                 kind,
-                cancellationToken => updateBeyondBaseline
-                    ? _setupBootstrapService.UpdateBeyondBaselineAsync(kind, progress, cancellationToken)
-                    : _setupBootstrapService.InstallAsync(kind, progress, cancellationToken),
+                cancellationToken => install(progress, cancellationToken),
                 () => item.ReportProgress(new SetupInstallProgress(kind, 0,
                     Texts.Pick("等待安装空位或前置组件完成...", "Waiting for an install slot or prerequisites..."), true)));
         }
@@ -1306,8 +1327,8 @@ public sealed class SetupGuideViewModel : ObservableObject, ISetupDependencyModu
             SetupDependencyKind.DgDemux => Texts.Pick("蓝光播放列表扫描与解复用默认后端。", "Default backend for Blu-ray playlist scanning and demux."),
             SetupDependencyKind.Eac3To => Texts.Pick("音频扫描与 FLAC 转换。", "Audio scanning and FLAC conversion."),
             SetupDependencyKind.Deew => Texts.Pick(
-                $"请将 deew {DeewArguments.MinimumVersion} 或更新版本放在用户可写的便携目录中。Atmos 需要 truehdd，部分 Atmos 格式和 96 kHz TrueHD 还需要 dee_shim。推荐 truehdd ≥0.6.3、dee_shim ≥0.2.0。",
-                $"Keep deew {DeewArguments.MinimumVersion} or newer in a writable portable directory. Atmos requires truehdd. Some Atmos formats and 96 kHz TrueHD also require dee_shim. Recommended versions are truehdd ≥0.6.3 and dee_shim ≥0.2.0."),
+                $"请将 deew {DeewArguments.MinimumVersion} 或更新版本放在可写目录中。按任务需要使用 truehdd ≥0.6.3、harletty ≥0.9.0 或 dee_shim ≥0.4.0。",
+                $"Keep deew {DeewArguments.MinimumVersion} or newer in a writable directory. Tasks use truehdd ≥0.6.3, harletty ≥0.9.0 or dee_shim ≥0.4.0 as required."),
             SetupDependencyKind.Dee => Texts.Pick(
                 $"请自行准备授权的 DEE ≥{DeewToolchain.MinimumDeeVersion}。保留原文件名和目录结构。FlowEncode 依次查找当前 deew.exe 旁的 dee 子文件夹、deew.exe 所在目录和 PATH。deew -gt 不提供 DEE。每个音频任务只检查所需组件。",
                 $"Provide a licensed copy of DEE ≥{DeewToolchain.MinimumDeeVersion}. Keep the original filenames and directory structure. FlowEncode searches the dee subfolder next to the selected deew.exe, the directory containing deew.exe, then PATH. deew -gt does not provide DEE. Each audio task checks only the components it needs."),

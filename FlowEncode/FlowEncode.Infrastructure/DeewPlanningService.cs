@@ -22,18 +22,14 @@ public sealed class DeewPlanningService(IToolProbeService probes) : IDeewPlannin
         var ffmpeg = await Tool(RegisteredToolKind.Ffmpeg);
         var ffprobe = await Tool(RegisteredToolKind.Ffprobe);
         var info = DeewToolchain.StartInfo(deew, ffmpeg, ffprobe);
-        var actualProbe = DeewToolchain.Resolve(deew, "ffprobe", info.Environment["PATH"] ?? "");
-        var source = await FfprobeAudioSourceInfoService.ProbeAtPathAsync(actualProbe, sourcePath, o.TrackIndex ?? 0, false, cancellationToken)
-            ?? throw new InvalidOperationException("The selected audio track could not be probed.");
+        var source = await DeewToolchain.ProbeSourceAsync(info, sourcePath, o, cancellationToken);
         var config = Path.Combine(Path.GetDirectoryName(deew)!, "config.toml");
         if (File.Exists(config + ".flowencode-backup.json"))
             throw new InvalidOperationException("A deew config recovery backup is pending. Complete recovery before previewing a new plan: " + config);
         var snapshot = File.Exists(config) ? new DeewConfigEditor(await File.ReadAllBytesAsync(config, cancellationToken)) : null;
-        if (o.Format.EndsWith("-atmos", StringComparison.Ordinal) && !o.MeasureOnly) logs.Add("Experimental Atmos output: genuine Atmos media acceptance is pending for 3.0.0.");
+        if (DeewArguments.IsAtmosFormat(o.Format) && !o.MeasureOnly) logs.Add("Atmos output is experimental.");
         var profile = DeewBitrates.Apply(DeewArguments.Resolve(o, source,
             snapshot?.DdpMode ?? "standard", snapshot?.AtmosMode ?? "streaming", logs, snapshot?.Ac4ImsMode ?? "general"), snapshot?.Bitrates);
-        if (!o.MeasureOnly && o.Format.EndsWith("-atmos", StringComparison.Ordinal) && !source.IsTrueHdAtmos)
-            throw new InvalidOperationException("Atmos output requires a selected TrueHD Atmos input track.");
         var outputTemplate = snapshot?.OutputTemplate ?? DeewOutputNaming.DefaultTemplate;
         var expectedOutputFileName = DeewOutputNaming.ResolveFileName(sourcePath, source, profile, outputTemplate);
         if (snapshot is null) logs.Add("Missing config.toml will be initialized once at execution; existing configs are never reset automatically.");

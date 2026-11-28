@@ -71,7 +71,7 @@ public sealed class Deew53ContractTests
                 CollectionAssert.DoesNotContain(command.ToList(), ignored);
         }
         var ordinaryTrueHd = source with { ProfileName = "Dolby TrueHD" };
-        CollectionAssert.AreEqual(new[] { "dee_ddp_encoder" },
+        CollectionAssert.AreEqual(new[] { "dee_measure_loudness", "dee_shim" },
             DeewArguments.Resolve(new(Format: "ddp-atmos", MeasureOnly: true), ordinaryTrueHd).RequiredTools.ToArray());
         var joc = source with { CodecName = "eac3", ProfileName = "Dolby Digital Plus + Dolby Atmos", Channels = 6 };
         CollectionAssert.AreEqual(new[] { "dee_measure_loudness" }, DeewArguments.Resolve(new(MeasureOnly: true), joc).RequiredTools.ToArray());
@@ -108,7 +108,7 @@ public sealed class Deew53ContractTests
     public void RichLoudnessEvents_PreserveUnitsAndPartialUpdatesAndIgnoreMalformedExtras()
     {
         var reader = new DeewEventsReader(DeewArguments.Resolve(new(MeasureOnly: true), 6), _ => { }, (_, _, _, _) => { });
-        reader.Accept("""{"type":"hello","version":"5.5.3"}""");
+        reader.Accept($$"""{"type":"hello","version":"{{DeewArguments.MinimumVersion}}"}""");
         reader.Accept("""{"type":"progress","job":0,"stage":"measure","percent":80,"db":-24,"gating":"dialogue","speech":16,"program":-18.9,"lra":13.1,"true_peak":-4.9}""");
         Assert.AreEqual(-24, reader.Db);
         Assert.AreEqual(new DeewLoudnessMetrics("dialogue", 16, -18.9, 13.1, -4.9), reader.LoudnessMetrics);

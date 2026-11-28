@@ -21,6 +21,7 @@ public sealed class SetupGuideDependencyItemViewModel : CommunityToolkit.Mvvm.Co
                 OnPropertyChanged(nameof(ProgressVisibility));
                 OnPropertyChanged(nameof(PrimaryActionEnabled));
                 OnPropertyChanged(nameof(AdvancedUpdateEnabled));
+                OnPropertyChanged(nameof(DeewComponentsDownloadEnabled));
                 OnPropertyChanged(nameof(UninstallActionEnabled));
                 OnPropertyChanged(nameof(ManualSelectEnabled));
                 OnPropertyChanged(nameof(ClearManualPinEnabled));
@@ -122,6 +123,11 @@ public sealed class SetupGuideDependencyItemViewModel : CommunityToolkit.Mvvm.Co
     public string AdvancedUpdateText { get; }
     public Visibility AdvancedUpdateVisibility => ToolchainBaseline.HasBaseline(Kind) ? Visibility.Visible : Visibility.Collapsed;
     public bool AdvancedUpdateEnabled => !IsBusy;
+
+    public Visibility DeewComponentsDownloadVisibility => Kind == SetupDependencyKind.Deew ? Visibility.Visible : Visibility.Collapsed;
+
+    public bool DeewComponentsDownloadEnabled => Kind == SetupDependencyKind.Deew && !IsBusy
+        && State == ReadinessState.Ready && !string.IsNullOrWhiteSpace(ExecutablePath);
 
 
     public string Title { get; }
